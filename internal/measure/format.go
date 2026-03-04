@@ -5,6 +5,9 @@ import (
 	"strings"
 )
 
+// labelWidth is the fixed column width for status labels in formatted output.
+const labelWidth = 16
+
 // AdvisoryMessage is printed when no .tailor/config.yml is found.
 const AdvisoryMessage = "No .tailor/config.yml found. Run `tailor fit <path>` to initialise, or create `.tailor/config.yml` manually to enable configuration alignment checks."
 
@@ -15,7 +18,7 @@ func FormatOutput(health []HealthResult, diff []DiffResult, hasConfig bool) stri
 	var b strings.Builder
 
 	for _, r := range health {
-		fmt.Fprintf(&b, "%-16s%s\n", string(r.Status)+":", r.Destination)
+		fmt.Fprintf(&b, "%-*s%s\n", labelWidth, string(r.Status)+":", r.Destination)
 	}
 
 	for _, r := range diff {
@@ -23,7 +26,7 @@ func FormatOutput(health []HealthResult, diff []DiffResult, hasConfig bool) stri
 		if r.Annotation != "" {
 			line += " " + r.Annotation
 		}
-		fmt.Fprintf(&b, "%-16s%s\n", string(r.Category)+":", line)
+		fmt.Fprintf(&b, "%-*s%s\n", labelWidth, string(r.Category)+":", line)
 	}
 
 	if !hasConfig {

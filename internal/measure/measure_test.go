@@ -3,6 +3,7 @@ package measure
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/config"
@@ -24,15 +25,15 @@ func writeConfig(t *testing.T, dir, content string) {
 // buildDefaultConfigYAML builds a config YAML string containing all 16 default
 // swatches at their default alteration modes.
 func buildDefaultConfigYAML() string {
-	var yaml string
-	yaml += "license: MIT\n"
-	yaml += "swatches:\n"
+	var b strings.Builder
+	b.WriteString("license: MIT\n")
+	b.WriteString("swatches:\n")
 	for _, s := range swatch.All() {
-		yaml += "  - source: " + s.Source + "\n"
-		yaml += "    destination: " + s.Destination + "\n"
-		yaml += "    alteration: " + string(s.DefaultAlteration) + "\n"
+		b.WriteString("  - source: " + s.Source + "\n")
+		b.WriteString("    destination: " + s.Destination + "\n")
+		b.WriteString("    alteration: " + string(s.DefaultAlteration) + "\n")
 	}
-	return yaml
+	return b.String()
 }
 
 // TestIntegrationEmptyDirNoConfig exercises the full measure pipeline against
@@ -305,7 +306,7 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 	// Verify 16-char label padding explicitly by checking that column 16
 	// (0-indexed) of every non-empty, non-advisory line is the first
 	// character of the destination path.
-	lines := splitNonEmpty(got)
+	lines := strings.FieldsFunc(got, func(r rune) bool { return r == '\n' })
 	for _, line := range lines {
 		if len(line) < 17 {
 			t.Errorf("line too short for padding check: %q", line)
@@ -320,20 +321,3 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 	}
 }
 
-// splitNonEmpty splits s on newlines and returns non-empty lines.
-func splitNonEmpty(s string) []string {
-	var out []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == '\n' {
-			if i > start {
-				out = append(out, s[start:i])
-			}
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		out = append(out, s[start:])
-	}
-	return out
-}

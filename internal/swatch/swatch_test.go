@@ -27,3 +27,10 @@ func TestContentAvailableForAllRegisteredSwatches(t *testing.T) {
 		})
 	}
 }
+
+func TestContentReturnsErrorForUnknownSource(t *testing.T) {
+	_, err := swatch.Content("nonexistent.txt")
+	if err == nil {
+		t.Fatal("Content(\"nonexistent.txt\") expected error, got nil")
+	}
+}

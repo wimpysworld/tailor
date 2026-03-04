@@ -93,8 +93,7 @@ swatches:
     alteration: first-fit
 `
 
-func boolPtr(v bool) *bool     { return &v }
-func strPtr(v string) *string  { return &v }
+func boolPtr(v bool) *bool { return &v }
 
 func TestUnmarshalSpecYAML(t *testing.T) {
 	var cfg Config
