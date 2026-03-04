@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/api"
-	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
@@ -38,13 +37,6 @@ func newTestClient(t *testing.T, server *httptest.Server) *api.RESTClient {
 	return client
 }
 
-func derefOr(p *string, fallback string) string {
-	if p == nil {
-		return fallback
-	}
-	return *p
-}
-
 const fullRepoJSON = `{
 	"description": "A tailor for your repos",
 	"homepage": "https://tailor.dev",
@@ -73,8 +65,10 @@ func TestReadRepoSettings(t *testing.T) {
 		repoJSON string
 		pvrJSON  string
 		// expected field checks
-		wantDesc    *string
-		wantHome    *string
+		wantDesc    string
+		wantDescNil bool
+		wantHome    string
+		wantHomeNil bool
 		wantWiki    bool
 		wantDisc    bool
 		wantProj    bool
@@ -96,8 +90,8 @@ func TestReadRepoSettings(t *testing.T) {
 			name:        "all fields populated",
 			repoJSON:    fullRepoJSON,
 			pvrJSON:     pvrEnabledJSON,
-			wantDesc:    ptr.String("A tailor for your repos"),
-			wantHome:    ptr.String("https://tailor.dev"),
+			wantDesc: "A tailor for your repos",
+			wantHome: "https://tailor.dev",
 			wantWiki:    false,
 			wantDisc:    true,
 			wantProj:    false,
@@ -137,8 +131,8 @@ func TestReadRepoSettings(t *testing.T) {
 				"web_commit_signoff_required": true
 			}`,
 			pvrJSON:     `{"enabled": false}`,
-			wantDesc:    ptr.String(""),
-			wantHome:    ptr.String(""),
+			wantDesc: "",
+			wantHome: "",
 			wantWiki:    true,
 			wantDisc:    false,
 			wantProj:    true,
@@ -179,8 +173,8 @@ func TestReadRepoSettings(t *testing.T) {
 			}
 
 			// description and homepage
-			testutil.AssertStringPtr(t, settings.Description, tt.wantDesc == nil, derefOr(tt.wantDesc, ""), "description")
-			testutil.AssertStringPtr(t, settings.Homepage, tt.wantHome == nil, derefOr(tt.wantHome, ""), "homepage")
+			testutil.AssertStringPtr(t, settings.Description, tt.wantDescNil, tt.wantDesc, "description")
+			testutil.AssertStringPtr(t, settings.Homepage, tt.wantHomeNil, tt.wantHome, "homepage")
 
 			// bool fields
 			testutil.AssertBoolPtr(t, settings.HasWiki, false, tt.wantWiki, "has_wiki")

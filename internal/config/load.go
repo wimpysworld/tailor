@@ -27,9 +27,15 @@ func Load(dir string) (*Config, error) {
 		return nil, fmt.Errorf("reading config: %w", err)
 	}
 
+	return parseAndValidate(data, "config")
+}
+
+// parseAndValidate unmarshals YAML data into a Config and validates it.
+// The context string is used in error messages to identify the source.
+func parseAndValidate(data []byte, context string) (*Config, error) {
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
+		return nil, fmt.Errorf("parsing %s: %w", context, err)
 	}
 
 	if err := validate(&cfg); err != nil {

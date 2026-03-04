@@ -23,8 +23,8 @@ func FormatOutput(health []HealthResult, diff []DiffResult, hasConfig bool) stri
 
 	for _, r := range diff {
 		line := r.Destination
-		if r.Annotation != "" {
-			line += " " + r.Annotation
+		if r.Detail != "" {
+			line += " " + r.Detail
 		}
 		fmt.Fprintf(&b, "%-*s%s\n", labelWidth, r.Category.Label(), line)
 	}

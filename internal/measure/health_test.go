@@ -4,18 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-)
 
-func createFile(t *testing.T, dir, name string) {
-	t.Helper()
-	path := filepath.Join(dir, name)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-}
+	"github.com/wimpysworld/tailor/internal/testutil"
+)
 
 func TestCheckHealthEmptyDir(t *testing.T) {
 	dir := t.TempDir()
@@ -50,7 +41,7 @@ func TestCheckHealthAllPresent(t *testing.T) {
 		".github/pull_request_template.md",
 	}
 	for _, f := range files {
-		createFile(t, dir, f)
+		testutil.CreateFile(t, dir, f)
 	}
 
 	results := CheckHealth(dir)
@@ -70,9 +61,9 @@ func TestCheckHealthMixedPresence(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create a subset: LICENSE, CODE_OF_CONDUCT.md, SECURITY.md
-	createFile(t, dir, "LICENSE")
-	createFile(t, dir, "CODE_OF_CONDUCT.md")
-	createFile(t, dir, "SECURITY.md")
+	testutil.CreateFile(t, dir, "LICENSE")
+	testutil.CreateFile(t, dir, "CODE_OF_CONDUCT.md")
+	testutil.CreateFile(t, dir, "SECURITY.md")
 
 	results := CheckHealth(dir)
 
@@ -105,7 +96,7 @@ func TestCheckHealthSortOrder(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create just LICENSE so we get a mix.
-	createFile(t, dir, "LICENSE")
+	testutil.CreateFile(t, dir, "LICENSE")
 
 	results := CheckHealth(dir)
 

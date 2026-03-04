@@ -49,7 +49,7 @@ func TestFormatOutputWithConfig(t *testing.T) {
 	diff := []DiffResult{
 		{Destination: ".github/dependabot.yml", Category: NotConfigured},
 		{Destination: "some-custom-swatch.yml", Category: ConfigOnly},
-		{Destination: "SECURITY.md", Category: ModeDiffers, Annotation: "(config: first-fit, default: always)"},
+		{Destination: "SECURITY.md", Category: ModeDiffers, Detail: "(config: first-fit, default: always)"},
 	}
 
 	got := FormatOutput(health, diff, true)

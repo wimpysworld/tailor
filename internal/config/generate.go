@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"io/fs"
 
-	"gopkg.in/yaml.v3"
-
 	"github.com/wimpysworld/tailor"
 )
 
@@ -20,17 +18,13 @@ func DefaultConfig(license string) (*Config, error) {
 		return nil, fmt.Errorf("reading embedded config: %w", err)
 	}
 
-	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parsing embedded config: %w", err)
-	}
-
-	if err := validate(&cfg); err != nil {
+	cfg, err := parseAndValidate(data, "embedded config")
+	if err != nil {
 		return nil, err
 	}
 
 	cfg.License = license
-	return &cfg, nil
+	return cfg, nil
 }
 
 // MergeRepoSettings replaces cfg.Repository with the live settings retrieved

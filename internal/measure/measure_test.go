@@ -61,9 +61,9 @@ func TestIntegrationSomeHealthFilesNoConfig(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create three health files matching the spec example (lines 258-270).
-	createFile(t, dir, "CODE_OF_CONDUCT.md")
-	createFile(t, dir, "LICENSE")
-	createFile(t, dir, "SECURITY.md")
+	testutil.CreateFile(t, dir, "CODE_OF_CONDUCT.md")
+	testutil.CreateFile(t, dir, "LICENSE")
+	testutil.CreateFile(t, dir, "SECURITY.md")
 
 	health := CheckHealth(dir)
 	hasConfig := false
@@ -98,8 +98,8 @@ func TestIntegrationConfigMatchesDefaults(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create a few health files so the output is not all-missing.
-	createFile(t, dir, "LICENSE")
-	createFile(t, dir, "SECURITY.md")
+	testutil.CreateFile(t, dir, "LICENSE")
+	testutil.CreateFile(t, dir, "SECURITY.md")
 
 	// Write a config that matches all 16 defaults exactly.
 	testutil.WriteConfig(t, dir, buildDefaultConfigYAML())
@@ -141,8 +141,8 @@ func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create a subset of health files.
-	createFile(t, dir, "LICENSE")
-	createFile(t, dir, "SECURITY.md")
+	testutil.CreateFile(t, dir, "LICENSE")
+	testutil.CreateFile(t, dir, "SECURITY.md")
 
 	// Write a config that:
 	// - omits .github/dependabot.yml (not-configured)
@@ -215,9 +215,9 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create specific health files to get a mix of missing and present.
-	createFile(t, dir, "CONTRIBUTING.md")
-	createFile(t, dir, "LICENSE")
-	createFile(t, dir, "SECURITY.md")
+	testutil.CreateFile(t, dir, "CONTRIBUTING.md")
+	testutil.CreateFile(t, dir, "LICENSE")
+	testutil.CreateFile(t, dir, "SECURITY.md")
 
 	// Config with all three diff categories, multiple entries per category
 	// to verify lexicographic sorting.

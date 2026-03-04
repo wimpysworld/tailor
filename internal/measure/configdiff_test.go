@@ -68,8 +68,8 @@ func TestCheckConfigDiffModeDiffers(t *testing.T) {
 	if r.Category != ModeDiffers {
 		t.Errorf("category = %q, want %q", r.Category, ModeDiffers)
 	}
-	if r.Annotation != "(config: first-fit, default: always)" {
-		t.Errorf("annotation = %q, want %q", r.Annotation, "(config: first-fit, default: always)")
+	if r.Detail != "(config: first-fit, default: always)" {
+		t.Errorf("annotation = %q, want %q", r.Detail, "(config: first-fit, default: always)")
 	}
 }
 
@@ -91,7 +91,7 @@ func TestCheckConfigDiffExactMatch(t *testing.T) {
 	if len(results) != 0 {
 		t.Errorf("exact match produced %d diff results, want 0", len(results))
 		for _, r := range results {
-			t.Logf("  %s: %s %s", r.Category, r.Destination, r.Annotation)
+			t.Logf("  %s: %s %s", r.Category, r.Destination, r.Detail)
 		}
 	}
 }

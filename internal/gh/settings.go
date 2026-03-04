@@ -49,6 +49,8 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 	}
 
 	s := &config.RepositorySettings{
+		Description:                      ptr.String(repo.Description),
+		Homepage:                         ptr.String(repo.Homepage),
 		HasWiki:                          ptr.Bool(repo.HasWiki),
 		HasDiscussions:                   ptr.Bool(repo.HasDiscussions),
 		HasProjects:                      ptr.Bool(repo.HasProjects),
@@ -66,9 +68,6 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 		WebCommitSignoffRequired:         ptr.Bool(repo.WebCommitSignoffRequired),
 		PrivateVulnerabilityReportEnabled: ptr.Bool(pvr.Enabled),
 	}
-
-	s.Description = ptr.String(repo.Description)
-	s.Homepage = ptr.String(repo.Homepage)
 
 	return s, nil
 }

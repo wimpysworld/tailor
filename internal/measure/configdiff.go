@@ -1,19 +1,13 @@
 package measure
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
-
-// diffResults implements sort.Interface, ordering by Destination.
-type diffResults []DiffResult
-
-func (d diffResults) Len() int           { return len(d) }
-func (d diffResults) Less(i, j int) bool { return d[i].Destination < d[j].Destination }
-func (d diffResults) Swap(i, j int)      { d[i], d[j] = d[j], d[i] }
 
 // DiffCategory classifies a config-diff result.
 type DiffCategory string
@@ -31,7 +25,7 @@ func (c DiffCategory) Label() string { return string(c) + ":" }
 type DiffResult struct {
 	Destination string
 	Category    DiffCategory
-	Annotation  string
+	Detail  string
 }
 
 // CheckConfigDiff compares the loaded config's swatch list against the
@@ -75,18 +69,17 @@ func CheckConfigDiff(cfg *config.Config, defaults []swatch.Swatch) []DiffResult 
 			modeDiffers = append(modeDiffers, DiffResult{
 				Destination: s.Destination,
 				Category:    ModeDiffers,
-				Annotation:  fmt.Sprintf("(config: %s, default: %s)", s.Alteration, def.DefaultAlteration),
+				Detail:  fmt.Sprintf("(config: %s, default: %s)", s.Alteration, def.DefaultAlteration),
 			})
 		}
 	}
 
-	sort.Sort(diffResults(notConfigured))
-	sort.Sort(diffResults(configOnly))
-	sort.Sort(diffResults(modeDiffers))
+	sortByDest := func(a, b DiffResult) int {
+		return cmp.Compare(a.Destination, b.Destination)
+	}
+	slices.SortFunc(notConfigured, sortByDest)
+	slices.SortFunc(configOnly, sortByDest)
+	slices.SortFunc(modeDiffers, sortByDest)
 
-	var results []DiffResult
-	results = append(results, notConfigured...)
-	results = append(results, configOnly...)
-	results = append(results, modeDiffers...)
-	return results
+	return slices.Concat(notConfigured, configOnly, modeDiffers)
 }
