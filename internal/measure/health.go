@@ -1,10 +1,10 @@
 package measure
 
 import (
-	"os"
 	"path/filepath"
 	"sort"
 
+	"github.com/wimpysworld/tailor/internal/fsutil"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -42,7 +42,7 @@ func CheckHealth(dir string) []HealthResult {
 	var missing, present []HealthResult
 	for _, dest := range destinations {
 		path := filepath.Join(dir, dest)
-		if fileExists(path) {
+		if fsutil.FileExists(path) {
 			present = append(present, HealthResult{Destination: dest, Status: Present})
 		} else {
 			missing = append(missing, HealthResult{Destination: dest, Status: Missing})
@@ -53,10 +53,4 @@ func CheckHealth(dir string) []HealthResult {
 	sort.Sort(healthResults(present))
 
 	return append(missing, present...)
-}
-
-// fileExists reports whether the given path exists as a file (not a directory).
-func fileExists(path string) bool {
-	info, err := os.Stat(path)
-	return err == nil && !info.IsDir()
 }

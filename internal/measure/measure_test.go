@@ -1,26 +1,13 @@
 package measure
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/swatch"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
-
-// writeConfig writes a .tailor/config.yml file in dir with the given content.
-func writeConfig(t *testing.T, dir, content string) {
-	t.Helper()
-	configDir := filepath.Join(dir, ".tailor")
-	if err := os.MkdirAll(configDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(configDir, "config.yml"), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-}
 
 // buildDefaultConfigYAML builds a config YAML string containing all 16 default
 // swatches at their default alteration modes.
@@ -115,7 +102,7 @@ func TestIntegrationConfigMatchesDefaults(t *testing.T) {
 	createFile(t, dir, "SECURITY.md")
 
 	// Write a config that matches all 16 defaults exactly.
-	writeConfig(t, dir, buildDefaultConfigYAML())
+	testutil.WriteConfig(t, dir, buildDefaultConfigYAML())
 
 	health := CheckHealth(dir)
 
@@ -182,7 +169,7 @@ func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 	configYAML += "    destination: some-custom-swatch.yml\n"
 	configYAML += "    alteration: always\n"
 
-	writeConfig(t, dir, configYAML)
+	testutil.WriteConfig(t, dir, configYAML)
 
 	health := CheckHealth(dir)
 
@@ -258,7 +245,7 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 	configYAML += "    destination: alpha-custom.yml\n"
 	configYAML += "    alteration: first-fit\n"
 
-	writeConfig(t, dir, configYAML)
+	testutil.WriteConfig(t, dir, configYAML)
 
 	health := CheckHealth(dir)
 

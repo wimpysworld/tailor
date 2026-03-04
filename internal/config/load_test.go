@@ -5,22 +5,13 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-)
 
-func writeConfig(t *testing.T, dir, content string) {
-	t.Helper()
-	tailorDir := filepath.Join(dir, ".tailor")
-	if err := os.MkdirAll(tailorDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tailorDir, "config.yml"), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-}
+	"github.com/wimpysworld/tailor/internal/testutil"
+)
 
 func TestLoadValidConfig(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, specYAML)
+	testutil.WriteConfig(t, dir, specYAML)
 
 	cfg, err := Load(dir)
 	if err != nil {
@@ -51,7 +42,7 @@ func TestLoadMissingFile(t *testing.T) {
 
 func TestLoadMalformedYAML(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, "{{invalid yaml content")
+	testutil.WriteConfig(t, dir, "{{invalid yaml content")
 
 	_, err := Load(dir)
 	if err == nil {
@@ -64,7 +55,7 @@ func TestLoadMalformedYAML(t *testing.T) {
 
 func TestLoadInvalidAlterationMode(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: MIT
 swatches:
   - source: justfile
     destination: justfile
@@ -82,7 +73,7 @@ swatches:
 
 func TestLoadEmptySource(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: MIT
 swatches:
   - source: ""
     destination: justfile
@@ -100,7 +91,7 @@ swatches:
 
 func TestLoadEmptyDestination(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: MIT
 swatches:
   - source: justfile
     destination: ""
@@ -118,7 +109,7 @@ swatches:
 
 func TestExistsTrue(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, "license: MIT\nswatches: []\n")
+	testutil.WriteConfig(t, dir, "license: MIT\nswatches: []\n")
 
 	if !Exists(dir) {
 		t.Error("Exists() = false, want true")
@@ -147,7 +138,7 @@ func TestExistsFalseForDirectory(t *testing.T) {
 
 func TestLoadEmptySwatchesList(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: MIT
 swatches: []
 `)
 
@@ -163,7 +154,7 @@ swatches: []
 
 func TestLoadWithoutRepositorySection(t *testing.T) {
 	dir := t.TempDir()
-	writeConfig(t, dir, `license: Apache-2.0
+	testutil.WriteConfig(t, dir, `license: Apache-2.0
 swatches:
   - source: justfile
     destination: justfile
