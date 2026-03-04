@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/wimpysworld/tailor/internal/ptr"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
 // testTransport redirects all requests to the test server, preserving the
@@ -34,6 +36,13 @@ func newTestClient(t *testing.T, server *httptest.Server) *api.RESTClient {
 		t.Fatalf("NewRESTClient: %v", err)
 	}
 	return client
+}
+
+func derefOr(p *string, fallback string) string {
+	if p == nil {
+		return fallback
+	}
+	return *p
 }
 
 const fullRepoJSON = `{
@@ -87,8 +96,8 @@ func TestReadRepoSettings(t *testing.T) {
 			name:        "all fields populated",
 			repoJSON:    fullRepoJSON,
 			pvrJSON:     pvrEnabledJSON,
-			wantDesc:    strPtr("A tailor for your repos"),
-			wantHome:    strPtr("https://tailor.dev"),
+			wantDesc:    ptr.String("A tailor for your repos"),
+			wantHome:    ptr.String("https://tailor.dev"),
 			wantWiki:    false,
 			wantDisc:    true,
 			wantProj:    false,
@@ -107,7 +116,7 @@ func TestReadRepoSettings(t *testing.T) {
 			wantPVR:     true,
 		},
 		{
-			name: "empty description and homepage produce nil",
+			name: "empty description and homepage pass through",
 			repoJSON: `{
 				"description": "",
 				"homepage": "",
@@ -128,8 +137,8 @@ func TestReadRepoSettings(t *testing.T) {
 				"web_commit_signoff_required": true
 			}`,
 			pvrJSON:     `{"enabled": false}`,
-			wantDesc:    nil,
-			wantHome:    nil,
+			wantDesc:    ptr.String(""),
+			wantHome:    ptr.String(""),
 			wantWiki:    true,
 			wantDisc:    false,
 			wantProj:    true,
@@ -170,28 +179,28 @@ func TestReadRepoSettings(t *testing.T) {
 			}
 
 			// description and homepage
-			assertStringPtrEqual(t, "description", settings.Description, tt.wantDesc)
-			assertStringPtrEqual(t, "homepage", settings.Homepage, tt.wantHome)
+			testutil.AssertStringPtr(t, settings.Description, tt.wantDesc == nil, derefOr(tt.wantDesc, ""), "description")
+			testutil.AssertStringPtr(t, settings.Homepage, tt.wantHome == nil, derefOr(tt.wantHome, ""), "homepage")
 
 			// bool fields
-			assertBoolPtrVal(t, "has_wiki", settings.HasWiki, tt.wantWiki)
-			assertBoolPtrVal(t, "has_discussions", settings.HasDiscussions, tt.wantDisc)
-			assertBoolPtrVal(t, "has_projects", settings.HasProjects, tt.wantProj)
-			assertBoolPtrVal(t, "has_issues", settings.HasIssues, tt.wantIssues)
-			assertBoolPtrVal(t, "allow_merge_commit", settings.AllowMergeCommit, tt.wantMerge)
-			assertBoolPtrVal(t, "allow_squash_merge", settings.AllowSquashMerge, tt.wantSquash)
-			assertBoolPtrVal(t, "allow_rebase_merge", settings.AllowRebaseMerge, tt.wantRebase)
-			assertBoolPtrVal(t, "delete_branch_on_merge", settings.DeleteBranchOnMerge, tt.wantDelete)
-			assertBoolPtrVal(t, "allow_update_branch", settings.AllowUpdateBranch, tt.wantUpdate)
-			assertBoolPtrVal(t, "allow_auto_merge", settings.AllowAutoMerge, tt.wantAuto)
-			assertBoolPtrVal(t, "web_commit_signoff_required", settings.WebCommitSignoffRequired, tt.wantSignoff)
-			assertBoolPtrVal(t, "private_vulnerability_reporting_enabled", settings.PrivateVulnerabilityReportEnabled, tt.wantPVR)
+			testutil.AssertBoolPtr(t, settings.HasWiki, false, tt.wantWiki, "has_wiki")
+			testutil.AssertBoolPtr(t, settings.HasDiscussions, false, tt.wantDisc, "has_discussions")
+			testutil.AssertBoolPtr(t, settings.HasProjects, false, tt.wantProj, "has_projects")
+			testutil.AssertBoolPtr(t, settings.HasIssues, false, tt.wantIssues, "has_issues")
+			testutil.AssertBoolPtr(t, settings.AllowMergeCommit, false, tt.wantMerge, "allow_merge_commit")
+			testutil.AssertBoolPtr(t, settings.AllowSquashMerge, false, tt.wantSquash, "allow_squash_merge")
+			testutil.AssertBoolPtr(t, settings.AllowRebaseMerge, false, tt.wantRebase, "allow_rebase_merge")
+			testutil.AssertBoolPtr(t, settings.DeleteBranchOnMerge, false, tt.wantDelete, "delete_branch_on_merge")
+			testutil.AssertBoolPtr(t, settings.AllowUpdateBranch, false, tt.wantUpdate, "allow_update_branch")
+			testutil.AssertBoolPtr(t, settings.AllowAutoMerge, false, tt.wantAuto, "allow_auto_merge")
+			testutil.AssertBoolPtr(t, settings.WebCommitSignoffRequired, false, tt.wantSignoff, "web_commit_signoff_required")
+			testutil.AssertBoolPtr(t, settings.PrivateVulnerabilityReportEnabled, false, tt.wantPVR, "private_vulnerability_reporting_enabled")
 
 			// string fields (always non-nil)
-			assertStringPtrVal(t, "squash_merge_commit_title", settings.SquashMergeCommitTitle, tt.wantSqTitle)
-			assertStringPtrVal(t, "squash_merge_commit_message", settings.SquashMergeCommitMessage, tt.wantSqMsg)
-			assertStringPtrVal(t, "merge_commit_title", settings.MergeCommitTitle, tt.wantMcTitle)
-			assertStringPtrVal(t, "merge_commit_message", settings.MergeCommitMessage, tt.wantMcMsg)
+			testutil.AssertStringPtr(t, settings.SquashMergeCommitTitle, false, tt.wantSqTitle, "squash_merge_commit_title")
+			testutil.AssertStringPtr(t, settings.SquashMergeCommitMessage, false, tt.wantSqMsg, "squash_merge_commit_message")
+			testutil.AssertStringPtr(t, settings.MergeCommitTitle, false, tt.wantMcTitle, "merge_commit_title")
+			testutil.AssertStringPtr(t, settings.MergeCommitMessage, false, tt.wantMcMsg, "merge_commit_message")
 		})
 	}
 }
@@ -229,43 +238,3 @@ func TestReadRepoSettingsPVRAPIError(t *testing.T) {
 	}
 }
 
-func strPtr(s string) *string { return &s }
-
-func assertBoolPtrVal(t *testing.T, name string, got *bool, want bool) {
-	t.Helper()
-	if got == nil {
-		t.Errorf("%s is nil, want %v", name, want)
-		return
-	}
-	if *got != want {
-		t.Errorf("%s = %v, want %v", name, *got, want)
-	}
-}
-
-func assertStringPtrVal(t *testing.T, name string, got *string, want string) {
-	t.Helper()
-	if got == nil {
-		t.Errorf("%s is nil, want %q", name, want)
-		return
-	}
-	if *got != want {
-		t.Errorf("%s = %q, want %q", name, *got, want)
-	}
-}
-
-func assertStringPtrEqual(t *testing.T, name string, got, want *string) {
-	t.Helper()
-	if want == nil {
-		if got != nil {
-			t.Errorf("%s = %q, want nil", name, *got)
-		}
-		return
-	}
-	if got == nil {
-		t.Errorf("%s is nil, want %q", name, *want)
-		return
-	}
-	if *got != *want {
-		t.Errorf("%s = %q, want %q", name, *got, *want)
-	}
-}

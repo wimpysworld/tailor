@@ -134,7 +134,7 @@ func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 	if !strings.Contains(err.Error(), wantMsg) {
 		t.Errorf("error = %q, want substring %q", err.Error(), wantMsg)
 	}
-	if !strings.Contains(err.Error(), "Edit .tailor/config.yml directly to change the swatch configuration.") {
+	if !strings.Contains(err.Error(), "edit it directly to change swatch configuration") {
 		t.Errorf("error missing edit guidance: %q", err.Error())
 	}
 }
@@ -230,7 +230,7 @@ func TestFitAuthFailure(t *testing.T) {
 		t.Fatal("Run() expected error, got nil")
 	}
 
-	wantMsg := "tailor requires an authenticated GitHub CLI. Run 'gh auth login' to authenticate."
+	wantMsg := "tailor requires an authenticated GitHub CLI; run 'gh auth login' to authenticate"
 	if !strings.Contains(err.Error(), wantMsg) {
 		t.Errorf("error = %q, want substring %q", err.Error(), wantMsg)
 	}

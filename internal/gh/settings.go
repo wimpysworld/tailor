@@ -5,6 +5,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
 // repoResponse holds the subset of GitHub repository fields we read.
@@ -28,8 +29,8 @@ type repoResponse struct {
 	WebCommitSignoffRequired bool   `json:"web_commit_signoff_required"`
 }
 
-// pvrResponse holds the private vulnerability reporting status.
-type pvrResponse struct {
+// vulnerabilityReportingResponse holds the private vulnerability reporting status.
+type vulnerabilityReportingResponse struct {
 	Enabled bool `json:"enabled"`
 }
 
@@ -42,41 +43,32 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 		return nil, fmt.Errorf("fetching repo settings: %w", err)
 	}
 
-	var pvr pvrResponse
+	var pvr vulnerabilityReportingResponse
 	if err := client.Get(fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name), &pvr); err != nil {
 		return nil, fmt.Errorf("fetching private vulnerability reporting: %w", err)
 	}
 
 	s := &config.RepositorySettings{
-		HasWiki:                          boolPtr(repo.HasWiki),
-		HasDiscussions:                   boolPtr(repo.HasDiscussions),
-		HasProjects:                      boolPtr(repo.HasProjects),
-		HasIssues:                        boolPtr(repo.HasIssues),
-		AllowMergeCommit:                 boolPtr(repo.AllowMergeCommit),
-		AllowSquashMerge:                 boolPtr(repo.AllowSquashMerge),
-		AllowRebaseMerge:                 boolPtr(repo.AllowRebaseMerge),
-		SquashMergeCommitTitle:           stringPtr(repo.SquashMergeCommitTitle),
-		SquashMergeCommitMessage:         stringPtr(repo.SquashMergeCommitMessage),
-		MergeCommitTitle:                 stringPtr(repo.MergeCommitTitle),
-		MergeCommitMessage:               stringPtr(repo.MergeCommitMessage),
-		DeleteBranchOnMerge:              boolPtr(repo.DeleteBranchOnMerge),
-		AllowUpdateBranch:                boolPtr(repo.AllowUpdateBranch),
-		AllowAutoMerge:                   boolPtr(repo.AllowAutoMerge),
-		WebCommitSignoffRequired:         boolPtr(repo.WebCommitSignoffRequired),
-		PrivateVulnerabilityReportEnabled: boolPtr(pvr.Enabled),
+		HasWiki:                          ptr.Bool(repo.HasWiki),
+		HasDiscussions:                   ptr.Bool(repo.HasDiscussions),
+		HasProjects:                      ptr.Bool(repo.HasProjects),
+		HasIssues:                        ptr.Bool(repo.HasIssues),
+		AllowMergeCommit:                 ptr.Bool(repo.AllowMergeCommit),
+		AllowSquashMerge:                 ptr.Bool(repo.AllowSquashMerge),
+		AllowRebaseMerge:                 ptr.Bool(repo.AllowRebaseMerge),
+		SquashMergeCommitTitle:           ptr.String(repo.SquashMergeCommitTitle),
+		SquashMergeCommitMessage:         ptr.String(repo.SquashMergeCommitMessage),
+		MergeCommitTitle:                 ptr.String(repo.MergeCommitTitle),
+		MergeCommitMessage:               ptr.String(repo.MergeCommitMessage),
+		DeleteBranchOnMerge:              ptr.Bool(repo.DeleteBranchOnMerge),
+		AllowUpdateBranch:                ptr.Bool(repo.AllowUpdateBranch),
+		AllowAutoMerge:                   ptr.Bool(repo.AllowAutoMerge),
+		WebCommitSignoffRequired:         ptr.Bool(repo.WebCommitSignoffRequired),
+		PrivateVulnerabilityReportEnabled: ptr.Bool(pvr.Enabled),
 	}
 
-	// Set description and homepage to nil when the API returns empty strings
-	// so that omitempty drops them from YAML output.
-	if repo.Description != "" {
-		s.Description = stringPtr(repo.Description)
-	}
-	if repo.Homepage != "" {
-		s.Homepage = stringPtr(repo.Homepage)
-	}
+	s.Description = ptr.String(repo.Description)
+	s.Homepage = ptr.String(repo.Homepage)
 
 	return s, nil
 }
-
-func boolPtr(v bool) *bool       { return &v }
-func stringPtr(v string) *string { return &v }

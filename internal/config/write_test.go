@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -128,7 +129,7 @@ func TestWriteCreatesTailorDirectory(t *testing.T) {
 	cfg := &Config{
 		License: "MIT",
 		Repository: &RepositorySettings{
-			HasWiki: boolPtr(false),
+			HasWiki: ptr.Bool(false),
 		},
 		Swatches: []SwatchEntry{
 			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
@@ -152,24 +153,24 @@ func TestWriteOptionalFieldsPresent(t *testing.T) {
 	cfg := &Config{
 		License: "Apache-2.0",
 		Repository: &RepositorySettings{
-			Description:        stringPtr("My project"),
-			Homepage:           stringPtr("https://example.com"),
-			HasWiki:            boolPtr(true),
-			HasDiscussions:     boolPtr(false),
-			HasProjects:        boolPtr(false),
-			HasIssues:          boolPtr(true),
-			AllowMergeCommit:   boolPtr(true),
-			AllowSquashMerge:   boolPtr(true),
-			AllowRebaseMerge:   boolPtr(false),
-			SquashMergeCommitTitle:   stringPtr("PR_TITLE"),
-			SquashMergeCommitMessage: stringPtr("COMMIT_MESSAGES"),
-			MergeCommitTitle:         stringPtr("PR_TITLE"),
-			MergeCommitMessage:       stringPtr("PR_BODY"),
-			DeleteBranchOnMerge:      boolPtr(true),
-			AllowUpdateBranch:        boolPtr(true),
-			AllowAutoMerge:           boolPtr(false),
-			WebCommitSignoffRequired:          boolPtr(true),
-			PrivateVulnerabilityReportEnabled: boolPtr(true),
+			Description:        ptr.String("My project"),
+			Homepage:           ptr.String("https://example.com"),
+			HasWiki:            ptr.Bool(true),
+			HasDiscussions:     ptr.Bool(false),
+			HasProjects:        ptr.Bool(false),
+			HasIssues:          ptr.Bool(true),
+			AllowMergeCommit:   ptr.Bool(true),
+			AllowSquashMerge:   ptr.Bool(true),
+			AllowRebaseMerge:   ptr.Bool(false),
+			SquashMergeCommitTitle:   ptr.String("PR_TITLE"),
+			SquashMergeCommitMessage: ptr.String("COMMIT_MESSAGES"),
+			MergeCommitTitle:         ptr.String("PR_TITLE"),
+			MergeCommitMessage:       ptr.String("PR_BODY"),
+			DeleteBranchOnMerge:      ptr.Bool(true),
+			AllowUpdateBranch:        ptr.Bool(true),
+			AllowAutoMerge:           ptr.Bool(false),
+			WebCommitSignoffRequired:          ptr.Bool(true),
+			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
 		},
 		Swatches: []SwatchEntry{
 			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
@@ -225,20 +226,20 @@ func TestWriteOptionalFieldsOmitted(t *testing.T) {
 		License: "MIT",
 		Repository: &RepositorySettings{
 			// Description, Homepage, MergeCommitTitle, MergeCommitMessage are nil.
-			HasWiki:            boolPtr(false),
-			HasDiscussions:     boolPtr(false),
-			HasProjects:        boolPtr(false),
-			HasIssues:          boolPtr(true),
-			AllowMergeCommit:   boolPtr(false),
-			AllowSquashMerge:   boolPtr(true),
-			AllowRebaseMerge:   boolPtr(true),
-			SquashMergeCommitTitle:   stringPtr("PR_TITLE"),
-			SquashMergeCommitMessage: stringPtr("PR_BODY"),
-			DeleteBranchOnMerge:      boolPtr(true),
-			AllowUpdateBranch:        boolPtr(true),
-			AllowAutoMerge:           boolPtr(true),
-			WebCommitSignoffRequired:          boolPtr(false),
-			PrivateVulnerabilityReportEnabled: boolPtr(true),
+			HasWiki:            ptr.Bool(false),
+			HasDiscussions:     ptr.Bool(false),
+			HasProjects:        ptr.Bool(false),
+			HasIssues:          ptr.Bool(true),
+			AllowMergeCommit:   ptr.Bool(false),
+			AllowSquashMerge:   ptr.Bool(true),
+			AllowRebaseMerge:   ptr.Bool(true),
+			SquashMergeCommitTitle:   ptr.String("PR_TITLE"),
+			SquashMergeCommitMessage: ptr.String("PR_BODY"),
+			DeleteBranchOnMerge:      ptr.Bool(true),
+			AllowUpdateBranch:        ptr.Bool(true),
+			AllowAutoMerge:           ptr.Bool(true),
+			WebCommitSignoffRequired:          ptr.Bool(false),
+			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
 		},
 		Swatches: []SwatchEntry{
 			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},

@@ -6,7 +6,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
 // specYAML is the exact config body from the specification (lines 331-415),
@@ -95,8 +97,6 @@ swatches:
     alteration: first-fit
 `
 
-func boolPtr(v bool) *bool { return &v }
-
 func TestUnmarshalSpecYAML(t *testing.T) {
 	var cfg Config
 	if err := yaml.Unmarshal([]byte(specYAML), &cfg); err != nil {
@@ -112,20 +112,20 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	}
 
 	r := cfg.Repository
-	assertBoolPtr(t, "has_wiki", r.HasWiki, false)
-	assertBoolPtr(t, "has_discussions", r.HasDiscussions, false)
-	assertBoolPtr(t, "has_projects", r.HasProjects, false)
-	assertBoolPtr(t, "has_issues", r.HasIssues, true)
-	assertBoolPtr(t, "allow_merge_commit", r.AllowMergeCommit, false)
-	assertBoolPtr(t, "allow_squash_merge", r.AllowSquashMerge, true)
-	assertBoolPtr(t, "allow_rebase_merge", r.AllowRebaseMerge, true)
-	assertStringPtr(t, "squash_merge_commit_title", r.SquashMergeCommitTitle, "PR_TITLE")
-	assertStringPtr(t, "squash_merge_commit_message", r.SquashMergeCommitMessage, "PR_BODY")
-	assertBoolPtr(t, "delete_branch_on_merge", r.DeleteBranchOnMerge, true)
-	assertBoolPtr(t, "allow_update_branch", r.AllowUpdateBranch, true)
-	assertBoolPtr(t, "allow_auto_merge", r.AllowAutoMerge, true)
-	assertBoolPtr(t, "web_commit_signoff_required", r.WebCommitSignoffRequired, false)
-	assertBoolPtr(t, "private_vulnerability_reporting_enabled", r.PrivateVulnerabilityReportEnabled, true)
+	testutil.AssertBoolPtr(t, r.HasWiki, false, false, "has_wiki")
+	testutil.AssertBoolPtr(t, r.HasDiscussions, false, false, "has_discussions")
+	testutil.AssertBoolPtr(t, r.HasProjects, false, false, "has_projects")
+	testutil.AssertBoolPtr(t, r.HasIssues, false, true, "has_issues")
+	testutil.AssertBoolPtr(t, r.AllowMergeCommit, false, false, "allow_merge_commit")
+	testutil.AssertBoolPtr(t, r.AllowSquashMerge, false, true, "allow_squash_merge")
+	testutil.AssertBoolPtr(t, r.AllowRebaseMerge, false, true, "allow_rebase_merge")
+	testutil.AssertStringPtr(t, r.SquashMergeCommitTitle, false, "PR_TITLE", "squash_merge_commit_title")
+	testutil.AssertStringPtr(t, r.SquashMergeCommitMessage, false, "PR_BODY", "squash_merge_commit_message")
+	testutil.AssertBoolPtr(t, r.DeleteBranchOnMerge, false, true, "delete_branch_on_merge")
+	testutil.AssertBoolPtr(t, r.AllowUpdateBranch, false, true, "allow_update_branch")
+	testutil.AssertBoolPtr(t, r.AllowAutoMerge, false, true, "allow_auto_merge")
+	testutil.AssertBoolPtr(t, r.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
+	testutil.AssertBoolPtr(t, r.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
 
 	if len(cfg.Swatches) != 16 {
 		t.Fatalf("Swatches count = %d, want 16", len(cfg.Swatches))
@@ -228,7 +228,7 @@ func TestOptionalRepositoryFieldsOmitted(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Repository: &RepositorySettings{
-			HasWiki: boolPtr(false),
+			HasWiki: ptr.Bool(false),
 		},
 		Swatches: []SwatchEntry{
 			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
@@ -264,30 +264,9 @@ swatches: []
 	}
 
 	r := cfg.Repository
-	assertStringPtr(t, "description", r.Description, "My project")
-	assertStringPtr(t, "homepage", r.Homepage, "https://example.com")
-	assertStringPtr(t, "merge_commit_title", r.MergeCommitTitle, "PR_TITLE")
-	assertStringPtr(t, "merge_commit_message", r.MergeCommitMessage, "PR_BODY")
+	testutil.AssertStringPtr(t, r.Description, false, "My project", "description")
+	testutil.AssertStringPtr(t, r.Homepage, false, "https://example.com", "homepage")
+	testutil.AssertStringPtr(t, r.MergeCommitTitle, false, "PR_TITLE", "merge_commit_title")
+	testutil.AssertStringPtr(t, r.MergeCommitMessage, false, "PR_BODY", "merge_commit_message")
 }
 
-func assertBoolPtr(t *testing.T, name string, got *bool, want bool) {
-	t.Helper()
-	if got == nil {
-		t.Errorf("%s is nil, want %v", name, want)
-		return
-	}
-	if *got != want {
-		t.Errorf("%s = %v, want %v", name, *got, want)
-	}
-}
-
-func assertStringPtr(t *testing.T, name string, got *string, want string) {
-	t.Helper()
-	if got == nil {
-		t.Errorf("%s is nil, want %q", name, want)
-		return
-	}
-	if *got != want {
-		t.Errorf("%s = %q, want %q", name, *got, want)
-	}
-}

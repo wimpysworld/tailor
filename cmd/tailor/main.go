@@ -39,7 +39,7 @@ func (f *FitCmd) Run() error {
 	}
 
 	if config.Exists(f.Path) {
-		return fmt.Errorf(".tailor/config.yml already exists at %s. Edit .tailor/config.yml directly to change the swatch configuration.", f.Path)
+		return fmt.Errorf(".tailor/config.yml already exists at %s; edit it directly to change swatch configuration", f.Path)
 	}
 
 	cfg, err := config.DefaultConfig(f.License)
@@ -47,10 +47,7 @@ func (f *FitCmd) Run() error {
 		return err
 	}
 
-	owner, name, ok, err := gh.RepoContext()
-	if err != nil {
-		return err
-	}
+	owner, name, ok := gh.RepoContext()
 
 	if ok {
 		client, err := api.DefaultRESTClient()

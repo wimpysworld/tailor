@@ -11,11 +11,11 @@ var currentRepo = func() (repository.Repository, error) {
 
 // RepoContext detects the GitHub repository for the current directory.
 // It returns the owner and name if a GitHub remote is found.
-// When no remote is configured, it returns ok=false with a nil error.
-func RepoContext() (owner string, name string, ok bool, err error) {
+// When no remote is configured, it returns ok=false.
+func RepoContext() (owner string, name string, ok bool) {
 	repo, repoErr := currentRepo()
 	if repoErr != nil {
-		return "", "", false, nil
+		return "", "", false
 	}
-	return repo.Owner, repo.Name, true, nil
+	return repo.Owner, repo.Name, true
 }

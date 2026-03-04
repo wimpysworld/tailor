@@ -16,7 +16,7 @@ var tokenForHost = func(host string) (string, string) {
 func CheckAuth() error {
 	token, _ := tokenForHost("github.com")
 	if token == "" {
-		return errors.New("tailor requires an authenticated GitHub CLI. Run 'gh auth login' to authenticate.")
+		return errors.New("tailor requires an authenticated GitHub CLI; run 'gh auth login' to authenticate")
 	}
 	return nil
 }

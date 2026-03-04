@@ -25,7 +25,7 @@ var templateFuncs = template.FuncMap{
 		}
 		return "false"
 	},
-	"set": func(p interface{}) bool {
+	"set": func(p any) bool {
 		switch v := p.(type) {
 		case *string:
 			return v != nil

@@ -35,17 +35,13 @@ func TestRepoContext(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			original := currentRepo
-			currentRepo = func() (repository.Repository, error) {
+			restore := SetCurrentRepoFunc(func() (repository.Repository, error) {
 				return tt.repo, tt.repoErr
-			}
-			t.Cleanup(func() { currentRepo = original })
+			})
+			t.Cleanup(restore)
 
-			owner, name, ok, err := RepoContext()
+			owner, name, ok := RepoContext()
 
-			if err != nil {
-				t.Fatalf("RepoContext() error = %v, want nil", err)
-			}
 			if owner != tt.wantOwner {
 				t.Errorf("RepoContext() owner = %q, want %q", owner, tt.wantOwner)
 			}

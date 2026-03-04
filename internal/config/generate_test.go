@@ -7,7 +7,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wimpysworld/tailor"
+	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
 func TestDefaultConfigMatchesEmbedded(t *testing.T) {
@@ -35,20 +37,20 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	if got.Repository == nil {
 		t.Fatal("Repository is nil, want non-nil")
 	}
-	assertBoolPtr(t, "has_wiki", got.Repository.HasWiki, false)
-	assertBoolPtr(t, "has_discussions", got.Repository.HasDiscussions, false)
-	assertBoolPtr(t, "has_projects", got.Repository.HasProjects, false)
-	assertBoolPtr(t, "has_issues", got.Repository.HasIssues, true)
-	assertBoolPtr(t, "allow_merge_commit", got.Repository.AllowMergeCommit, false)
-	assertBoolPtr(t, "allow_squash_merge", got.Repository.AllowSquashMerge, true)
-	assertBoolPtr(t, "allow_rebase_merge", got.Repository.AllowRebaseMerge, true)
-	assertStringPtr(t, "squash_merge_commit_title", got.Repository.SquashMergeCommitTitle, "PR_TITLE")
-	assertStringPtr(t, "squash_merge_commit_message", got.Repository.SquashMergeCommitMessage, "PR_BODY")
-	assertBoolPtr(t, "delete_branch_on_merge", got.Repository.DeleteBranchOnMerge, true)
-	assertBoolPtr(t, "allow_update_branch", got.Repository.AllowUpdateBranch, true)
-	assertBoolPtr(t, "allow_auto_merge", got.Repository.AllowAutoMerge, true)
-	assertBoolPtr(t, "web_commit_signoff_required", got.Repository.WebCommitSignoffRequired, false)
-	assertBoolPtr(t, "private_vulnerability_reporting_enabled", got.Repository.PrivateVulnerabilityReportEnabled, true)
+	testutil.AssertBoolPtr(t, got.Repository.HasWiki, false, false, "has_wiki")
+	testutil.AssertBoolPtr(t, got.Repository.HasDiscussions, false, false, "has_discussions")
+	testutil.AssertBoolPtr(t, got.Repository.HasProjects, false, false, "has_projects")
+	testutil.AssertBoolPtr(t, got.Repository.HasIssues, false, true, "has_issues")
+	testutil.AssertBoolPtr(t, got.Repository.AllowMergeCommit, false, false, "allow_merge_commit")
+	testutil.AssertBoolPtr(t, got.Repository.AllowSquashMerge, false, true, "allow_squash_merge")
+	testutil.AssertBoolPtr(t, got.Repository.AllowRebaseMerge, false, true, "allow_rebase_merge")
+	testutil.AssertStringPtr(t, got.Repository.SquashMergeCommitTitle, false, "PR_TITLE", "squash_merge_commit_title")
+	testutil.AssertStringPtr(t, got.Repository.SquashMergeCommitMessage, false, "PR_BODY", "squash_merge_commit_message")
+	testutil.AssertBoolPtr(t, got.Repository.DeleteBranchOnMerge, false, true, "delete_branch_on_merge")
+	testutil.AssertBoolPtr(t, got.Repository.AllowUpdateBranch, false, true, "allow_update_branch")
+	testutil.AssertBoolPtr(t, got.Repository.AllowAutoMerge, false, true, "allow_auto_merge")
+	testutil.AssertBoolPtr(t, got.Repository.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
+	testutil.AssertBoolPtr(t, got.Repository.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
 
 	// Fields absent from the embedded config should remain nil.
 	if got.Repository.Description != nil {
@@ -110,8 +112,6 @@ func TestDefaultConfigSwatchOrder(t *testing.T) {
 	}
 }
 
-func stringPtr(v string) *string { return &v }
-
 func TestMergeRepoSettings(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -123,64 +123,64 @@ func TestMergeRepoSettings(t *testing.T) {
 		{
 			name: "live settings override defaults entirely",
 			live: &RepositorySettings{
-				Description: stringPtr("live desc"),
-				Homepage:    stringPtr("https://live.example.com"),
-				HasWiki:     boolPtr(true),
-				HasIssues:   boolPtr(false),
+				Description: ptr.String("live desc"),
+				Homepage:    ptr.String("https://live.example.com"),
+				HasWiki:     ptr.Bool(true),
+				HasIssues:   ptr.Bool(false),
 			},
 			description: "",
-			wantDesc:    stringPtr("live desc"),
-			wantHome:    stringPtr("https://live.example.com"),
+			wantDesc:    ptr.String("live desc"),
+			wantHome:    ptr.String("https://live.example.com"),
 		},
 		{
 			name: "description flag overrides live description",
 			live: &RepositorySettings{
-				Description: stringPtr("live desc"),
-				Homepage:    stringPtr("https://live.example.com"),
+				Description: ptr.String("live desc"),
+				Homepage:    ptr.String("https://live.example.com"),
 			},
 			description: "flag desc",
-			wantDesc:    stringPtr("flag desc"),
-			wantHome:    stringPtr("https://live.example.com"),
+			wantDesc:    ptr.String("flag desc"),
+			wantHome:    ptr.String("https://live.example.com"),
 		},
 		{
 			name: "empty description from live produces nil",
 			live: &RepositorySettings{
-				Description: stringPtr(""),
-				Homepage:    stringPtr("https://live.example.com"),
+				Description: ptr.String(""),
+				Homepage:    ptr.String("https://live.example.com"),
 			},
 			description: "",
 			wantDesc:    nil,
-			wantHome:    stringPtr("https://live.example.com"),
+			wantHome:    ptr.String("https://live.example.com"),
 		},
 		{
 			name: "empty homepage from live produces nil",
 			live: &RepositorySettings{
-				Description: stringPtr("live desc"),
-				Homepage:    stringPtr(""),
+				Description: ptr.String("live desc"),
+				Homepage:    ptr.String(""),
 			},
 			description: "",
-			wantDesc:    stringPtr("live desc"),
+			wantDesc:    ptr.String("live desc"),
 			wantHome:    nil,
 		},
 		{
 			name: "non-empty description flag with empty live description sets flag value",
 			live: &RepositorySettings{
-				Description: stringPtr(""),
-				Homepage:    stringPtr("https://live.example.com"),
+				Description: ptr.String(""),
+				Homepage:    ptr.String("https://live.example.com"),
 			},
 			description: "flag desc",
-			wantDesc:    stringPtr("flag desc"),
-			wantHome:    stringPtr("https://live.example.com"),
+			wantDesc:    ptr.String("flag desc"),
+			wantHome:    ptr.String("https://live.example.com"),
 		},
 		{
 			name: "empty description flag with non-empty live description preserves live value",
 			live: &RepositorySettings{
-				Description: stringPtr("live desc"),
-				Homepage:    stringPtr("https://live.example.com"),
+				Description: ptr.String("live desc"),
+				Homepage:    ptr.String("https://live.example.com"),
 			},
 			description: "",
-			wantDesc:    stringPtr("live desc"),
-			wantHome:    stringPtr("https://live.example.com"),
+			wantDesc:    ptr.String("live desc"),
+			wantHome:    ptr.String("https://live.example.com"),
 		},
 	}
 
@@ -189,8 +189,8 @@ func TestMergeRepoSettings(t *testing.T) {
 			cfg := &Config{
 				License: "MIT",
 				Repository: &RepositorySettings{
-					HasWiki:   boolPtr(false),
-					HasIssues: boolPtr(true),
+					HasWiki:   ptr.Bool(false),
+					HasIssues: ptr.Bool(true),
 				},
 			}
 
@@ -207,7 +207,7 @@ func TestMergeRepoSettings(t *testing.T) {
 					t.Errorf("Description = %q, want nil", *cfg.Repository.Description)
 				}
 			} else {
-				assertStringPtr(t, "description", cfg.Repository.Description, *tt.wantDesc)
+				testutil.AssertStringPtr(t, cfg.Repository.Description, false, *tt.wantDesc, "description")
 			}
 
 			// Check Homepage.
@@ -216,7 +216,7 @@ func TestMergeRepoSettings(t *testing.T) {
 					t.Errorf("Homepage = %q, want nil", *cfg.Repository.Homepage)
 				}
 			} else {
-				assertStringPtr(t, "homepage", cfg.Repository.Homepage, *tt.wantHome)
+				testutil.AssertStringPtr(t, cfg.Repository.Homepage, false, *tt.wantHome, "homepage")
 			}
 		})
 	}
@@ -226,8 +226,8 @@ func TestMergeRepoSettingsPreservesMergeCommitFields(t *testing.T) {
 	mergeTitle := "PR_TITLE"
 	mergeMessage := "PR_BODY"
 	live := &RepositorySettings{
-		Description:        stringPtr("desc"),
-		AllowMergeCommit:   boolPtr(false),
+		Description:        ptr.String("desc"),
+		AllowMergeCommit:   ptr.Bool(false),
 		MergeCommitTitle:   &mergeTitle,
 		MergeCommitMessage: &mergeMessage,
 	}
@@ -235,8 +235,8 @@ func TestMergeRepoSettingsPreservesMergeCommitFields(t *testing.T) {
 	cfg := &Config{License: "MIT"}
 	MergeRepoSettings(cfg, live, "")
 
-	assertStringPtr(t, "merge_commit_title", cfg.Repository.MergeCommitTitle, "PR_TITLE")
-	assertStringPtr(t, "merge_commit_message", cfg.Repository.MergeCommitMessage, "PR_BODY")
+	testutil.AssertStringPtr(t, cfg.Repository.MergeCommitTitle, false, "PR_TITLE", "merge_commit_title")
+	testutil.AssertStringPtr(t, cfg.Repository.MergeCommitMessage, false, "PR_BODY", "merge_commit_message")
 }
 
 func TestDefaultConfigLicenseValues(t *testing.T) {
