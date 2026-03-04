@@ -67,7 +67,12 @@ func (f *FitCmd) Run() error {
 	}
 
 	today := time.Now().Format("2006-01-02")
-	return config.Write(f.Path, cfg, today)
+	if err := config.Write(f.Path, cfg, today); err != nil {
+		return err
+	}
+
+	fmt.Printf("Fitted %s with .tailor/config.yml\n", f.Path)
+	return nil
 }
 
 // MeasureCmd checks community health files and, when a config is present,
