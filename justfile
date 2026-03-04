@@ -10,6 +10,10 @@ alter:
 build:
     @go build -ldflags "-s -w" -o tailor ./cmd/tailor
 
+# Run tests
+test:
+    @go test ./...
+
 # Check what tailor would change and measure
 measure:
     @tailor alter
