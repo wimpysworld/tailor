@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
 const configPath = ".tailor/config.yml"
@@ -46,8 +48,8 @@ func validate(cfg *Config) error {
 		if s.Destination == "" {
 			return fmt.Errorf("swatch[%d]: destination must not be empty", i)
 		}
-		if s.Alteration != "always" && s.Alteration != "first-fit" {
-			return fmt.Errorf("swatch[%d]: alteration must be \"always\" or \"first-fit\", got %q", i, s.Alteration)
+		if s.Alteration != string(swatch.Always) && s.Alteration != string(swatch.FirstFit) {
+			return fmt.Errorf("swatch[%d]: alteration must be %q or %q, got %q", i, swatch.Always, swatch.FirstFit, s.Alteration)
 		}
 	}
 	return nil
