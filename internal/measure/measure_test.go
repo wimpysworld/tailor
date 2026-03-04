@@ -162,7 +162,7 @@ func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 	// - adds some-custom-swatch.yml (config-only)
 	// - changes SECURITY.md alteration from always to first-fit (mode-differs)
 	// All other defaults are present at their default modes.
-	yaml := "license: MIT\nswatches:\n"
+	configYAML := "license: MIT\nswatches:\n"
 	for _, s := range swatch.All() {
 		// Skip .github/dependabot.yml to produce not-configured.
 		if s.Destination == ".github/dependabot.yml" {
@@ -173,16 +173,16 @@ func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 		if s.Destination == "SECURITY.md" {
 			alt = "first-fit"
 		}
-		yaml += "  - source: " + s.Source + "\n"
-		yaml += "    destination: " + s.Destination + "\n"
-		yaml += "    alteration: " + alt + "\n"
+		configYAML += "  - source: " + s.Source + "\n"
+		configYAML += "    destination: " + s.Destination + "\n"
+		configYAML += "    alteration: " + alt + "\n"
 	}
 	// Add a custom swatch not in defaults to produce config-only.
-	yaml += "  - source: some-custom-swatch.yml\n"
-	yaml += "    destination: some-custom-swatch.yml\n"
-	yaml += "    alteration: always\n"
+	configYAML += "  - source: some-custom-swatch.yml\n"
+	configYAML += "    destination: some-custom-swatch.yml\n"
+	configYAML += "    alteration: always\n"
 
-	writeConfig(t, dir, yaml)
+	writeConfig(t, dir, configYAML)
 
 	health := CheckHealth(dir)
 
@@ -232,7 +232,7 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 
 	// Config with all three diff categories, multiple entries per category
 	// to verify lexicographic sorting.
-	yaml := "license: MIT\nswatches:\n"
+	configYAML := "license: MIT\nswatches:\n"
 	for _, s := range swatch.All() {
 		// Omit two defaults to produce two not-configured entries.
 		if s.Destination == ".github/dependabot.yml" || s.Destination == ".envrc" {
@@ -246,19 +246,19 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 		if s.Destination == "CODE_OF_CONDUCT.md" {
 			alt = "first-fit"
 		}
-		yaml += "  - source: " + s.Source + "\n"
-		yaml += "    destination: " + s.Destination + "\n"
-		yaml += "    alteration: " + alt + "\n"
+		configYAML += "  - source: " + s.Source + "\n"
+		configYAML += "    destination: " + s.Destination + "\n"
+		configYAML += "    alteration: " + alt + "\n"
 	}
 	// Add two config-only entries.
-	yaml += "  - source: beta-custom.yml\n"
-	yaml += "    destination: beta-custom.yml\n"
-	yaml += "    alteration: always\n"
-	yaml += "  - source: alpha-custom.yml\n"
-	yaml += "    destination: alpha-custom.yml\n"
-	yaml += "    alteration: first-fit\n"
+	configYAML += "  - source: beta-custom.yml\n"
+	configYAML += "    destination: beta-custom.yml\n"
+	configYAML += "    alteration: always\n"
+	configYAML += "  - source: alpha-custom.yml\n"
+	configYAML += "    destination: alpha-custom.yml\n"
+	configYAML += "    alteration: first-fit\n"
 
-	writeConfig(t, dir, yaml)
+	writeConfig(t, dir, configYAML)
 
 	health := CheckHealth(dir)
 

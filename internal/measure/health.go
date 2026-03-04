@@ -8,6 +8,13 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
+// healthResults implements sort.Interface, ordering by Destination.
+type healthResults []HealthResult
+
+func (h healthResults) Len() int           { return len(h) }
+func (h healthResults) Less(i, j int) bool { return h[i].Destination < h[j].Destination }
+func (h healthResults) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
+
 // HealthStatus indicates whether a health file is present or missing.
 type HealthStatus string
 
@@ -42,12 +49,8 @@ func CheckHealth(dir string) []HealthResult {
 		}
 	}
 
-	sort.Slice(missing, func(i, j int) bool {
-		return missing[i].Destination < missing[j].Destination
-	})
-	sort.Slice(present, func(i, j int) bool {
-		return present[i].Destination < present[j].Destination
-	})
+	sort.Sort(healthResults(missing))
+	sort.Sort(healthResults(present))
 
 	return append(missing, present...)
 }

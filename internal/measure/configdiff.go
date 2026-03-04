@@ -8,6 +8,13 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
+// diffResults implements sort.Interface, ordering by Destination.
+type diffResults []DiffResult
+
+func (d diffResults) Len() int           { return len(d) }
+func (d diffResults) Less(i, j int) bool { return d[i].Destination < d[j].Destination }
+func (d diffResults) Swap(i, j int)      { d[i], d[j] = d[j], d[i] }
+
 // DiffCategory classifies a config-diff result.
 type DiffCategory string
 
@@ -61,7 +68,7 @@ func CheckConfigDiff(cfg *config.Config, defaults []swatch.Swatch) []DiffResult 
 				Destination: s.Destination,
 				Category:    ConfigOnly,
 			})
-		} else if s.Alteration != string(def.DefaultAlteration) {
+		} else if s.Alteration != def.DefaultAlteration {
 			modeDiffers = append(modeDiffers, DiffResult{
 				Destination: s.Destination,
 				Category:    ModeDiffers,
@@ -70,15 +77,9 @@ func CheckConfigDiff(cfg *config.Config, defaults []swatch.Swatch) []DiffResult 
 		}
 	}
 
-	sort.Slice(notConfigured, func(i, j int) bool {
-		return notConfigured[i].Destination < notConfigured[j].Destination
-	})
-	sort.Slice(configOnly, func(i, j int) bool {
-		return configOnly[i].Destination < configOnly[j].Destination
-	})
-	sort.Slice(modeDiffers, func(i, j int) bool {
-		return modeDiffers[i].Destination < modeDiffers[j].Destination
-	})
+	sort.Sort(diffResults(notConfigured))
+	sort.Sort(diffResults(configOnly))
+	sort.Sort(diffResults(modeDiffers))
 
 	var results []DiffResult
 	results = append(results, notConfigured...)

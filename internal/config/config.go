@@ -1,5 +1,7 @@
 package config
 
+import "github.com/wimpysworld/tailor/internal/swatch"
+
 // Config represents the contents of .tailor/config.yml.
 type Config struct {
 	License    string              `yaml:"license"`
@@ -34,5 +36,5 @@ type RepositorySettings struct {
 type SwatchEntry struct {
 	Source      string `yaml:"source"`
 	Destination string `yaml:"destination"`
-	Alteration  string `yaml:"alteration"`
+	Alteration  swatch.AlterationMode `yaml:"alteration"`
 }

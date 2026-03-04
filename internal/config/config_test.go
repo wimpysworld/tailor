@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
 // specYAML is the exact config body from the specification (lines 331-415),
@@ -137,7 +139,7 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	if first.Destination != ".github/workflows/tailor.yml" {
 		t.Errorf("first swatch Destination = %q", first.Destination)
 	}
-	if first.Alteration != "always" {
+	if first.Alteration != swatch.Always {
 		t.Errorf("first swatch Alteration = %q", first.Alteration)
 	}
 
@@ -145,7 +147,7 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	if last.Source != ".tailor/config.yml" {
 		t.Errorf("last swatch Source = %q", last.Source)
 	}
-	if last.Alteration != "first-fit" {
+	if last.Alteration != swatch.FirstFit {
 		t.Errorf("last swatch Alteration = %q", last.Alteration)
 	}
 }
@@ -208,7 +210,7 @@ func TestRepositoryOmittedInMarshalWhenNil(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: "first-fit"},
+			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -229,7 +231,7 @@ func TestOptionalRepositoryFieldsOmitted(t *testing.T) {
 			HasWiki: boolPtr(false),
 		},
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: "first-fit"},
+			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 

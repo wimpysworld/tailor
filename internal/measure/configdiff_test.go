@@ -31,7 +31,7 @@ func TestCheckConfigDiffNotConfigured(t *testing.T) {
 func TestCheckConfigDiffConfigOnly(t *testing.T) {
 	cfg := &config.Config{
 		Swatches: []config.SwatchEntry{
-			{Source: "custom.yml", Destination: "custom.yml", Alteration: "always"},
+			{Source: "custom.yml", Destination: "custom.yml", Alteration: swatch.Always},
 		},
 	}
 	defaults := []swatch.Swatch{}
@@ -52,7 +52,7 @@ func TestCheckConfigDiffConfigOnly(t *testing.T) {
 func TestCheckConfigDiffModeDiffers(t *testing.T) {
 	cfg := &config.Config{
 		Swatches: []config.SwatchEntry{
-			{Source: "SECURITY.md", Destination: "SECURITY.md", Alteration: "first-fit"},
+			{Source: "SECURITY.md", Destination: "SECURITY.md", Alteration: swatch.FirstFit},
 		},
 	}
 	defaults := []swatch.Swatch{
@@ -81,7 +81,7 @@ func TestCheckConfigDiffExactMatch(t *testing.T) {
 		entries[i] = config.SwatchEntry{
 			Source:      s.Source,
 			Destination: s.Destination,
-			Alteration:  string(s.DefaultAlteration),
+			Alteration:  s.DefaultAlteration,
 		}
 	}
 	cfg := &config.Config{Swatches: entries}
@@ -104,9 +104,9 @@ func TestCheckConfigDiffAllCategories(t *testing.T) {
 	cfg := &config.Config{
 		Swatches: []config.SwatchEntry{
 			// b.yml present with different mode -> mode-differs
-			{Source: "b.yml", Destination: "b.yml", Alteration: "first-fit"},
+			{Source: "b.yml", Destination: "b.yml", Alteration: swatch.FirstFit},
 			// c.yml not in defaults -> config-only
-			{Source: "c.yml", Destination: "c.yml", Alteration: "always"},
+			{Source: "c.yml", Destination: "c.yml", Alteration: swatch.Always},
 		},
 	}
 	// a.yml missing from config -> not-configured
