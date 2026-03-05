@@ -15,7 +15,7 @@ func TestCheckAuth(t *testing.T) {
 		{
 			name:    "empty token returns error",
 			token:   "",
-			wantErr: "tailor requires an authenticated GitHub CLI; run 'gh auth login' to authenticate",
+			wantErr: "tailor requires GitHub authentication. Set the GH_TOKEN or GITHUB_TOKEN environment variable, or run 'gh auth login'",
 		},
 	}
 
