@@ -17,6 +17,9 @@ const (
 	ForceApply                  // overwrite unconditionally
 )
 
+// ShouldWrite reports whether the mode permits writing to disk.
+func (m ApplyMode) ShouldWrite() bool { return m == Apply || m == ForceApply }
+
 // Run executes the alter command. It validates the config, applies
 // repository settings, fetches the licence, and processes swatches.
 // When client is nil, a default GitHub REST client is created.
@@ -44,7 +47,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		return fmt.Errorf("fetching GitHub username: %w", err)
 	}
 
-	owner, name, _ := gh.RepoContext()
+	owner, name, hasRepo := gh.RepoContext()
 	tokens := TokenContext{
 		GitHubUsername: username,
 		Owner:         owner,
@@ -52,7 +55,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	}
 
 	// Repository settings processing.
-	repoResults, err := ProcessRepoSettings(cfg, dir, mode, client)
+	repoResults, err := ProcessRepoSettings(cfg, mode, client, owner, name, hasRepo)
 	if err != nil {
 		return err
 	}

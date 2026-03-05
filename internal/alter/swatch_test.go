@@ -1,6 +1,7 @@
 package alter_test
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"testing"
@@ -25,6 +26,24 @@ func mustContent(t *testing.T, source string) []byte {
 		t.Fatalf("swatch.Content(%q): %v", source, err)
 	}
 	return data
+}
+
+// captureStderr calls fn while redirecting os.Stderr to a pipe and returns
+// whatever was written.
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	oldStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	fn()
+
+	w.Close()
+	os.Stderr = oldStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	return buf.String()
 }
 
 func writeOnDisk(t *testing.T, dir, rel string, data []byte) {

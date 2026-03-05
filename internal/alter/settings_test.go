@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"sync/atomic"
 	"testing"
 
@@ -109,7 +108,7 @@ func failingSettingsServer() *httptest.Server {
 
 func TestProcessRepoSettingsNilRepository(t *testing.T) {
 	cfg := &config.Config{}
-	results, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.DryRun, nil)
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, nil, "", "", false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -121,19 +120,18 @@ func TestProcessRepoSettingsNilRepository(t *testing.T) {
 func TestProcessRepoSettingsNoRepoContext(t *testing.T) {
 	fakeNoRepoContext(t)
 
-	oldStderr := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
 			HasWiki: ptr.Bool(false),
 		},
 	}
-	results, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.DryRun, nil)
 
-	w.Close()
-	os.Stderr = oldStderr
+	var results []alter.RepoSettingResult
+	var err error
+
+	output := captureStderr(t, func() {
+		results, err = alter.ProcessRepoSettings(cfg, alter.DryRun, nil, "", "", false)
+	})
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -142,11 +140,9 @@ func TestProcessRepoSettingsNoRepoContext(t *testing.T) {
 		t.Errorf("expected nil results, got %v", results)
 	}
 
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
 	want := "No GitHub repository context found."
-	if !bytes.Contains(buf.Bytes(), []byte(want)) {
-		t.Errorf("stderr = %q, want substring %q", buf.String(), want)
+	if !bytes.Contains([]byte(output), []byte(want)) {
+		t.Errorf("stderr = %q, want substring %q", output, want)
 	}
 }
 
@@ -164,7 +160,7 @@ func TestProcessRepoSettingsWouldSetWhenDiffer(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.DryRun, client)
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -196,15 +192,15 @@ func TestProcessRepoSettingsNoChangeWhenMatch(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.DryRun, client)
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(results) != 1 {
 		t.Fatalf("got %d results, want 1", len(results))
 	}
-	if results[0].Category != alter.RSNoChange {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.RSNoChange)
+	if results[0].Category != alter.RepoNoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
 	}
 	if results[0].Field != "has_wiki" {
 		t.Errorf("field = %q, want %q", results[0].Field, "has_wiki")
@@ -229,7 +225,7 @@ func TestProcessRepoSettingsApplyCallsAPI(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.Apply, client)
+	_, err := alter.ProcessRepoSettings(cfg, alter.Apply, client, "testowner", "testrepo", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -253,7 +249,7 @@ func TestProcessRepoSettingsForceApplyCallsAPI(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.ForceApply, client)
+	_, err := alter.ProcessRepoSettings(cfg, alter.ForceApply, client, "testowner", "testrepo", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -277,7 +273,7 @@ func TestProcessRepoSettingsDryRunDoesNotCallAPI(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.DryRun, client)
+	_, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -302,7 +298,7 @@ func TestProcessRepoSettingsNoApplyWhenAllMatch(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.Apply, client)
+	_, err := alter.ProcessRepoSettings(cfg, alter.Apply, client, "testowner", "testrepo", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -324,7 +320,7 @@ func TestProcessRepoSettingsErrorPropagated(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.DryRun, client)
+	_, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
 	if err == nil {
 		t.Fatal("expected error from API failure, got nil")
 	}
@@ -352,7 +348,7 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.DryRun, client)
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -367,8 +363,8 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 	if counts[alter.WouldSet] != 3 {
 		t.Errorf("WouldSet count = %d, want 3", counts[alter.WouldSet])
 	}
-	if counts[alter.RSNoChange] != 1 {
-		t.Errorf("RSNoChange count = %d, want 1", counts[alter.RSNoChange])
+	if counts[alter.RepoNoChange] != 1 {
+		t.Errorf("RepoNoChange count = %d, want 1", counts[alter.RepoNoChange])
 	}
 }
 
@@ -387,7 +383,7 @@ func TestProcessRepoSettingsStringFieldValues(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.DryRun, client)
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -405,8 +401,8 @@ func TestProcessRepoSettingsStringFieldValues(t *testing.T) {
 				t.Errorf("description: value = %q, want %q", r.Value, "new description")
 			}
 		case "homepage":
-			if r.Category != alter.RSNoChange {
-				t.Errorf("homepage: category = %q, want %q", r.Category, alter.RSNoChange)
+			if r.Category != alter.RepoNoChange {
+				t.Errorf("homepage: category = %q, want %q", r.Category, alter.RepoNoChange)
 			}
 			if r.Value != "https://old.example.com" {
 				t.Errorf("homepage: value = %q, want %q", r.Value, "https://old.example.com")
@@ -431,7 +427,7 @@ func TestProcessRepoSettingsPrivateVulnerabilityReporting(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessRepoSettings(cfg, t.TempDir(), alter.DryRun, client)
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

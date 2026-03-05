@@ -11,15 +11,30 @@ import (
 	"github.com/wimpysworld/tailor/internal/gh"
 )
 
+// RepoSettingCategory classifies the outcome of processing a single repository setting.
+type RepoSettingCategory string
+
+const (
+	WouldSet      RepoSettingCategory = "would set"
+	RepoNoChange  RepoSettingCategory = "no change"
+)
+
+// RepoSettingResult records the field name, category, and display value for one
+// repository setting.
+type RepoSettingResult struct {
+	Field    string
+	Category RepoSettingCategory
+	Value    string
+}
+
 // ProcessRepoSettings compares declared settings against live settings
 // and optionally applies them. Returns results for output formatting.
-func ProcessRepoSettings(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) ([]RepoSettingResult, error) {
+func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTClient, owner, name string, hasRepo bool) ([]RepoSettingResult, error) {
 	if cfg.Repository == nil {
 		return nil, nil
 	}
 
-	owner, name, ok := gh.RepoContext()
-	if !ok {
+	if !hasRepo {
 		fmt.Fprintln(os.Stderr, "No GitHub repository context found. Repository settings will be applied once a remote is configured.")
 		return nil, nil
 	}
@@ -31,7 +46,7 @@ func ProcessRepoSettings(cfg *config.Config, dir string, mode ApplyMode, client 
 
 	results := compareSettings(cfg.Repository, live)
 
-	if (mode == Apply || mode == ForceApply) && hasChanges(results) {
+	if mode.ShouldWrite() && hasChanges(results) {
 		if err := gh.ApplyRepoSettings(client, owner, name, cfg.Repository); err != nil {
 			return nil, err
 		}
@@ -69,7 +84,7 @@ func compareSettings(declared, live *config.RepositorySettings) []RepoSettingRes
 		if !lfv.IsNil() && lfv.Elem().Interface() == declaredVal {
 			results = append(results, RepoSettingResult{
 				Field:    key,
-				Category: RSNoChange,
+				Category: RepoNoChange,
 				Value:    displayVal,
 			})
 		} else {
@@ -86,17 +101,7 @@ func compareSettings(declared, live *config.RepositorySettings) []RepoSettingRes
 
 // formatValue renders a setting value for display output.
 func formatValue(v any) string {
-	switch val := v.(type) {
-	case bool:
-		if val {
-			return "true"
-		}
-		return "false"
-	case string:
-		return val
-	default:
-		return fmt.Sprintf("%v", val)
-	}
+	return fmt.Sprintf("%v", v)
 }
 
 // hasChanges returns true if any result is WouldSet.

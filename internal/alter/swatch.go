@@ -31,15 +31,6 @@ type SwatchResult struct {
 // configDestination is exempt from force-apply overwrite.
 const configDestination = ".tailor/config.yml"
 
-// substitutedSources lists swatch sources that contain token placeholders.
-// When alteration is "always" and the source is in this set, the result is
-// always WouldOverwrite regardless of MD5 comparison.
-var substitutedSources = map[string]bool{
-	".github/FUNDING.yml":                true,
-	"SECURITY.md":                        true,
-	".github/ISSUE_TEMPLATE/config.yml":  true,
-}
-
 // ProcessSwatches evaluates each swatch entry in cfg and returns results.
 // When mode is Apply or ForceApply, it writes files to disk.
 func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *TokenContext) ([]SwatchResult, error) {
@@ -54,7 +45,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 		content = tokens.Substitute(content, entry.Source)
 		dest := filepath.Join(dir, entry.Destination)
 
-		result, err := processSwatch(entry, content, dest, mode)
+		result, err := processSwatch(entry, content, dest, mode, tokens)
 		if err != nil {
 			return nil, err
 		}
@@ -66,10 +57,11 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 
 // processSwatch determines the category for a single swatch and writes
 // the file when the mode permits.
-func processSwatch(entry config.SwatchEntry, content []byte, dest string, mode ApplyMode) (SwatchResult, error) {
+func processSwatch(entry config.SwatchEntry, content []byte, dest string, mode ApplyMode, tokens *TokenContext) (SwatchResult, error) {
 	exists := fileExists(dest)
 
 	// Force-apply exemption: .tailor/config.yml behaves as first-fit.
+	// Pass DryRun to suppress writes; config.yml is never overwritten.
 	if mode == ForceApply && entry.Destination == configDestination {
 		return processFirstFit(entry, content, dest, exists, DryRun)
 	}
@@ -82,7 +74,7 @@ func processSwatch(entry config.SwatchEntry, content []byte, dest string, mode A
 	case swatch.FirstFit:
 		return processFirstFit(entry, content, dest, exists, mode)
 	case swatch.Always:
-		return processAlways(entry, content, dest, exists, mode)
+		return processAlways(entry, content, dest, exists, mode, tokens)
 	default:
 		return SwatchResult{}, fmt.Errorf("unknown alteration mode %q for swatch %q", entry.Alteration, entry.Source)
 	}
@@ -92,18 +84,17 @@ func processFirstFit(entry config.SwatchEntry, content []byte, dest string, exis
 	if exists {
 		return SwatchResult{Destination: entry.Destination, Category: Skipped}, nil
 	}
-	cat := WouldCopy
-	if mode == Apply || mode == ForceApply {
+	if mode.ShouldWrite() {
 		if err := writeFile(dest, content); err != nil {
 			return SwatchResult{}, err
 		}
 	}
-	return SwatchResult{Destination: entry.Destination, Category: cat}, nil
+	return SwatchResult{Destination: entry.Destination, Category: WouldCopy}, nil
 }
 
-func processAlways(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
+func processAlways(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode, tokens *TokenContext) (SwatchResult, error) {
 	if !exists {
-		if mode == Apply || mode == ForceApply {
+		if mode.ShouldWrite() {
 			if err := writeFile(dest, content); err != nil {
 				return SwatchResult{}, err
 			}
@@ -112,8 +103,8 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 	}
 
 	// Substituted sources always overwrite; MD5 comparison is skipped.
-	if substitutedSources[entry.Source] {
-		if mode == Apply || mode == ForceApply {
+	if tokens.HasSubstitution(entry.Source) {
+		if mode.ShouldWrite() {
 			if err := writeFile(dest, content); err != nil {
 				return SwatchResult{}, err
 			}
@@ -130,7 +121,7 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 		return SwatchResult{Destination: entry.Destination, Category: NoChange}, nil
 	}
 
-	if mode == Apply || mode == ForceApply {
+	if mode.ShouldWrite() {
 		if err := writeFile(dest, content); err != nil {
 			return SwatchResult{}, err
 		}
@@ -139,14 +130,14 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 }
 
 func processForceApply(entry config.SwatchEntry, content []byte, dest string, exists bool) (SwatchResult, error) {
-	cat := WouldOverwrite
+	category := WouldOverwrite
 	if !exists {
-		cat = WouldCopy
+		category = WouldCopy
 	}
 	if err := writeFile(dest, content); err != nil {
 		return SwatchResult{}, err
 	}
-	return SwatchResult{Destination: entry.Destination, Category: cat}, nil
+	return SwatchResult{Destination: entry.Destination, Category: category}, nil
 }
 
 // writeFile creates parent directories and writes data to path.

@@ -1,26 +1,11 @@
 package alter
 
 import (
+	"cmp"
 	"fmt"
 	"slices"
 	"strings"
 )
-
-// RepoSettingCategory classifies the outcome of processing a single repository setting.
-type RepoSettingCategory string
-
-const (
-	WouldSet   RepoSettingCategory = "would set"
-	RSNoChange RepoSettingCategory = "no change"
-)
-
-// RepoSettingResult records the field name, category, and display value for one
-// repository setting.
-type RepoSettingResult struct {
-	Field    string
-	Category RepoSettingCategory
-	Value    string
-}
 
 // labelWidth is the fixed column width for status labels in formatted output.
 // Sized to accommodate "skipped (first-fit, exists): " (29 characters).
@@ -40,7 +25,7 @@ func FormatOutput(repoResults []RepoSettingResult, swatchResults []SwatchResult)
 		switch r.Category {
 		case WouldSet:
 			fmt.Fprintf(&b, "%-*srepository.%s = %s\n", labelWidth, label, r.Field, r.Value)
-		case RSNoChange:
+		case RepoNoChange:
 			fmt.Fprintf(&b, "%-*srepository.%s (already %s)\n", labelWidth, label, r.Field, r.Value)
 		}
 	}
@@ -54,7 +39,7 @@ func FormatOutput(repoResults []RepoSettingResult, swatchResults []SwatchResult)
 }
 
 // sortRepoResults returns a sorted copy: actionable (WouldSet) before
-// informational (RSNoChange), lexicographic by field within each group.
+// informational (RepoNoChange), lexicographic by field within each group.
 func sortRepoResults(results []RepoSettingResult) []RepoSettingResult {
 	if len(results) == 0 {
 		return nil
@@ -62,12 +47,8 @@ func sortRepoResults(results []RepoSettingResult) []RepoSettingResult {
 	sorted := make([]RepoSettingResult, len(results))
 	copy(sorted, results)
 	slices.SortStableFunc(sorted, func(a, b RepoSettingResult) int {
-		ao, bo := repoOrder(a.Category), repoOrder(b.Category)
-		if ao != bo {
-			if ao < bo {
-				return -1
-			}
-			return 1
+		if c := cmp.Compare(repoOrder(a.Category), repoOrder(b.Category)); c != 0 {
+			return c
 		}
 		return strings.Compare(a.Field, b.Field)
 	})
@@ -94,12 +75,8 @@ func sortSwatchResults(results []SwatchResult) []SwatchResult {
 	sorted := make([]SwatchResult, len(results))
 	copy(sorted, results)
 	slices.SortStableFunc(sorted, func(a, b SwatchResult) int {
-		ao, bo := swatchOrder(a.Category), swatchOrder(b.Category)
-		if ao != bo {
-			if ao < bo {
-				return -1
-			}
-			return 1
+		if c := cmp.Compare(swatchOrder(a.Category), swatchOrder(b.Category)); c != 0 {
+			return c
 		}
 		return strings.Compare(a.Destination, b.Destination)
 	})

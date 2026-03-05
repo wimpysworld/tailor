@@ -27,7 +27,7 @@ func TestFormatOutputSwatchesOnly(t *testing.T) {
 func TestFormatOutputRepoSettingsOnly(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},
-		{Field: "has_issues", Category: RSNoChange, Value: "true"},
+		{Field: "has_issues", Category: RepoNoChange, Value: "true"},
 		{Field: "description", Category: WouldSet, Value: "My project"},
 	}
 
@@ -44,7 +44,7 @@ func TestFormatOutputRepoSettingsOnly(t *testing.T) {
 func TestFormatOutputCombined(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},
-		{Field: "has_issues", Category: RSNoChange, Value: "true"},
+		{Field: "has_issues", Category: RepoNoChange, Value: "true"},
 	}
 
 	swatches := []SwatchResult{
@@ -102,9 +102,9 @@ func TestFormatOutputSwatchSorting(t *testing.T) {
 
 func TestFormatOutputRepoSettingSorting(t *testing.T) {
 	repos := []RepoSettingResult{
-		{Field: "has_wiki", Category: RSNoChange, Value: "false"},
+		{Field: "has_wiki", Category: RepoNoChange, Value: "false"},
 		{Field: "has_issues", Category: WouldSet, Value: "true"},
-		{Field: "description", Category: RSNoChange, Value: "A project"},
+		{Field: "description", Category: RepoNoChange, Value: "A project"},
 		{Field: "allow_squash_merge", Category: WouldSet, Value: "true"},
 	}
 

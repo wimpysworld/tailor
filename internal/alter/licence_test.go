@@ -170,16 +170,13 @@ func TestProcessLicenceWarningWhenNoneAndNoFile(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := newTestClient(t, server)
 
-	// Capture stderr.
-	oldStderr := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
+	var result *alter.SwatchResult
+	var err error
 	cfg := &config.Config{License: "none"}
-	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client)
 
-	w.Close()
-	os.Stderr = oldStderr
+	output := captureStderr(t, func() {
+		result, err = alter.ProcessLicence(cfg, dir, alter.DryRun, client)
+	})
 
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
@@ -187,10 +184,6 @@ func TestProcessLicenceWarningWhenNoneAndNoFile(t *testing.T) {
 	if result != nil {
 		t.Errorf("expected nil result, got %+v", result)
 	}
-
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	output := buf.String()
 	if output == "" {
 		t.Error("expected warning on stderr, got nothing")
 	}
@@ -206,15 +199,13 @@ func TestProcessLicenceWarningWhenEmptyAndNoFile(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := newTestClient(t, server)
 
-	oldStderr := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
+	var result *alter.SwatchResult
+	var err error
 	cfg := &config.Config{License: ""}
-	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client)
 
-	w.Close()
-	os.Stderr = oldStderr
+	output := captureStderr(t, func() {
+		result, err = alter.ProcessLicence(cfg, dir, alter.DryRun, client)
+	})
 
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
@@ -222,10 +213,7 @@ func TestProcessLicenceWarningWhenEmptyAndNoFile(t *testing.T) {
 	if result != nil {
 		t.Errorf("expected nil result, got %+v", result)
 	}
-
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	if buf.Len() == 0 {
+	if output == "" {
 		t.Error("expected warning on stderr for empty licence, got nothing")
 	}
 }
@@ -236,24 +224,18 @@ func TestProcessLicenceNoWarningWhenConfigured(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := newTestClient(t, server)
 
-	oldStderr := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
+	var err error
 	cfg := &config.Config{License: "mit"}
-	_, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client)
 
-	w.Close()
-	os.Stderr = oldStderr
+	output := captureStderr(t, func() {
+		_, err = alter.ProcessLicence(cfg, dir, alter.DryRun, client)
+	})
 
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
 	}
-
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	if buf.Len() != 0 {
-		t.Errorf("expected no stderr output, got %q", buf.String())
+	if output != "" {
+		t.Errorf("expected no stderr output, got %q", output)
 	}
 }
 
@@ -265,15 +247,13 @@ func TestProcessLicenceNoWarningWhenFileExistsAndNone(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := newTestClient(t, server)
 
-	oldStderr := os.Stderr
-	r, w, _ := os.Pipe()
-	os.Stderr = w
-
+	var result *alter.SwatchResult
+	var err error
 	cfg := &config.Config{License: "none"}
-	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client)
 
-	w.Close()
-	os.Stderr = oldStderr
+	output := captureStderr(t, func() {
+		result, err = alter.ProcessLicence(cfg, dir, alter.DryRun, client)
+	})
 
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
@@ -281,11 +261,8 @@ func TestProcessLicenceNoWarningWhenFileExistsAndNone(t *testing.T) {
 	if result != nil {
 		t.Errorf("expected nil result, got %+v", result)
 	}
-
-	var buf bytes.Buffer
-	buf.ReadFrom(r)
-	if buf.Len() != 0 {
-		t.Errorf("expected no stderr when LICENSE exists, got %q", buf.String())
+	if output != "" {
+		t.Errorf("expected no stderr when LICENSE exists, got %q", output)
 	}
 }
 

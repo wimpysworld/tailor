@@ -33,6 +33,16 @@ func (tc *TokenContext) SupportURL() string {
 	return fmt.Sprintf("https://github.com/%s/%s/blob/HEAD/SUPPORT.md", tc.Owner, tc.Name)
 }
 
+// HasSubstitution reports whether the given source contains token placeholders.
+func (tc *TokenContext) HasSubstitution(source string) bool {
+	switch source {
+	case ".github/FUNDING.yml", "SECURITY.md", ".github/ISSUE_TEMPLATE/config.yml":
+		return true
+	default:
+		return false
+	}
+}
+
 // Substitute replaces tokens in content based on the swatch source.
 func (tc *TokenContext) Substitute(content []byte, source string) []byte {
 	switch source {

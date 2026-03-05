@@ -32,7 +32,7 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 	}
 
 	// LICENSE absent: fetch and (conditionally) write.
-	if mode == Apply || mode == ForceApply {
+	if mode.ShouldWrite() {
 		body, err := gh.FetchLicence(client, cfg.License)
 		if err != nil {
 			return nil, err
