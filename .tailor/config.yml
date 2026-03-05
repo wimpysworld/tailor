@@ -1,0 +1,83 @@
+# Initially fitted by tailor on 2026-03-05
+license: MIT
+
+repository:
+  has_wiki: false
+  has_discussions: false
+  has_projects: false
+  has_issues: true
+  allow_merge_commit: false
+  allow_squash_merge: true
+  allow_rebase_merge: true
+  squash_merge_commit_title: PR_TITLE
+  squash_merge_commit_message: PR_BODY
+  delete_branch_on_merge: true
+  allow_update_branch: true
+  allow_auto_merge: true
+  web_commit_signoff_required: false
+  private_vulnerability_reporting_enabled: true
+
+swatches:
+  - source: .github/workflows/tailor.yml
+    destination: .github/workflows/tailor.yml
+    alteration: always
+
+  - source: .github/dependabot.yml
+    destination: .github/dependabot.yml
+    alteration: first-fit
+
+  - source: .github/FUNDING.yml
+    destination: .github/FUNDING.yml
+    alteration: first-fit
+
+  - source: .github/ISSUE_TEMPLATE/bug_report.yml
+    destination: .github/ISSUE_TEMPLATE/bug_report.yml
+    alteration: always
+
+  - source: .github/ISSUE_TEMPLATE/feature_request.yml
+    destination: .github/ISSUE_TEMPLATE/feature_request.yml
+    alteration: always
+
+  - source: .github/ISSUE_TEMPLATE/config.yml
+    destination: .github/ISSUE_TEMPLATE/config.yml
+    alteration: first-fit
+
+  - source: .github/pull_request_template.md
+    destination: .github/pull_request_template.md
+    alteration: always
+
+  - source: SECURITY.md
+    destination: SECURITY.md
+    alteration: always
+
+  - source: CODE_OF_CONDUCT.md
+    destination: CODE_OF_CONDUCT.md
+    alteration: always
+
+  - source: CONTRIBUTING.md
+    destination: CONTRIBUTING.md
+    alteration: always
+
+  - source: SUPPORT.md
+    destination: SUPPORT.md
+    alteration: always
+
+  - source: justfile
+    destination: justfile
+    alteration: first-fit
+
+  - source: flake.nix
+    destination: flake.nix
+    alteration: first-fit
+
+  - source: .gitignore
+    destination: .gitignore
+    alteration: first-fit
+
+  - source: .envrc
+    destination: .envrc
+    alteration: first-fit
+
+  - source: .tailor/config.yml
+    destination: .tailor/config.yml
+    alteration: first-fit
