@@ -17,9 +17,10 @@ type TestTransport struct {
 }
 
 func (t *TestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.URL.Scheme = "http"
-	req.URL.Host = t.Server.Listener.Addr().String()
-	return http.DefaultTransport.RoundTrip(req)
+	clone := req.Clone(req.Context())
+	clone.URL.Scheme = "http"
+	clone.URL.Host = t.Server.Listener.Addr().String()
+	return http.DefaultTransport.RoundTrip(clone)
 }
 
 // NewTestClient creates an api.RESTClient that sends all requests to the
