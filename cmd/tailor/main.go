@@ -9,6 +9,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/docket"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/measure"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -22,6 +23,7 @@ var cli struct {
 	Alter   AlterCmd         `cmd:"" help:"Apply swatch templates to the current project."`
 	Baste   BasteCmd         `cmd:"" help:"Preview what alter would do without making any changes."`
 	Measure MeasureCmd       `cmd:"" help:"Assess project health files and configuration alignment."`
+	Docket  DocketCmd        `cmd:"" help:"Display GitHub authentication state and repository context."`
 }
 
 // FitCmd creates a new project directory with a default .tailor/config.yml.
@@ -144,6 +146,19 @@ func (m *MeasureCmd) Run() error {
 	}
 
 	fmt.Print(measure.FormatOutput(health, diff, hasConfig))
+	return nil
+}
+
+// DocketCmd displays GitHub authentication state and repository context.
+type DocketCmd struct{}
+
+// Run executes the docket command.
+func (d *DocketCmd) Run() error {
+	result, err := docket.Run(nil)
+	if err != nil {
+		return err
+	}
+	fmt.Print(docket.FormatOutput(result))
 	return nil
 }
 
