@@ -6,19 +6,19 @@ Tailor is a Go CLI tool for managing project templates across GitHub repositorie
 
 ## Prerequisites
 
-Tailor requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated. The `fit` and `alter` commands verify that a valid authentication token exists at startup and exit with an error if no token is available. Run `gh auth login` to authenticate before using tailor.
+Tailor requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed and authenticated. The `fit`, `alter`, and `baste` commands verify that a valid authentication token exists at startup and exit with an error if no token is available. Run `gh auth login` to authenticate before using tailor.
 
-`measure` is exempt from this requirement - it performs purely local file inspection and needs no network access or authentication.
+`measure` and `docket` are exempt from the authentication requirement. `measure` performs purely local file inspection and needs no network access or authentication. `docket` can report unauthenticated state without erroring - it displays the auth state rather than requiring it.
 
 ## Intended Workflow
 
 ### New project
 
-`fit` creates the project directory and writes `.tailor/config.yml` with the full default swatch set in one command, with a `license: MIT` default. Use `--license=<id>` to select a different licence or `--license=none` to opt out. Change into `<path>`, then run `alter --apply` to copy the swatch files, including the `.github/workflows/tailor.yml` workflow that handles weekly automated maintenance. The action opens a pull request whenever swatch content changes, keeping files current without manual intervention.
+`fit` creates the project directory and writes `.tailor/config.yml` with the full default swatch set in one command, with a `license: MIT` default. Use `--license=<id>` to select a different licence or `--license=none` to opt out. Change into `<path>`, then run `alter` to copy the swatch files, including the `.github/workflows/tailor.yml` workflow that handles weekly automated maintenance. The action opens a pull request whenever swatch content changes, keeping files current without manual intervention.
 
 ### Existing project
 
-`measure` checks which community health files are present or missing - run it first to see what a project needs. If no `.tailor/config.yml` exists, run `tailor fit .` to create one (the directory already exists, so `fit` proceeds without error), or create `.tailor/config.yml` manually. Edit `.tailor/config.yml` directly to add or remove swatches or change alteration modes, then run `alter --apply` to bring the project into sync with the current swatches; the `.github/workflows/tailor.yml` swatch handles ongoing maintenance once placed, opening pull requests whenever upstream swatch content changes.
+`measure` checks which community health files are present or missing - run it first to see what a project needs. If no `.tailor/config.yml` exists, run `tailor fit .` to create one (the directory already exists, so `fit` proceeds without error), or create `.tailor/config.yml` manually. Edit `.tailor/config.yml` directly to add or remove swatches or change alteration modes, then run `alter` to bring the project into sync with the current swatches; the `.github/workflows/tailor.yml` swatch handles ongoing maintenance once placed, opening pull requests whenever upstream swatch content changes.
 
 ## Core Concepts
 
@@ -49,7 +49,7 @@ Tailor requires the [GitHub CLI](https://cli.github.com/) (`gh`) to be installed
 
 Swatch-to-path mappings are hardcoded in the source. Licences are not swatches - they are fetched via the GitHub REST API (`GET /licenses/{id}`) at `alter` time and written to `LICENSE`.
 
-**Repository Settings**: Tailor can manage GitHub repository settings declaratively via the `repository` section in `config.yml`. Field names match the GitHub REST API field names exactly (snake_case). Settings are applied via `PATCH /repos/{owner}/{repo}` as a single API call. Repository settings are always applied idempotently on every `alter --apply` run - there is no `first-fit` concept for API settings. If the `repository` section is absent from `config.yml`, repository settings are skipped entirely.
+**Repository Settings**: Tailor can manage GitHub repository settings declaratively via the `repository` section in `config.yml`. Field names match the GitHub REST API field names exactly (snake_case). Settings are applied via `PATCH /repos/{owner}/{repo}` as a single API call. Repository settings are always applied idempotently on every `alter` run - there is no `first-fit` concept for API settings. If the `repository` section is absent from `config.yml`, repository settings are skipped entirely.
 
 Supported repository settings:
 
@@ -132,11 +132,11 @@ Commands divide into three categories: bootstrap commands, which create the proj
 
 **Bootstrap commands**: `fit`
 **Apply commands**: `alter`
-**Inspection commands**: `measure`
+**Inspection commands**: `baste`, `measure`, `docket`
 
 ### `fit <path>`
 
-Creates a new project directory and writes `.tailor/config.yml` with the full default swatch set and the repository settings. When run against an existing project with a GitHub remote, `fit` queries the live repository configuration and uses those values for the `repository` section, preserving the project's current state. When no repository context exists, the built-in defaults are used. Does not copy any files or apply any settings. After `fit`, change into `<path>` before running `alter --apply`.
+Creates a new project directory and writes `.tailor/config.yml` with the full default swatch set and the repository settings. When run against an existing project with a GitHub remote, `fit` queries the live repository configuration and uses those values for the `repository` section, preserving the project's current state. When no repository context exists, the built-in defaults are used. Does not copy any files or apply any settings. After `fit`, change into `<path>` before running `alter`.
 
 The default swatch set embedded in the binary is:
 
@@ -194,28 +194,41 @@ Applies swatch alterations to the local project.
 `alter` verifies that a valid authentication token exists at startup and exits with an error if no token is available. It then reads `.tailor/config.yml` in the current working directory. No upward traversal is performed.
 
 ```bash
-tailor alter              # Dry-run by default
-tailor alter --apply      # Apply changes
-tailor alter --force-apply  # Apply and overwrite regardless of mode or existence
+tailor alter              # Apply changes
+tailor alter --recut      # Apply and overwrite regardless of mode or existence
 ```
 
 Behaviour:
 - If `.tailor/config.yml` is missing or malformed, exits immediately with the error described in Error Handling.
-- For repository settings: if a `repository` section is present in `config.yml`, reads the current repository settings via `GET /repos/{owner}/{repo}`, compares each declared field against the live value, and on `--apply` sends a single `PATCH /repos/{owner}/{repo}` call with all declared fields. Repository settings are applied before licences and swatches. If no GitHub repository context exists (no remote), repository settings are skipped with a warning. `--force-apply` has no special effect on repository settings - they are always applied declaratively.
-- For `always` swatches: compares the MD5 of the embedded swatch content against the on-disk file; overwrites if they differ. MD5 comparison applies only to `always` swatches. For any `always` swatch whose embedded content contains substitution tokens (`{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, or `{{HOMEPAGE_URL}}`), the MD5 comparison is skipped and the swatch is always overwritten on `alter --apply`. This is because the on-disk file contains the resolved value while the embedded template contains the raw token, so they will always differ. The set of substituted swatches is determined by an explicit list in code: `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, and `.tailor/config.yml`. If a user changes one of these swatches from `first-fit` to `always` in their config, the same skip-and-overwrite rule applies.
+- For repository settings: if a `repository` section is present in `config.yml`, reads the current repository settings via `GET /repos/{owner}/{repo}`, compares each declared field against the live value, and sends a single `PATCH /repos/{owner}/{repo}` call with all declared fields. Repository settings are applied before licences and swatches. If no GitHub repository context exists (no remote), repository settings are skipped with a warning. `--recut` has no special effect on repository settings - they are always applied declaratively.
+- For `always` swatches: compares the MD5 of the embedded swatch content against the on-disk file; overwrites if they differ. MD5 comparison applies only to `always` swatches. For any `always` swatch whose embedded content contains substitution tokens (`{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, or `{{HOMEPAGE_URL}}`), the MD5 comparison is skipped and the swatch is always overwritten on `alter`. This is because the on-disk file contains the resolved value while the embedded template contains the raw token, so they will always differ. The set of substituted swatches is determined by an explicit list in code: `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, and `.tailor/config.yml`. If a user changes one of these swatches from `first-fit` to `always` in their config, the same skip-and-overwrite rule applies.
 - For `first-fit` swatches: copies only if the destination file does not exist; never overwrites. If the destination exists, the swatch is skipped entirely - no MD5 comparison is performed.
 - For licences: if `config.yml` contains a `license` key with a value other than `none`, and no `LICENSE` file exists on disk, fetches the licence text via the GitHub REST API (`GET /licenses/{id}`) and writes it to `LICENSE`. The text is written verbatim as returned by GitHub - no token substitution is performed. Always treated as `first-fit`; the on-disk `LICENSE` file is never overwritten. If the licence fetch fails (e.g. unrecognised licence identifier), `alter` exits with the API error.
 - For `.github/FUNDING.yml`: substitutes `{{GITHUB_USERNAME}}` before writing. `{{GITHUB_USERNAME}}` is resolved at `alter` time from `GET /user`.
 - For `SECURITY.md`: substitutes `{{ADVISORY_URL}}` before writing. `{{ADVISORY_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>/security/advisories/new` from the repository context (owner/name). If no GitHub repository context exists (e.g. a brand-new project with no remote), `{{ADVISORY_URL}}` is left unsubstituted in the written file. The unsubstituted token is intentionally detectable by a future `measure` run; `alter` will resolve and substitute it on a subsequent run once the repository has a remote.
 - For `.github/ISSUE_TEMPLATE/config.yml`: substitutes `{{SUPPORT_URL}}` before writing. `{{SUPPORT_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md` from the repository context (owner/name). If no GitHub repository context exists, `{{SUPPORT_URL}}` is left unsubstituted in the written file.
 - For `.tailor/config.yml`: substitutes `{{HOMEPAGE_URL}}` before writing. `{{HOMEPAGE_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>` from the repository context (owner/name). If no GitHub repository context exists, `{{HOMEPAGE_URL}}` is left unsubstituted in the written file.
-- With `--force-apply`: implies `--apply`; always writes to disk and is never a dry-run. Overwrites regardless of mode or existence, including `first-fit` swatches - `--force-apply` will overwrite a `first-fit` swatch file even if it exists and has been locally modified. Use with care. The licence file and `.tailor/config.yml` are exempt from `--force-apply` and are never overwritten regardless - the licence because it is fetched content not an embedded swatch, and `.tailor/config.yml` because overwriting it would destroy the project's configuration. When `--force-apply` writes a substituted swatch (e.g. `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`), the full token resolution pipeline runs and fresh values are substituted before writing.
-- If no `license` key is present in `config.yml` (or its value is `none`) and no `LICENSE` file exists in the project root, emits a warning: "No licence file found and no licence configured. Add `license: MIT` (or another identifier) to `.tailor/config.yml` and run `tailor alter --apply`." Warning only; does not block execution.
+- With `--recut`: overwrites regardless of mode or existence, including `first-fit` swatches - `--recut` will overwrite a `first-fit` swatch file even if it exists and has been locally modified. Use with care. The licence file and `.tailor/config.yml` are exempt from `--recut` and are never overwritten regardless - the licence because it is fetched content not an embedded swatch, and `.tailor/config.yml` because overwriting it would destroy the project's configuration. When `--recut` writes a substituted swatch (e.g. `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`), the full token resolution pipeline runs and fresh values are substituted before writing.
+- If no `license` key is present in `config.yml` (or its value is `none`) and no `LICENSE` file exists in the project root, emits a warning: "No licence file found and no licence configured. Add `license: MIT` (or another identifier) to `.tailor/config.yml` and run `tailor alter`." Warning only; does not block execution.
 - Creates intermediate directories as needed before writing any swatch whose destination path requires directories that do not yet exist.
 - Never touches files not listed in `config.yml`
 - Modifies files only; does not commit or push
 
-Dry-run output format - repository settings are shown first (if a `repository` section is present), followed by swatch entries.
+### `baste`
+
+Previews what `alter` would do without making any changes.
+
+`baste` verifies that a valid authentication token exists at startup and exits with an error if no token is available. It then reads `.tailor/config.yml` in the current working directory. No upward traversal is performed.
+
+```bash
+tailor baste
+```
+
+Behaviour:
+- If `.tailor/config.yml` is missing or malformed, exits immediately with the error described in Error Handling.
+- `baste` performs the same comparison logic as `alter` but writes nothing. It reports what `alter` would do.
+
+Output format - repository settings are shown first (if a `repository` section is present), followed by swatch entries.
 
 Repository settings output uses two categories:
 
@@ -293,6 +306,47 @@ Output order: `missing`, `present`, `not-configured`, `config-only`, `mode-diffe
 
 The `present`/`missing` check covers health swatches only. The config-diff check (`config-only`, `not-configured`, `mode-differs`) compares against the full default swatch set (both health and development swatches), since `config.yml` covers all swatches.
 
+### `docket`
+
+Displays the current GitHub authentication state and repository context. This is the answer to "whose job is this and who's doing it?" - it shows who is authenticated, what repository is in scope, and whether tailor can operate.
+
+`docket` requires no arguments. It exits with an error if `gh` is not available, but does not require authentication - it reports unauthenticated state instead of erroring.
+
+```bash
+tailor docket
+```
+
+**Authenticated, with repository context:**
+
+```
+user:           octocat
+repository:     octocat/my-project
+auth:           authenticated
+```
+
+**Authenticated, without repository context:**
+
+```
+user:           octocat
+repository:     (none)
+auth:           authenticated
+```
+
+**Not authenticated:**
+
+```
+user:           (none)
+repository:     (none)
+auth:           not authenticated
+```
+
+Behaviour:
+- `user` is resolved via `GET /user` if authenticated; displays `(none)` if not authenticated.
+- `repository` displays the `owner/repo` derived from the GitHub remote in the current directory; displays `(none)` if no GitHub remote exists.
+- `auth` displays `authenticated` or `not authenticated` based on whether a valid token can be resolved for `github.com`.
+- If `gh` is not installed or not found on `PATH`, exits with an error: "tailor requires the GitHub CLI (`gh`). Install it from https://cli.github.com/."
+- Does not read `.tailor/config.yml` and does not require it to be present.
+
 ## Error Handling
 
 **Unrecognised swatch `source` in `config.yml`**: if `alter` encounters a `source` value that does not match any embedded swatch, it exits with an error identifying the unrecognised name and listing all valid swatch source names embedded in the binary.
@@ -301,17 +355,19 @@ The `present`/`missing` check covers health swatches only. The config-diff check
 
 **Destination path not writable**: tailor exits with an error showing the full path that could not be written.
 
-**`.tailor/config.yml` malformed or missing**: if `alter` reads a missing or malformed `.tailor/config.yml`, it exits with a clear message directing the user to run `fit` to create a valid configuration, or edit `.tailor/config.yml` directly to correct it.
+**`.tailor/config.yml` malformed or missing**: if `alter` or `baste` reads a missing or malformed `.tailor/config.yml`, it exits with a clear message directing the user to run `fit` to create a valid configuration, or edit `.tailor/config.yml` directly to correct it.
 
-**`always` swatch modified locally**: tailor treats the file as changed whenever the MD5 of the embedded swatch content differs from the on-disk file. `alter --apply` overwrites it unconditionally. Tailor does not preserve local edits to `always` swatches; use `first-fit` alteration mode if local modifications must be retained after the initial fit. `--force-apply` overrides `first-fit` protection for all swatches except the licence file and `.tailor/config.yml`, which are never overwritten regardless of flags.
+**`always` swatch modified locally**: tailor treats the file as changed whenever the MD5 of the embedded swatch content differs from the on-disk file. `alter` overwrites it unconditionally. Tailor does not preserve local edits to `always` swatches; use `first-fit` alteration mode if local modifications must be retained after the initial fit. `--recut` overrides `first-fit` protection for all swatches except the licence file and `.tailor/config.yml`, which are never overwritten regardless of flags.
 
 **Duplicate destination in `config.yml`**: if `alter` detects that two or more swatches share a destination, it exits with an error identifying the conflicting swatches before making any changes.
 
-**`gh` not authenticated**: if no valid authentication token can be resolved for `github.com`, `fit` and `alter` exit with: "tailor requires an authenticated GitHub CLI. Run `gh auth login` to authenticate."
+**`gh` not authenticated**: if no valid authentication token can be resolved for `github.com`, `fit`, `alter`, and `baste` exit with: "tailor requires an authenticated GitHub CLI. Run `gh auth login` to authenticate."
+
+**`gh` not available**: if `gh` is not installed or not found on `PATH`, all commands exit with an error: "tailor requires the GitHub CLI (`gh`). Install it from https://cli.github.com/."
 
 **`{{GITHUB_USERNAME}}` resolution failed**: `{{GITHUB_USERNAME}}` is resolved via the GitHub REST API (`GET /user`). If this call fails (e.g. rate limits, network issues), `alter` exits with the API error. Unlike repo-context tokens, `{{GITHUB_USERNAME}}` depends on the authenticated user, not the repository, so it cannot be deferred.
 
-**Repo-context tokens unresolved**: `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, and `{{HOMEPAGE_URL}}` require a GitHub repository context. If the project has no GitHub remote (e.g. a brand-new project not yet pushed), these tokens are left unsubstituted silently. For `always` swatches (e.g. `SECURITY.md`), `alter` will resolve and substitute them on a subsequent run once the repository has a remote. For `first-fit` swatches (e.g. `.github/ISSUE_TEMPLATE/config.yml`), delete the file and re-run `alter --apply`, or use `--force-apply`.
+**Repo-context tokens unresolved**: `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, and `{{HOMEPAGE_URL}}` require a GitHub repository context. If the project has no GitHub remote (e.g. a brand-new project not yet pushed), these tokens are left unsubstituted silently. For `always` swatches (e.g. `SECURITY.md`), `alter` will resolve and substitute them on a subsequent run once the repository has a remote. For `first-fit` swatches (e.g. `.github/ISSUE_TEMPLATE/config.yml`), delete the file and re-run `alter`, or use `--recut`.
 
 **Repository settings without repo context**: if `config.yml` contains a `repository` section but the project has no GitHub remote (no repository context found), repository settings are skipped with a warning: "No GitHub repository context found. Repository settings will be applied once a remote is configured." Warning only; does not block swatch or licence processing.
 
@@ -455,7 +511,7 @@ Licences are not embedded - they are fetched at `alter` time via the GitHub REST
 
 ## GitHub Action
 
-The `.github/workflows/tailor.yml` swatch delivers a GitHub Actions workflow that runs `tailor alter --apply` on a weekly schedule and opens a pull request whenever swatch content has changed. The workflow is placed by `alter --apply` like any other swatch; no manual setup is required beyond including it in the swatch list.
+The `.github/workflows/tailor.yml` swatch delivers a GitHub Actions workflow that runs `tailor alter` on a weekly schedule and opens a pull request whenever swatch content has changed. The workflow is placed by `alter` like any other swatch; no manual setup is required beyond including it in the swatch list.
 
 `wimpysworld/tailor-action@v1` is a separate GitHub Actions action maintained alongside tailor that installs the tailor binary into the workflow runner. It is a separate deliverable from the tailor CLI itself.
 
@@ -480,7 +536,7 @@ jobs:
         uses: wimpysworld/tailor-action@v1
 
       - name: Alter swatches
-        run: tailor alter --apply
+        run: tailor alter
 
       - name: Create PR
         uses: peter-evans/create-pull-request@v6
@@ -490,7 +546,7 @@ jobs:
 ```
 
 Action behaviour:
-- `tailor alter --apply` writes changes to the working tree; `create-pull-request` opens a PR. The PR body is auto-generated by `peter-evans/create-pull-request` from its diff detection - no `body` or `body-path` is set.
+- `tailor alter` writes changes to the working tree; `create-pull-request` opens a PR. The PR body is auto-generated by `peter-evans/create-pull-request` from its diff detection - no `body` or `body-path` is set.
 - Committing and pushing are handled by `peter-evans/create-pull-request`, not by tailor. Tailor only modifies files in the working tree.
 - The action runs in a non-interactive shell. `GH_TOKEN` is set at the job level, satisfying tailor's `gh` authentication requirement and pre-authenticating all `gh` calls. All tokens resolve via `gh` in CI. `first-fit` swatches (`.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`, the licence file) are not overwritten after initial creation. `SECURITY.md` is `always` mode and is rewritten on every run (see the substituted-swatch rule in the `alter` behaviour section). Although the file is rewritten each time, `{{ADVISORY_URL}}` resolves to the same URL for a given repository, so the substituted content is identical across runs - git detects no diff and `create-pull-request` opens no PR. If a tailor upgrade changes a swatch template, the file will differ and a PR will be opened.
 - Because `.github/workflows/tailor.yml` is itself an `always` swatch, the action workflow is kept current automatically: if the embedded swatch content changes in a new tailor release, the weekly run will update the workflow file and open a PR.
@@ -506,21 +562,21 @@ default:
 
 # Alter tailor swatches
 alter:
-    @tailor alter --apply
+    @tailor alter
 
 # Check what tailor would change and measure
 measure:
-    @tailor alter
+    @tailor baste
     @tailor measure
 ```
 
 ## Implementation Notes
 
-1. **Overwrite detection**: MD5 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. MD5 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For `always` swatches containing substitution tokens, the MD5 comparison is skipped entirely and the swatch is always overwritten (see the authoritative rule in the `alter` behaviour section). Bypassed with `--force-apply`.
+1. **Overwrite detection**: MD5 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. MD5 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For `always` swatches containing substitution tokens, the MD5 comparison is skipped entirely and the swatch is always overwritten (see the authoritative rule in the `alter` behaviour section). Bypassed with `--recut`.
 2. **Interpolation (FUNDING.yml, SECURITY.md, config.yml, and .tailor/config.yml)**: Swatches are complete verbatim files with four exceptions. `.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted at `alter` time from `GET /user`. `SECURITY.md` has `{{ADVISORY_URL}}` constructed from the repository context (owner/name); if no repository context exists, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` constructed from the repository context, producing `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`; if no repository context exists, the token is left unsubstituted. `.tailor/config.yml` has `{{HOMEPAGE_URL}}` constructed from the repository context, producing `https://github.com/<owner>/<name>`; if no repository context exists, the token is left unsubstituted. No per-swatch configuration is required. Licences are fetched via `GET /licenses/{id}` and written verbatim - no token substitution is involved.
-3. **No versioning**: No swatch versions, always uses swatches from current tailor binary. Upgrading tailor will cause all `always` swatches to be re-evaluated against the new embedded content; files whose swatch content has changed will be overwritten on the next `alter --apply` run.
+3. **No versioning**: No swatch versions, always uses swatches from current tailor binary. Upgrading tailor will cause all `always` swatches to be re-evaluated against the new embedded content; files whose swatch content has changed will be overwritten on the next `alter` run.
 4. **No global state**: All state is per-project in `.tailor/config.yml`
 5. **No project registry**: Tailor has no awareness of its consumers. Projects pull from tailor, tailor does not track projects.
-6. **`gh` as sole external dependency**: Tailor requires an authenticated `gh` CLI. All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions, which reads `gh`'s stored credentials directly. The `gh` binary is still required for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If `gh` is not available or not authenticated, `fit` and `alter` exit immediately with an error.
+6. **`gh` as sole external dependency**: Tailor requires an authenticated `gh` CLI. All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions, which reads `gh`'s stored credentials directly. The `gh` binary is still required for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If `gh` is not available or not authenticated, `fit`, `alter`, and `baste` exit immediately with an error.
 7. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
-8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `config.yml`. Field names map directly to the GitHub REST API without translation. Current settings are read via `GET /repos/{owner}/{repo}` for dry-run comparison. All API calls use `go-gh`'s pre-authenticated REST client. The `alter` execution order is: repository settings, then licence, then swatches.
+8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `config.yml`. Field names map directly to the GitHub REST API without translation. Current settings are read via `GET /repos/{owner}/{repo}` for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client. The `alter` execution order is: repository settings, then licence, then swatches.
