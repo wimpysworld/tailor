@@ -67,19 +67,45 @@ func fakeNoRepo(t *testing.T) {
 	t.Cleanup(restore)
 }
 
+// setupDocketTest configures auth and repo fakes, optionally starts an
+// httptest server, and returns a *api.RESTClient (nil when token is empty).
+func setupDocketTest(t *testing.T, token string, hasRepo bool, repoOwner, repoName string, apiStatus int, apiBody string) *api.RESTClient {
+	t.Helper()
+	fakeAuth(t, token)
+	if hasRepo {
+		fakeRepo(t, repoOwner, repoName)
+	} else {
+		fakeNoRepo(t)
+	}
+
+	if token == "" {
+		return nil
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/user" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(apiStatus)
+		fmt.Fprint(w, apiBody)
+	}))
+	t.Cleanup(server.Close)
+	return newTestClient(t, server)
+}
+
 func TestRun(t *testing.T) {
 	tests := []struct {
-		name       string
-		token      string
-		hasRepo    bool
-		repoOwner  string
-		repoName   string
-		apiStatus  int
-		apiBody    string
-		wantUser   string
-		wantRepo   string
-		wantAuth   string
-		wantNoErr  bool
+		name      string
+		token     string
+		hasRepo   bool
+		repoOwner string
+		repoName  string
+		apiStatus int
+		apiBody   string
+		wantUser  string
+		wantRepo  string
+		wantAuth  string
 	}{
 		{
 			name:      "authenticated with repo",
@@ -92,7 +118,6 @@ func TestRun(t *testing.T) {
 			wantUser:  "octocat",
 			wantRepo:  "octocat/my-project",
 			wantAuth:  "authenticated",
-			wantNoErr: true,
 		},
 		{
 			name:      "authenticated without repo",
@@ -103,16 +128,14 @@ func TestRun(t *testing.T) {
 			wantUser:  "octocat",
 			wantRepo:  "(none)",
 			wantAuth:  "authenticated",
-			wantNoErr: true,
 		},
 		{
-			name:      "not authenticated",
-			token:     "",
-			hasRepo:   false,
-			wantUser:  "(none)",
-			wantRepo:  "(none)",
-			wantAuth:  "not authenticated",
-			wantNoErr: true,
+			name:     "not authenticated",
+			token:    "",
+			hasRepo:  false,
+			wantUser: "(none)",
+			wantRepo: "(none)",
+			wantAuth: "not authenticated",
 		},
 		{
 			name:      "not authenticated but has repo",
@@ -123,7 +146,6 @@ func TestRun(t *testing.T) {
 			wantUser:  "(none)",
 			wantRepo:  "octocat/my-project",
 			wantAuth:  "not authenticated",
-			wantNoErr: true,
 		},
 		{
 			name:      "authenticated but API failure",
@@ -134,37 +156,14 @@ func TestRun(t *testing.T) {
 			wantUser:  "(none)",
 			wantRepo:  "(none)",
 			wantAuth:  "authenticated",
-			wantNoErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeAuth(t, tt.token)
-			if tt.hasRepo {
-				fakeRepo(t, tt.repoOwner, tt.repoName)
-			} else {
-				fakeNoRepo(t)
-			}
+			client := setupDocketTest(t, tt.token, tt.hasRepo, tt.repoOwner, tt.repoName, tt.apiStatus, tt.apiBody)
 
-			var client *api.RESTClient
-			if tt.token != "" {
-				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path != "/user" {
-						http.NotFound(w, r)
-						return
-					}
-					w.WriteHeader(tt.apiStatus)
-					fmt.Fprint(w, tt.apiBody)
-				}))
-				t.Cleanup(server.Close)
-				client = newTestClient(t, server)
-			}
-
-			result, err := Run(client)
-			if tt.wantNoErr && err != nil {
-				t.Fatalf("Run() error: %v", err)
-			}
+			result := Run(client)
 
 			if result.User != tt.wantUser {
 				t.Errorf("User = %q, want %q", result.User, tt.wantUser)
@@ -207,39 +206,33 @@ func TestFormatOutput(t *testing.T) {
 				"repository:     (none)\n" +
 				"auth:           not authenticated\n",
 		},
-		{
-			name: "column alignment",
-			result: &Result{
-				User:       "u",
-				Repository: "r",
-				Auth:       "a",
-			},
-			want: "", // checked below
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := FormatOutput(tt.result)
-
-			if tt.name == "column alignment" {
-				lines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
-				if len(lines) != 3 {
-					t.Fatalf("expected 3 lines, got %d", len(lines))
-				}
-				labels := []string{"user:", "repository:", "auth:"}
-				for i, line := range lines {
-					prefix := fmt.Sprintf("%-16s", labels[i])
-					if !strings.HasPrefix(line, prefix) {
-						t.Errorf("line %d: label not padded to 16 chars\ngot:  %q\nwant prefix: %q", i, line, prefix)
-					}
-				}
-				return
-			}
-
 			if got != tt.want {
 				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, tt.want)
 			}
 		})
 	}
+
+	t.Run("column alignment", func(t *testing.T) {
+		got := FormatOutput(&Result{
+			User:       "u",
+			Repository: "r",
+			Auth:       "a",
+		})
+		lines := strings.Split(strings.TrimSuffix(got, "\n"), "\n")
+		if len(lines) != 3 {
+			t.Fatalf("expected 3 lines, got %d", len(lines))
+		}
+		labels := []string{"user:", "repository:", "auth:"}
+		for i, line := range lines {
+			prefix := fmt.Sprintf("%-16s", labels[i])
+			if !strings.HasPrefix(line, prefix) {
+				t.Errorf("line %d: label not padded to 16 chars\ngot:  %q\nwant prefix: %q", i, line, prefix)
+			}
+		}
+	})
 }

@@ -1,24 +1,20 @@
 package docket
 
 import (
-	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"testing"
-
-	"github.com/cli/go-gh/v2/pkg/api"
 )
 
 func TestRunFormatOutputIntegration(t *testing.T) {
 	tests := []struct {
-		name          string
-		token         string
-		hasRepo       bool
-		repoOwner     string
-		repoName      string
-		apiStatus     int
-		apiBody       string
+		name         string
+		token        string
+		hasRepo      bool
+		repoOwner    string
+		repoName     string
+		apiStatus    int
+		apiBody      string
 		wantContains []string
 	}{
 		{
@@ -53,32 +49,9 @@ func TestRunFormatOutputIntegration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeAuth(t, tt.token)
-			if tt.hasRepo {
-				fakeRepo(t, tt.repoOwner, tt.repoName)
-			} else {
-				fakeNoRepo(t)
-			}
+			client := setupDocketTest(t, tt.token, tt.hasRepo, tt.repoOwner, tt.repoName, tt.apiStatus, tt.apiBody)
 
-			var client *api.RESTClient
-			if tt.token != "" {
-				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					if r.URL.Path != "/user" {
-						http.NotFound(w, r)
-						return
-					}
-					w.WriteHeader(tt.apiStatus)
-					fmt.Fprint(w, tt.apiBody)
-				}))
-				t.Cleanup(server.Close)
-				client = newTestClient(t, server)
-			}
-
-			result, err := Run(client)
-			if err != nil {
-				t.Fatalf("Run() error: %v", err)
-			}
-
+			result := Run(client)
 			output := FormatOutput(result)
 
 			for _, s := range tt.wantContains {

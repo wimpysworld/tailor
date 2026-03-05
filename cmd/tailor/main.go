@@ -154,10 +154,7 @@ type DocketCmd struct{}
 
 // Run executes the docket command.
 func (d *DocketCmd) Run() error {
-	result, err := docket.Run(nil)
-	if err != nil {
-		return err
-	}
+	result := docket.Run(nil)
 	fmt.Print(docket.FormatOutput(result))
 	return nil
 }

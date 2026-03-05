@@ -16,9 +16,9 @@ type Result struct {
 }
 
 // Run gathers diagnostic context: repository, authentication, and username.
-// It never returns an error; missing information is represented as "(none)"
-// or "not authenticated" in the returned Result.
-func Run(client *api.RESTClient) (*Result, error) {
+// Missing information is represented as "(none)" or "not authenticated"
+// in the returned Result.
+func Run(client *api.RESTClient) *Result {
 	r := &Result{
 		User:       "(none)",
 		Repository: "(none)",
@@ -31,7 +31,7 @@ func Run(client *api.RESTClient) (*Result, error) {
 	}
 
 	if err := gh.CheckAuth(); err != nil {
-		return r, nil
+		return r
 	}
 	r.Auth = "authenticated"
 
@@ -39,17 +39,17 @@ func Run(client *api.RESTClient) (*Result, error) {
 		var err error
 		client, err = api.DefaultRESTClient()
 		if err != nil {
-			return r, nil
+			return r
 		}
 	}
 
 	username, err := gh.FetchUsername(client)
 	if err != nil {
-		return r, nil
+		return r
 	}
 	r.User = username
 
-	return r, nil
+	return r
 }
 
 // labelWidth is the fixed column width for field labels in formatted output.
