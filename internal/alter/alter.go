@@ -47,8 +47,11 @@ func Run(cfg *config.Config, dir string, mode ApplyMode) error {
 		Name:          name,
 	}
 
-	// Phase 4 (repository settings) not yet implemented; pass nil.
-	var repoResults []RepoSettingResult
+	// Repository settings processing.
+	repoResults, err := ProcessRepoSettings(cfg, dir, mode, client)
+	if err != nil {
+		return err
+	}
 
 	// Licence processing.
 	licenceResult, err := ProcessLicence(cfg, dir, mode, client)

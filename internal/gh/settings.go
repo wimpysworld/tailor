@@ -1,7 +1,11 @@
 package gh
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
+	"reflect"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
@@ -70,4 +74,72 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 	}
 
 	return s, nil
+}
+
+// ApplyRepoSettings sends a PATCH /repos/{owner}/{repo} with the declared
+// settings. It also handles private_vulnerability_reporting_enabled via its
+// separate PUT/DELETE endpoint. Returns an error if any API call fails.
+func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *config.RepositorySettings) error {
+	body, pvr := buildSettingsPayload(settings)
+
+	if len(body) > 0 {
+		payload, err := json.Marshal(body)
+		if err != nil {
+			return fmt.Errorf("marshalling repo settings: %w", err)
+		}
+		if err := client.Patch(fmt.Sprintf("repos/%s/%s", owner, name), bytes.NewReader(payload), nil); err != nil {
+			return fmt.Errorf("patching repo settings: %w", err)
+		}
+	}
+
+	if pvr != nil {
+		pvrPath := fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name)
+		if *pvr {
+			if err := client.Put(pvrPath, bytes.NewReader([]byte("{}")), nil); err != nil {
+				return fmt.Errorf("enabling private vulnerability reporting: %w", err)
+			}
+		} else {
+			if err := client.Delete(pvrPath, nil); err != nil {
+				return fmt.Errorf("disabling private vulnerability reporting: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// buildSettingsPayload uses reflection to build a map of non-nil fields from
+// settings, keyed by their yaml tags. It returns the map for the PATCH body
+// and a separate *bool for the private vulnerability reporting field.
+func buildSettingsPayload(settings *config.RepositorySettings) (map[string]any, *bool) {
+	body := make(map[string]any)
+	var pvr *bool
+
+	v := reflect.ValueOf(settings).Elem()
+	t := v.Type()
+
+	for i := range t.NumField() {
+		field := t.Field(i)
+		tag := field.Tag.Get("yaml")
+		if tag == "" || tag == ",inline" {
+			continue
+		}
+		// Strip ",omitempty" suffix to get the bare key.
+		key, _, _ := strings.Cut(tag, ",")
+
+		fv := v.Field(i)
+		if fv.Kind() != reflect.Ptr || fv.IsNil() {
+			continue
+		}
+
+		if key == "private_vulnerability_reporting_enabled" {
+			b := fv.Elem().Bool()
+			pvr = &b
+			continue
+		}
+
+		body[key] = fv.Elem().Interface()
+	}
+
+	return body, pvr
 }

@@ -1,12 +1,16 @@
 package gh
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
@@ -229,6 +233,180 @@ func TestReadRepoSettingsPVRAPIError(t *testing.T) {
 	_, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err == nil {
 		t.Fatal("ReadRepoSettings() expected error for PVR failure, got nil")
+	}
+}
+
+func TestApplyRepoSettingsPatchBody(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotBody map[string]any
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &gotBody)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		Description:  ptr.String("new desc"),
+		HasWiki:      ptr.Bool(true),
+		AllowAutoMerge: ptr.Bool(false),
+	}
+
+	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("ApplyRepoSettings() error: %v", err)
+	}
+
+	if gotMethod != http.MethodPatch {
+		t.Errorf("method = %s, want PATCH", gotMethod)
+	}
+	if gotPath != "/repos/testowner/testrepo" {
+		t.Errorf("path = %s, want /repos/testowner/testrepo", gotPath)
+	}
+
+	// Verify non-nil fields present with correct values.
+	if gotBody["description"] != "new desc" {
+		t.Errorf("description = %v, want %q", gotBody["description"], "new desc")
+	}
+	if gotBody["has_wiki"] != true {
+		t.Errorf("has_wiki = %v, want true", gotBody["has_wiki"])
+	}
+	if gotBody["allow_auto_merge"] != false {
+		t.Errorf("allow_auto_merge = %v, want false", gotBody["allow_auto_merge"])
+	}
+
+	// Verify nil fields excluded.
+	if _, ok := gotBody["homepage"]; ok {
+		t.Error("homepage should not be in PATCH body when nil")
+	}
+	if _, ok := gotBody["private_vulnerability_reporting_enabled"]; ok {
+		t.Error("private_vulnerability_reporting_enabled should not be in PATCH body")
+	}
+}
+
+func TestApplyRepoSettingsPVRPut(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+	}
+
+	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("ApplyRepoSettings() error: %v", err)
+	}
+
+	if gotMethod != http.MethodPut {
+		t.Errorf("method = %s, want PUT", gotMethod)
+	}
+	if gotPath != "/repos/testowner/testrepo/private-vulnerability-reporting" {
+		t.Errorf("path = %s, want /repos/testowner/testrepo/private-vulnerability-reporting", gotPath)
+	}
+}
+
+func TestApplyRepoSettingsPVRDelete(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		PrivateVulnerabilityReportEnabled: ptr.Bool(false),
+	}
+
+	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("ApplyRepoSettings() error: %v", err)
+	}
+
+	if gotMethod != http.MethodDelete {
+		t.Errorf("method = %s, want DELETE", gotMethod)
+	}
+	if gotPath != "/repos/testowner/testrepo/private-vulnerability-reporting" {
+		t.Errorf("path = %s, want /repos/testowner/testrepo/private-vulnerability-reporting", gotPath)
+	}
+}
+
+func TestApplyRepoSettingsNoPatchWhenOnlyPVR(t *testing.T) {
+	var methods []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		methods = append(methods, r.Method)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+	}
+
+	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("ApplyRepoSettings() error: %v", err)
+	}
+
+	if len(methods) != 1 {
+		t.Fatalf("expected 1 API call, got %d: %v", len(methods), methods)
+	}
+	if methods[0] != http.MethodPut {
+		t.Errorf("single call method = %s, want PUT (no PATCH)", methods[0])
+	}
+}
+
+func TestApplyRepoSettingsPatchError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"message": "Forbidden"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		HasWiki: ptr.Bool(true),
+	}
+
+	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err == nil {
+		t.Fatal("ApplyRepoSettings() expected error from PATCH, got nil")
+	}
+}
+
+func TestApplyRepoSettingsPVRError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, `{"message": "Internal Server Error"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+	}
+
+	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err == nil {
+		t.Fatal("ApplyRepoSettings() expected error from PUT, got nil")
 	}
 }
 
