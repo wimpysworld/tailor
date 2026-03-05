@@ -5,6 +5,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/gh"
 )
 
 // ApplyMode controls whether changes are written to disk.
@@ -34,6 +35,18 @@ func Run(cfg *config.Config, dir string, mode ApplyMode) error {
 		return fmt.Errorf("creating GitHub API client: %w", err)
 	}
 
+	username, err := gh.FetchUsername(client)
+	if err != nil {
+		return fmt.Errorf("fetching GitHub username: %w", err)
+	}
+
+	owner, name, _ := gh.RepoContext()
+	tokens := TokenContext{
+		GitHubUsername: username,
+		Owner:         owner,
+		Name:          name,
+	}
+
 	// Phase 4 (repository settings) not yet implemented; pass nil.
 	var repoResults []RepoSettingResult
 
@@ -43,16 +56,15 @@ func Run(cfg *config.Config, dir string, mode ApplyMode) error {
 		return err
 	}
 
-	// Swatch processing with placeholder token context.
-	tokens := &TokenContext{}
-	swatchResults, err := ProcessSwatches(cfg, dir, mode, tokens)
+	// Swatch processing.
+	swatchResults, err := ProcessSwatches(cfg, dir, mode, &tokens)
 	if err != nil {
 		return err
 	}
 
 	// Merge licence result into swatch results for unified output.
 	if licenceResult != nil {
-		swatchResults = append(swatchResults, *licenceResult)
+		swatchResults = append([]SwatchResult{*licenceResult}, swatchResults...)
 	}
 
 	output := FormatOutput(repoResults, swatchResults)
