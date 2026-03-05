@@ -33,10 +33,18 @@ func (tc *TokenContext) SupportURL() string {
 	return fmt.Sprintf("https://github.com/%s/%s/blob/HEAD/SUPPORT.md", tc.Owner, tc.Name)
 }
 
+// HomepageURL returns the constructed homepage URL, or the raw token if no repo context.
+func (tc *TokenContext) HomepageURL() string {
+	if !tc.HasRepoContext() {
+		return "{{HOMEPAGE_URL}}"
+	}
+	return fmt.Sprintf("https://github.com/%s/%s", tc.Owner, tc.Name)
+}
+
 // HasSubstitution reports whether the given source contains token placeholders.
 func (tc *TokenContext) HasSubstitution(source string) bool {
 	switch source {
-	case ".github/FUNDING.yml", "SECURITY.md", ".github/ISSUE_TEMPLATE/config.yml":
+	case ".github/FUNDING.yml", "SECURITY.md", ".github/ISSUE_TEMPLATE/config.yml", ".tailor/config.yml":
 		return true
 	default:
 		return false
@@ -52,6 +60,8 @@ func (tc *TokenContext) Substitute(content []byte, source string) []byte {
 		return bytes.ReplaceAll(content, []byte("{{ADVISORY_URL}}"), []byte(tc.AdvisoryURL()))
 	case ".github/ISSUE_TEMPLATE/config.yml":
 		return bytes.ReplaceAll(content, []byte("{{SUPPORT_URL}}"), []byte(tc.SupportURL()))
+	case ".tailor/config.yml":
+		return bytes.ReplaceAll(content, []byte("{{HOMEPAGE_URL}}"), []byte(tc.HomepageURL()))
 	default:
 		return content
 	}

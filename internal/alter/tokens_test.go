@@ -75,6 +75,50 @@ func TestSubstituteConfigYmlWithoutRepoContext(t *testing.T) {
 	}
 }
 
+func TestHomepageURLWithRepoContext(t *testing.T) {
+	tc := &alter.TokenContext{Owner: "org", Name: "repo"}
+	got := tc.HomepageURL()
+	want := "https://github.com/org/repo"
+	if got != want {
+		t.Errorf("HomepageURL() = %q, want %q", got, want)
+	}
+}
+
+func TestHomepageURLWithoutRepoContext(t *testing.T) {
+	tc := &alter.TokenContext{}
+	got := tc.HomepageURL()
+	want := "{{HOMEPAGE_URL}}"
+	if got != want {
+		t.Errorf("HomepageURL() = %q, want %q", got, want)
+	}
+}
+
+func TestSubstituteTailorConfigYmlWithRepoContext(t *testing.T) {
+	tc := &alter.TokenContext{Owner: "org", Name: "repo"}
+	input := []byte("homepage: \"{{HOMEPAGE_URL}}\"\n")
+	got := tc.Substitute(input, ".tailor/config.yml")
+	want := []byte("homepage: \"https://github.com/org/repo\"\n")
+	if !bytes.Equal(got, want) {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestSubstituteTailorConfigYmlWithoutRepoContext(t *testing.T) {
+	tc := &alter.TokenContext{}
+	input := []byte("homepage: \"{{HOMEPAGE_URL}}\"\n")
+	got := tc.Substitute(input, ".tailor/config.yml")
+	if !bytes.Equal(got, input) {
+		t.Errorf("expected no substitution, got %q", got)
+	}
+}
+
+func TestHasSubstitutionTailorConfigYml(t *testing.T) {
+	tc := &alter.TokenContext{}
+	if !tc.HasSubstitution(".tailor/config.yml") {
+		t.Error("HasSubstitution(.tailor/config.yml) = false, want true")
+	}
+}
+
 func TestSubstitutePassthroughOtherSources(t *testing.T) {
 	tc := &alter.TokenContext{GitHubUsername: "octocat", Owner: "org", Name: "repo"}
 	input := []byte("some content with {{GITHUB_USERNAME}} and {{ADVISORY_URL}}")

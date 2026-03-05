@@ -1,6 +1,8 @@
 license: MIT
 
 repository:
+  description: ""
+  homepage: "{{HOMEPAGE_URL}}"
   has_wiki: false
   has_discussions: false
   has_projects: false
