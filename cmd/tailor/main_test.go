@@ -314,7 +314,7 @@ func TestFitAuthFailure(t *testing.T) {
 		t.Fatal("Run() expected error, got nil")
 	}
 
-	wantMsg := "tailor requires an authenticated GitHub CLI; run 'gh auth login' to authenticate"
+	wantMsg := "tailor requires GitHub authentication. Set the GH_TOKEN or GITHUB_TOKEN environment variable, or run 'gh auth login'"
 	if !strings.Contains(err.Error(), wantMsg) {
 		t.Errorf("error = %q, want substring %q", err.Error(), wantMsg)
 	}
