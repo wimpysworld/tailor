@@ -19,7 +19,8 @@ const (
 
 // Run executes the alter command. It validates the config, applies
 // repository settings, fetches the licence, and processes swatches.
-func Run(cfg *config.Config, dir string, mode ApplyMode) error {
+// When client is nil, a default GitHub REST client is created.
+func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) error {
 	if err := config.ValidateSources(cfg); err != nil {
 		return err
 	}
@@ -30,9 +31,12 @@ func Run(cfg *config.Config, dir string, mode ApplyMode) error {
 		return err
 	}
 
-	client, err := api.DefaultRESTClient()
-	if err != nil {
-		return fmt.Errorf("creating GitHub API client: %w", err)
+	if client == nil {
+		var err error
+		client, err = api.DefaultRESTClient()
+		if err != nil {
+			return fmt.Errorf("creating GitHub API client: %w", err)
+		}
 	}
 
 	username, err := gh.FetchUsername(client)

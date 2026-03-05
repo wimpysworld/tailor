@@ -106,7 +106,7 @@ func (a *AlterCmd) Run() error {
 		mode = alter.Apply
 	}
 
-	return alter.Run(cfg, dir, mode)
+	return alter.Run(cfg, dir, mode, nil)
 }
 
 // MeasureCmd checks community health files and, when a config is present,
