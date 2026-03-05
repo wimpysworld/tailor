@@ -303,6 +303,50 @@ func TestAlterCmdRunRecut(t *testing.T) {
 	}
 }
 
+func TestDocketAuthenticated(t *testing.T) {
+	fakeAuth(t, "gho_test")
+
+	restore := gh.SetCurrentRepoFunc(func() (repository.Repository, error) {
+		return repository.Parse("octocat/my-project")
+	})
+	t.Cleanup(restore)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/user"):
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"login": "octocat"})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	oldTransport := http.DefaultTransport
+	http.DefaultTransport = &redirectTransport{
+		target:   srv.URL,
+		delegate: oldTransport,
+	}
+	t.Cleanup(func() { http.DefaultTransport = oldTransport })
+
+	t.Setenv("GH_TOKEN", "gho_test")
+
+	cmd := DocketCmd{}
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("DocketCmd.Run() error: %v", err)
+	}
+}
+
+func TestDocketNotAuthenticated(t *testing.T) {
+	fakeAuth(t, "")
+	fakeNoRepo(t)
+
+	cmd := DocketCmd{}
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("DocketCmd.Run() error: %v", err)
+	}
+}
+
 func TestFitAuthFailure(t *testing.T) {
 	fakeAuth(t, "")
 
