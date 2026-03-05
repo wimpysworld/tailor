@@ -10,7 +10,7 @@ The authoritative specification is `docs/SPECIFICATION.md`. All implementation d
 
 - **Language**: Go (1.24+)
 - **CLI parser**: [Kong](https://github.com/alecthomas/kong)
-- **External dependency**: `gh` (GitHub CLI) - sole external runtime dependency
+- **GitHub auth**: `GH_TOKEN`/`GITHUB_TOKEN` env var, or `gh` (GitHub CLI) for keyring-based token access
 - **Swatch embedding**: Go `embed` directive (`swatches/` directory)
 - **Dev environment**: Nix flake with `gh`, `jq`, `just`, `yq`
 
@@ -56,7 +56,7 @@ tailor/
 
 - Swatches are embedded at build time via `//go:embed swatches/*`
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
-- `fit`, `alter`, and `baste` require `gh auth status` at startup; `measure` and `docket` do not
+- `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
 - `alter` execution order: repository settings, then licence, then swatches
 - MD5 comparison for `always` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`) skip MD5 and always overwrite
 - `--recut` overwrites everything except `LICENSE` and `.tailor/config.yml`
@@ -72,7 +72,7 @@ tailor/
 
 ## Security considerations
 
-- Never store or log GitHub tokens; rely on `gh` for authentication
+- Never store or log GitHub tokens; rely on `go-gh` token resolution for authentication
 - Validate swatch `source` values against the embedded set before writing files
 - Validate `repository` setting field names against the allowed list before API calls
 - Reject duplicate destinations in config before making any changes
