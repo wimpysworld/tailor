@@ -67,18 +67,27 @@ func fakeNoRepo(t *testing.T) {
 	t.Cleanup(restore)
 }
 
+// docketTestOpts configures the test environment for setupDocketTest.
+type docketTestOpts struct {
+	token     string
+	repoOwner string
+	repoName  string
+	apiStatus int
+	apiBody   string
+}
+
 // setupDocketTest configures auth and repo fakes, optionally starts an
 // httptest server, and returns a *api.RESTClient (nil when token is empty).
-func setupDocketTest(t *testing.T, token string, hasRepo bool, repoOwner, repoName string, apiStatus int, apiBody string) *api.RESTClient {
+func setupDocketTest(t *testing.T, opts docketTestOpts) *api.RESTClient {
 	t.Helper()
-	fakeAuth(t, token)
-	if hasRepo {
-		fakeRepo(t, repoOwner, repoName)
+	fakeAuth(t, opts.token)
+	if opts.repoOwner != "" {
+		fakeRepo(t, opts.repoOwner, opts.repoName)
 	} else {
 		fakeNoRepo(t)
 	}
 
-	if token == "" {
+	if opts.token == "" {
 		return nil
 	}
 
@@ -87,8 +96,8 @@ func setupDocketTest(t *testing.T, token string, hasRepo bool, repoOwner, repoNa
 			http.NotFound(w, r)
 			return
 		}
-		w.WriteHeader(apiStatus)
-		fmt.Fprint(w, apiBody)
+		w.WriteHeader(opts.apiStatus)
+		fmt.Fprint(w, opts.apiBody)
 	}))
 	t.Cleanup(server.Close)
 	return newTestClient(t, server)
@@ -96,72 +105,68 @@ func setupDocketTest(t *testing.T, token string, hasRepo bool, repoOwner, repoNa
 
 func TestRun(t *testing.T) {
 	tests := []struct {
-		name      string
-		token     string
-		hasRepo   bool
-		repoOwner string
-		repoName  string
-		apiStatus int
-		apiBody   string
-		wantUser  string
-		wantRepo  string
-		wantAuth  string
+		name     string
+		opts     docketTestOpts
+		wantUser string
+		wantRepo string
+		wantAuth string
 	}{
 		{
-			name:      "authenticated with repo",
-			token:     "gho_test",
-			hasRepo:   true,
-			repoOwner: "octocat",
-			repoName:  "my-project",
-			apiStatus: http.StatusOK,
-			apiBody:   `{"login":"octocat"}`,
-			wantUser:  "octocat",
-			wantRepo:  "octocat/my-project",
-			wantAuth:  "authenticated",
+			name: "authenticated with repo",
+			opts: docketTestOpts{
+				token:     "gho_test",
+				repoOwner: "octocat",
+				repoName:  "my-project",
+				apiStatus: http.StatusOK,
+				apiBody:   `{"login":"octocat"}`,
+			},
+			wantUser: "octocat",
+			wantRepo: "octocat/my-project",
+			wantAuth: "authenticated",
 		},
 		{
-			name:      "authenticated without repo",
-			token:     "gho_test",
-			hasRepo:   false,
-			apiStatus: http.StatusOK,
-			apiBody:   `{"login":"octocat"}`,
-			wantUser:  "octocat",
-			wantRepo:  "(none)",
-			wantAuth:  "authenticated",
+			name: "authenticated without repo",
+			opts: docketTestOpts{
+				token:     "gho_test",
+				apiStatus: http.StatusOK,
+				apiBody:   `{"login":"octocat"}`,
+			},
+			wantUser: "octocat",
+			wantRepo: "(none)",
+			wantAuth: "authenticated",
 		},
 		{
 			name:     "not authenticated",
-			token:    "",
-			hasRepo:  false,
 			wantUser: "(none)",
 			wantRepo: "(none)",
 			wantAuth: "not authenticated",
 		},
 		{
-			name:      "not authenticated but has repo",
-			token:     "",
-			hasRepo:   true,
-			repoOwner: "octocat",
-			repoName:  "my-project",
-			wantUser:  "(none)",
-			wantRepo:  "octocat/my-project",
-			wantAuth:  "not authenticated",
+			name: "not authenticated but has repo",
+			opts: docketTestOpts{
+				repoOwner: "octocat",
+				repoName:  "my-project",
+			},
+			wantUser: "(none)",
+			wantRepo: "octocat/my-project",
+			wantAuth: "not authenticated",
 		},
 		{
-			name:      "authenticated but API failure",
-			token:     "gho_test",
-			hasRepo:   false,
-			apiStatus: http.StatusInternalServerError,
-			apiBody:   `{"message":"Internal Server Error"}`,
-			wantUser:  "(none)",
-			wantRepo:  "(none)",
-			wantAuth:  "authenticated",
+			name: "authenticated but API failure",
+			opts: docketTestOpts{
+				token:     "gho_test",
+				apiStatus: http.StatusInternalServerError,
+				apiBody:   `{"message":"Internal Server Error"}`,
+			},
+			wantUser: "(none)",
+			wantRepo: "(none)",
+			wantAuth: "authenticated",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := setupDocketTest(t, tt.token, tt.hasRepo, tt.repoOwner, tt.repoName, tt.apiStatus, tt.apiBody)
+			client := setupDocketTest(t, tt.opts)
 
 			result := Run(client)
 
