@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -10,33 +9,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/wimpysworld/tailor/internal/gh"
+	"github.com/wimpysworld/tailor/internal/ghfake"
 )
 
-// fakeAuth installs a tokenForHost stub that returns the given token.
-// It registers cleanup via t.Cleanup.
-func fakeAuth(t *testing.T, token string) {
-	t.Helper()
-	restore := gh.SetTokenForHostFunc(func(string) (string, string) {
-		return token, "oauth_token"
-	})
-	t.Cleanup(restore)
-}
-
-// fakeNoRepo installs a currentRepo stub that returns an error,
-// simulating no GitHub remote.
-func fakeNoRepo(t *testing.T) {
-	t.Helper()
-	restore := gh.SetCurrentRepoFunc(func() (repository.Repository, error) {
-		return repository.Repository{}, errors.New("not a git repository")
-	})
-	t.Cleanup(restore)
-}
-
 func TestFitNewDirectoryDefaultConfig(t *testing.T) {
-	fakeAuth(t, "gho_test")
-	fakeNoRepo(t)
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeNoRepo(t)
 
 	dir := filepath.Join(t.TempDir(), "new-project")
 
@@ -96,8 +74,8 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 }
 
 func TestFitExistingDirectoryWithoutConfig(t *testing.T) {
-	fakeAuth(t, "gho_test")
-	fakeNoRepo(t)
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeNoRepo(t)
 
 	dir := t.TempDir()
 
@@ -113,8 +91,8 @@ func TestFitExistingDirectoryWithoutConfig(t *testing.T) {
 }
 
 func TestFitExistingDirectoryWithConfigError(t *testing.T) {
-	fakeAuth(t, "gho_test")
-	fakeNoRepo(t)
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeNoRepo(t)
 
 	dir := t.TempDir()
 
@@ -143,8 +121,8 @@ func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 }
 
 func TestFitLicenseNone(t *testing.T) {
-	fakeAuth(t, "gho_test")
-	fakeNoRepo(t)
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeNoRepo(t)
 
 	dir := filepath.Join(t.TempDir(), "license-none")
 
@@ -164,8 +142,8 @@ func TestFitLicenseNone(t *testing.T) {
 }
 
 func TestFitDescriptionNoRepoContext(t *testing.T) {
-	fakeAuth(t, "gho_test")
-	fakeNoRepo(t)
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeNoRepo(t)
 
 	dir := filepath.Join(t.TempDir(), "with-desc")
 
@@ -185,8 +163,8 @@ func TestFitDescriptionNoRepoContext(t *testing.T) {
 }
 
 func TestFitNoRepoContextUsesDefaults(t *testing.T) {
-	fakeAuth(t, "gho_test")
-	fakeNoRepo(t)
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeNoRepo(t)
 
 	dir := filepath.Join(t.TempDir(), "defaults")
 
@@ -228,8 +206,8 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 // to the test server, and chdir to the temp directory.
 func setupAlterTest(t *testing.T) string {
 	t.Helper()
-	fakeAuth(t, "gho_test")
-	fakeNoRepo(t)
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeNoRepo(t)
 
 	dir := t.TempDir()
 	tailorDir := filepath.Join(dir, ".tailor")
@@ -304,12 +282,8 @@ func TestAlterCmdRunRecut(t *testing.T) {
 }
 
 func TestDocketAuthenticated(t *testing.T) {
-	fakeAuth(t, "gho_test")
-
-	restore := gh.SetCurrentRepoFunc(func() (repository.Repository, error) {
-		return repository.Parse("octocat/my-project")
-	})
-	t.Cleanup(restore)
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeRepo(t, "octocat", "my-project")
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -338,8 +312,8 @@ func TestDocketAuthenticated(t *testing.T) {
 }
 
 func TestDocketNotAuthenticated(t *testing.T) {
-	fakeAuth(t, "")
-	fakeNoRepo(t)
+	ghfake.FakeAuth(t, "")
+	ghfake.FakeNoRepo(t)
 
 	cmd := DocketCmd{}
 	if err := cmd.Run(); err != nil {
@@ -348,7 +322,7 @@ func TestDocketNotAuthenticated(t *testing.T) {
 }
 
 func TestFitAuthFailure(t *testing.T) {
-	fakeAuth(t, "")
+	ghfake.FakeAuth(t, "")
 
 	dir := filepath.Join(t.TempDir(), "auth-fail")
 

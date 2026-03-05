@@ -1,7 +1,6 @@
 package docket
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -9,63 +8,9 @@ import (
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/api"
-	"github.com/cli/go-gh/v2/pkg/repository"
-	"github.com/wimpysworld/tailor/internal/gh"
+	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
-
-// testTransport redirects all requests to the test server, preserving the
-// original request path so the test handler can route by path.
-type testTransport struct {
-	server *httptest.Server
-}
-
-func (t *testTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.URL.Scheme = "http"
-	req.URL.Host = t.server.Listener.Addr().String()
-	return http.DefaultTransport.RoundTrip(req)
-}
-
-// newTestClient creates an api.RESTClient that sends all requests to the
-// given test server.
-func newTestClient(t *testing.T, server *httptest.Server) *api.RESTClient {
-	t.Helper()
-	client, err := api.NewRESTClient(api.ClientOptions{
-		Host:      "github.com",
-		AuthToken: "test-token",
-		Transport: &testTransport{server: server},
-	})
-	if err != nil {
-		t.Fatalf("NewRESTClient: %v", err)
-	}
-	return client
-}
-
-// fakeAuth installs a tokenForHost stub that returns the given token.
-func fakeAuth(t *testing.T, token string) {
-	t.Helper()
-	restore := gh.SetTokenForHostFunc(func(string) (string, string) {
-		return token, "oauth_token"
-	})
-	t.Cleanup(restore)
-}
-
-// fakeRepo installs a currentRepo stub that returns the given owner and name.
-func fakeRepo(t *testing.T, owner, name string) {
-	t.Helper()
-	restore := gh.SetCurrentRepoFunc(func() (repository.Repository, error) {
-		return repository.Repository{Owner: owner, Name: name}, nil
-	})
-	t.Cleanup(restore)
-}
-
-// fakeNoRepo installs a currentRepo stub that returns an error.
-func fakeNoRepo(t *testing.T) {
-	t.Helper()
-	restore := gh.SetCurrentRepoFunc(func() (repository.Repository, error) {
-		return repository.Repository{}, errors.New("not a git repository")
-	})
-	t.Cleanup(restore)
-}
 
 // docketTestOpts configures the test environment for setupDocketTest.
 type docketTestOpts struct {
@@ -80,11 +25,11 @@ type docketTestOpts struct {
 // httptest server, and returns a *api.RESTClient (nil when token is empty).
 func setupDocketTest(t *testing.T, opts docketTestOpts) *api.RESTClient {
 	t.Helper()
-	fakeAuth(t, opts.token)
+	ghfake.FakeAuth(t, opts.token)
 	if opts.repoOwner != "" {
-		fakeRepo(t, opts.repoOwner, opts.repoName)
+		ghfake.FakeRepo(t, opts.repoOwner, opts.repoName)
 	} else {
-		fakeNoRepo(t)
+		ghfake.FakeNoRepo(t)
 	}
 
 	if opts.token == "" {
@@ -100,7 +45,7 @@ func setupDocketTest(t *testing.T, opts docketTestOpts) *api.RESTClient {
 		fmt.Fprint(w, opts.apiBody)
 	}))
 	t.Cleanup(server.Close)
-	return newTestClient(t, server)
+	return testutil.NewTestClient(t, server)
 }
 
 func TestRun(t *testing.T) {

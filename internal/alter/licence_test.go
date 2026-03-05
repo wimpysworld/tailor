@@ -9,35 +9,10 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
-
-// testTransport redirects all requests to the test server, preserving the
-// original request path.
-type testTransport struct {
-	server *httptest.Server
-}
-
-func (t *testTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.URL.Scheme = "http"
-	req.URL.Host = t.server.Listener.Addr().String()
-	return http.DefaultTransport.RoundTrip(req)
-}
-
-func newTestClient(t *testing.T, server *httptest.Server) *api.RESTClient {
-	t.Helper()
-	client, err := api.NewRESTClient(api.ClientOptions{
-		Host:      "github.com",
-		AuthToken: "test-token",
-		Transport: &testTransport{server: server},
-	})
-	if err != nil {
-		t.Fatalf("NewRESTClient: %v", err)
-	}
-	return client
-}
 
 func licenceServer(body string) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -57,7 +32,7 @@ func TestProcessLicenceWrittenWhenAbsent(t *testing.T) {
 	body := "MIT License text"
 	server := licenceServer(body)
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{License: "mit"}
 	result, err := alter.ProcessLicence(cfg, dir, alter.Apply, client)
@@ -84,7 +59,7 @@ func TestProcessLicenceDryRunDoesNotWrite(t *testing.T) {
 	dir := t.TempDir()
 	server := licenceServer("MIT License text")
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{License: "mit"}
 	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client)
@@ -110,7 +85,7 @@ func TestProcessLicenceSkippedWhenPresent(t *testing.T) {
 
 	server := licenceServer("should not be used")
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{License: "mit"}
 	result, err := alter.ProcessLicence(cfg, dir, alter.Apply, client)
@@ -141,7 +116,7 @@ func TestProcessLicenceExemptFromRecut(t *testing.T) {
 
 	server := licenceServer("should not overwrite")
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{License: "mit"}
 	result, err := alter.ProcessLicence(cfg, dir, alter.Recut, client)
@@ -168,7 +143,7 @@ func TestProcessLicenceWarningWhenNoneAndNoFile(t *testing.T) {
 	dir := t.TempDir()
 	server := licenceServer("unused")
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	var result *alter.SwatchResult
 	var err error
@@ -197,7 +172,7 @@ func TestProcessLicenceWarningWhenEmptyAndNoFile(t *testing.T) {
 	dir := t.TempDir()
 	server := licenceServer("unused")
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	var result *alter.SwatchResult
 	var err error
@@ -222,7 +197,7 @@ func TestProcessLicenceNoWarningWhenConfigured(t *testing.T) {
 	dir := t.TempDir()
 	server := licenceServer("MIT text")
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	var err error
 	cfg := &config.Config{License: "mit"}
@@ -245,7 +220,7 @@ func TestProcessLicenceNoWarningWhenFileExistsAndNone(t *testing.T) {
 
 	server := licenceServer("unused")
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	var result *alter.SwatchResult
 	var err error
@@ -270,7 +245,7 @@ func TestProcessLicenceAPIErrorPropagated(t *testing.T) {
 	dir := t.TempDir()
 	server := failingLicenceServer()
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{License: "mit"}
 	_, err := alter.ProcessLicence(cfg, dir, alter.Apply, client)
@@ -286,7 +261,7 @@ func TestProcessLicenceNilResultWhenNone(t *testing.T) {
 
 	server := licenceServer("unused")
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	for _, licence := range []string{"", "none"} {
 		t.Run(fmt.Sprintf("license=%q", licence), func(t *testing.T) {

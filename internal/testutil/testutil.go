@@ -1,10 +1,41 @@
 package testutil
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/cli/go-gh/v2/pkg/api"
 )
+
+// TestTransport redirects all requests to the test server, preserving the
+// original request path so the test handler can route by path.
+type TestTransport struct {
+	Server *httptest.Server
+}
+
+func (t *TestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	req.URL.Scheme = "http"
+	req.URL.Host = t.Server.Listener.Addr().String()
+	return http.DefaultTransport.RoundTrip(req)
+}
+
+// NewTestClient creates an api.RESTClient that sends all requests to the
+// given test server.
+func NewTestClient(t *testing.T, server *httptest.Server) *api.RESTClient {
+	t.Helper()
+	client, err := api.NewRESTClient(api.ClientOptions{
+		Host:      "github.com",
+		AuthToken: "test-token",
+		Transport: &TestTransport{Server: server},
+	})
+	if err != nil {
+		t.Fatalf("NewRESTClient: %v", err)
+	}
+	return client
+}
 
 // CreateFile creates a file at filepath.Join(dir, name) with dummy content.
 // Parent directories are created as needed.

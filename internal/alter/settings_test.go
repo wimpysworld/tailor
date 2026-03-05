@@ -3,37 +3,18 @@ package alter_test
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
 
-	"github.com/cli/go-gh/v2/pkg/repository"
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
-	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/ptr"
+	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
-
-// fakeRepo installs a currentRepo stub that returns the given owner and name.
-func fakeRepo(t *testing.T, owner, name string) {
-	t.Helper()
-	restore := gh.SetCurrentRepoFunc(func() (repository.Repository, error) {
-		return repository.Repository{Owner: owner, Name: name}, nil
-	})
-	t.Cleanup(restore)
-}
-
-// fakeNoRepoContext installs a currentRepo stub that returns an error.
-func fakeNoRepoContext(t *testing.T) {
-	t.Helper()
-	restore := gh.SetCurrentRepoFunc(func() (repository.Repository, error) {
-		return repository.Repository{}, errors.New("not a git repository")
-	})
-	t.Cleanup(restore)
-}
 
 // repoSettingsJSON returns a JSON string matching the repoResponse struct
 // from the gh package.
@@ -118,7 +99,7 @@ func TestProcessRepoSettingsNilRepository(t *testing.T) {
 }
 
 func TestProcessRepoSettingsNoRepoContext(t *testing.T) {
-	fakeNoRepoContext(t)
+	ghfake.FakeNoRepo(t)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
@@ -147,12 +128,12 @@ func TestProcessRepoSettingsNoRepoContext(t *testing.T) {
 }
 
 func TestProcessRepoSettingsWouldSetWhenDiffer(t *testing.T) {
-	fakeRepo(t, "testowner", "testrepo")
+	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{HasWiki: true, HasIssues: true}
 	server := settingsServer(live, false, nil)
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
@@ -179,12 +160,12 @@ func TestProcessRepoSettingsWouldSetWhenDiffer(t *testing.T) {
 }
 
 func TestProcessRepoSettingsNoChangeWhenMatch(t *testing.T) {
-	fakeRepo(t, "testowner", "testrepo")
+	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{HasWiki: false, HasIssues: true}
 	server := settingsServer(live, false, nil)
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
@@ -211,13 +192,13 @@ func TestProcessRepoSettingsNoChangeWhenMatch(t *testing.T) {
 }
 
 func TestProcessRepoSettingsApplyCallsAPI(t *testing.T) {
-	fakeRepo(t, "testowner", "testrepo")
+	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	var patchCalled atomic.Int32
 	live := repoJSON{HasWiki: true}
 	server := settingsServer(live, false, &patchCalled)
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
@@ -235,13 +216,13 @@ func TestProcessRepoSettingsApplyCallsAPI(t *testing.T) {
 }
 
 func TestProcessRepoSettingsRecutCallsAPI(t *testing.T) {
-	fakeRepo(t, "testowner", "testrepo")
+	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	var patchCalled atomic.Int32
 	live := repoJSON{HasWiki: true}
 	server := settingsServer(live, false, &patchCalled)
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
@@ -259,13 +240,13 @@ func TestProcessRepoSettingsRecutCallsAPI(t *testing.T) {
 }
 
 func TestProcessRepoSettingsDryRunDoesNotCallAPI(t *testing.T) {
-	fakeRepo(t, "testowner", "testrepo")
+	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	var patchCalled atomic.Int32
 	live := repoJSON{HasWiki: true}
 	server := settingsServer(live, false, &patchCalled)
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
@@ -283,13 +264,13 @@ func TestProcessRepoSettingsDryRunDoesNotCallAPI(t *testing.T) {
 }
 
 func TestProcessRepoSettingsNoApplyWhenAllMatch(t *testing.T) {
-	fakeRepo(t, "testowner", "testrepo")
+	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	var patchCalled atomic.Int32
 	live := repoJSON{HasWiki: false, HasIssues: true}
 	server := settingsServer(live, false, &patchCalled)
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
@@ -308,11 +289,11 @@ func TestProcessRepoSettingsNoApplyWhenAllMatch(t *testing.T) {
 }
 
 func TestProcessRepoSettingsErrorPropagated(t *testing.T) {
-	fakeRepo(t, "testowner", "testrepo")
+	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	server := failingSettingsServer()
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
@@ -327,7 +308,7 @@ func TestProcessRepoSettingsErrorPropagated(t *testing.T) {
 }
 
 func TestProcessRepoSettingsMixedResults(t *testing.T) {
-	fakeRepo(t, "testowner", "testrepo")
+	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{
 		HasWiki:         true,
@@ -337,7 +318,7 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 	}
 	server := settingsServer(live, true, nil)
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
@@ -369,12 +350,12 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 }
 
 func TestProcessRepoSettingsStringFieldValues(t *testing.T) {
-	fakeRepo(t, "testowner", "testrepo")
+	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{Description: "old", Homepage: "https://old.example.com"}
 	server := settingsServer(live, false, nil)
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
@@ -414,12 +395,12 @@ func TestProcessRepoSettingsStringFieldValues(t *testing.T) {
 }
 
 func TestProcessRepoSettingsPrivateVulnerabilityReporting(t *testing.T) {
-	fakeRepo(t, "testowner", "testrepo")
+	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{}
 	server := settingsServer(live, false, nil)
 	t.Cleanup(server.Close)
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{

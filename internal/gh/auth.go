@@ -11,7 +11,7 @@ var tokenForHost = func(host string) (string, string) {
 	return auth.TokenForHost(host)
 }
 
-// CheckAuth verifies that the GitHub CLI is authenticated for github.com.
+// CheckAuth verifies that a valid GitHub authentication token is available for github.com.
 // It returns an error if no valid token is available.
 func CheckAuth() error {
 	token, _ := tokenForHost("github.com")

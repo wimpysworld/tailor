@@ -17,6 +17,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/swatch"
+	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
 // apiCall records a single API request made to the mock server.
@@ -230,13 +232,13 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 	t.Cleanup(server.Close)
 
 	ctx.Server = server
-	ctx.Client = newTestClient(t, server)
+	ctx.Client = testutil.NewTestClient(t, server)
 
 	// Stub repo context.
 	if sc.noRepo {
-		fakeNoRepoContext(t)
+		ghfake.FakeNoRepo(t)
 	} else {
-		fakeRepo(t, sc.owner, sc.repo)
+		ghfake.FakeRepo(t, sc.owner, sc.repo)
 	}
 
 	return ctx
