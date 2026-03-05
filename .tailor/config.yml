@@ -2,6 +2,8 @@
 license: MIT
 
 repository:
+  description: Bespoke project templates for GitHub repositories 🪡
+  homepage: https://github.com/wimpysworld/tailor
   has_wiki: false
   has_discussions: false
   has_projects: false
