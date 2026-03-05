@@ -11,11 +11,7 @@ tailor alter
 
 ## Prerequisites
 
-Tailor requires the [GitHub CLI](https://cli.github.com/) (`gh`) installed and authenticated.
-
-```bash
-gh auth login
-```
+Tailor requires a valid GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN` for CI environments, or run `gh auth login` for local development.
 
 ## Quick Start
 
