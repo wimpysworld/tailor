@@ -35,14 +35,14 @@ release VERSION:
         exit 1
     fi
 
-    # Check for uncommitted changes
-    if ! git diff-index --quiet HEAD --; then
-        echo "Error: Working directory has uncommitted changes"
+    # Check for uncommitted or untracked changes
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "Error: Working directory is not clean"
         exit 1
     fi
 
     # Check if tag already exists
-    if git rev-parse "{{VERSION}}" >/dev/null 2>&1; then
+    if git show-ref --tags --verify --quiet "refs/tags/{{VERSION}}"; then
         echo "Error: Tag {{VERSION}} already exists"
         exit 1
     fi
