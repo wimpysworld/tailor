@@ -9,6 +9,18 @@ cd my-project
 tailor alter
 ```
 
+## Install
+
+```bash
+# Install
+bin install github.com/wimpysworld/tailor
+
+# Update
+bin update tailor
+```
+
+Requires [`bin`](https://github.com/marcosnils/bin). Tailor releases publish bare executables, no archive extraction needed.
+
 ## Prerequisites
 
 Tailor requires a valid GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN` for CI environments, or run `gh auth login` for local development.
