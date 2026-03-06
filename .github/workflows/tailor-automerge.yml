@@ -18,6 +18,7 @@ jobs:
         uses: dependabot/fetch-metadata@v2
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
+          skip-commit-verification: true
 
       - name: Automerge GitHub Actions updates
         if: steps.metadata.outputs.package-ecosystem == 'github_actions'
