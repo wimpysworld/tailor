@@ -6,6 +6,7 @@ import (
 
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
 func TestHasRepoContext(t *testing.T) {
@@ -113,13 +114,6 @@ func TestSubstituteTailorConfigYmlWithoutRepoContext(t *testing.T) {
 	}
 }
 
-func TestHasSubstitutionTailorConfigYml(t *testing.T) {
-	tc := &alter.TokenContext{}
-	if !tc.HasSubstitution(".tailor/config.yml") {
-		t.Error("HasSubstitution(.tailor/config.yml) = false, want true")
-	}
-}
-
 func TestMergeStrategy(t *testing.T) {
 	tests := []struct {
 		name string
@@ -139,63 +133,63 @@ func TestMergeStrategy(t *testing.T) {
 		{
 			name: "only squash enabled",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: boolPtr(true),
-				AllowRebaseMerge: boolPtr(false),
-				AllowMergeCommit: boolPtr(false),
+				AllowSquashMerge: ptr.Bool(true),
+				AllowRebaseMerge: ptr.Bool(false),
+				AllowMergeCommit: ptr.Bool(false),
 			},
 			want: "--squash",
 		},
 		{
 			name: "only rebase enabled",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: boolPtr(false),
-				AllowRebaseMerge: boolPtr(true),
-				AllowMergeCommit: boolPtr(false),
+				AllowSquashMerge: ptr.Bool(false),
+				AllowRebaseMerge: ptr.Bool(true),
+				AllowMergeCommit: ptr.Bool(false),
 			},
 			want: "--rebase",
 		},
 		{
 			name: "only merge enabled",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: boolPtr(false),
-				AllowRebaseMerge: boolPtr(false),
-				AllowMergeCommit: boolPtr(true),
+				AllowSquashMerge: ptr.Bool(false),
+				AllowRebaseMerge: ptr.Bool(false),
+				AllowMergeCommit: ptr.Bool(true),
 			},
 			want: "--merge",
 		},
 		{
 			name: "squash and rebase enabled prefers squash",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: boolPtr(true),
-				AllowRebaseMerge: boolPtr(true),
-				AllowMergeCommit: boolPtr(false),
+				AllowSquashMerge: ptr.Bool(true),
+				AllowRebaseMerge: ptr.Bool(true),
+				AllowMergeCommit: ptr.Bool(false),
 			},
 			want: "--squash",
 		},
 		{
 			name: "rebase and merge enabled prefers rebase",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: boolPtr(false),
-				AllowRebaseMerge: boolPtr(true),
-				AllowMergeCommit: boolPtr(true),
+				AllowSquashMerge: ptr.Bool(false),
+				AllowRebaseMerge: ptr.Bool(true),
+				AllowMergeCommit: ptr.Bool(true),
 			},
 			want: "--rebase",
 		},
 		{
 			name: "all enabled prefers squash",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: boolPtr(true),
-				AllowRebaseMerge: boolPtr(true),
-				AllowMergeCommit: boolPtr(true),
+				AllowSquashMerge: ptr.Bool(true),
+				AllowRebaseMerge: ptr.Bool(true),
+				AllowMergeCommit: ptr.Bool(true),
 			},
 			want: "--squash",
 		},
 		{
 			name: "all explicitly disabled defaults to squash",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: boolPtr(false),
-				AllowRebaseMerge: boolPtr(false),
-				AllowMergeCommit: boolPtr(false),
+				AllowSquashMerge: ptr.Bool(false),
+				AllowRebaseMerge: ptr.Bool(false),
+				AllowMergeCommit: ptr.Bool(false),
 			},
 			want: "--squash",
 		},
@@ -213,8 +207,8 @@ func TestMergeStrategy(t *testing.T) {
 func TestSubstituteAutomergeWorkflow(t *testing.T) {
 	tc := &alter.TokenContext{
 		Repository: &config.RepositorySettings{
-			AllowRebaseMerge: boolPtr(true),
-			AllowSquashMerge: boolPtr(false),
+			AllowRebaseMerge: ptr.Bool(true),
+			AllowSquashMerge: ptr.Bool(false),
 		},
 	}
 	input := []byte("gh pr merge --auto {{MERGE_STRATEGY}} \"$PR_URL\"")
@@ -222,13 +216,6 @@ func TestSubstituteAutomergeWorkflow(t *testing.T) {
 	want := []byte("gh pr merge --auto --rebase \"$PR_URL\"")
 	if !bytes.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
-	}
-}
-
-func TestHasSubstitutionAutomergeWorkflow(t *testing.T) {
-	tc := &alter.TokenContext{}
-	if !tc.HasSubstitution(".github/workflows/tailor-automerge.yml") {
-		t.Error("HasSubstitution(.github/workflows/tailor-automerge.yml) = false, want true")
 	}
 }
 

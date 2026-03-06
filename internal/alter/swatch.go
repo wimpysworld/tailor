@@ -21,8 +21,8 @@ const (
 	WouldRemove    SwatchCategory = "would remove"
 	Removed        SwatchCategory = "removed"
 	NoChange       SwatchCategory = "no change"
-	Skipped        SwatchCategory = "skipped (first-fit, exists)"
-	Ignored        SwatchCategory = "skip (never)"
+	SkippedFirstFit        SwatchCategory = "skipped (first-fit, exists)"
+	SkippedNever        SwatchCategory = "skip (never)"
 )
 
 // SwatchResult records the destination path and categorised outcome for one
@@ -71,7 +71,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, mode ApplyMode) (SwatchResult, error) {
 	// Never mode skips unconditionally, regardless of apply mode or file existence.
 	if entry.Alteration == swatch.Never {
-		return SwatchResult{Destination: entry.Destination, Category: Ignored}, nil
+		return SwatchResult{Destination: entry.Destination, Category: SkippedNever}, nil
 	}
 
 	exists := fileExists(dest)
@@ -94,7 +94,7 @@ func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte,
 
 func processFirstFit(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
 	if exists {
-		return SwatchResult{Destination: entry.Destination, Category: Skipped}, nil
+		return SwatchResult{Destination: entry.Destination, Category: SkippedFirstFit}, nil
 	}
 	if mode.ShouldWrite() {
 		if err := writeFile(dest, content); err != nil {
@@ -153,7 +153,7 @@ func processTriggered(cfg *config.Config, entry config.SwatchEntry, content []by
 		return SwatchResult{Destination: entry.Destination, Category: WouldRemove, Annotation: annotation}, nil
 	}
 
-	return SwatchResult{Destination: entry.Destination, Category: Ignored, Annotation: annotation}, nil
+	return SwatchResult{Destination: entry.Destination, Category: SkippedNever, Annotation: annotation}, nil
 }
 
 // triggerAnnotation returns the formatted trigger context string for a source

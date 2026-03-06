@@ -26,10 +26,7 @@ func (m ApplyMode) ShouldWrite() bool { return m == Apply || m == Recut }
 // repository settings, fetches the licence, and processes swatches.
 // When client is nil, a default GitHub REST client is created.
 func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) error {
-	if err := config.ValidateSources(cfg); err != nil {
-		return err
-	}
-	if err := config.ValidateDuplicateDestinations(cfg); err != nil {
+	if err := validateConfig(cfg); err != nil {
 		return err
 	}
 	if err := config.ValidateRepoSettings(cfg); err != nil {
@@ -48,10 +45,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 			}
 		}
 		// Re-validate after merge as a safety check.
-		if err := config.ValidateSources(cfg); err != nil {
-			return err
-		}
-		if err := config.ValidateDuplicateDestinations(cfg); err != nil {
+		if err := validateConfig(cfg); err != nil {
 			return err
 		}
 	}
@@ -106,6 +100,14 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	}
 
 	return nil
+}
+
+// validateConfig runs source and duplicate-destination validation in sequence.
+func validateConfig(cfg *config.Config) error {
+	if err := config.ValidateSources(cfg); err != nil {
+		return err
+	}
+	return config.ValidateDuplicateDestinations(cfg)
 }
 
 // shouldMerge reports whether the config merge step should run. It looks up

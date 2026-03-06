@@ -10,7 +10,7 @@ func TestFormatOutputSwatchesOnly(t *testing.T) {
 		{Destination: ".github/FUNDING.yml", Category: WouldOverwrite},
 		{Destination: "CONTRIBUTING.md", Category: WouldCopy},
 		{Destination: "LICENSE", Category: NoChange},
-		{Destination: ".tailor/config.yml", Category: Skipped},
+		{Destination: ".tailor/config.yml", Category: SkippedFirstFit},
 	}
 
 	got := FormatOutput(nil, swatches)
@@ -80,7 +80,7 @@ func TestFormatOutputEmptySlices(t *testing.T) {
 func TestFormatOutputSwatchSorting(t *testing.T) {
 	swatches := []SwatchResult{
 		{Destination: "Z-file.md", Category: NoChange},
-		{Destination: "A-file.md", Category: Skipped},
+		{Destination: "A-file.md", Category: SkippedFirstFit},
 		{Destination: "B-file.md", Category: WouldCopy},
 		{Destination: "A-file.md", Category: WouldOverwrite},
 		{Destination: "C-file.md", Category: WouldCopy},
@@ -143,7 +143,7 @@ func TestFormatOutputActionableBeforeInformational(t *testing.T) {
 	// All informational first in input, actionable should appear first in output.
 	swatches := []SwatchResult{
 		{Destination: "info1.md", Category: NoChange},
-		{Destination: "info2.md", Category: Skipped},
+		{Destination: "info2.md", Category: SkippedFirstFit},
 		{Destination: "action1.md", Category: WouldCopy},
 		{Destination: "action2.md", Category: WouldOverwrite},
 	}
@@ -195,7 +195,7 @@ func TestFormatOutputNoTrailingBlankLine(t *testing.T) {
 func TestFormatOutputNewCategories(t *testing.T) {
 	swatches := []SwatchResult{
 		{Destination: "removed.yml", Category: Removed},
-		{Destination: "ignored.yml", Category: Ignored},
+		{Destination: "ignored.yml", Category: SkippedNever},
 		{Destination: "would-remove.yml", Category: WouldRemove},
 		{Destination: "copied.md", Category: WouldCopy},
 	}
@@ -213,10 +213,10 @@ func TestFormatOutputNewCategories(t *testing.T) {
 
 func TestFormatOutputNewCategorySorting(t *testing.T) {
 	swatches := []SwatchResult{
-		{Destination: "z-ignored.yml", Category: Ignored},
+		{Destination: "z-ignored.yml", Category: SkippedNever},
 		{Destination: "a-removed.yml", Category: Removed},
 		{Destination: "b-would-remove.yml", Category: WouldRemove},
-		{Destination: "c-skipped.md", Category: Skipped},
+		{Destination: "c-skipped.md", Category: SkippedFirstFit},
 		{Destination: "d-no-change.md", Category: NoChange},
 		{Destination: "e-would-copy.md", Category: WouldCopy},
 		{Destination: "f-would-overwrite.md", Category: WouldOverwrite},
@@ -268,9 +268,9 @@ func TestFormatOutputAnnotationWouldRemove(t *testing.T) {
 	}
 }
 
-func TestFormatOutputAnnotationIgnored(t *testing.T) {
+func TestFormatOutputAnnotationSkippedNever(t *testing.T) {
 	swatches := []SwatchResult{
-		{Destination: ".github/workflows/tailor-automerge.yml", Category: Ignored, Annotation: "triggered: allow_auto_merge"},
+		{Destination: ".github/workflows/tailor-automerge.yml", Category: SkippedNever, Annotation: "triggered: allow_auto_merge"},
 		{Destination: "CONTRIBUTING.md", Category: WouldCopy},
 	}
 

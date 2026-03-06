@@ -28,7 +28,7 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 
 	// Licence is exempt from recut: never overwrite an existing LICENSE.
 	if exists {
-		return &SwatchResult{Destination: licenceDestination, Category: Skipped}, nil
+		return &SwatchResult{Destination: licenceDestination, Category: SkippedFirstFit}, nil
 	}
 
 	// LICENSE absent: fetch and (conditionally) write.
