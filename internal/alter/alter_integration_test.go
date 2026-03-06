@@ -1672,3 +1672,140 @@ swatches:
 		t.Error(".github/ISSUE_TEMPLATE/config.yml does not contain raw {{SUPPORT_URL}} token; expected unsubstituted")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Phase 4.1 - Triggered swatch integration tests
+// ---------------------------------------------------------------------------
+
+// TestAlterRunTriggeredAutoMergeTrue verifies that a triggered swatch is
+// deployed when the trigger condition is met (allow_auto_merge: true).
+func TestAlterRunTriggeredAutoMergeTrue(t *testing.T) {
+	configYAML := `license: none
+repository:
+  allow_auto_merge: true
+swatches:
+  - source: .github/workflows/tailor-automerge.yml
+    destination: .github/workflows/tailor-automerge.yml
+    alteration: triggered
+`
+	tc := setupAlterTest(t, configYAML,
+		WithRepoSettings(repoJSON{AllowAutoMerge: true}),
+	)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+
+	// DryRun: output should indicate the swatch would be deployed.
+	dryOutput := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
+	requireContains(t, dryOutput, "would copy")
+	requireContains(t, dryOutput, "tailor-automerge.yml")
+	requireContains(t, dryOutput, "triggered: allow_auto_merge")
+
+	// File must not exist after dry-run.
+	automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
+	if _, err := os.Stat(automergeFile); err == nil {
+		t.Error("dry run wrote tailor-automerge.yml to disk")
+	}
+
+	// Apply: file should be written.
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+
+	data, err := os.ReadFile(automergeFile)
+	if err != nil {
+		t.Fatalf("tailor-automerge.yml not written after apply: %v", err)
+	}
+	want, err := swatch.Content(".github/workflows/tailor-automerge.yml")
+	if err != nil {
+		t.Fatalf("swatch.Content: %v", err)
+	}
+	if string(data) != string(want) {
+		t.Error("tailor-automerge.yml content does not match embedded swatch")
+	}
+}
+
+// TestAlterRunTriggeredAutoMergeFalse verifies that a triggered swatch is not
+// deployed when the trigger condition is not met (allow_auto_merge: false),
+// and that a pre-existing file is removed.
+func TestAlterRunTriggeredAutoMergeFalse(t *testing.T) {
+	configYAML := `license: none
+repository:
+  allow_auto_merge: false
+swatches:
+  - source: .github/workflows/tailor-automerge.yml
+    destination: .github/workflows/tailor-automerge.yml
+    alteration: triggered
+`
+	tc := setupAlterTest(t, configYAML,
+		WithRepoSettings(repoJSON{AllowAutoMerge: false}),
+	)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+
+	// Subtest: file absent, trigger not met - should be ignored.
+	t.Run("absent_ignored", func(t *testing.T) {
+		output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
+		requireNotContains(t, output, "would copy")
+		requireNotContains(t, output, "would overwrite")
+		// The swatch should not appear in actionable output.
+		// It may appear as "skip (never)" or be silently ignored.
+		requireNotContains(t, output, "would remove")
+	})
+
+	// Subtest: file present, trigger not met - should be removed.
+	t.Run("present_removed", func(t *testing.T) {
+		automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
+		writeOnDisk(t, tc.Dir, ".github/workflows/tailor-automerge.yml", []byte("old automerge content"))
+
+		// DryRun should report "would remove".
+		dryOutput := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
+		requireContains(t, dryOutput, "would remove")
+		requireContains(t, dryOutput, "tailor-automerge.yml")
+
+		// File must still exist after dry-run.
+		if _, err := os.Stat(automergeFile); err != nil {
+			t.Errorf("dry run removed tailor-automerge.yml from disk: %v", err)
+		}
+
+		// Apply should remove the file.
+		_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+
+		if _, err := os.Stat(automergeFile); err == nil {
+			t.Error("tailor-automerge.yml still exists after apply with trigger not met")
+		}
+	})
+}
+
+// TestAlterRunNeverSuppressesTriggered verifies that setting alteration to
+// "never" suppresses a triggered swatch even when the trigger condition is met.
+func TestAlterRunNeverSuppressesTriggered(t *testing.T) {
+	configYAML := `license: none
+repository:
+  allow_auto_merge: true
+swatches:
+  - source: .github/workflows/tailor-automerge.yml
+    destination: .github/workflows/tailor-automerge.yml
+    alteration: never
+`
+	tc := setupAlterTest(t, configYAML,
+		WithRepoSettings(repoJSON{AllowAutoMerge: true}),
+	)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+
+	// DryRun: output should show "skip (never)", not any deploy/copy action.
+	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
+	requireContains(t, output, "skip (never):")
+	requireContains(t, output, "tailor-automerge.yml")
+	requireNotContains(t, output, "would copy")
+	requireNotContains(t, output, "would overwrite")
+
+	// Apply: file should not be written.
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+
+	automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
+	if _, err := os.Stat(automergeFile); err == nil {
+		t.Error("tailor-automerge.yml was deployed despite alteration: never")
+	}
+}

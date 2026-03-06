@@ -1,4 +1,4 @@
-# Tailor Specification v0.2
+# Tailor Specification v0.3
 
 ## Overview
 
@@ -50,6 +50,7 @@ The `fit`, `alter`, and `baste` commands verify that a valid authentication toke
 | `.github/ISSUE_TEMPLATE/config.yml` | `.github/ISSUE_TEMPLATE/config.yml` |
 | `.github/pull_request_template.md` | `.github/pull_request_template.md` |
 | `.github/workflows/tailor.yml` | `.github/workflows/tailor.yml` |
+| `.github/workflows/tailor-automerge.yml` | `.github/workflows/tailor-automerge.yml` |
 | `.tailor/config.yml` | `.tailor/config.yml` |
 
 Swatch-to-path mappings are hardcoded in the source. Licences are not swatches - they are fetched via the GitHub REST API (`GET /licenses/{id}`) at `alter` time and written to `LICENSE`.
@@ -86,6 +87,8 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 **Alteration Modes**:
 - `always`: Tailor compares the embedded swatch content against the on-disk file on every `alter` run and overwrites if they differ
 - `first-fit`: Tailor copies this file only if it does not already exist; never overwrites
+- `triggered`: Tailor deploys this swatch only when a trigger condition elsewhere in the config is met. When the condition is met, behaves like `always` (overwrite when changed). When the condition is not met and the file exists on disk, Tailor removes it. Each triggered swatch has a trigger condition defined in a lookup table in the swatch package, mapping source path to a config field and expected value. Triggered swatches appear explicitly in `config.yml` like any other swatch
+- `never`: Tailor skips this swatch entirely - no deployment, no comparison, no removal. Used to suppress a swatch (including a triggered swatch whose condition is met) while keeping it visible in the config. `never` takes precedence over `triggered`
 
 **Default Alteration Modes**:
 
@@ -103,6 +106,7 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 | `.github/ISSUE_TEMPLATE/config.yml` | `first-fit` |
 | `.github/pull_request_template.md` | `always` |
 | `.github/workflows/tailor.yml` | `always` |
+| `.github/workflows/tailor-automerge.yml` | `triggered` |
 | `.github/dependabot.yml` | `first-fit` |
 | `justfile` | `first-fit` |
 | `flake.nix` | `first-fit` |
@@ -129,6 +133,7 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 - `flake.nix`
 - `justfile`
 - `.github/workflows/tailor.yml`
+- `.github/workflows/tailor-automerge.yml`
 - `.tailor/config.yml`
 
 ## Commands
@@ -146,6 +151,7 @@ Creates a new project directory and writes `.tailor/config.yml` with the full de
 The default swatch set embedded in the binary is:
 
 - `.github/workflows/tailor.yml`
+- `.github/workflows/tailor-automerge.yml`
 - `.github/dependabot.yml`
 - `.github/FUNDING.yml`
 - `.github/ISSUE_TEMPLATE/bug_report.yml`
@@ -208,6 +214,8 @@ Behaviour:
 - For repository settings: if a `repository` section is present in `config.yml`, reads the current repository settings via `GET /repos/{owner}/{repo}`, compares each declared field against the live value, and sends a single `PATCH /repos/{owner}/{repo}` call with all declared fields. Repository settings are applied before licences and swatches. If no GitHub repository context exists (no remote), repository settings are skipped with a warning. `--recut` has no special effect on repository settings - they are always applied declaratively.
 - For `always` swatches: compares the SHA-256 of the embedded swatch content against the on-disk file; overwrites if they differ. SHA-256 comparison applies only to `always` swatches. For any `always` swatch whose embedded content contains substitution tokens (`{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, or `{{HOMEPAGE_URL}}`), the SHA-256 comparison is skipped and the swatch is always overwritten on `alter`. This is because the on-disk file contains the resolved value while the embedded template contains the raw token, so they will always differ. The set of substituted swatches is determined by an explicit list in code: `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, and `.tailor/config.yml`. If a user changes one of these swatches from `first-fit` to `always` in their config, the same skip-and-overwrite rule applies.
 - For `first-fit` swatches: copies only if the destination file does not exist; never overwrites. If the destination exists, the swatch is skipped entirely - no SHA-256 comparison is performed.
+- For `triggered` swatches: looks up the trigger condition for the swatch source in the trigger condition table. If the condition is met (e.g. `allow_auto_merge: true` in the `repository` section), behaves like `always` - deploys and overwrites when content differs. If the condition is not met and the file exists on disk, removes it. If the condition is not met and the file does not exist, skips silently. Triggered swatches are never overwritten by `--recut` when the trigger condition is false.
+- For `never` swatches: skips entirely. No file is written, compared, or removed. This mode suppresses any swatch, including triggered swatches whose condition would otherwise be met.
 - For licences: if `config.yml` contains a `license` key with a value other than `none`, and no `LICENSE` file exists on disk, fetches the licence text via the GitHub REST API (`GET /licenses/{id}`) and writes it to `LICENSE`. The text is written verbatim as returned by GitHub - no token substitution is performed. Always treated as `first-fit`; the on-disk `LICENSE` file is never overwritten. If the licence fetch fails (e.g. unrecognised licence identifier), `alter` exits with the API error.
 - For `.github/FUNDING.yml`: substitutes `{{GITHUB_USERNAME}}` before writing. `{{GITHUB_USERNAME}}` is resolved at `alter` time from `GET /user`.
 - For `SECURITY.md`: substitutes `{{ADVISORY_URL}}` before writing. `{{ADVISORY_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>/security/advisories/new` from the repository context (owner/name). If no GitHub repository context exists (e.g. a brand-new project with no remote), `{{ADVISORY_URL}}` is left unsubstituted in the written file. The unsubstituted token is intentionally detectable by a future `measure` run; `alter` will resolve and substitute it on a subsequent run once the repository has a remote.
@@ -248,21 +256,27 @@ no change:                   repository.allow_squash_merge (already true)
 
 Repository settings entries are sorted lexicographically by field name within each category, actionable (`would set`) before informational (`no change`).
 
-Swatch output uses four categories:
+Swatch output uses the following categories:
 
 ```
-would copy:                  LICENSE
-would overwrite:             SECURITY.md
-no change:                   .github/workflows/tailor.yml
-skipped (first-fit, exists): justfile
+would copy:                                LICENSE
+would overwrite:                           SECURITY.md
+would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
+would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
+no change:                                 .github/workflows/tailor.yml
+skipped (first-fit, exists):               justfile
+skip (never):                              .github/workflows/tailor-automerge.yml
 ```
 
 `would copy` - destination does not exist and the swatch would be written. Applies regardless of whether the swatch is `always` or `first-fit`.
 `would overwrite` - `always` swatch whose embedded content differs from the on-disk file.
-`no change` - `always` swatch whose embedded content matches the on-disk file. `no change` only appears for `always` swatches; `first-fit` swatches that exist always produce `skipped (first-fit, exists)`, never `no change`. `always` swatches containing substitution tokens always produce `would overwrite`, never `no change` (see the substituted-swatch rule in the `alter` behaviour section above).
+`would deploy (triggered: <field>)` - triggered swatch whose condition is met; the annotation shows which config field activated it. Covers both copy (file absent) and overwrite (file exists, content differs) cases.
+`would remove (triggered: <field>)` - triggered swatch whose condition is not met and the file exists on disk.
+`no change` - `always` or `triggered` swatch whose embedded content matches the on-disk file. `no change` only appears for `always` and active `triggered` swatches; `first-fit` swatches that exist always produce `skipped (first-fit, exists)`, never `no change`. `always` swatches containing substitution tokens always produce `would overwrite`, never `no change` (see the substituted-swatch rule in the `alter` behaviour section above).
 `skipped (first-fit, exists)` - `first-fit` swatch whose destination already exists; no comparison is performed.
+`skip (never)` - swatch with `alteration: never`; skipped unconditionally.
 
-Output order: actionable items first (`would set`, `would copy`, `would overwrite`), then informational (`no change`, `skipped (first-fit, exists)`). Within each category, entries are sorted lexicographically by path or field name. The category label is padded to a fixed width of 29 characters (the length of `skipped (first-fit, exists): `) for consistent column alignment.
+Output order: actionable items first (`would set`, `would copy`, `would overwrite`, `would deploy`, `would remove`), then informational (`no change`, `skipped (first-fit, exists)`, `skip (never)`). Within each category, entries are sorted lexicographically by path or field name. The category label is padded to a fixed width for consistent column alignment.
 
 ### `measure`
 
@@ -470,6 +484,10 @@ swatches:
     destination: .envrc
     alteration: first-fit
 
+  - source: .github/workflows/tailor-automerge.yml
+    destination: .github/workflows/tailor-automerge.yml
+    alteration: triggered
+
   - source: .tailor/config.yml
     destination: .tailor/config.yml
     alteration: first-fit
@@ -502,12 +520,13 @@ swatches/
 │   │   └── feature_request.yml
 │   ├── pull_request_template.md
 │   └── workflows/
-│       └── tailor.yml
+│       ├── tailor.yml
+│       └── tailor-automerge.yml
 └── .tailor/
     └── config.yml
 ```
 
-`.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted automatically. `SECURITY.md` has `{{ADVISORY_URL}}` substituted automatically; if no GitHub repository context exists at `alter` time, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` substituted automatically; resolution follows the same mechanism as `{{ADVISORY_URL}}`, constructing `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. `.tailor/config.yml` has `{{HOMEPAGE_URL}}` substituted automatically, constructing `https://github.com/<owner>/<name>` from the repository context; if no repository context exists, the token is left unsubstituted. `.github/dependabot.yml` covers the `github-actions` package ecosystem for automated dependency updates of GitHub Actions.
+`.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted automatically. `SECURITY.md` has `{{ADVISORY_URL}}` substituted automatically; if no GitHub repository context exists at `alter` time, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` substituted automatically; resolution follows the same mechanism as `{{ADVISORY_URL}}`, constructing `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. `.tailor/config.yml` has `{{HOMEPAGE_URL}}` substituted automatically, constructing `https://github.com/<owner>/<name>` from the repository context; if no repository context exists, the token is left unsubstituted. `.github/dependabot.yml` covers the `github-actions` package ecosystem for automated dependency updates of GitHub Actions. `.github/workflows/tailor-automerge.yml` is a triggered swatch that auto-merges Dependabot pull requests; it is deployed only when `allow_auto_merge: true` is set in the `repository` section.
 
 Licences are not embedded - they are fetched at `alter` time via the GitHub REST API (`GET /licenses/{id}`) and written verbatim to `LICENSE`.
 
@@ -552,6 +571,27 @@ Action behaviour:
 - Committing and pushing are handled by `peter-evans/create-pull-request`, not by tailor. Tailor only modifies files in the working tree.
 - The action runs in a non-interactive shell. `GH_TOKEN` is set at the job level, providing the authentication token directly to `go-gh` via environment variable. The `gh` binary is not required for token resolution when `GH_TOKEN` is set. `first-fit` swatches (`.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`, the licence file) are not overwritten after initial creation. `SECURITY.md` is `always` mode and is rewritten on every run (see the substituted-swatch rule in the `alter` behaviour section). Although the file is rewritten each time, `{{ADVISORY_URL}}` resolves to the same URL for a given repository, so the substituted content is identical across runs - git detects no diff and `create-pull-request` opens no PR. If a tailor upgrade changes a swatch template, the file will differ and a PR will be opened.
 - Because `.github/workflows/tailor.yml` is itself an `always` swatch, the action workflow is kept current automatically: if the embedded swatch content changes in a new tailor release, the weekly run will update the workflow file and open a PR.
+
+## Automerge Workflow
+
+The `.github/workflows/tailor-automerge.yml` swatch delivers a GitHub Actions workflow that auto-merges Dependabot pull requests. It is a `triggered` swatch, deployed only when `allow_auto_merge: true` is set in the `repository` section of `config.yml`. The file is namespaced with a `tailor-` prefix to avoid collisions with user-managed automerge workflows.
+
+**Prerequisite**: Auto-merge requires branch protection with at least one required status check on the default branch. Without this, `gh pr merge --auto` merges immediately with no CI gate. See [GitHub's documentation on managing a branch protection rule](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule) for guidance.
+
+**Per-ecosystem merge policy**:
+
+| Ecosystem | Patch | Minor | Major |
+|-----------|-------|-------|-------|
+| GitHub Actions | Auto-merge | Auto-merge | Auto-merge |
+| All others | Auto-merge | Auto-merge | Skip |
+
+GitHub Actions use major version tags (v1, v2, v3) as their release convention, so Dependabot reports nearly every action update as a major version bump. All action updates are auto-merged regardless of semver level. Major bumps in other ecosystems (Go modules, npm, pip) follow semantic versioning where major indicates breaking changes; these are left for manual review.
+
+The workflow uses `gh pr merge --auto --merge` which enables GitHub's auto-merge feature on the PR. The merge only completes after all required status checks and branch protection rules pass.
+
+**Manual catch-up**: The workflow supports `workflow_dispatch` for repositories with pre-existing open Dependabot PRs. When triggered manually, a separate `automerge-existing` job lists all open Dependabot PRs and enables auto-merge on each. The manual job does not apply per-ecosystem filtering; required status checks still gate every merge.
+
+**Opt-out**: Users who have `allow_auto_merge: true` but use their own automerge solution can set `alteration: never` on the automerge swatch entry in `config.yml` to suppress deployment while keeping the entry visible.
 
 ## Justfile Integration
 

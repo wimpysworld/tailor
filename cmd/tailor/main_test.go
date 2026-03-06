@@ -35,9 +35,9 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 		t.Error("config missing 'license: MIT'")
 	}
 
-	// Verify 16 swatches are present (count "- source:" occurrences).
-	if count := strings.Count(content, "- source:"); count != 16 {
-		t.Errorf("swatch count = %d, want 16", count)
+	// Verify 17 swatches are present (count "- source:" occurrences).
+	if count := strings.Count(content, "- source:"); count != 17 {
+		t.Errorf("swatch count = %d, want 17", count)
 	}
 
 	// Verify the 14 default repo settings are present.

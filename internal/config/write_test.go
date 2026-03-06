@@ -97,6 +97,10 @@ swatches:
   - source: .tailor/config.yml
     destination: .tailor/config.yml
     alteration: first-fit
+
+  - source: .github/workflows/tailor-automerge.yml
+    destination: .github/workflows/tailor-automerge.yml
+    alteration: triggered
 `
 
 func TestWriteDefaultConfigMatchesSpec(t *testing.T) {

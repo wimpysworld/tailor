@@ -24,8 +24,8 @@ func TestLoadValidConfig(t *testing.T) {
 	if cfg.Repository == nil {
 		t.Fatal("Repository is nil")
 	}
-	if len(cfg.Swatches) != 16 {
-		t.Errorf("Swatches count = %d, want 16", len(cfg.Swatches))
+	if len(cfg.Swatches) != 17 {
+		t.Errorf("Swatches count = %d, want 17", len(cfg.Swatches))
 	}
 }
 
@@ -50,6 +50,42 @@ func TestLoadMalformedYAML(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "parsing config") {
 		t.Errorf("error = %q, want it to mention parsing config", err.Error())
+	}
+}
+
+func TestLoadTriggeredAlterationMode(t *testing.T) {
+	dir := t.TempDir()
+	testutil.WriteConfig(t, dir, `license: MIT
+swatches:
+  - source: justfile
+    destination: justfile
+    alteration: triggered
+`)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Swatches[0].Alteration != "triggered" {
+		t.Errorf("Alteration = %q, want %q", cfg.Swatches[0].Alteration, "triggered")
+	}
+}
+
+func TestLoadNeverAlterationMode(t *testing.T) {
+	dir := t.TempDir()
+	testutil.WriteConfig(t, dir, `license: MIT
+swatches:
+  - source: justfile
+    destination: justfile
+    alteration: never
+`)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Swatches[0].Alteration != "never" {
+		t.Errorf("Alteration = %q, want %q", cfg.Swatches[0].Alteration, "never")
 	}
 }
 

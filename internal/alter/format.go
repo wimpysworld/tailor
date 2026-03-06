@@ -7,9 +7,10 @@ import (
 	"strings"
 )
 
-// labelWidth is the fixed column width for status labels in formatted output.
-// Sized to accommodate "skipped (first-fit, exists): " (29 characters).
-const labelWidth = 29
+// defaultLabelWidth is the minimum column width for status labels in formatted
+// output. Sized to accommodate "skipped (first-fit, exists): " (29 characters).
+// Annotations on triggered swatches may widen this dynamically.
+const defaultLabelWidth = 29
 
 // FormatOutput produces the alter command output from repo settings results
 // and swatch results (including licence).
@@ -18,24 +19,49 @@ func FormatOutput(repoResults []RepoSettingResult, swatchResults []SwatchResult)
 		return ""
 	}
 
+	sortedSwatches := sortSwatchResults(swatchResults)
+	width := labelWidth(sortedSwatches)
+
 	var b strings.Builder
 
 	for _, r := range sortRepoResults(repoResults) {
 		label := string(r.Category) + ":"
 		switch r.Category {
 		case WouldSet:
-			fmt.Fprintf(&b, "%-*srepository.%s = %s\n", labelWidth, label, r.Field, r.Value)
+			fmt.Fprintf(&b, "%-*srepository.%s = %s\n", width, label, r.Field, r.Value)
 		case RepoNoChange:
-			fmt.Fprintf(&b, "%-*srepository.%s (already %s)\n", labelWidth, label, r.Field, r.Value)
+			fmt.Fprintf(&b, "%-*srepository.%s (already %s)\n", width, label, r.Field, r.Value)
 		}
 	}
 
-	for _, r := range sortSwatchResults(swatchResults) {
-		label := string(r.Category) + ":"
-		fmt.Fprintf(&b, "%-*s%s\n", labelWidth, label, r.Destination)
+	for _, r := range sortedSwatches {
+		label := swatchLabel(r)
+		fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Destination)
 	}
 
 	return b.String()
+}
+
+// swatchLabel returns the formatted label for a swatch result, including any
+// trigger annotation. For example: "would copy (triggered: allow_auto_merge):".
+func swatchLabel(r SwatchResult) string {
+	if r.Annotation != "" {
+		return string(r.Category) + " (" + r.Annotation + "):"
+	}
+	return string(r.Category) + ":"
+}
+
+// labelWidth computes the column width needed to accommodate all labels. It
+// returns at least defaultLabelWidth, widening if any annotated swatch label
+// exceeds that.
+func labelWidth(swatches []SwatchResult) int {
+	width := defaultLabelWidth
+	for _, r := range swatches {
+		if w := len(swatchLabel(r)) + 1; w > width {
+			width = w
+		}
+	}
+	return width
 }
 
 // sortRepoResults returns a sorted copy: actionable (WouldSet) before
@@ -84,15 +110,25 @@ func sortSwatchResults(results []SwatchResult) []SwatchResult {
 }
 
 // swatchOrder returns the sort priority for a SwatchCategory.
+// Actionable categories sort before informational: deploy, overwrite, remove,
+// then no-change, skipped, ignored.
 func swatchOrder(c SwatchCategory) int {
 	switch c {
 	case WouldCopy:
 		return 0
 	case WouldOverwrite:
 		return 1
-	case NoChange:
+	case WouldRemove:
 		return 2
-	default:
+	case Removed:
 		return 3
+	case NoChange:
+		return 4
+	case Skipped:
+		return 5
+	case Ignored:
+		return 6
+	default:
+		return 7
 	}
 }

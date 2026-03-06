@@ -85,8 +85,8 @@ func TestDefaultConfigSwatchCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultConfig() error: %v", err)
 	}
-	if len(cfg.Swatches) != 16 {
-		t.Errorf("Swatches count = %d, want 16", len(cfg.Swatches))
+	if len(cfg.Swatches) != 17 {
+		t.Errorf("Swatches count = %d, want 17", len(cfg.Swatches))
 	}
 }
 
@@ -105,11 +105,11 @@ func TestDefaultConfigSwatchOrder(t *testing.T) {
 	}
 
 	last := cfg.Swatches[len(cfg.Swatches)-1]
-	if last.Source != ".tailor/config.yml" {
-		t.Errorf("last swatch Source = %q, want %q", last.Source, ".tailor/config.yml")
+	if last.Source != ".github/workflows/tailor-automerge.yml" {
+		t.Errorf("last swatch Source = %q, want %q", last.Source, ".github/workflows/tailor-automerge.yml")
 	}
-	if last.Alteration != swatch.FirstFit {
-		t.Errorf("last swatch Alteration = %q, want %q", last.Alteration, swatch.FirstFit)
+	if last.Alteration != swatch.Triggered {
+		t.Errorf("last swatch Alteration = %q, want %q", last.Alteration, swatch.Triggered)
 	}
 }
 

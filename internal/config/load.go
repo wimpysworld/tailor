@@ -54,8 +54,12 @@ func validate(cfg *Config) error {
 		if s.Destination == "" {
 			return fmt.Errorf("swatch[%d]: destination must not be empty", i)
 		}
-		if s.Alteration != swatch.Always && s.Alteration != swatch.FirstFit {
-			return fmt.Errorf("swatch[%d]: alteration must be %q or %q, got %q", i, swatch.Always, swatch.FirstFit, s.Alteration)
+		switch s.Alteration {
+		case swatch.Always, swatch.FirstFit, swatch.Triggered, swatch.Never:
+			// valid
+		default:
+			return fmt.Errorf("swatch[%d]: alteration must be %q, %q, %q, or %q, got %q",
+				i, swatch.Always, swatch.FirstFit, swatch.Triggered, swatch.Never, s.Alteration)
 		}
 	}
 	return nil
