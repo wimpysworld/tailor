@@ -14,6 +14,7 @@ concurrency:
 
 jobs:
   lint:
+    name: Linter 🧹
     runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v6
@@ -24,6 +25,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v8
 
   build-test:
+    name: Test 🧪
     strategy:
       fail-fast: false
       matrix:
@@ -66,6 +68,7 @@ jobs:
           path: tailor-${{ matrix.os }}-${{ matrix.arch }}
 
   sentinel:
+    name: Sentinel 👁️
     needs: [lint, build-test]
     if: always()
     runs-on: ubuntu-slim
@@ -81,6 +84,7 @@ jobs:
           echo "All jobs passed"
 
   release:
+    name: Release 📦
     needs: [sentinel]
     if: >-
       github.repository_owner == 'wimpysworld'
