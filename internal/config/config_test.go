@@ -398,6 +398,120 @@ func TestNewFieldsOmittedInMarshal(t *testing.T) {
 	}
 }
 
+func TestLabelsNilWhenAbsent(t *testing.T) {
+	input := `license: MIT
+swatches: []
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(input), &cfg); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+	if cfg.Labels != nil {
+		t.Errorf("Labels = %v, want nil when absent", cfg.Labels)
+	}
+}
+
+func TestLabelsEmptySliceWhenEmpty(t *testing.T) {
+	input := `license: MIT
+labels: []
+swatches: []
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(input), &cfg); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+	if cfg.Labels == nil {
+		t.Fatal("Labels is nil, want non-nil empty slice")
+	}
+	if len(cfg.Labels) != 0 {
+		t.Errorf("Labels length = %d, want 0", len(cfg.Labels))
+	}
+}
+
+func TestLabelsPopulated(t *testing.T) {
+	input := `license: MIT
+labels:
+  - name: bug
+    color: d73a4a
+    description: Something is not working
+  - name: enhancement
+    color: a2eeef
+    description: New feature or request
+swatches: []
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(input), &cfg); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+	if len(cfg.Labels) != 2 {
+		t.Fatalf("Labels count = %d, want 2", len(cfg.Labels))
+	}
+	if cfg.Labels[0].Name != "bug" {
+		t.Errorf("Labels[0].Name = %q, want %q", cfg.Labels[0].Name, "bug")
+	}
+	if cfg.Labels[0].Color != "d73a4a" {
+		t.Errorf("Labels[0].Color = %q, want %q", cfg.Labels[0].Color, "d73a4a")
+	}
+	if cfg.Labels[0].Description != "Something is not working" {
+		t.Errorf("Labels[0].Description = %q", cfg.Labels[0].Description)
+	}
+	if cfg.Labels[1].Name != "enhancement" {
+		t.Errorf("Labels[1].Name = %q, want %q", cfg.Labels[1].Name, "enhancement")
+	}
+}
+
+func TestLabelsRoundTrip(t *testing.T) {
+	cfg := Config{
+		License: "MIT",
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
+			{Name: "enhancement", Color: "a2eeef", Description: "New feature or request"},
+		},
+		Swatches: []SwatchEntry{
+			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+
+	out, err := yaml.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	var roundTripped Config
+	if err := yaml.Unmarshal(out, &roundTripped); err != nil {
+		t.Fatalf("round-trip Unmarshal failed: %v", err)
+	}
+
+	if len(roundTripped.Labels) != 2 {
+		t.Fatalf("Labels count = %d, want 2", len(roundTripped.Labels))
+	}
+	for i, l := range roundTripped.Labels {
+		o := cfg.Labels[i]
+		if l.Name != o.Name || l.Color != o.Color || l.Description != o.Description {
+			t.Errorf("label[%d] mismatch: got {%q, %q, %q}, want {%q, %q, %q}",
+				i, l.Name, l.Color, l.Description, o.Name, o.Color, o.Description)
+		}
+	}
+}
+
+func TestLabelsOmittedInMarshalWhenNil(t *testing.T) {
+	cfg := Config{
+		License: "MIT",
+		Swatches: []SwatchEntry{
+			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+
+	out, err := yaml.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	if strings.Contains(string(out), "labels") {
+		t.Errorf("marshalled output contains 'labels' when Labels is nil:\n%s", out)
+	}
+}
+
 func TestRepositoryStringFields(t *testing.T) {
 	input := `license: MIT
 repository:

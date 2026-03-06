@@ -12,10 +12,10 @@ import (
 // Annotations on triggered swatches may widen this dynamically.
 const defaultLabelWidth = 29
 
-// FormatOutput produces the alter command output from repo settings results
-// and swatch results (including licence).
-func FormatOutput(repoResults []RepoSettingResult, swatchResults []SwatchResult) string {
-	if len(repoResults) == 0 && len(swatchResults) == 0 {
+// FormatOutput produces the alter command output from repo settings results,
+// label results, and swatch results (including licence).
+func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, swatchResults []SwatchResult) string {
+	if len(repoResults) == 0 && len(labelResults) == 0 && len(swatchResults) == 0 {
 		return ""
 	}
 
@@ -31,6 +31,16 @@ func FormatOutput(repoResults []RepoSettingResult, swatchResults []SwatchResult)
 			fmt.Fprintf(&b, "%-*srepository.%s = %s\n", width, label, r.Field, r.Value)
 		case RepoNoChange:
 			fmt.Fprintf(&b, "%-*srepository.%s (already %s)\n", width, label, r.Field, r.Value)
+		}
+	}
+
+	for _, r := range sortLabelResults(labelResults) {
+		label := string(r.Category) + ":"
+		switch r.Category {
+		case WouldCreate, WouldUpdate:
+			fmt.Fprintf(&b, "%-*slabel.%s = %s\n", width, label, r.Name, r.Value)
+		case LabelNoChange:
+			fmt.Fprintf(&b, "%-*slabel.%s (already %s)\n", width, label, r.Name, r.Value)
 		}
 	}
 
@@ -107,6 +117,35 @@ func sortSwatchResults(results []SwatchResult) []SwatchResult {
 		return strings.Compare(a.Destination, b.Destination)
 	})
 	return sorted
+}
+
+// sortLabelResults returns a sorted copy: actionable (WouldCreate, WouldUpdate)
+// before informational (LabelNoChange), lexicographic by name within each group.
+func sortLabelResults(results []LabelResult) []LabelResult {
+	if len(results) == 0 {
+		return nil
+	}
+	sorted := make([]LabelResult, len(results))
+	copy(sorted, results)
+	slices.SortStableFunc(sorted, func(a, b LabelResult) int {
+		if c := cmp.Compare(labelOrder(a.Category), labelOrder(b.Category)); c != 0 {
+			return c
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+	return sorted
+}
+
+// labelOrder returns the sort priority for a LabelCategory.
+func labelOrder(c LabelCategory) int {
+	switch c {
+	case WouldCreate:
+		return 0
+	case WouldUpdate:
+		return 1
+	default:
+		return 2
+	}
 }
 
 // swatchOrder returns the sort priority for a SwatchCategory.

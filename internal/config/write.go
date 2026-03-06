@@ -28,6 +28,13 @@ var templateFuncs = template.FuncMap{
 		}
 		return v
 	},
+	"yamlVal": func(v string) string {
+		const yamlSpecial = ":{}[]#&*!|>'\"%@`\n"
+		if strings.ContainsAny(v, yamlSpecial) || v != strings.TrimSpace(v) || v == "" {
+			return fmt.Sprintf("%q", v)
+		}
+		return v
+	},
 	"yamlUrl": func(p *string) string {
 		if p == nil {
 			return ""
@@ -130,6 +137,16 @@ repository:
 {{- end }}
 {{- if set .Repository.CanApprovePullRequestReviews }}
   can_approve_pull_request_reviews: {{ derefBool .Repository.CanApprovePullRequestReviews }}
+{{- end }}
+{{- end }}
+{{- if .Labels }}
+
+labels:
+{{- range $i, $l := .Labels }}
+{{ if $i }}
+{{ end }}  - name: {{ yamlVal $l.Name }}
+    color: {{ yamlVal $l.Color }}
+    description: {{ yamlVal $l.Description }}
 {{- end }}
 {{- end }}
 

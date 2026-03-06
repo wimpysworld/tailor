@@ -13,7 +13,7 @@ func TestFormatOutputSwatchesOnly(t *testing.T) {
 		{Destination: ".tailor/config.yml", Category: SkippedFirstFit},
 	}
 
-	got := FormatOutput(nil, swatches)
+	got := FormatOutput(nil, nil, swatches)
 	want := "would copy:                  CONTRIBUTING.md\n" +
 		"would overwrite:             .github/FUNDING.yml\n" +
 		"no change:                   LICENSE\n" +
@@ -31,7 +31,7 @@ func TestFormatOutputRepoSettingsOnly(t *testing.T) {
 		{Field: "description", Category: WouldSet, Value: "My project"},
 	}
 
-	got := FormatOutput(repos, nil)
+	got := FormatOutput(repos, nil, nil)
 	want := "would set:                   repository.description = My project\n" +
 		"would set:                   repository.has_wiki = false\n" +
 		"no change:                   repository.has_issues (already true)\n"
@@ -52,7 +52,7 @@ func TestFormatOutputCombined(t *testing.T) {
 		{Destination: "LICENSE", Category: NoChange},
 	}
 
-	got := FormatOutput(repos, swatches)
+	got := FormatOutput(repos, nil, swatches)
 	want := "would set:                   repository.has_wiki = false\n" +
 		"no change:                   repository.has_issues (already true)\n" +
 		"would copy:                  CONTRIBUTING.md\n" +
@@ -64,14 +64,14 @@ func TestFormatOutputCombined(t *testing.T) {
 }
 
 func TestFormatOutputEmpty(t *testing.T) {
-	got := FormatOutput(nil, nil)
+	got := FormatOutput(nil, nil, nil)
 	if got != "" {
 		t.Errorf("FormatOutput empty: got %q, want %q", got, "")
 	}
 }
 
 func TestFormatOutputEmptySlices(t *testing.T) {
-	got := FormatOutput([]RepoSettingResult{}, []SwatchResult{})
+	got := FormatOutput([]RepoSettingResult{}, nil, []SwatchResult{})
 	if got != "" {
 		t.Errorf("FormatOutput empty slices: got %q, want %q", got, "")
 	}
@@ -87,7 +87,7 @@ func TestFormatOutputSwatchSorting(t *testing.T) {
 		{Destination: "M-file.md", Category: NoChange},
 	}
 
-	got := FormatOutput(nil, swatches)
+	got := FormatOutput(nil, nil, swatches)
 	want := "would copy:                  B-file.md\n" +
 		"would copy:                  C-file.md\n" +
 		"would overwrite:             A-file.md\n" +
@@ -108,7 +108,7 @@ func TestFormatOutputRepoSettingSorting(t *testing.T) {
 		{Field: "allow_squash_merge", Category: WouldSet, Value: "true"},
 	}
 
-	got := FormatOutput(repos, nil)
+	got := FormatOutput(repos, nil, nil)
 	want := "would set:                   repository.allow_squash_merge = true\n" +
 		"would set:                   repository.has_issues = true\n" +
 		"no change:                   repository.description (already A project)\n" +
@@ -148,7 +148,7 @@ func TestFormatOutputActionableBeforeInformational(t *testing.T) {
 		{Destination: "action2.md", Category: WouldOverwrite},
 	}
 
-	got := FormatOutput(nil, swatches)
+	got := FormatOutput(nil, nil, swatches)
 	want := "would copy:                  action1.md\n" +
 		"would overwrite:             action2.md\n" +
 		"no change:                   info1.md\n" +
@@ -167,7 +167,7 @@ func TestFormatOutputRepoSettingsBeforeSwatches(t *testing.T) {
 		{Destination: "CONTRIBUTING.md", Category: WouldCopy},
 	}
 
-	got := FormatOutput(repos, swatches)
+	got := FormatOutput(repos, nil, swatches)
 
 	// Repo settings line must appear before swatch line.
 	repoIdx := 0
@@ -183,7 +183,7 @@ func TestFormatOutputNoTrailingBlankLine(t *testing.T) {
 		{Destination: "file.md", Category: WouldCopy},
 	}
 
-	got := FormatOutput(nil, swatches)
+	got := FormatOutput(nil, nil, swatches)
 	if got[len(got)-1] != '\n' {
 		t.Error("output should end with newline")
 	}
@@ -200,7 +200,7 @@ func TestFormatOutputNewCategories(t *testing.T) {
 		{Destination: "copied.md", Category: WouldCopy},
 	}
 
-	got := FormatOutput(nil, swatches)
+	got := FormatOutput(nil, nil, swatches)
 	want := "would copy:                  copied.md\n" +
 		"would remove:                would-remove.yml\n" +
 		"removed:                     removed.yml\n" +
@@ -223,7 +223,7 @@ func TestFormatOutputNewCategorySorting(t *testing.T) {
 		{Destination: "a-would-remove.yml", Category: WouldRemove},
 	}
 
-	got := FormatOutput(nil, swatches)
+	got := FormatOutput(nil, nil, swatches)
 	want := "would copy:                  e-would-copy.md\n" +
 		"would overwrite:             f-would-overwrite.md\n" +
 		"would remove:                a-would-remove.yml\n" +
@@ -244,7 +244,7 @@ func TestFormatOutputAnnotations(t *testing.T) {
 		{Destination: "LICENSE", Category: NoChange},
 	}
 
-	got := FormatOutput(nil, swatches)
+	got := FormatOutput(nil, nil, swatches)
 	// Annotated label "would copy (triggered: allow_auto_merge):" is 41 chars,
 	// plus 1 space = 42 column width.
 	want := "would copy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
@@ -260,7 +260,7 @@ func TestFormatOutputAnnotationWouldRemove(t *testing.T) {
 		{Destination: ".github/workflows/tailor-automerge.yml", Category: WouldRemove, Annotation: "triggered: allow_auto_merge"},
 	}
 
-	got := FormatOutput(nil, swatches)
+	got := FormatOutput(nil, nil, swatches)
 	want := "would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
 
 	if got != want {
@@ -274,7 +274,7 @@ func TestFormatOutputAnnotationSkippedNever(t *testing.T) {
 		{Destination: "CONTRIBUTING.md", Category: WouldCopy},
 	}
 
-	got := FormatOutput(nil, swatches)
+	got := FormatOutput(nil, nil, swatches)
 	// "skip (never) (triggered: allow_auto_merge):" = 43 chars + 1 space = 44 width
 	want := "would copy:                                 CONTRIBUTING.md\n" +
 		"skip (never) (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
@@ -292,7 +292,7 @@ func TestFormatOutputAnnotationMixedWithRepo(t *testing.T) {
 		{Destination: ".github/workflows/tailor-automerge.yml", Category: WouldCopy, Annotation: "triggered: allow_auto_merge"},
 	}
 
-	got := FormatOutput(repos, swatches)
+	got := FormatOutput(repos, nil, swatches)
 	// Column width widens to 42 to fit the annotated swatch label.
 	want := "would set:                                repository.allow_auto_merge = true\n" +
 		"would copy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"

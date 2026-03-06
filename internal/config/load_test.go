@@ -143,6 +143,81 @@ swatches:
 	}
 }
 
+func TestLoadLabelsAbsent(t *testing.T) {
+	dir := t.TempDir()
+	testutil.WriteConfig(t, dir, `license: MIT
+swatches: []
+`)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Labels != nil {
+		t.Errorf("Labels = %v, want nil when absent", cfg.Labels)
+	}
+}
+
+func TestLoadLabelsEmpty(t *testing.T) {
+	dir := t.TempDir()
+	testutil.WriteConfig(t, dir, `license: MIT
+labels: []
+swatches: []
+`)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.Labels == nil {
+		t.Fatal("Labels is nil, want non-nil empty slice")
+	}
+	if len(cfg.Labels) != 0 {
+		t.Errorf("Labels length = %d, want 0", len(cfg.Labels))
+	}
+}
+
+func TestLoadLabelsPopulated(t *testing.T) {
+	dir := t.TempDir()
+	testutil.WriteConfig(t, dir, `license: MIT
+labels:
+  - name: bug
+    color: d73a4a
+    description: Something is not working
+swatches: []
+`)
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if len(cfg.Labels) != 1 {
+		t.Fatalf("Labels count = %d, want 1", len(cfg.Labels))
+	}
+	if cfg.Labels[0].Name != "bug" {
+		t.Errorf("Labels[0].Name = %q, want %q", cfg.Labels[0].Name, "bug")
+	}
+}
+
+func TestLoadRejectsInvalidLabel(t *testing.T) {
+	dir := t.TempDir()
+	testutil.WriteConfig(t, dir, `license: MIT
+labels:
+  - name: bug
+    color: zzzzzz
+    description: Something is not working
+swatches: []
+`)
+
+	_, err := Load(dir)
+	if err == nil {
+		t.Fatal("Load() expected error for invalid label color, got nil")
+	}
+	if !strings.Contains(err.Error(), "not a valid 6-character hex") {
+		t.Errorf("error = %q, want hex validation error", err)
+	}
+}
+
 func TestExistsTrue(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, "license: MIT\nswatches: []\n")

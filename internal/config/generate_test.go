@@ -57,6 +57,32 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	testutil.AssertStringPtr(t, got.Repository.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
 	testutil.AssertBoolPtr(t, got.Repository.CanApprovePullRequestReviews, false, false, "can_approve_pull_request_reviews")
 
+	// Labels should match the embedded defaults.
+	if len(got.Labels) != 12 {
+		t.Fatalf("Labels count = %d, want 12", len(got.Labels))
+	}
+	wantLabels := []LabelEntry{
+		{Name: "bug", Color: "d20f39", Description: "Something isn't working"},
+		{Name: "documentation", Color: "04a5e5", Description: "Documentation improvement"},
+		{Name: "duplicate", Color: "8839ef", Description: "Already exists"},
+		{Name: "enhancement", Color: "1e66f5", Description: "New feature request"},
+		{Name: "good first issue", Color: "40a02b", Description: "Good for newcomers"},
+		{Name: "help wanted", Color: "179299", Description: "Extra attention needed"},
+		{Name: "invalid", Color: "e64553", Description: "Not valid or relevant"},
+		{Name: "question", Color: "7287fd", Description: "Needs more information"},
+		{Name: "wontfix", Color: "dc8a78", Description: "Will not be worked on"},
+		{Name: "dependencies", Color: "fe640b", Description: "Dependency update"},
+		{Name: "github_actions", Color: "ea76cb", Description: "GitHub Actions update"},
+		{Name: "hacktoberfest-accepted", Color: "df8e1d", Description: "Hacktoberfest contribution"},
+	}
+	for i, wl := range wantLabels {
+		gl := got.Labels[i]
+		if gl.Name != wl.Name || gl.Color != wl.Color || gl.Description != wl.Description {
+			t.Errorf("label[%d] = {%q, %q, %q}, want {%q, %q, %q}",
+				i, gl.Name, gl.Color, gl.Description, wl.Name, wl.Color, wl.Description)
+		}
+	}
+
 	// Fields absent from the embedded config should remain nil.
 	if got.Repository.Description != nil {
 		t.Errorf("Description = %q, want nil", *got.Repository.Description)
