@@ -93,7 +93,7 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 
 ### Configuration
 
-All state lives in `.tailor/config.yml` with three sections: `license`, `repository`, and `swatches`.
+All state lives in `.tailor/config.yml` with four sections: `license`, `repository`, `labels`, and `swatches`.
 
 ```yaml
 # Initially fitted by tailor on 2026-03-04
@@ -105,6 +105,10 @@ repository:
   allow_squash_merge: true
   delete_branch_on_merge: true
   allow_auto_merge: true
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: true
+  default_workflow_permissions: read
+  can_approve_pull_request_reviews: false
 
 swatches:
   - source: SECURITY.md
@@ -150,8 +154,38 @@ The `repository` section manages GitHub repository settings declaratively. Field
 | `allow_auto_merge` | bool | Allow auto-merge |
 | `web_commit_signoff_required` | bool | Require sign-off on web commits |
 | `private_vulnerability_reporting_enabled` | bool | Enable private vulnerability reporting |
+| `vulnerability_alerts_enabled` | bool | Enable Dependabot vulnerability alerts |
+| `automated_security_fixes_enabled` | bool | Enable Dependabot security update PRs |
+| `topics` | string[] | Repository topics for discoverability |
+| `default_workflow_permissions` | string | `GITHUB_TOKEN` default permissions: `read` or `write` |
+| `can_approve_pull_request_reviews` | bool | Allow workflows to approve PRs |
 
 Omit the `repository` section entirely to skip settings management.
+
+## Labels
+
+The `labels` section manages GitHub issue labels declaratively. Tailor ships 12 default labels (the 9 GitHub defaults plus `dependencies`, `github_actions`, and `hacktoberfest-accepted`) with colours from the [Catppuccin Latte](https://catppuccin.com/palette/) palette.
+
+```yaml
+labels:
+  - name: bug
+    color: d20f39
+    description: "Something isn't working"
+  - name: enhancement
+    color: 1e66f5
+    description: "New feature request"
+  - name: dependencies
+    color: fe640b
+    description: "Dependency update"
+```
+
+Labels are reconciled with create-and-update-only semantics: tailor creates missing labels and updates labels whose colour or description differs, but never deletes labels from the repository. This avoids removing labels already applied to issues.
+
+Omit the `labels` section to skip label management.
+
+## Sponsorships
+
+Tailor places `.github/FUNDING.yml` as a `first-fit` swatch, but the GitHub API does not expose the "Sponsorships" checkbox. After running `alter`, tick **Settings > General > Features > Sponsorships** manually to display the Sponsor button on the repository.
 
 ## Automated Maintenance
 

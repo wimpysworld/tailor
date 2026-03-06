@@ -55,7 +55,9 @@ The `fit`, `alter`, and `baste` commands verify that a valid authentication toke
 
 Swatch-to-path mappings are hardcoded in the source. Licences are not swatches - they are fetched via the GitHub REST API (`GET /licenses/{id}`) at `alter` time and written to `LICENSE`.
 
-**Repository Settings**: Tailor can manage GitHub repository settings declaratively via the `repository` section in `config.yml`. Field names match the GitHub REST API field names exactly (snake_case). Settings are applied via `PATCH /repos/{owner}/{repo}` as a single API call. Repository settings are always applied idempotently on every `alter` run - there is no `first-fit` concept for API settings. If the `repository` section is absent from `config.yml`, repository settings are skipped entirely.
+**Repository Settings**: Tailor can manage GitHub repository settings declaratively via the `repository` section in `config.yml`. Field names match the GitHub REST API field names exactly (snake_case). Settings are applied via `PATCH /repos/{owner}/{repo}` as a single API call, with additional fields applied via their own separate API endpoints. Repository settings are always applied idempotently on every `alter` run - there is no `first-fit` concept for API settings. If the `repository` section is absent from `config.yml`, repository settings are skipped entirely.
+
+**Labels**: Tailor can manage GitHub issue labels declaratively via the `labels` section in `config.yml`. Labels are a top-level config key alongside `repository:` and `swatches:`, not a field within `repository:`. The reconciliation strategy is create and update only - labels present on GitHub but absent from config are left untouched. No pruning. Label name matching is case-insensitive. The default config includes 12 labels (9 GitHub defaults plus `dependencies`, `github_actions`, and `hacktoberfest-accepted`) with colours from the Catppuccin Latte accent palette. If the `labels` section is absent from `config.yml`, label management is skipped entirely.
 
 Supported repository settings:
 
@@ -79,10 +81,29 @@ Supported repository settings:
 | `allow_auto_merge` | bool | Allow auto-merge |
 | `web_commit_signoff_required` | bool | Require sign-off on web commits |
 | `private_vulnerability_reporting_enabled` | bool | Allow users to privately report potential security vulnerabilities |
+| `vulnerability_alerts_enabled` | bool | Enable Dependabot vulnerability alerts |
+| `automated_security_fixes_enabled` | bool | Enable Dependabot automated security fix PRs |
+| `topics` | string array | Repository topics for discoverability (replace-all semantics) |
+| `default_workflow_permissions` | string | Default GITHUB_TOKEN permissions (`read` or `write`) |
+| `can_approve_pull_request_reviews` | bool | Allow GitHub Actions to approve pull requests |
 
-`private_vulnerability_reporting_enabled` uses a separate API endpoint (`PUT`/`DELETE /repos/{owner}/{repo}/private-vulnerability-reporting`) rather than the repository PATCH call. Tailor handles this transparently - it appears in `config.yml` alongside other repository settings but is applied via its own API call.
+Several fields use separate API endpoints rather than the repository PATCH call. Tailor handles this transparently - they appear in `config.yml` alongside other repository settings but are applied via their own API calls:
 
-Settings deliberately excluded due to risk or org-level scope: `visibility`, `default_branch`, `topics`, `template`, `allow_forking`, `enable_advanced_security`, `enable_secret_scanning`, `enable_secret_scanning_push_protection`.
+| Field | Read | Write |
+|---|---|---|
+| `private_vulnerability_reporting_enabled` | `GET /repos/{owner}/{repo}/private-vulnerability-reporting` | `PUT`/`DELETE /repos/{owner}/{repo}/private-vulnerability-reporting` |
+| `vulnerability_alerts_enabled` | `GET /repos/{owner}/{repo}/vulnerability-alerts` (204=enabled, 404=disabled) | `PUT`/`DELETE /repos/{owner}/{repo}/vulnerability-alerts` |
+| `automated_security_fixes_enabled` | `GET /repos/{owner}/{repo}/automated-security-fixes` (JSON `{"enabled": bool}`) | `PUT`/`DELETE /repos/{owner}/{repo}/automated-security-fixes` |
+| `topics` | Read from `GET /repos/{owner}/{repo}` response (no extra call) | `PUT /repos/{owner}/{repo}/topics` with `{"names": [...]}` |
+| `default_workflow_permissions`, `can_approve_pull_request_reviews` | `GET /repos/{owner}/{repo}/actions/permissions/workflow` | `PUT /repos/{owner}/{repo}/actions/permissions/workflow` (both fields atomically) |
+
+**Ordering constraint**: `automated_security_fixes_enabled` requires `vulnerability_alerts_enabled` to be active. When enabling both, alerts are enabled first, then security fixes. When disabling both, security fixes are disabled first, then alerts. If `automated_security_fixes_enabled: true` is declared but alerts are disabled on GitHub, a warning is emitted.
+
+**Topics**: The PUT endpoint replaces the entire topics list. The config declares the complete desired set; omitted topics are removed on apply. Topics are project-specific and not included in the default config template. Topic names must start with a lowercase letter or number, contain only lowercase alphanumerics and hyphens, and be 50 characters or fewer. The `topics` field uses `*[]string` semantics: nil (absent) means skip, empty list means clear all topics.
+
+**Actions workflow permissions**: `default_workflow_permissions` accepts `read` or `write`. The PUT endpoint sends both `default_workflow_permissions` and `can_approve_pull_request_reviews` atomically. The tailor defaults (`read` and `false`) follow the principle of least privilege; GitHub's own defaults (`write` and `true`) are less secure.
+
+Settings deliberately excluded due to risk or org-level scope: `visibility`, `default_branch`, `name`, `archived`, `is_template`, `allow_forking`, `security_and_analysis`. Additional API areas considered and deferred: Actions permissions policy (`enabled`, `allowed_actions`), autolinks, Pages configuration, deployment environments, custom properties (org-level), and Dependabot secrets.
 
 **Alteration Modes**:
 - `always`: Tailor compares the embedded swatch content against the on-disk file on every `alter` run and overwrites if they differ. For `.tailor/config.yml` specifically, `always` means "append missing default swatch entries" rather than "overwrite content", because config.yml content is user-managed. The config is rewritten only when entries are actually added
@@ -176,7 +197,7 @@ A `license` key is included in `config.yml` by default (`license: MIT`). Use `--
 
 **Repository settings resolution at `fit` time**: `fit` detects repository context by querying GitHub remotes in `<path>`. If a GitHub remote exists, the project has repository context. If no remote is found, no repository context exists. Repository context detection reads git remotes (via `go-gh`), so `git` must be present when a GitHub remote exists - which is always the case in practice, since the remote implies a git repository.
 
-When repository context exists, `fit` queries the live repository configuration via `GET /repos/{owner}/{repo}` and `GET /repos/{owner}/{repo}/private-vulnerability-reporting` to populate the `repository` section with the project's current settings. This ensures that enabling tailor on an existing project does not inadvertently change features that are already configured (e.g. disabling wiki or discussions that are currently enabled). The `--description` flag takes precedence over the value from GitHub. `description` and `homepage` are omitted if empty. When no repository context exists (e.g. a brand-new project with no remote), the built-in defaults from the embedded swatch are used, with `description` and `homepage` normalised to nil by `DefaultConfig` so they are omitted from the generated config.
+When repository context exists, `fit` queries the live repository configuration via `GET /repos/{owner}/{repo}` and the separate endpoints for private vulnerability reporting, vulnerability alerts, automated security fixes, and Actions workflow permissions to populate the `repository` section with the project's current settings. This ensures that enabling tailor on an existing project does not inadvertently change features that are already configured (e.g. disabling wiki or discussions that are currently enabled). The `--description` flag takes precedence over the value from GitHub. `description` and `homepage` are omitted if empty. When no repository context exists (e.g. a brand-new project with no remote), the built-in defaults from the embedded swatch are used, with `description` and `homepage` normalised to nil by `DefaultConfig` so they are omitted from the generated config.
 
 ```bash
 # Default licence (MIT)
@@ -196,7 +217,7 @@ If `<path>` already exists but does not contain `.tailor/config.yml`, `fit` proc
 
 Generates:
 - Project directory at `<path>`
-- `.tailor/config.yml` at `<path>/.tailor/config.yml`, creating the `.tailor/` directory if it does not already exist, containing the `license` key, the `repository` section (populated from live GitHub settings when available, otherwise from built-in defaults), and the full default swatch set, each entry at its default alteration mode, prefixed with a `# Initially fitted by tailor on <DATE>` header comment (YYYY-MM-DD, no time).
+- `.tailor/config.yml` at `<path>/.tailor/config.yml`, creating the `.tailor/` directory if it does not already exist, containing the `license` key, the `repository` section (populated from live GitHub settings when available, otherwise from built-in defaults), the `labels` section (12 default labels with Catppuccin Latte colours), and the full default swatch set, each entry at its default alteration mode, prefixed with a `# Initially fitted by tailor on <DATE>` header comment (YYYY-MM-DD, no time).
 
 ### `alter`
 
@@ -212,7 +233,8 @@ tailor alter --recut      # Apply and overwrite regardless of mode or existence
 Behaviour:
 - If `.tailor/config.yml` is missing or malformed, exits immediately with the error described in Error Handling.
 - **Config update** (when `.tailor/config.yml` has `alteration: always`): before processing swatches, `alter` compares the loaded config's swatch list against the built-in default set. For each default swatch whose source path has no matching entry in the config, `alter` appends a new `SwatchEntry` with the default alteration mode. If any entries were added, the config file is rewritten to disk with a `# Refitted by tailor on <DATE>` header comment (YYYY-MM-DD). If no entries are missing, the config file is not touched. Existing entries are never modified - only missing entries are appended. When config.yml has `alteration: first-fit`, this check is skipped entirely. See "Header comment" below for the comment format.
-- For repository settings: if a `repository` section is present in `config.yml`, reads the current repository settings via `GET /repos/{owner}/{repo}`, compares each declared field against the live value, and sends a single `PATCH /repos/{owner}/{repo}` call with all declared fields. Repository settings are applied before licences and swatches. If no GitHub repository context exists (no remote), repository settings are skipped with a warning. `--recut` has no special effect on repository settings - they are always applied declaratively.
+- For repository settings: if a `repository` section is present in `config.yml`, reads the current repository settings via `GET /repos/{owner}/{repo}` and additional endpoints, compares each declared field against the live value, and applies changes via `PATCH /repos/{owner}/{repo}` plus separate API calls for fields with dedicated endpoints. Repository settings are applied first in the execution order. If no GitHub repository context exists (no remote), repository settings are skipped with a warning. `--recut` has no special effect on repository settings - they are always applied declaratively.
+- For labels: if a `labels` section is present in `config.yml`, reads the current labels via paginated `GET /repos/{owner}/{repo}/labels`, diffs desired vs current using case-insensitive name matching, creates missing labels via `POST`, and updates changed labels (colour or description differs) via `PATCH`. Labels present on GitHub but absent from config are left untouched. Labels are applied after repository settings and before licences and swatches. If no GitHub repository context exists (no remote), labels are skipped with a warning.
 - For `always` swatches: compares the SHA-256 of the embedded swatch content against the on-disk file; overwrites if they differ. SHA-256 comparison applies only to `always` swatches. For swatches containing substitution tokens (`{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, `{{HOMEPAGE_URL}}`, or `{{MERGE_STRATEGY}}`), tokens are resolved before the SHA-256 comparison. The resolved content is hashed and compared against the on-disk file, so substituted swatches correctly produce `no change` when the resolved content matches. The set of substituted swatches is: `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`, and `.github/workflows/tailor-automerge.yml`.
 - For `first-fit` swatches: copies only if the destination file does not exist; never overwrites. If the destination exists, the swatch is skipped entirely - no SHA-256 comparison is performed.
 - For `triggered` swatches: looks up the trigger condition for the swatch source in the trigger condition table. If the condition is met (e.g. `allow_auto_merge: true` in the `repository` section), behaves like `always` - deploys and overwrites when content differs. If the condition is not met and the file exists on disk, removes it. If the condition is not met and the file does not exist, skips silently. Triggered swatches are never overwritten by `--recut` when the trigger condition is false.
@@ -242,7 +264,7 @@ Behaviour:
 - If `.tailor/config.yml` is missing or malformed, exits immediately with the error described in Error Handling.
 - `baste` performs the same comparison logic as `alter` but writes nothing. It reports what `alter` would do.
 
-Output format - repository settings are shown first (if a `repository` section is present), followed by swatch entries.
+Output format - repository settings are shown first (if a `repository` section is present), then labels (if a `labels` section is present), then swatch entries.
 
 Repository settings output uses two categories:
 
@@ -388,7 +410,7 @@ Behaviour:
 
 **Repository settings without repo context**: if `config.yml` contains a `repository` section but the project has no GitHub remote (no repository context found), repository settings are skipped with a warning: "No GitHub repository context found. Repository settings will be applied once a remote is configured." Warning only; does not block swatch or licence processing.
 
-**Repository settings API failure**: if the `PATCH /repos/{owner}/{repo}` call to apply repository settings fails, `alter` exits with the API error. Because repository settings are applied first in the execution order, licence and swatch operations are not attempted. If licence fetch fails after repository settings have been applied, the settings are not reverted.
+**Repository settings API failure**: if any API call to apply repository settings fails (PATCH, PUT, or DELETE), `alter` exits with the API error. Because repository settings are applied first in the execution order, labels, licence, and swatch operations are not attempted. If licence fetch fails after repository settings and labels have been applied, those changes are not reverted.
 
 **Unrecognised repository setting**: if `config.yml` contains a field in the `repository` section that is not in the supported settings list, `alter` exits with an error identifying the unrecognised field and listing all valid repository setting field names.
 
@@ -398,7 +420,7 @@ Behaviour:
 
 ### `.tailor/config.yml`
 
-`config.yml` has three top-level sections: `license` (a string), `repository` (a map of GitHub repository settings), and `swatches` (a list of swatch entries). `source` values use the full source path relative to `swatches/`, including the file extension where one exists. Extensionless files (e.g. `justfile`) are referenced as-is. The `repository` section is optional; if absent, repository settings are not managed.
+`config.yml` has four top-level sections: `license` (a string), `repository` (a map of GitHub repository settings), `labels` (a list of label entries with name, colour, and description), and `swatches` (a list of swatch entries). `source` values use the full source path relative to `swatches/`, including the file extension where one exists. Extensionless files (e.g. `justfile`) are referenced as-is. The `repository` and `labels` sections are optional; if absent, their respective management is skipped.
 
 Default (with `--license=MIT`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
 
@@ -423,6 +445,59 @@ repository:
   allow_auto_merge: true
   web_commit_signoff_required: false
   private_vulnerability_reporting_enabled: true
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: true
+  default_workflow_permissions: read
+  can_approve_pull_request_reviews: false
+
+labels:
+  - name: bug
+    color: d20f39
+    description: "Something isn't working"
+
+  - name: documentation
+    color: 04a5e5
+    description: "Documentation improvement"
+
+  - name: duplicate
+    color: 8839ef
+    description: "Already exists"
+
+  - name: enhancement
+    color: 1e66f5
+    description: "New feature request"
+
+  - name: good first issue
+    color: 40a02b
+    description: "Good for newcomers"
+
+  - name: help wanted
+    color: "179299"
+    description: "Extra attention needed"
+
+  - name: invalid
+    color: e64553
+    description: "Not valid or relevant"
+
+  - name: question
+    color: 7287fd
+    description: "Needs more information"
+
+  - name: wontfix
+    color: dc8a78
+    description: "Will not be worked on"
+
+  - name: dependencies
+    color: fe640b
+    description: "Dependency update"
+
+  - name: github_actions
+    color: ea76cb
+    description: "GitHub Actions update"
+
+  - name: hacktoberfest-accepted
+    color: df8e1d
+    description: "Hacktoberfest contribution"
 
 swatches:
   - source: .github/workflows/tailor.yml
@@ -631,4 +706,4 @@ measure:
 5. **No project registry**: Tailor has no awareness of its consumers. Projects pull from tailor, tailor does not track projects.
 6. **Authentication via `go-gh`**: All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions. Token resolution follows the `go-gh` precedence order: `GH_TOKEN` environment variable, `GITHUB_TOKEN` environment variable, `gh` config file, `gh` keyring (via the `gh` binary). When `GH_TOKEN` or `GITHUB_TOKEN` is set, the `gh` binary is not required. The `gh` binary is needed only for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access when no environment variable is set. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If no valid token can be resolved, `fit`, `alter`, and `baste` exit immediately with an error.
 7. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
-8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `config.yml`. Field names map directly to the GitHub REST API without translation. Current settings are read via `GET /repos/{owner}/{repo}` for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client. The `alter` execution order is: repository settings, then licence, then swatches.
+8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `config.yml`, plus separate API calls for fields with dedicated endpoints (private vulnerability reporting, vulnerability alerts, automated security fixes, topics, Actions workflow permissions). Field names map directly to the GitHub REST API without translation. Current settings are read via `GET /repos/{owner}/{repo}` and the relevant separate endpoints for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client. The `alter` execution order is: repository settings, then labels, then licence, then swatches.
