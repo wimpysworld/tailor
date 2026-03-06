@@ -113,7 +113,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 // always, or when it is first-fit and the caller requested a recut.
 func shouldMerge(cfg *config.Config, mode ApplyMode) bool {
 	for _, e := range cfg.Swatches {
-		if e.Source == configDestination {
+		if e.Source == configSource {
 			if e.Alteration == swatch.Always {
 				return true
 			}
