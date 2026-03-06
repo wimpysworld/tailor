@@ -77,6 +77,12 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		return err
 	}
 
+	// Labels processing.
+	labelResults, err := ProcessLabels(cfg, mode, client, owner, name, hasRepo)
+	if err != nil {
+		return err
+	}
+
 	// Licence processing.
 	licenceResult, err := ProcessLicence(cfg, dir, mode, client)
 	if err != nil {
@@ -94,7 +100,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		swatchResults = append([]SwatchResult{*licenceResult}, swatchResults...)
 	}
 
-	output := FormatOutput(repoResults, swatchResults)
+	output := FormatOutput(repoResults, labelResults, swatchResults)
 	if output != "" {
 		fmt.Print(output)
 	}

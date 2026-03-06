@@ -68,5 +68,8 @@ func validate(cfg *Config) error {
 	if err := ValidateTopics(cfg); err != nil {
 		return err
 	}
+	if err := ValidateLabels(cfg); err != nil {
+		return err
+	}
 	return nil
 }

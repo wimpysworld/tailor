@@ -262,6 +262,217 @@ func TestValidateTopicsRejectsSpecialChars(t *testing.T) {
 	}
 }
 
+func TestValidateLabelsAcceptsValid(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
+			{Name: "enhancement", Color: "a2eeef", Description: "New feature or request"},
+		},
+	}
+	if err := ValidateLabels(cfg); err != nil {
+		t.Fatalf("ValidateLabels(valid): %v", err)
+	}
+}
+
+func TestValidateLabelsAcceptsNil(t *testing.T) {
+	cfg := &Config{}
+	if err := ValidateLabels(cfg); err != nil {
+		t.Fatalf("ValidateLabels(nil): %v", err)
+	}
+}
+
+func TestValidateLabelsAcceptsEmpty(t *testing.T) {
+	cfg := &Config{Labels: []LabelEntry{}}
+	if err := ValidateLabels(cfg); err != nil {
+		t.Fatalf("ValidateLabels(empty): %v", err)
+	}
+}
+
+func TestValidateLabelsRejectsEmptyName(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "", Color: "d73a4a", Description: "desc"},
+		},
+	}
+	err := ValidateLabels(cfg)
+	if err == nil {
+		t.Fatal("ValidateLabels(empty name) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "name must not be empty") {
+		t.Errorf("error = %q, want name must not be empty", err)
+	}
+}
+
+func TestValidateLabelsRejectsLongName(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: strings.Repeat("a", 51), Color: "d73a4a", Description: "desc"},
+		},
+	}
+	err := ValidateLabels(cfg)
+	if err == nil {
+		t.Fatal("ValidateLabels(long name) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "exceeds 50 characters") {
+		t.Errorf("error = %q, want exceeds 50 characters", err)
+	}
+}
+
+func TestValidateLabelsAcceptsMaxName(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: strings.Repeat("a", 50), Color: "d73a4a", Description: "desc"},
+		},
+	}
+	if err := ValidateLabels(cfg); err != nil {
+		t.Fatalf("ValidateLabels(50-char name): %v", err)
+	}
+}
+
+func TestValidateLabelsRejectsEmptyColor(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "", Description: "desc"},
+		},
+	}
+	err := ValidateLabels(cfg)
+	if err == nil {
+		t.Fatal("ValidateLabels(empty color) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "color must not be empty") {
+		t.Errorf("error = %q, want color must not be empty", err)
+	}
+}
+
+func TestValidateLabelsRejectsHashPrefix(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "#d73a4a", Description: "desc"},
+		},
+	}
+	err := ValidateLabels(cfg)
+	if err == nil {
+		t.Fatal("ValidateLabels(# prefix) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "not a valid 6-character hex") {
+		t.Errorf("error = %q, want hex validation error", err)
+	}
+}
+
+func TestValidateLabelsRejectsShortColor(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "d73", Description: "desc"},
+		},
+	}
+	err := ValidateLabels(cfg)
+	if err == nil {
+		t.Fatal("ValidateLabels(short color) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "not a valid 6-character hex") {
+		t.Errorf("error = %q, want hex validation error", err)
+	}
+}
+
+func TestValidateLabelsRejectsInvalidHex(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "zzzzzz", Description: "desc"},
+		},
+	}
+	err := ValidateLabels(cfg)
+	if err == nil {
+		t.Fatal("ValidateLabels(invalid hex) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "not a valid 6-character hex") {
+		t.Errorf("error = %q, want hex validation error", err)
+	}
+}
+
+func TestValidateLabelsAcceptsUppercaseHex(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "D73A4A", Description: "desc"},
+		},
+	}
+	if err := ValidateLabels(cfg); err != nil {
+		t.Fatalf("ValidateLabels(uppercase hex): %v", err)
+	}
+}
+
+func TestValidateLabelsRejectsEmptyDescription(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "d73a4a", Description: ""},
+		},
+	}
+	err := ValidateLabels(cfg)
+	if err == nil {
+		t.Fatal("ValidateLabels(empty description) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "description must not be empty") {
+		t.Errorf("error = %q, want description must not be empty", err)
+	}
+}
+
+func TestValidateLabelsRejectsLongDescription(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "d73a4a", Description: strings.Repeat("a", 101)},
+		},
+	}
+	err := ValidateLabels(cfg)
+	if err == nil {
+		t.Fatal("ValidateLabels(long description) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "description exceeds 100 characters") {
+		t.Errorf("error = %q, want description exceeds 100 characters", err)
+	}
+}
+
+func TestValidateLabelsAcceptsMaxDescription(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "d73a4a", Description: strings.Repeat("a", 100)},
+		},
+	}
+	if err := ValidateLabels(cfg); err != nil {
+		t.Fatalf("ValidateLabels(100-char description): %v", err)
+	}
+}
+
+func TestValidateLabelsRejectsDuplicateNames(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "bug", Color: "d73a4a", Description: "first"},
+			{Name: "bug", Color: "ff0000", Description: "second"},
+		},
+	}
+	err := ValidateLabels(cfg)
+	if err == nil {
+		t.Fatal("ValidateLabels(duplicate names) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "duplicate label name") {
+		t.Errorf("error = %q, want duplicate label name", err)
+	}
+}
+
+func TestValidateLabelsRejectsDuplicateNamesCaseInsensitive(t *testing.T) {
+	cfg := &Config{
+		Labels: []LabelEntry{
+			{Name: "Bug", Color: "d73a4a", Description: "first"},
+			{Name: "bug", Color: "ff0000", Description: "second"},
+		},
+	}
+	err := ValidateLabels(cfg)
+	if err == nil {
+		t.Fatal("ValidateLabels(case-insensitive duplicate) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "duplicate label name") {
+		t.Errorf("error = %q, want duplicate label name", err)
+	}
+}
+
 func TestValidateAllPassesSpecYAML(t *testing.T) {
 	// The specYAML from config_test.go is a valid config. Verify all three
 	// validators accept it.

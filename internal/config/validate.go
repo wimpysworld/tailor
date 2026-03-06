@@ -10,7 +10,10 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-var topicRegexp = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+var (
+	topicRegexp    = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+	labelHexRegexp = regexp.MustCompile(`^[0-9a-fA-F]{6}$`)
+)
 
 // ValidateSources checks that every swatch source in cfg matches a known
 // embedded swatch. Returns an error listing the unrecognised source and all
@@ -89,6 +92,41 @@ func ValidateTopics(cfg *Config) error {
 		if !topicRegexp.MatchString(topic) {
 			return fmt.Errorf("topic %q is invalid; must start with a lowercase letter or number and contain only lowercase alphanumerics and hyphens", topic)
 		}
+	}
+	return nil
+}
+
+// ValidateLabels checks that every label entry has valid name, color, and
+// description fields. Rejects duplicate names (case-insensitive).
+func ValidateLabels(cfg *Config) error {
+	if cfg.Labels == nil {
+		return nil
+	}
+	seen := make(map[string]bool, len(cfg.Labels))
+	for i, l := range cfg.Labels {
+		if l.Name == "" {
+			return fmt.Errorf("label[%d]: name must not be empty", i)
+		}
+		if len(l.Name) > 50 {
+			return fmt.Errorf("label[%d]: name %q exceeds 50 characters", i, l.Name)
+		}
+		if l.Color == "" {
+			return fmt.Errorf("label[%d]: color must not be empty", i)
+		}
+		if !labelHexRegexp.MatchString(l.Color) {
+			return fmt.Errorf("label[%d]: color %q is not a valid 6-character hex colour (no # prefix)", i, l.Color)
+		}
+		if l.Description == "" {
+			return fmt.Errorf("label[%d]: description must not be empty", i)
+		}
+		if len(l.Description) > 100 {
+			return fmt.Errorf("label[%d]: description exceeds 100 characters", i)
+		}
+		key := strings.ToLower(l.Name)
+		if seen[key] {
+			return fmt.Errorf("label[%d]: duplicate label name %q (case-insensitive)", i, l.Name)
+		}
+		seen[key] = true
 	}
 	return nil
 }

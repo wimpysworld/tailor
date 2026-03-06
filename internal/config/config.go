@@ -6,7 +6,15 @@ import "github.com/wimpysworld/tailor/internal/swatch"
 type Config struct {
 	License    string              `yaml:"license"`
 	Repository *RepositorySettings `yaml:"repository,omitempty"`
+	Labels     []LabelEntry        `yaml:"labels,omitempty"`
 	Swatches   []SwatchEntry       `yaml:"swatches"`
+}
+
+// LabelEntry describes a single GitHub label in the config file.
+type LabelEntry struct {
+	Name        string `yaml:"name" json:"name"`
+	Color       string `yaml:"color" json:"color"`
+	Description string `yaml:"description" json:"description"`
 }
 
 // RepositorySettings holds GitHub repository configuration fields.

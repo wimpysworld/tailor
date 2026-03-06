@@ -194,9 +194,11 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 		t.Error("default config should not contain merge_commit_message")
 	}
 
-	// Description should be absent when not provided.
-	if strings.Contains(content, "description:") {
-		t.Error("default config should not contain description when not set")
+	// Repository description should be absent when not provided.
+	// Use leading whitespace to match only the repository-level field,
+	// not the description key inside label entries.
+	if strings.Contains(content, "\n  description:") {
+		t.Error("default config should not contain repository description when not set")
 	}
 }
 
