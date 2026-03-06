@@ -21,7 +21,7 @@ jobs:
 
       - name: Automerge GitHub Actions updates
         if: steps.metadata.outputs.package-ecosystem == 'github_actions'
-        run: gh pr merge --auto --merge "$PR_URL"
+        run: gh pr merge --auto {{MERGE_STRATEGY}} "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -32,7 +32,7 @@ jobs:
             steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
             steps.metadata.outputs.update-type == 'version-update:semver-minor'
           )
-        run: gh pr merge --auto --merge "$PR_URL"
+        run: gh pr merge --auto {{MERGE_STRATEGY}} "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -50,7 +50,7 @@ jobs:
             --jq '.[].url' |
           while read -r pr_url; do
             echo "Enabling automerge for $pr_url"
-            gh pr merge --auto --merge "$pr_url" || echo "Skipped $pr_url"
+            gh pr merge --auto {{MERGE_STRATEGY}} "$pr_url" || echo "Skipped $pr_url"
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -353,8 +353,9 @@ func TestTriggeredMetFileExistsSameContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if results[0].Category != alter.NoChange {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.NoChange)
+	// Substituted swatches always overwrite; hash comparison is skipped.
+	if results[0].Category != alter.WouldOverwrite {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
 	}
 }
 
