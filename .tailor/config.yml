@@ -1,4 +1,4 @@
-# Initially fitted by tailor on 2026-03-05
+# Refitted by tailor on 2026-03-06
 license: MIT
 
 repository:
@@ -83,3 +83,7 @@ swatches:
   - source: .tailor/config.yml
     destination: .tailor/config.yml
     alteration: always
+
+  - source: .github/workflows/tailor-automerge.yml
+    destination: .github/workflows/tailor-automerge.yml
+    alteration: triggered
