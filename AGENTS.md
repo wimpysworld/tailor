@@ -63,13 +63,20 @@ tailor/
 - Swatches are embedded at build time via `//go:embed swatches/*`
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
-- `alter` execution order: repository settings, then licence, then swatches
+- `alter` execution order: repository settings, then labels, then licence, then swatches
 - SHA-256 comparison for `always` and `triggered` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`, `.github/workflows/tailor-automerge.yml`) compare the resolved content hash against the on-disk file
 - `triggered` swatches deploy when their condition is met (overwrite like `always`), remove the file when the condition becomes false, and skip when the file is absent and condition is false
 - `--recut` overwrites everything except `LICENSE`; for `.tailor/config.yml`, recut overrides `first-fit` to `always` (append-only: missing default entries added, existing entries never modified)
 - Token substitution: `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, `{{HOMEPAGE_URL}}`, `{{MERGE_STRATEGY}}`
 - Licences fetched via GitHub REST API (`GET /licenses/{id}`), not embedded
-- `private_vulnerability_reporting_enabled` uses a separate API endpoint (`PUT`/`DELETE`)
+- Several repository settings use separate API endpoints rather than the main repo PATCH:
+  - `private_vulnerability_reporting_enabled`: `PUT`/`DELETE` toggle, 204/404 status code read
+  - `vulnerability_alerts_enabled`: `PUT`/`DELETE` toggle, 204/404 status code read
+  - `automated_security_fixes_enabled`: `PUT`/`DELETE` toggle, JSON read
+  - `topics`: `PUT` replace-all
+  - `default_workflow_permissions` and `can_approve_pull_request_reviews`: `GET`/`PUT` via actions/permissions/workflow endpoint
+- `labels` is a top-level config section with its own API layer (`internal/gh/labels.go`) and alter layer (`internal/alter/labels.go`), separate from repository settings
+- `validate.go` includes enum validation for `default_workflow_permissions` ("read"|"write"), topic format validation (lowercase alphanumeric start, max 50 chars, lowercase alphanumerics and hyphens only), and label validation (name length, hex colour, description length, duplicate detection)
 - Dry-run output uses dynamically computed label width for `baste` (accommodates trigger annotations) and fixed 16 chars for `measure`
 - Triggered swatch output includes annotation, e.g. `would deploy (triggered: allow_auto_merge):`
 
