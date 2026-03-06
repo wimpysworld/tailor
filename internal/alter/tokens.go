@@ -44,43 +44,29 @@ func (tc *TokenContext) HomepageURL() string {
 	return fmt.Sprintf("https://github.com/%s/%s", tc.Owner, tc.Name)
 }
 
-// MergeStrategy returns the gh pr merge flag derived from repository merge
-// settings. If only one method is enabled, that method is used. If multiple
-// are enabled, the preference order is squash > rebase > merge. If none are
-// explicitly set, defaults to --squash.
+// MergeStrategy returns the highest-preference enabled method
+// (squash > rebase > merge), defaulting to --squash.
 func (tc *TokenContext) MergeStrategy() string {
 	if tc.Repository == nil {
 		return "--squash"
 	}
 
-	squash := tc.Repository.AllowSquashMerge
-	rebase := tc.Repository.AllowRebaseMerge
-	merge := tc.Repository.AllowMergeCommit
-
-	// Count explicitly enabled methods.
 	type method struct {
 		enabled *bool
 		flag    string
 	}
 	methods := []method{
-		{squash, "--squash"},
-		{rebase, "--rebase"},
-		{merge, "--merge"},
+		{tc.Repository.AllowSquashMerge, "--squash"},
+		{tc.Repository.AllowRebaseMerge, "--rebase"},
+		{tc.Repository.AllowMergeCommit, "--merge"},
 	}
 
-	var enabled []string
 	for _, m := range methods {
 		if m.enabled != nil && *m.enabled {
-			enabled = append(enabled, m.flag)
+			return m.flag
 		}
 	}
-
-	switch len(enabled) {
-	case 0:
-		return "--squash"
-	default:
-		return enabled[0]
-	}
+	return "--squash"
 }
 
 // Substitute replaces tokens in content based on the swatch source.

@@ -1880,19 +1880,10 @@ func TestConfigMergeAllPresentApply(t *testing.T) {
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	// Record the original config bytes and mod time before alter.Run.
 	cfgPath := filepath.Join(tc.Dir, ".tailor/config.yml")
-	originalData, err := os.ReadFile(cfgPath)
-	if err != nil {
-		t.Fatalf("reading original config: %v", err)
-	}
-	infoBefore, err := os.Stat(cfgPath)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	cfg := loadTestConfig(t, tc.Dir)
-	output := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
 	afterData, err := os.ReadFile(cfgPath)
 	if err != nil {
@@ -1907,12 +1898,6 @@ func TestConfigMergeAllPresentApply(t *testing.T) {
 	if strings.Contains(string(afterData), "Refitted by tailor on") {
 		t.Error("config.yml contains 'Refitted' header despite no entries being merged")
 	}
-
-	// Verify the merge step itself did not rewrite (no mod-time change from merge).
-	// The swatch processing step may or may not overwrite depending on content match.
-	_ = infoBefore
-	_ = originalData
-	_ = output
 }
 
 // TestConfigMergeFirstFitApplySkips verifies that when the config.yml swatch

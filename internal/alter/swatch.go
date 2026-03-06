@@ -35,7 +35,7 @@ type SwatchResult struct {
 }
 
 // configSource is the source path of the config.yml swatch entry.
-const configSource = ".tailor/config.yml"
+const configSource = config.ConfigSwatchSource
 
 // ProcessSwatches evaluates each swatch entry in cfg and returns results.
 // When mode is Apply or Recut, it writes files to disk.

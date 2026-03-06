@@ -2,9 +2,9 @@ package config
 
 import "github.com/wimpysworld/tailor/internal/swatch"
 
-// configSwatchSource is the source path of the config.yml swatch entry,
+// ConfigSwatchSource is the source path of the config.yml swatch entry,
 // which is excluded from merge because it describes the config file itself.
-const configSwatchSource = ".tailor/config.yml"
+const ConfigSwatchSource = ".tailor/config.yml"
 
 // MergeDefaultSwatches appends missing default swatch entries to cfg.Swatches.
 // It skips the config.yml entry itself. Existing entries are matched by Source
@@ -18,7 +18,7 @@ func MergeDefaultSwatches(cfg *Config) []SwatchEntry {
 
 	var added []SwatchEntry
 	for _, s := range swatch.All() {
-		if s.Source == configSwatchSource {
+		if s.Source == ConfigSwatchSource {
 			continue
 		}
 		if _, ok := present[s.Source]; ok {

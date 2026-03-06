@@ -10,7 +10,7 @@ import (
 func allNonConfigSwatches() []swatch.Swatch {
 	var out []swatch.Swatch
 	for _, s := range swatch.All() {
-		if s.Source != configSwatchSource {
+		if s.Source != ConfigSwatchSource {
 			out = append(out, s)
 		}
 	}
@@ -141,7 +141,7 @@ func TestMergeEmptyConfig(t *testing.T) {
 
 	// Verify no config.yml entry was added.
 	for _, e := range cfg.Swatches {
-		if e.Source == configSwatchSource {
+		if e.Source == ConfigSwatchSource {
 			t.Fatal("config.yml swatch should not be added by merge")
 		}
 	}
