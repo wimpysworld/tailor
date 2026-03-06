@@ -3,15 +3,17 @@ linters:
   enable:
     - bodyclose
     - copyloopvar
+    - dupword
     - errorlint
     - gocritic
     - gosec
     - misspell
     - noctx
-    - prealloc
     - revive
+    - staticcheck
     - unconvert
     - unparam
+    - usestdlibvars
     - wastedassign
   settings:
     gosec:
