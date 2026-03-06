@@ -24,6 +24,19 @@ jobs:
       - run: go vet ./...
       - uses: golangci/golangci-lint-action@v8
 
+  coverage:
+    name: Coverage 📊
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - uses: robherley/go-test-action@v0
+        with:
+          testArguments: -coverprofile=coverage.out -covermode=atomic ./...
+          omit: untested
+
   build-test:
     name: Test 🧪
     strategy:
@@ -69,7 +82,7 @@ jobs:
 
   sentinel:
     name: Sentinel 👁️
-    needs: [lint, build-test]
+    needs: [lint, coverage, build-test]
     if: always()
     runs-on: ubuntu-slim
     steps:
