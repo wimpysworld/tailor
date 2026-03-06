@@ -5,7 +5,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: write
   contents: write
   pull-requests: write
 
@@ -42,7 +41,7 @@ jobs:
     runs-on: ubuntu-slim
     if: github.event_name == 'workflow_dispatch'
     steps:
-      - name: Enable automerge on open Dependabot PRs
+      - name: Merge open Dependabot PRs
         run: |
           gh pr list --repo "$GITHUB_REPOSITORY" \
             --author "app/dependabot" \
@@ -50,8 +49,13 @@ jobs:
             --json number,url \
             --jq '.[].url' |
           while read -r pr_url; do
-            echo "Enabling automerge for $pr_url"
-            gh pr merge --auto {{MERGE_STRATEGY}} "$pr_url" || echo "Skipped $pr_url"
+            echo "::group::Merging $pr_url"
+            if gh pr merge {{MERGE_STRATEGY}} "$pr_url"; then
+              echo "Merged $pr_url"
+            else
+              echo "::warning::Failed to merge $pr_url"
+            fi
+            echo "::endgroup::"
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
