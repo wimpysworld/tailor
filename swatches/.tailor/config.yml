@@ -17,6 +17,10 @@ repository:
   allow_auto_merge: true
   web_commit_signoff_required: false
   private_vulnerability_reporting_enabled: true
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: true
+  default_workflow_permissions: read
+  can_approve_pull_request_reviews: false
 
 swatches:
   - source: .github/workflows/tailor.yml
