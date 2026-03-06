@@ -1,29 +1,19 @@
 # Tailor
 
-Bespoke project templates for GitHub repositories. Tailor fits new projects with community health files, dev tooling, and repository settings, then keeps them current with automated weekly alterations.
+Ready-to-wear project templates for GitHub repositories. Tailor fits projects with community health files, dev tooling, and repository settings, then keeps them current with automated alterations.
 
-```bash
-# Fit a new project
-tailor fit ./my-project
-cd my-project
-tailor alter
-```
+If you manage multiple projects across different GitHub organisations and find that configurations keep drifting out of sync, Tailor fixes that. It is opinionated by design - built for solo devs and small teams who want consistent, well-maintained repositories without the overhead.
 
 ## Install
 
 ```bash
-# Install
 bin install github.com/wimpysworld/tailor
-
-# Update
 bin update tailor
 ```
 
 Requires [`bin`](https://github.com/marcosnils/bin). Tailor releases publish bare executables, no archive extraction needed.
 
-## Prerequisites
-
-Tailor requires a valid GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN` for CI environments, or run `gh auth login` for local development.
+Tailor needs a GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN` for CI, or run `gh auth login` locally.
 
 ## Quick Start
 
@@ -35,17 +25,12 @@ cd my-project
 tailor alter
 ```
 
-`fit` creates the project directory with a `.tailor/config.yml` containing the full default swatch set. `alter` copies the swatch files and applies repository settings. The default licence is MIT.
+`fit` creates the directory and writes `.tailor/config.yml` with the full default swatch set. `alter` copies the files and applies repository settings. The default licence is MIT.
 
 ```bash
-# Choose a different licence
 tailor fit ./my-project --license=Apache-2.0
-
-# Opt out of licence entirely
 tailor fit ./my-project --license=none
-
-# Set repository description
-tailor fit ./my-project --description="My awesome project"
+tailor fit ./my-project --description="Short description"
 ```
 
 ### Existing project
@@ -57,13 +42,15 @@ tailor fit .                  # Create .tailor/config.yml
 tailor alter                  # Apply swatches and settings
 ```
 
-`measure` checks which community health files are present or missing. `fit .` works in an existing directory and creates the configuration without error. If the project has a GitHub remote, `fit` reads the live repository settings so it does not change anything already configured.
+`measure` checks which community health files are present or missing. `fit .` works in an existing directory without error. If the project has a GitHub remote, `fit` reads the live repository settings so it preserves anything already configured.
 
-Edit `.tailor/config.yml` directly to add or remove swatches or change alteration modes, then run `alter`.
+Edit `.tailor/config.yml` to add swatches or change alteration modes, then run `alter`. Set `alteration: never` on any swatch you want tailor to skip.
 
-## Swatches
+## Core Concepts
 
-Swatches are complete template files embedded in the tailor binary. They are copied verbatim to your project, with five exceptions where tokens are substituted at `alter` time:
+### Swatches
+
+Swatches are complete template files embedded in the tailor binary. Most are copied verbatim. Five have tokens substituted at `alter` time:
 
 | File | Token | Resolved from |
 |------|-------|---------------|
@@ -73,7 +60,7 @@ Swatches are complete template files embedded in the tailor binary. They are cop
 | `.tailor/config.yml` | `{{HOMEPAGE_URL}}` | `.tailor/config.yml` |
 | `.github/workflows/tailor-automerge.yml` | `{{MERGE_STRATEGY}}` | Repository merge settings |
 
-Licences are not swatches. They are fetched via the GitHub REST API (`GET /licenses/{id}`) at `alter` time and written to `LICENSE`.
+Licences are not swatches. They are fetched from the GitHub REST API (`GET /licenses/{id}`) at `alter` time and written to `LICENSE`.
 
 ### Default swatch set
 
@@ -100,13 +87,13 @@ Licences are not swatches. They are fetched via the GitHub REST API (`GET /licen
 ### Alteration modes
 
 - **`always`** - Overwrites the file whenever the embedded swatch content differs from what is on disk. Local edits are not preserved.
-- **`first-fit`** - Copies the file only if it does not already exist. Never overwrites. Use this mode for files you intend to customise after initial delivery.
-- **`triggered`** - Deploys the file only when a condition in the repository settings is met. Overwrites when active. Removes the file when the condition becomes false. Example: the automerge workflow deploys when `allow_auto_merge: true`.
+- **`first-fit`** - Copies the file only if it does not already exist. Never overwrites. Use this for files you intend to customise after initial delivery.
+- **`triggered`** - Deploys the file only when a condition in the repository settings is met. Overwrites when active, removes the file when the condition becomes false.
 - **`never`** - Skips the file entirely. Use this to suppress a triggered swatch you do not want.
 
-## Configuration
+### Configuration
 
-All state lives in `.tailor/config.yml` at the project root. The file has three sections: `license`, `repository`, and `swatches`.
+All state lives in `.tailor/config.yml` with three sections: `license`, `repository`, and `swatches`.
 
 ```yaml
 # Initially fitted by tailor on 2026-03-04
@@ -115,18 +102,9 @@ license: MIT
 repository:
   has_wiki: false
   has_discussions: false
-  has_projects: false
-  has_issues: true
-  allow_merge_commit: false
   allow_squash_merge: true
-  allow_rebase_merge: true
-  squash_merge_commit_title: PR_TITLE
-  squash_merge_commit_message: PR_BODY
   delete_branch_on_merge: true
-  allow_update_branch: true
   allow_auto_merge: true
-  web_commit_signoff_required: false
-  private_vulnerability_reporting_enabled: true
 
 swatches:
   - source: SECURITY.md
@@ -142,11 +120,11 @@ Each swatch entry has three fields:
 
 | Field | Description |
 |-------|-------------|
-| `source` | Swatch name, matching the path relative to `swatches/` in the tailor binary |
+| `source` | Swatch name, matching the path relative to `swatches/` in the binary |
 | `destination` | Output path relative to the project root |
 | `alteration` | `always`, `first-fit`, `triggered`, or `never` |
 
-Remove a swatch entry from `config.yml` to stop tailor managing that file. Add entries to include additional swatches. Change `alteration` to control update behaviour.
+Set `alteration: never` to stop tailor managing a file. The entry stays visible in `config.yml` and prevents `alter --recut` from re-adding it. Add entries to include additional swatches.
 
 ## Repository Settings
 
@@ -173,14 +151,14 @@ The `repository` section manages GitHub repository settings declaratively. Field
 | `web_commit_signoff_required` | bool | Require sign-off on web commits |
 | `private_vulnerability_reporting_enabled` | bool | Enable private vulnerability reporting |
 
-Omit the `repository` section entirely to skip repository settings management.
+Omit the `repository` section entirely to skip settings management.
 
 ## Automated Maintenance
 
 The `.github/workflows/tailor.yml` swatch delivers a GitHub Actions workflow that runs `tailor alter` weekly and opens a pull request when swatch content changes.
 
 ```yaml
-name: Tailor
+name: Tailor 🪡
 on:
   schedule:
     - cron: "0 9 * * 1"
@@ -207,24 +185,20 @@ jobs:
           title: "chore: alter tailor swatches"
 ```
 
-No manual setup beyond including `.github/workflows/tailor.yml` in your swatch list. Because the workflow itself is an `always` swatch, it stays current when tailor releases update the template.
-
-[`wimpysworld/tailor-action`](https://github.com/wimpysworld/tailor-action) installs the tailor binary into the workflow runner.
+The workflow itself is an `always` swatch, so it stays current as tailor releases update the template. [`wimpysworld/tailor-action`](https://github.com/wimpysworld/tailor-action) installs the binary into the runner.
 
 ### Automerge
 
 The `.github/workflows/tailor-automerge.yml` swatch auto-approves and merges Dependabot pull requests. It deploys automatically when `allow_auto_merge: true` is set in repository settings and removes itself when the setting is false.
-
-**Per-ecosystem merge policy:**
 
 | Ecosystem | Patch | Minor | Major |
 |-----------|-------|-------|-------|
 | GitHub Actions | Auto-merge | Auto-merge | Auto-merge |
 | All others | Auto-merge | Auto-merge | Skip |
 
-GitHub Actions use major version tags (v1, v2, v3) as their release convention, so Dependabot reports most action updates as major bumps. Restricting to patch and minor would skip the majority of action updates. All other ecosystems follow semantic versioning where major indicates breaking changes, so those are left for manual review.
+GitHub Actions use major version tags as their release convention, so Dependabot reports most action updates as major bumps - restricting to patch and minor would skip the majority. All other ecosystems follow semantic versioning where major indicates breaking changes, so those are left for manual review.
 
-Required status checks gate every merge. The workflow uses `gh pr merge --auto`, which waits for all branch protection rules to pass before completing.
+The workflow uses `gh pr merge --auto`, which waits for all branch protection rules to pass before completing.
 
 > **Prerequisite:** Auto-merge requires [branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches) with at least one required status check on the default branch. Without this, `gh pr merge --auto` merges immediately with no CI gate.
 
@@ -245,26 +219,22 @@ tailor fit ./my-project --license=none
 tailor fit ./my-project --description="Short description"
 ```
 
-When run against an existing directory with a GitHub remote, `fit` queries the live repository configuration and uses those values for the `repository` section. When no remote exists, the built-in defaults are used.
-
-Exits with an error if `.tailor/config.yml` already exists at `<path>`.
+When a GitHub remote exists, `fit` queries the live repository configuration for the `repository` section. Otherwise, built-in defaults are used. Exits with an error if `.tailor/config.yml` already exists.
 
 ### `alter`
 
-Reads `.tailor/config.yml` in the current directory and applies swatches, licence, and repository settings.
+Reads `.tailor/config.yml` in the current directory and applies swatches, licence, and repository settings. Execution order: repository settings, then licence, then swatches.
 
 ```bash
 tailor alter              # Apply changes
-tailor alter --recut      # Apply and overwrite regardless of mode
+tailor alter --recut      # Overwrite regardless of mode
 ```
 
-Execution order: repository settings, then licence, then swatches.
-
-`--recut` overwrites all files including `first-fit` swatches. `LICENSE` is exempt (fetched content, not an embedded swatch). For `.tailor/config.yml`, `--recut` overrides `first-fit` to `always` semantics - missing default swatch entries are appended, but existing entries are never modified.
+`--recut` overwrites all files including `first-fit` swatches. `LICENSE` is exempt (fetched content, not an embedded swatch). For `.tailor/config.yml`, `--recut` appends missing default swatch entries but never modifies existing entries.
 
 ### `baste`
 
-Previews what `alter` would do without making any changes.
+Previews what `alter` would do without making changes.
 
 ```bash
 tailor baste
@@ -277,8 +247,6 @@ would overwrite:                                SECURITY.md
 no change:                                      .github/workflows/tailor.yml
 skipped (first-fit, exists):                    justfile
 would deploy (triggered: allow_auto_merge):     .github/workflows/tailor-automerge.yml
-would remove (triggered: allow_auto_merge):     .github/workflows/tailor-automerge.yml
-skip (never):                                   .github/workflows/tailor-automerge.yml
 ```
 
 ### `docket`
@@ -289,25 +257,9 @@ Displays the current GitHub authentication state and repository context.
 tailor docket
 ```
 
-**Authenticated, with repository context:**
-
-```
-user:           octocat
-repository:     octocat/my-project
-auth:           authenticated
-```
-
-**Authenticated, without repository context:**
-
-```
-user:           octocat
-repository:     (none)
-auth:           authenticated
-```
-
 ### `measure`
 
-Checks community health files and configuration alignment. Requires no network access, no authentication, and no `.tailor/config.yml`. Run it in any directory.
+Checks community health files and configuration alignment. No network access, no authentication, no `.tailor/config.yml` required.
 
 ```bash
 tailor measure
@@ -315,9 +267,7 @@ tailor measure
 
 ```
 missing:        .github/FUNDING.yml
-missing:        CONTRIBUTING.md
 present:        CODE_OF_CONDUCT.md
-present:        LICENSE
 not-configured: .github/dependabot.yml
 mode-differs:   SECURITY.md          (config: first-fit, default: always)
 ```
@@ -328,6 +278,6 @@ mode-differs:   SECURITY.md          (config: first-fit, default: always)
 | `present` | Health file exists on disk |
 | `not-configured` | Default swatch not in `config.yml` |
 | `config-only` | Swatch in `config.yml` not in the built-in default set |
-| `mode-differs` | Alteration mode in `config.yml` differs from the default |
+| `mode-differs` | Alteration mode differs from the default |
 
 The `not-configured`, `config-only`, and `mode-differs` statuses appear only when `.tailor/config.yml` is present.
