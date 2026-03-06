@@ -28,6 +28,12 @@ var templateFuncs = template.FuncMap{
 		}
 		return v
 	},
+	"yamlUrl": func(p *string) string {
+		if p == nil {
+			return ""
+		}
+		return *p
+	},
 	"derefBool": func(p *bool) string {
 		if p == nil {
 			return ""
@@ -63,7 +69,7 @@ repository:
   description: {{ yamlString .Repository.Description }}
 {{- end }}
 {{- if set .Repository.Homepage }}
-  homepage: {{ yamlString .Repository.Homepage }}
+  homepage: {{ yamlUrl .Repository.Homepage }}
 {{- end }}
 {{- if set .Repository.HasWiki }}
   has_wiki: {{ derefBool .Repository.HasWiki }}

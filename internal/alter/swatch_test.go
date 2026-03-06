@@ -197,24 +197,7 @@ func TestRecutOverwritesExisting(t *testing.T) {
 	}
 }
 
-func TestRecutConfigYmlProcessedAsAlways(t *testing.T) {
-	dir := t.TempDir()
-
-	// Write the embedded swatch content so hash comparison yields NoChange.
-	embedded := mustContent(t, ".tailor/config.yml")
-	writeOnDisk(t, dir, ".tailor/config.yml", embedded)
-
-	cfg := newConfig(entry(".tailor/config.yml", ".tailor/config.yml", swatch.Always))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, &alter.TokenContext{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if results[0].Category != alter.WouldOverwrite {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
-	}
-}
-
-func TestRecutConfigYmlDifferentContentOverwrites(t *testing.T) {
+func TestConfigYmlSkippedInProcessSwatches(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, ".tailor/config.yml", []byte("old content"))
 
@@ -223,8 +206,8 @@ func TestRecutConfigYmlDifferentContentOverwrites(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if results[0].Category != alter.WouldOverwrite {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
+	if len(results) != 0 {
+		t.Errorf("expected no results for config.yml swatch, got %d", len(results))
 	}
 }
 

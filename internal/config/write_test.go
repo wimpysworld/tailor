@@ -189,7 +189,7 @@ license: Apache-2.0
 
 repository:
   description: My project
-  homepage: "https://example.com"
+  homepage: https://example.com
   has_wiki: true
   has_discussions: false
   has_projects: false

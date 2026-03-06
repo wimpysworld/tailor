@@ -43,6 +43,10 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 	results := make([]SwatchResult, 0, len(cfg.Swatches))
 
 	for _, entry := range cfg.Swatches {
+		if entry.Source == configSource {
+			continue
+		}
+
 		content, err := swatch.Content(entry.Source)
 		if err != nil {
 			return nil, fmt.Errorf("reading swatch %q: %w", entry.Source, err)
