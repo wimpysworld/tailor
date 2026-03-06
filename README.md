@@ -94,11 +94,14 @@ Licences are not swatches. They are fetched via the GitHub REST API (`GET /licen
 | `.gitignore` | `first-fit` |
 | `.envrc` | `first-fit` |
 | `.tailor/config.yml` | `first-fit` |
+| `.github/workflows/tailor-automerge.yml` | `triggered` |
 
 ### Alteration modes
 
 - **`always`** - Overwrites the file whenever the embedded swatch content differs from what is on disk. Local edits are not preserved.
 - **`first-fit`** - Copies the file only if it does not already exist. Never overwrites. Use this mode for files you intend to customise after initial delivery.
+- **`triggered`** - Deploys the file only when a condition in the repository settings is met. Overwrites when active. Removes the file when the condition becomes false. Example: the automerge workflow deploys when `allow_auto_merge: true`.
+- **`never`** - Skips the file entirely. Use this to suppress a triggered swatch you do not want.
 
 ## Configuration
 
@@ -140,7 +143,7 @@ Each swatch entry has three fields:
 |-------|-------------|
 | `source` | Swatch name, matching the path relative to `swatches/` in the tailor binary |
 | `destination` | Output path relative to the project root |
-| `alteration` | `always` or `first-fit` |
+| `alteration` | `always`, `first-fit`, `triggered`, or `never` |
 
 Remove a swatch entry from `config.yml` to stop tailor managing that file. Add entries to include additional swatches. Change `alteration` to control update behaviour.
 
@@ -207,6 +210,27 @@ No manual setup beyond including `.github/workflows/tailor.yml` in your swatch l
 
 [`wimpysworld/tailor-action`](https://github.com/wimpysworld/tailor-action) installs the tailor binary into the workflow runner.
 
+### Automerge
+
+The `.github/workflows/tailor-automerge.yml` swatch auto-approves and merges Dependabot pull requests. It deploys automatically when `allow_auto_merge: true` is set in repository settings and removes itself when the setting is false.
+
+**Per-ecosystem merge policy:**
+
+| Ecosystem | Patch | Minor | Major |
+|-----------|-------|-------|-------|
+| GitHub Actions | Auto-merge | Auto-merge | Auto-merge |
+| All others | Auto-merge | Auto-merge | Skip |
+
+GitHub Actions use major version tags (v1, v2, v3) as their release convention, so Dependabot reports most action updates as major bumps. Restricting to patch and minor would skip the majority of action updates. All other ecosystems follow semantic versioning where major indicates breaking changes, so those are left for manual review.
+
+Required status checks gate every merge. The workflow uses `gh pr merge --auto`, which waits for all branch protection rules to pass before completing.
+
+> **Prerequisite:** Auto-merge requires [branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches) with at least one required status check on the default branch. Without this, `gh pr merge --auto` merges immediately with no CI gate.
+
+**Opt-out:** set `alteration: never` on the automerge swatch entry in `.tailor/config.yml`.
+
+**Manual catch-up:** the workflow supports `workflow_dispatch` for repositories with pre-existing open Dependabot PRs. Triggering it manually enables auto-merge on all open Dependabot PRs regardless of ecosystem.
+
 ## Commands
 
 ### `fit <path>`
@@ -246,11 +270,14 @@ tailor baste
 ```
 
 ```
-would set:                   repository.has_wiki = false
-would copy:                  LICENSE
-would overwrite:             SECURITY.md
-no change:                   .github/workflows/tailor.yml
-skipped (first-fit, exists): justfile
+would set:                                      repository.has_wiki = false
+would copy:                                     LICENSE
+would overwrite:                                SECURITY.md
+no change:                                      .github/workflows/tailor.yml
+skipped (first-fit, exists):                    justfile
+would deploy (triggered: allow_auto_merge):     .github/workflows/tailor-automerge.yml
+would remove (triggered: allow_auto_merge):     .github/workflows/tailor-automerge.yml
+skip (never):                                   .github/workflows/tailor-automerge.yml
 ```
 
 ### `docket`

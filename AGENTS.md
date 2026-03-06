@@ -21,7 +21,7 @@ tailor/
 ├── .github/workflows/  # CI workflows
 ├── cmd/tailor/         # CLI entrypoint
 ├── internal/           # Internal packages (config, swatch, gh wrappers)
-├── swatches/           # Embedded template files (16 swatches)
+├── swatches/           # Embedded template files (17 swatches)
 ├── docs/               # Specification
 └── AGENTS.md
 ```
@@ -44,6 +44,11 @@ tailor/
 - Use `fmt.Errorf` with `%w` for error wrapping
 - Swatch-to-path mappings and default alteration modes are hardcoded in source, not configurable
 - Field names in the `repository` config section match GitHub REST API names exactly (snake_case)
+- Four alteration modes: `always`, `first-fit`, `triggered`, `never`
+- `never` beats `triggered` - a user can suppress a triggered swatch by setting `alteration: never`
+- Triggered swatches use a lookup table in `internal/swatch/trigger.go` mapping source paths to config field conditions
+- `EvaluateTrigger(source string, repo any)` uses reflection to match yaml tags on `RepositorySettings`; `repo` is `any` (not `*config.RepositorySettings`) to avoid a circular import
+- Adding a new triggered swatch requires: an entry in `triggerConditions` (trigger.go), a registry entry (registry.go), and inclusion in `swatches/.tailor/config.yml`
 
 ## Testing
 
@@ -59,12 +64,14 @@ tailor/
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
 - `alter` execution order: repository settings, then licence, then swatches
-- SHA-256 comparison for `always` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`) skip hash comparison and always overwrite
+- SHA-256 comparison for `always` and `triggered` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`) skip hash comparison and always overwrite
+- `triggered` swatches deploy when their condition is met (overwrite like `always`), remove the file when the condition becomes false, and skip when the file is absent and condition is false
 - `--recut` overwrites everything except `LICENSE` and `.tailor/config.yml`
 - Token substitution: `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, `{{HOMEPAGE_URL}}`
 - Licences fetched via GitHub REST API (`GET /licenses/{id}`), not embedded
 - `private_vulnerability_reporting_enabled` uses a separate API endpoint (`PUT`/`DELETE`)
-- Dry-run output uses fixed-width category labels (29 chars for `baste`, 16 chars for `measure`)
+- Dry-run output uses dynamically computed label width for `baste` (accommodates trigger annotations) and fixed 16 chars for `measure`
+- Triggered swatch output includes annotation, e.g. `would deploy (triggered: allow_auto_merge):`
 
 ## Commit guidelines
 

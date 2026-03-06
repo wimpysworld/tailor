@@ -1,0 +1,56 @@
+name: Dependabot automerge 🤖
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    runs-on: ubuntu-slim
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Automerge GitHub Actions updates
+        if: steps.metadata.outputs.package-ecosystem == 'github_actions'
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Automerge patch and minor dependency updates
+        if: |
+          steps.metadata.outputs.package-ecosystem != 'github_actions' && (
+            steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
+            steps.metadata.outputs.update-type == 'version-update:semver-minor'
+          )
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  automerge-existing:
+    runs-on: ubuntu-slim
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Enable automerge on open Dependabot PRs
+        run: |
+          gh pr list --repo "$GITHUB_REPOSITORY" \
+            --author "app/dependabot" \
+            --state open \
+            --json number,url \
+            --jq '.[].url' |
+          while read -r pr_url; do
+            echo "Enabling automerge for $pr_url"
+            gh pr merge --auto --merge "$pr_url" || echo "Skipped $pr_url"
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

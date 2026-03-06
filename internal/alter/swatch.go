@@ -17,15 +17,20 @@ type SwatchCategory string
 const (
 	WouldCopy      SwatchCategory = "would copy"
 	WouldOverwrite SwatchCategory = "would overwrite"
+	WouldRemove    SwatchCategory = "would remove"
+	Removed        SwatchCategory = "removed"
 	NoChange       SwatchCategory = "no change"
 	Skipped        SwatchCategory = "skipped (first-fit, exists)"
+	Ignored        SwatchCategory = "skip (never)"
 )
 
 // SwatchResult records the destination path and categorised outcome for one
-// swatch entry.
+// swatch entry. Annotation carries optional context such as the trigger
+// condition name, appended to the category label in formatted output.
 type SwatchResult struct {
 	Destination string
 	Category    SwatchCategory
+	Annotation  string
 }
 
 // configDestination is exempt from recut overwrite.
@@ -45,7 +50,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 		content = tokens.Substitute(content, entry.Source)
 		dest := filepath.Join(dir, entry.Destination)
 
-		result, err := processSwatch(entry, content, dest, mode, tokens)
+		result, err := processSwatch(cfg, entry, content, dest, mode, tokens)
 		if err != nil {
 			return nil, err
 		}
@@ -60,7 +65,12 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 // ProcessSwatches before this function is called. The tokens parameter is
 // passed through only for processAlways, which uses it to skip the hash
 // comparison when a source has active substitutions.
-func processSwatch(entry config.SwatchEntry, content []byte, dest string, mode ApplyMode, tokens *TokenContext) (SwatchResult, error) {
+func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, mode ApplyMode, tokens *TokenContext) (SwatchResult, error) {
+	// Never mode skips unconditionally, regardless of apply mode or file existence.
+	if entry.Alteration == swatch.Never {
+		return SwatchResult{Destination: entry.Destination, Category: Ignored}, nil
+	}
+
 	exists := fileExists(dest)
 
 	// Recut exemption: .tailor/config.yml behaves as first-fit.
@@ -78,6 +88,8 @@ func processSwatch(entry config.SwatchEntry, content []byte, dest string, mode A
 		return processFirstFit(entry, content, dest, exists, mode)
 	case swatch.Always:
 		return processAlways(entry, content, dest, exists, mode, tokens)
+	case swatch.Triggered:
+		return processTriggered(cfg, entry, content, dest, exists, mode, tokens)
 	default:
 		return SwatchResult{}, fmt.Errorf("unknown alteration mode %q for swatch %q", entry.Alteration, entry.Source)
 	}
@@ -130,6 +142,41 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 		}
 	}
 	return SwatchResult{Destination: entry.Destination, Category: WouldOverwrite}, nil
+}
+
+func processTriggered(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode, tokens *TokenContext) (SwatchResult, error) {
+	annotation := triggerAnnotation(entry.Source)
+
+	if swatch.EvaluateTrigger(entry.Source, cfg.Repository) {
+		result, err := processAlways(entry, content, dest, exists, mode, tokens)
+		if err != nil {
+			return result, err
+		}
+		result.Annotation = annotation
+		return result, nil
+	}
+
+	if exists {
+		if mode.ShouldWrite() {
+			if err := os.Remove(dest); err != nil {
+				return SwatchResult{}, fmt.Errorf("removing file %q: %w", dest, err)
+			}
+			return SwatchResult{Destination: entry.Destination, Category: Removed, Annotation: annotation}, nil
+		}
+		return SwatchResult{Destination: entry.Destination, Category: WouldRemove, Annotation: annotation}, nil
+	}
+
+	return SwatchResult{Destination: entry.Destination, Category: Ignored, Annotation: annotation}, nil
+}
+
+// triggerAnnotation returns the formatted trigger context string for a source
+// path, e.g. "triggered: allow_auto_merge". Returns empty if no trigger exists.
+func triggerAnnotation(source string) string {
+	tc, ok := swatch.LookupTrigger(source)
+	if !ok {
+		return ""
+	}
+	return "triggered: " + tc.ConfigField
 }
 
 func processRecut(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {

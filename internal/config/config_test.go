@@ -95,6 +95,10 @@ swatches:
   - source: .tailor/config.yml
     destination: .tailor/config.yml
     alteration: first-fit
+
+  - source: .github/workflows/tailor-automerge.yml
+    destination: .github/workflows/tailor-automerge.yml
+    alteration: triggered
 `
 
 func TestUnmarshalSpecYAML(t *testing.T) {
@@ -127,8 +131,8 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	testutil.AssertBoolPtr(t, r.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
 	testutil.AssertBoolPtr(t, r.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
 
-	if len(cfg.Swatches) != 16 {
-		t.Fatalf("Swatches count = %d, want 16", len(cfg.Swatches))
+	if len(cfg.Swatches) != 17 {
+		t.Fatalf("Swatches count = %d, want 17", len(cfg.Swatches))
 	}
 
 	// Spot-check the first and last swatch entries.
@@ -143,11 +147,11 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 		t.Errorf("first swatch Alteration = %q", first.Alteration)
 	}
 
-	last := cfg.Swatches[15]
-	if last.Source != ".tailor/config.yml" {
+	last := cfg.Swatches[16]
+	if last.Source != ".github/workflows/tailor-automerge.yml" {
 		t.Errorf("last swatch Source = %q", last.Source)
 	}
-	if last.Alteration != swatch.FirstFit {
+	if last.Alteration != swatch.Triggered {
 		t.Errorf("last swatch Alteration = %q", last.Alteration)
 	}
 }

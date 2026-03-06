@@ -250,6 +250,169 @@ func TestAlwaysApplyWritesOnOverwrite(t *testing.T) {
 	}
 }
 
+func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
+	modes := []struct {
+		name string
+		mode alter.ApplyMode
+	}{
+		{"DryRun", alter.DryRun},
+		{"Apply", alter.Apply},
+		{"Recut", alter.Recut},
+	}
+
+	for _, m := range modes {
+		t.Run(m.name+"/absent", func(t *testing.T) {
+			dir := t.TempDir()
+			cfg := newConfig(entry(".gitignore", ".gitignore", swatch.Never))
+			results, err := alter.ProcessSwatches(cfg, dir, m.mode, &alter.TokenContext{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(results) != 1 {
+				t.Fatalf("got %d results, want 1", len(results))
+			}
+			if results[0].Category != alter.Ignored {
+				t.Errorf("category = %q, want %q", results[0].Category, alter.Ignored)
+			}
+			if _, err := os.Stat(filepath.Join(dir, ".gitignore")); err == nil {
+				t.Error("never mode wrote file to disk")
+			}
+		})
+
+		t.Run(m.name+"/exists", func(t *testing.T) {
+			dir := t.TempDir()
+			writeOnDisk(t, dir, ".gitignore", []byte("existing"))
+			cfg := newConfig(entry(".gitignore", ".gitignore", swatch.Never))
+			results, err := alter.ProcessSwatches(cfg, dir, m.mode, &alter.TokenContext{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(results) != 1 {
+				t.Fatalf("got %d results, want 1", len(results))
+			}
+			if results[0].Category != alter.Ignored {
+				t.Errorf("category = %q, want %q", results[0].Category, alter.Ignored)
+			}
+			data, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != "existing" {
+				t.Error("never mode modified existing file")
+			}
+		})
+	}
+}
+
+// boolPtr returns a pointer to a bool value.
+func boolPtr(b bool) *bool { return &b }
+
+// triggeredSource is the swatch source that has a trigger condition.
+const triggeredSource = ".github/workflows/tailor-automerge.yml"
+
+func TestTriggeredMetFileAbsentWouldCopy(t *testing.T) {
+	dir := t.TempDir()
+
+	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(true)}
+
+	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Category != alter.WouldCopy {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldCopy)
+	}
+}
+
+func TestTriggeredMetFileExistsDifferentContent(t *testing.T) {
+	dir := t.TempDir()
+	writeOnDisk(t, dir, triggeredSource, []byte("old content"))
+
+	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(true)}
+
+	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Category != alter.WouldOverwrite {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
+	}
+}
+
+func TestTriggeredMetFileExistsSameContent(t *testing.T) {
+	dir := t.TempDir()
+	content := mustContent(t, triggeredSource)
+	writeOnDisk(t, dir, triggeredSource, content)
+
+	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(true)}
+
+	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Category != alter.NoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.NoChange)
+	}
+}
+
+func TestTriggeredNotMetFileExistsDryRun(t *testing.T) {
+	dir := t.TempDir()
+	writeOnDisk(t, dir, triggeredSource, []byte("existing"))
+
+	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(false)}
+
+	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Category != alter.WouldRemove {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldRemove)
+	}
+	// Dry run: file should still exist.
+	if _, err := os.Stat(filepath.Join(dir, triggeredSource)); err != nil {
+		t.Error("dry run removed file from disk")
+	}
+}
+
+func TestTriggeredNotMetFileExistsApply(t *testing.T) {
+	dir := t.TempDir()
+	writeOnDisk(t, dir, triggeredSource, []byte("existing"))
+
+	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(false)}
+
+	results, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Category != alter.Removed {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.Removed)
+	}
+	// Apply: file should be removed.
+	if _, err := os.Stat(filepath.Join(dir, triggeredSource)); err == nil {
+		t.Error("apply mode did not remove file from disk")
+	}
+}
+
+func TestTriggeredNotMetFileAbsent(t *testing.T) {
+	dir := t.TempDir()
+
+	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(false)}
+
+	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Category != alter.Ignored {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.Ignored)
+	}
+}
+
 func TestNestedDestinationCreatesDirectories(t *testing.T) {
 	dir := t.TempDir()
 
