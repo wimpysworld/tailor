@@ -1,6 +1,10 @@
 package config
 
-import "github.com/wimpysworld/tailor/internal/swatch"
+import (
+	"strings"
+
+	"github.com/wimpysworld/tailor/internal/swatch"
+)
 
 // Config represents the contents of .tailor/config.yml.
 type Config struct {
@@ -15,6 +19,12 @@ type LabelEntry struct {
 	Name        string `yaml:"name" json:"name"`
 	Color       string `yaml:"color" json:"color"`
 	Description string `yaml:"description" json:"description"`
+}
+
+// LabelNeedsUpdate reports whether existing differs from desired in colour or
+// description. Colour comparison is case-insensitive to match GitHub behaviour.
+func LabelNeedsUpdate(existing, desired LabelEntry) bool {
+	return !strings.EqualFold(existing.Color, desired.Color) || existing.Description != desired.Description
 }
 
 // RepositorySettings holds GitHub repository configuration fields.

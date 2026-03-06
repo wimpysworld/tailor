@@ -80,7 +80,7 @@ func compareLabels(desired, current []config.LabelEntry) []LabelResult {
 			continue
 		}
 
-		if !strings.EqualFold(existing.Color, d.Color) || existing.Description != d.Description {
+		if config.LabelNeedsUpdate(existing, d) {
 			results = append(results, LabelResult{
 				Name:     d.Name,
 				Category: WouldUpdate,

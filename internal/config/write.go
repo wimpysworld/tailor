@@ -9,6 +9,9 @@ import (
 	"text/template"
 )
 
+// yamlSpecial lists characters that require quoting in YAML values.
+const yamlSpecial = ":{}[]#&*!|>'\"%@`\n"
+
 // templateFuncs provides helpers for the config template.
 var templateFuncs = template.FuncMap{
 	"deref": func(p *string) string {
@@ -22,24 +25,16 @@ var templateFuncs = template.FuncMap{
 			return "\"\""
 		}
 		v := *p
-		const yamlSpecial = ":{}[]#&*!|>'\"%@`\n"
 		if strings.ContainsAny(v, yamlSpecial) || v != strings.TrimSpace(v) || v == "" {
 			return fmt.Sprintf("%q", v)
 		}
 		return v
 	},
 	"yamlVal": func(v string) string {
-		const yamlSpecial = ":{}[]#&*!|>'\"%@`\n"
 		if strings.ContainsAny(v, yamlSpecial) || v != strings.TrimSpace(v) || v == "" {
 			return fmt.Sprintf("%q", v)
 		}
 		return v
-	},
-	"yamlUrl": func(p *string) string {
-		if p == nil {
-			return ""
-		}
-		return *p
 	},
 	"derefBool": func(p *bool) string {
 		if p == nil {
@@ -76,7 +71,7 @@ repository:
   description: {{ yamlString .Repository.Description }}
 {{- end }}
 {{- if set .Repository.Homepage }}
-  homepage: {{ yamlUrl .Repository.Homepage }}
+  homepage: {{ deref .Repository.Homepage }}
 {{- end }}
 {{- if set .Repository.HasWiki }}
   has_wiki: {{ derefBool .Repository.HasWiki }}

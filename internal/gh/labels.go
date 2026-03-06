@@ -91,7 +91,7 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 			continue
 		}
 
-		if !strings.EqualFold(existing.Color, d.Color) || existing.Description != d.Description {
+		if config.LabelNeedsUpdate(existing, d) {
 			if err := updateLabel(client, owner, repo, existing.Name, d); err != nil {
 				return err
 			}
