@@ -4,3 +4,15 @@ updates:
     directory: /
     schedule:
       interval: weekly
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      gomod:
+        patterns:
+          - "*"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
