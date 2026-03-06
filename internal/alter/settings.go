@@ -78,7 +78,7 @@ func compareSettings(declared, live *config.RepositorySettings) []RepoSettingRes
 		}
 
 		declaredVal := dfv.Elem().Interface()
-		displayVal := formatValue(declaredVal)
+		displayVal := fmt.Sprintf("%v", declaredVal)
 
 		lfv := lv.Field(i)
 		if !lfv.IsNil() && lfv.Elem().Interface() == declaredVal {
@@ -97,11 +97,6 @@ func compareSettings(declared, live *config.RepositorySettings) []RepoSettingRes
 	}
 
 	return results
-}
-
-// formatValue renders a setting value for display output.
-func formatValue(v any) string {
-	return fmt.Sprintf("%v", v)
 }
 
 // hasChanges returns true if any result is WouldSet.

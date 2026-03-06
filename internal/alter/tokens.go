@@ -78,27 +78,8 @@ func (tc *TokenContext) MergeStrategy() string {
 	switch len(enabled) {
 	case 0:
 		return "--squash"
-	case 1:
+	default:
 		return enabled[0]
-	default:
-		// Multiple enabled: prefer squash > rebase > merge.
-		for _, m := range methods {
-			if m.enabled != nil && *m.enabled {
-				return m.flag
-			}
-		}
-		return "--squash"
-	}
-}
-
-// HasSubstitution reports whether the given source contains token placeholders.
-func (tc *TokenContext) HasSubstitution(source string) bool {
-	switch source {
-	case ".github/FUNDING.yml", "SECURITY.md", ".github/ISSUE_TEMPLATE/config.yml", ".tailor/config.yml",
-		".github/workflows/tailor-automerge.yml":
-		return true
-	default:
-		return false
 	}
 }
 

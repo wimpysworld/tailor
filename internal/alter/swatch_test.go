@@ -8,6 +8,7 @@ import (
 
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -69,8 +70,8 @@ func TestFirstFitSkipWhenExists(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("got %d results, want 1", len(results))
 	}
-	if results[0].Category != alter.Skipped {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.Skipped)
+	if results[0].Category != alter.SkippedFirstFit {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.SkippedFirstFit)
 	}
 }
 
@@ -295,8 +296,8 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 			if len(results) != 1 {
 				t.Fatalf("got %d results, want 1", len(results))
 			}
-			if results[0].Category != alter.Ignored {
-				t.Errorf("category = %q, want %q", results[0].Category, alter.Ignored)
+			if results[0].Category != alter.SkippedNever {
+				t.Errorf("category = %q, want %q", results[0].Category, alter.SkippedNever)
 			}
 			if _, err := os.Stat(filepath.Join(dir, ".gitignore")); err == nil {
 				t.Error("never mode wrote file to disk")
@@ -314,8 +315,8 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 			if len(results) != 1 {
 				t.Fatalf("got %d results, want 1", len(results))
 			}
-			if results[0].Category != alter.Ignored {
-				t.Errorf("category = %q, want %q", results[0].Category, alter.Ignored)
+			if results[0].Category != alter.SkippedNever {
+				t.Errorf("category = %q, want %q", results[0].Category, alter.SkippedNever)
 			}
 			data, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
 			if err != nil {
@@ -328,9 +329,6 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 	}
 }
 
-// boolPtr returns a pointer to a bool value.
-func boolPtr(b bool) *bool { return &b }
-
 // triggeredSource is the swatch source that has a trigger condition.
 const triggeredSource = ".github/workflows/tailor-automerge.yml"
 
@@ -338,7 +336,7 @@ func TestTriggeredMetFileAbsentWouldCopy(t *testing.T) {
 	dir := t.TempDir()
 
 	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(true)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(true)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
@@ -354,7 +352,7 @@ func TestTriggeredMetFileExistsDifferentContent(t *testing.T) {
 	writeOnDisk(t, dir, triggeredSource, []byte("old content"))
 
 	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(true)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(true)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
@@ -373,7 +371,7 @@ func TestTriggeredMetFileExistsSameContent(t *testing.T) {
 	writeOnDisk(t, dir, triggeredSource, resolved)
 
 	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(true)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(true)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
@@ -390,7 +388,7 @@ func TestTriggeredNotMetFileExistsDryRun(t *testing.T) {
 	writeOnDisk(t, dir, triggeredSource, []byte("existing"))
 
 	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(false)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(false)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
@@ -410,7 +408,7 @@ func TestTriggeredNotMetFileExistsApply(t *testing.T) {
 	writeOnDisk(t, dir, triggeredSource, []byte("existing"))
 
 	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(false)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(false)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
 	if err != nil {
@@ -429,14 +427,14 @@ func TestTriggeredNotMetFileAbsent(t *testing.T) {
 	dir := t.TempDir()
 
 	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(false)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(false)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if results[0].Category != alter.Ignored {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.Ignored)
+	if results[0].Category != alter.SkippedNever {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.SkippedNever)
 	}
 }
 

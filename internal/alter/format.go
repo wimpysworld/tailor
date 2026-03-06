@@ -92,7 +92,7 @@ func repoOrder(c RepoSettingCategory) int {
 }
 
 // sortSwatchResults returns a sorted copy: actionable (WouldCopy, WouldOverwrite)
-// before informational (NoChange, Skipped), lexicographic by destination within
+// before informational (NoChange, SkippedFirstFit), lexicographic by destination within
 // each group.
 func sortSwatchResults(results []SwatchResult) []SwatchResult {
 	if len(results) == 0 {
@@ -124,9 +124,9 @@ func swatchOrder(c SwatchCategory) int {
 		return 3
 	case NoChange:
 		return 4
-	case Skipped:
+	case SkippedFirstFit:
 		return 5
-	case Ignored:
+	case SkippedNever:
 		return 6
 	default:
 		return 7
