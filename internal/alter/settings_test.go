@@ -19,23 +19,24 @@ import (
 // repoSettingsJSON returns a JSON string matching the repoResponse struct
 // from the gh package.
 type repoJSON struct {
-	Description              string `json:"description"`
-	Homepage                 string `json:"homepage"`
-	HasWiki                  bool   `json:"has_wiki"`
-	HasDiscussions           bool   `json:"has_discussions"`
-	HasProjects              bool   `json:"has_projects"`
-	HasIssues                bool   `json:"has_issues"`
-	AllowMergeCommit         bool   `json:"allow_merge_commit"`
-	AllowSquashMerge         bool   `json:"allow_squash_merge"`
-	AllowRebaseMerge         bool   `json:"allow_rebase_merge"`
-	SquashMergeCommitTitle   string `json:"squash_merge_commit_title"`
-	SquashMergeCommitMessage string `json:"squash_merge_commit_message"`
-	MergeCommitTitle         string `json:"merge_commit_title"`
-	MergeCommitMessage       string `json:"merge_commit_message"`
-	DeleteBranchOnMerge      bool   `json:"delete_branch_on_merge"`
-	AllowUpdateBranch        bool   `json:"allow_update_branch"`
-	AllowAutoMerge           bool   `json:"allow_auto_merge"`
-	WebCommitSignoffRequired bool   `json:"web_commit_signoff_required"`
+	Description              string   `json:"description"`
+	Homepage                 string   `json:"homepage"`
+	HasWiki                  bool     `json:"has_wiki"`
+	HasDiscussions           bool     `json:"has_discussions"`
+	HasProjects              bool     `json:"has_projects"`
+	HasIssues                bool     `json:"has_issues"`
+	AllowMergeCommit         bool     `json:"allow_merge_commit"`
+	AllowSquashMerge         bool     `json:"allow_squash_merge"`
+	AllowRebaseMerge         bool     `json:"allow_rebase_merge"`
+	SquashMergeCommitTitle   string   `json:"squash_merge_commit_title"`
+	SquashMergeCommitMessage string   `json:"squash_merge_commit_message"`
+	MergeCommitTitle         string   `json:"merge_commit_title"`
+	MergeCommitMessage       string   `json:"merge_commit_message"`
+	DeleteBranchOnMerge      bool     `json:"delete_branch_on_merge"`
+	AllowUpdateBranch        bool     `json:"allow_update_branch"`
+	AllowAutoMerge           bool     `json:"allow_auto_merge"`
+	WebCommitSignoffRequired bool     `json:"web_commit_signoff_required"`
+	Topics                   []string `json:"topics"`
 }
 
 // settingsServer creates an httptest server that responds to repo settings
@@ -440,5 +441,384 @@ func TestProcessRepoSettingsPrivateVulnerabilityReporting(t *testing.T) {
 	}
 	if results[0].Value != "true" {
 		t.Errorf("value = %q, want %q", results[0].Value, "true")
+	}
+}
+
+func TestProcessRepoSettingsVulnerabilityAlertsNoChange(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{}
+	// settingsServer returns 204 for vulnerability-alerts GET, meaning enabled=true
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			VulnerabilityAlertsEnabled: ptr.Bool(true),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "vulnerability_alerts_enabled" {
+		t.Errorf("field = %q, want %q", results[0].Field, "vulnerability_alerts_enabled")
+	}
+	if results[0].Category != alter.RepoNoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
+	}
+	if results[0].Value != "true" {
+		t.Errorf("value = %q, want %q", results[0].Value, "true")
+	}
+}
+
+func TestProcessRepoSettingsVulnerabilityAlertsWouldSet(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{}
+	// settingsServer returns 204 for vulnerability-alerts GET, meaning enabled=true
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			VulnerabilityAlertsEnabled: ptr.Bool(false),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "vulnerability_alerts_enabled" {
+		t.Errorf("field = %q, want %q", results[0].Field, "vulnerability_alerts_enabled")
+	}
+	if results[0].Category != alter.WouldSet {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
+	}
+}
+
+func TestProcessRepoSettingsAutomatedSecurityFixesNoChange(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{}
+	// settingsServer returns {"enabled":false} for automated-security-fixes GET
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			AutomatedSecurityFixesEnabled: ptr.Bool(false),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "automated_security_fixes_enabled" {
+		t.Errorf("field = %q, want %q", results[0].Field, "automated_security_fixes_enabled")
+	}
+	if results[0].Category != alter.RepoNoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
+	}
+}
+
+func TestProcessRepoSettingsAutomatedSecurityFixesWouldSet(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{}
+	// settingsServer returns {"enabled":false} for automated-security-fixes GET
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			AutomatedSecurityFixesEnabled: ptr.Bool(true),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "automated_security_fixes_enabled" {
+		t.Errorf("field = %q, want %q", results[0].Field, "automated_security_fixes_enabled")
+	}
+	if results[0].Category != alter.WouldSet {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
+	}
+}
+
+func TestProcessRepoSettingsTopicsNoChange(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{Topics: []string{"go", "cli"}}
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	topics := []string{"go", "cli"}
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			Topics: &topics,
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "topics" {
+		t.Errorf("field = %q, want %q", results[0].Field, "topics")
+	}
+	if results[0].Category != alter.RepoNoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
+	}
+	if results[0].Value != "go, cli" {
+		t.Errorf("value = %q, want %q", results[0].Value, "go, cli")
+	}
+}
+
+func TestProcessRepoSettingsTopicsWouldSet(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{Topics: []string{"go", "cli"}}
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	topics := []string{"go", "cli", "github"}
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			Topics: &topics,
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "topics" {
+		t.Errorf("field = %q, want %q", results[0].Field, "topics")
+	}
+	if results[0].Category != alter.WouldSet {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
+	}
+	if results[0].Value != "go, cli, github" {
+		t.Errorf("value = %q, want %q", results[0].Value, "go, cli, github")
+	}
+}
+
+func TestProcessRepoSettingsTopicsEmptyVsNil(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	// Live has no topics (nil from JSON unmarshalling)
+	live := repoJSON{}
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	// Declared: empty slice (clear all topics)
+	// slices.Equal treats nil and empty as equal, so this is no change
+	topics := []string{}
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			Topics: &topics,
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "topics" {
+		t.Errorf("field = %q, want %q", results[0].Field, "topics")
+	}
+	if results[0].Category != alter.RepoNoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
+	}
+	if results[0].Value != "" {
+		t.Errorf("value = %q, want %q", results[0].Value, "")
+	}
+}
+
+func TestProcessRepoSettingsTopicsEmptyMatchesEmpty(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	// Live has empty topics from JSON
+	live := repoJSON{Topics: []string{}}
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	topics := []string{}
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			Topics: &topics,
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Category != alter.RepoNoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
+	}
+}
+
+func TestProcessRepoSettingsDefaultWorkflowPermissionsNoChange(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{}
+	// settingsServer returns {"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			DefaultWorkflowPermissions: ptr.String("read"),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "default_workflow_permissions" {
+		t.Errorf("field = %q, want %q", results[0].Field, "default_workflow_permissions")
+	}
+	if results[0].Category != alter.RepoNoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
+	}
+	if results[0].Value != "read" {
+		t.Errorf("value = %q, want %q", results[0].Value, "read")
+	}
+}
+
+func TestProcessRepoSettingsDefaultWorkflowPermissionsWouldSet(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{}
+	// settingsServer returns {"default_workflow_permissions":"read",...}
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			DefaultWorkflowPermissions: ptr.String("write"),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "default_workflow_permissions" {
+		t.Errorf("field = %q, want %q", results[0].Field, "default_workflow_permissions")
+	}
+	if results[0].Category != alter.WouldSet {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
+	}
+	if results[0].Value != "write" {
+		t.Errorf("value = %q, want %q", results[0].Value, "write")
+	}
+}
+
+func TestProcessRepoSettingsCanApprovePullRequestReviewsNoChange(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{}
+	// settingsServer returns {"can_approve_pull_request_reviews":false}
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			CanApprovePullRequestReviews: ptr.Bool(false),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "can_approve_pull_request_reviews" {
+		t.Errorf("field = %q, want %q", results[0].Field, "can_approve_pull_request_reviews")
+	}
+	if results[0].Category != alter.RepoNoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
+	}
+}
+
+func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{}
+	// settingsServer returns {"can_approve_pull_request_reviews":false}
+	server := settingsServer(live, false, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			CanApprovePullRequestReviews: ptr.Bool(true),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "can_approve_pull_request_reviews" {
+		t.Errorf("field = %q, want %q", results[0].Field, "can_approve_pull_request_reviews")
+	}
+	if results[0].Category != alter.WouldSet {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
 	}
 }

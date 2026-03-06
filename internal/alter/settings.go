@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -78,10 +79,25 @@ func compareSettings(declared, live *config.RepositorySettings) []RepoSettingRes
 		}
 
 		declaredVal := dfv.Elem().Interface()
-		displayVal := fmt.Sprintf("%v", declaredVal)
+
+		var displayVal string
+		var equal bool
 
 		lfv := lv.Field(i)
-		if !lfv.IsNil() && lfv.Elem().Interface() == declaredVal {
+
+		if dfv.Elem().Kind() == reflect.Slice {
+			dSlice := dfv.Elem().Interface().([]string)
+			displayVal = strings.Join(dSlice, ", ")
+			if !lfv.IsNil() {
+				lSlice := lfv.Elem().Interface().([]string)
+				equal = slices.Equal(dSlice, lSlice)
+			}
+		} else {
+			displayVal = fmt.Sprintf("%v", declaredVal)
+			equal = !lfv.IsNil() && lfv.Elem().Interface() == declaredVal
+		}
+
+		if equal {
 			results = append(results, RepoSettingResult{
 				Field:    key,
 				Category: RepoNoChange,
