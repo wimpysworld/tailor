@@ -26,9 +26,8 @@
             packages = with pkgs; [
               gh
               go
-              jq
+              golangci-lint
               just
-              yq
             ];
           };
         }
