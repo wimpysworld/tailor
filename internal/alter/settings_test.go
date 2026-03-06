@@ -53,6 +53,17 @@ func settingsServer(repo repoJSON, pvrEnabled bool, patchCalled *atomic.Int32) *
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprintf(w, `{"enabled":%t}`, pvrEnabled)
 
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/vulnerability-alerts":
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+
 		case r.Method == http.MethodPatch && path == "/repos/testowner/testrepo":
 			if patchCalled != nil {
 				patchCalled.Add(1)
@@ -68,6 +79,12 @@ func settingsServer(repo repoJSON, pvrEnabled bool, patchCalled *atomic.Int32) *
 			w.WriteHeader(http.StatusNoContent)
 
 		case r.Method == http.MethodDelete && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
+			if patchCalled != nil {
+				patchCalled.Add(1)
+			}
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodPut && path == "/repos/testowner/testrepo/actions/permissions/workflow":
 			if patchCalled != nil {
 				patchCalled.Add(1)
 			}

@@ -199,6 +199,17 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprintf(w, `{"enabled":%t}`, sc.pvrEnabled)
 
+		case r.Method == http.MethodGet && path == repoPath+"/automated-security-fixes":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == repoPath+"/vulnerability-alerts":
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodGet && path == repoPath+"/actions/permissions/workflow":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+
 		case r.Method == http.MethodGet && strings.HasPrefix(path, "/licenses/"):
 			if sc.licenceError != 0 {
 				w.WriteHeader(sc.licenceError)
@@ -222,6 +233,9 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 			w.WriteHeader(http.StatusNoContent)
 
 		case r.Method == http.MethodDelete && path == repoPath+"/private-vulnerability-reporting":
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodPut && path == repoPath+"/actions/permissions/workflow":
 			w.WriteHeader(http.StatusNoContent)
 
 		default:

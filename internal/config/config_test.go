@@ -253,6 +253,151 @@ func TestOptionalRepositoryFieldsOmitted(t *testing.T) {
 	}
 }
 
+func TestNewRepositoryFieldsParsing(t *testing.T) {
+	input := `license: MIT
+repository:
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: false
+  topics:
+    - go
+    - cli-tool
+  default_workflow_permissions: read
+  can_approve_pull_request_reviews: false
+swatches: []
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(input), &cfg); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	r := cfg.Repository
+	testutil.AssertBoolPtr(t, r.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	testutil.AssertBoolPtr(t, r.AutomatedSecurityFixesEnabled, false, false, "automated_security_fixes_enabled")
+	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
+	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, false, false, "can_approve_pull_request_reviews")
+
+	if r.Topics == nil {
+		t.Fatal("Topics is nil, want non-nil")
+	}
+	got := *r.Topics
+	if len(got) != 2 || got[0] != "go" || got[1] != "cli-tool" {
+		t.Errorf("Topics = %v, want [go cli-tool]", got)
+	}
+}
+
+func TestNewFieldsOmittedWhenNil(t *testing.T) {
+	input := `license: MIT
+repository:
+  has_wiki: false
+swatches: []
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(input), &cfg); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	r := cfg.Repository
+	testutil.AssertBoolPtr(t, r.VulnerabilityAlertsEnabled, true, false, "vulnerability_alerts_enabled")
+	testutil.AssertBoolPtr(t, r.AutomatedSecurityFixesEnabled, true, false, "automated_security_fixes_enabled")
+	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, true, "", "default_workflow_permissions")
+	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, true, false, "can_approve_pull_request_reviews")
+
+	if r.Topics != nil {
+		t.Errorf("Topics = %v, want nil when omitted", *r.Topics)
+	}
+}
+
+func TestTopicsEmptySlice(t *testing.T) {
+	input := `license: MIT
+repository:
+  topics: []
+swatches: []
+`
+	var cfg Config
+	if err := yaml.Unmarshal([]byte(input), &cfg); err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	r := cfg.Repository
+	if r.Topics == nil {
+		t.Fatal("Topics is nil, want non-nil empty slice")
+	}
+	if len(*r.Topics) != 0 {
+		t.Errorf("Topics length = %d, want 0", len(*r.Topics))
+	}
+}
+
+func TestNewFieldsRoundTrip(t *testing.T) {
+	topics := []string{"go", "cli-tool"}
+	cfg := Config{
+		License: "MIT",
+		Repository: &RepositorySettings{
+			VulnerabilityAlertsEnabled:    ptr.Bool(true),
+			AutomatedSecurityFixesEnabled: ptr.Bool(false),
+			Topics:                        &topics,
+			DefaultWorkflowPermissions:    ptr.String("write"),
+			CanApprovePullRequestReviews:  ptr.Bool(true),
+		},
+		Swatches: []SwatchEntry{
+			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+
+	out, err := yaml.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	var roundTripped Config
+	if err := yaml.Unmarshal(out, &roundTripped); err != nil {
+		t.Fatalf("round-trip Unmarshal failed: %v", err)
+	}
+
+	r := roundTripped.Repository
+	testutil.AssertBoolPtr(t, r.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	testutil.AssertBoolPtr(t, r.AutomatedSecurityFixesEnabled, false, false, "automated_security_fixes_enabled")
+	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, false, "write", "default_workflow_permissions")
+	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, false, true, "can_approve_pull_request_reviews")
+
+	if r.Topics == nil {
+		t.Fatal("round-tripped Topics is nil")
+	}
+	got := *r.Topics
+	if len(got) != 2 || got[0] != "go" || got[1] != "cli-tool" {
+		t.Errorf("round-tripped Topics = %v, want [go cli-tool]", got)
+	}
+}
+
+func TestNewFieldsOmittedInMarshal(t *testing.T) {
+	cfg := Config{
+		License: "MIT",
+		Repository: &RepositorySettings{
+			HasWiki: ptr.Bool(false),
+		},
+		Swatches: []SwatchEntry{
+			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+
+	out, err := yaml.Marshal(&cfg)
+	if err != nil {
+		t.Fatalf("Marshal failed: %v", err)
+	}
+
+	s := string(out)
+	for _, field := range []string{
+		"vulnerability_alerts_enabled",
+		"automated_security_fixes_enabled",
+		"topics",
+		"default_workflow_permissions",
+		"can_approve_pull_request_reviews",
+	} {
+		if strings.Contains(s, field) {
+			t.Errorf("%s should be omitted when nil", field)
+		}
+	}
+}
+
 func TestRepositoryStringFields(t *testing.T) {
 	input := `license: MIT
 repository:
