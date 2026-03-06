@@ -1,0 +1,124 @@
+name: Builder 👷
+
+on:
+  push:
+    branches: [main]
+    tags: ["*.*.*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - uses: golangci/golangci-lint-action@v8
+
+  build-test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: linux
+            arch: amd64
+            runner: ubuntu-24.04
+          - os: linux
+            arch: arm64
+            runner: ubuntu-24.04-arm
+          - os: darwin
+            arch: amd64
+            runner: macos-15-intel
+          - os: darwin
+            arch: arm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Test
+        run: go test ./...
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=dev-${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build
+        run: |
+          go build -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }}" \
+            -o tailor-${{ matrix.os }}-${{ matrix.arch }} ./cmd/tailor
+      - uses: actions/upload-artifact@v7
+        with:
+          name: tailor-${{ matrix.os }}-${{ matrix.arch }}
+          path: tailor-${{ matrix.os }}-${{ matrix.arch }}
+
+  sentinel:
+    needs: [lint, build-test]
+    if: always()
+    runs-on: ubuntu-slim
+    steps:
+      - name: Check results
+        run: |
+          results='${{ toJSON(needs.*.result) }}'
+          echo "Job results: ${results}"
+          if echo "${results}" | jq -e 'any(. == "failure" or . == "cancelled")' > /dev/null 2>&1; then
+            echo "One or more jobs failed or were cancelled"
+            exit 1
+          fi
+          echo "All jobs passed"
+
+  release:
+    needs: [sentinel]
+    if: >-
+      github.repository_owner == 'wimpysworld'
+      && startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v7
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Tailor ${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          append_body: true
+          body: |
+
+            ## Install or Update
+
+            Install or update `tailor` using [`bin`](https://github.com/marcosnils/bin):
+
+            ```shell
+            # Install
+            bin install github.com/wimpysworld/tailor
+
+            # Update
+            bin update tailor
+            ```
+          make_latest: true
+          files: |
+            artifacts/tailor-*
