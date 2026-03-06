@@ -52,6 +52,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		GitHubUsername: username,
 		Owner:          owner,
 		Name:           name,
+		Repository:     cfg.Repository,
 	}
 
 	// Repository settings processing.

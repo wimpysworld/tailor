@@ -1714,12 +1714,15 @@ swatches:
 	if err != nil {
 		t.Fatalf("tailor-automerge.yml not written after apply: %v", err)
 	}
-	want, err := swatch.Content(".github/workflows/tailor-automerge.yml")
+	raw, err := swatch.Content(".github/workflows/tailor-automerge.yml")
 	if err != nil {
 		t.Fatalf("swatch.Content: %v", err)
 	}
+	// The embedded swatch contains {{MERGE_STRATEGY}} which is substituted
+	// at alter time. With no explicit merge settings, it defaults to --squash.
+	want := bytes.ReplaceAll(raw, []byte("{{MERGE_STRATEGY}}"), []byte("--squash"))
 	if string(data) != string(want) {
-		t.Error("tailor-automerge.yml content does not match embedded swatch")
+		t.Error("tailor-automerge.yml content does not match substituted swatch")
 	}
 }
 

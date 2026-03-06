@@ -3,13 +3,16 @@ package alter
 import (
 	"bytes"
 	"fmt"
+
+	"github.com/wimpysworld/tailor/internal/config"
 )
 
 // TokenContext holds resolved values for template substitution.
 type TokenContext struct {
-	GitHubUsername string // from GET /user
-	Owner          string // from repo context; empty if no context
-	Name           string // from repo context; empty if no context
+	GitHubUsername string                     // from GET /user
+	Owner          string                     // from repo context; empty if no context
+	Name           string                     // from repo context; empty if no context
+	Repository     *config.RepositorySettings // from config; nil if absent
 }
 
 // HasRepoContext reports whether owner and name are set.
@@ -41,10 +44,58 @@ func (tc *TokenContext) HomepageURL() string {
 	return fmt.Sprintf("https://github.com/%s/%s", tc.Owner, tc.Name)
 }
 
+// MergeStrategy returns the gh pr merge flag derived from repository merge
+// settings. If only one method is enabled, that method is used. If multiple
+// are enabled, the preference order is squash > rebase > merge. If none are
+// explicitly set, defaults to --squash.
+func (tc *TokenContext) MergeStrategy() string {
+	if tc.Repository == nil {
+		return "--squash"
+	}
+
+	squash := tc.Repository.AllowSquashMerge
+	rebase := tc.Repository.AllowRebaseMerge
+	merge := tc.Repository.AllowMergeCommit
+
+	// Count explicitly enabled methods.
+	type method struct {
+		enabled *bool
+		flag    string
+	}
+	methods := []method{
+		{squash, "--squash"},
+		{rebase, "--rebase"},
+		{merge, "--merge"},
+	}
+
+	var enabled []string
+	for _, m := range methods {
+		if m.enabled != nil && *m.enabled {
+			enabled = append(enabled, m.flag)
+		}
+	}
+
+	switch len(enabled) {
+	case 0:
+		return "--squash"
+	case 1:
+		return enabled[0]
+	default:
+		// Multiple enabled: prefer squash > rebase > merge.
+		for _, m := range methods {
+			if m.enabled != nil && *m.enabled {
+				return m.flag
+			}
+		}
+		return "--squash"
+	}
+}
+
 // HasSubstitution reports whether the given source contains token placeholders.
 func (tc *TokenContext) HasSubstitution(source string) bool {
 	switch source {
-	case ".github/FUNDING.yml", "SECURITY.md", ".github/ISSUE_TEMPLATE/config.yml", ".tailor/config.yml":
+	case ".github/FUNDING.yml", "SECURITY.md", ".github/ISSUE_TEMPLATE/config.yml", ".tailor/config.yml",
+		".github/workflows/tailor-automerge.yml":
 		return true
 	default:
 		return false
@@ -62,6 +113,8 @@ func (tc *TokenContext) Substitute(content []byte, source string) []byte {
 		return bytes.ReplaceAll(content, []byte("{{SUPPORT_URL}}"), []byte(tc.SupportURL()))
 	case ".tailor/config.yml":
 		return bytes.ReplaceAll(content, []byte("{{HOMEPAGE_URL}}"), []byte(tc.HomepageURL()))
+	case ".github/workflows/tailor-automerge.yml":
+		return bytes.ReplaceAll(content, []byte("{{MERGE_STRATEGY}}"), []byte(tc.MergeStrategy()))
 	default:
 		return content
 	}
