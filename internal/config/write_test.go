@@ -32,6 +32,10 @@ repository:
   allow_auto_merge: true
   web_commit_signoff_required: false
   private_vulnerability_reporting_enabled: true
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: true
+  default_workflow_permissions: read
+  can_approve_pull_request_reviews: false
 
 swatches:
   - source: .github/workflows/tailor.yml
@@ -178,6 +182,10 @@ func TestWriteOptionalFieldsPresent(t *testing.T) {
 			AllowAutoMerge:                    ptr.Bool(false),
 			WebCommitSignoffRequired:          ptr.Bool(true),
 			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+			VulnerabilityAlertsEnabled:        ptr.Bool(true),
+			AutomatedSecurityFixesEnabled:     ptr.Bool(false),
+			DefaultWorkflowPermissions:        ptr.String("write"),
+			CanApprovePullRequestReviews:      ptr.Bool(true),
 		},
 		Swatches: []SwatchEntry{
 			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
@@ -206,6 +214,10 @@ repository:
   allow_auto_merge: false
   web_commit_signoff_required: true
   private_vulnerability_reporting_enabled: true
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: false
+  default_workflow_permissions: write
+  can_approve_pull_request_reviews: true
 
 swatches:
   - source: justfile
@@ -247,6 +259,10 @@ func TestWriteOptionalFieldsOmitted(t *testing.T) {
 			AllowAutoMerge:                    ptr.Bool(true),
 			WebCommitSignoffRequired:          ptr.Bool(false),
 			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+			VulnerabilityAlertsEnabled:        ptr.Bool(true),
+			AutomatedSecurityFixesEnabled:     ptr.Bool(true),
+			DefaultWorkflowPermissions:        ptr.String("read"),
+			CanApprovePullRequestReviews:      ptr.Bool(false),
 		},
 		Swatches: []SwatchEntry{
 			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
@@ -271,6 +287,10 @@ repository:
   allow_auto_merge: true
   web_commit_signoff_required: false
   private_vulnerability_reporting_enabled: true
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: true
+  default_workflow_permissions: read
+  can_approve_pull_request_reviews: false
 
 swatches:
   - source: justfile
