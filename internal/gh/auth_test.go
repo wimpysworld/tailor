@@ -10,7 +10,7 @@ func TestCheckAuth(t *testing.T) {
 	}{
 		{
 			name:  "valid token returns nil",
-			token: "gho_validtoken123",
+			token: "test-valid-token",
 		},
 		{
 			name:    "empty token returns error",

@@ -204,7 +204,7 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 // starts an httptest server that handles the API calls alter.Run makes,
 // sets GH_TOKEN so go-gh creates a client, redirects http.DefaultTransport
 // to the test server, and chdir to the temp directory.
-func setupAlterTest(t *testing.T) string {
+func setupAlterTest(t *testing.T) {
 	t.Helper()
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeNoRepo(t)
@@ -223,7 +223,7 @@ func setupAlterTest(t *testing.T) string {
 		switch {
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/user"):
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"login": "testuser"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"login": "testuser"})
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -246,9 +246,7 @@ func setupAlterTest(t *testing.T) string {
 	if err := os.Chdir(dir); err != nil {
 		t.Fatalf("Chdir: %v", err)
 	}
-	t.Cleanup(func() { os.Chdir(oldDir) })
-
-	return dir
+	t.Cleanup(func() { _ = os.Chdir(oldDir) })
 }
 
 // redirectTransport sends all requests to the test server, preserving the
@@ -289,7 +287,7 @@ func TestDocketAuthenticated(t *testing.T) {
 		switch {
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/user"):
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{"login": "octocat"})
+			_ = json.NewEncoder(w).Encode(map[string]string{"login": "octocat"})
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}

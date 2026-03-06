@@ -8,16 +8,17 @@ The authoritative specification is `docs/SPECIFICATION.md`. All implementation d
 
 ## Tech stack
 
-- **Language**: Go (1.24+)
+- **Language**: Go (1.25+)
 - **CLI parser**: [Kong](https://github.com/alecthomas/kong)
 - **GitHub auth**: `GH_TOKEN`/`GITHUB_TOKEN` env var, or `gh` (GitHub CLI) for keyring-based token access
 - **Swatch embedding**: Go `embed` directive (`swatches/` directory)
-- **Dev environment**: Nix flake with `gh`, `jq`, `just`, `yq`
+- **Dev environment**: Nix flake with `gh`, `go`, `golangci-lint`, `just`
 
 ## Project structure
 
 ```
 tailor/
+├── .github/workflows/  # CI workflows
 ├── cmd/tailor/         # CLI entrypoint
 ├── internal/           # Internal packages (config, swatch, gh wrappers)
 ├── swatches/           # Embedded template files (16 swatches)
@@ -27,12 +28,12 @@ tailor/
 
 ## Build and test commands
 
-- Build: `go build -o tailor ./cmd/tailor`
-- Run tests: `go test ./...`
-- Run linter: `golangci-lint run`
-- Format: `gofmt -w .`
+- Build: `just build` (or `go build -ldflags "-s -w" -o tailor ./cmd/tailor`)
+- Run tests: `just test` (or `go test ./...`)
+- Run linters: `just lint` (or `go vet ./... && golangci-lint run`)
 - Enter dev shell: `nix develop` or `direnv allow`
 - Task runner: `just` (lists available recipes)
+- Create release: `just release 0.1.0`
 
 ## Code style
 
@@ -58,7 +59,7 @@ tailor/
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
 - `alter` execution order: repository settings, then licence, then swatches
-- MD5 comparison for `always` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`) skip MD5 and always overwrite
+- SHA-256 comparison for `always` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`) skip hash comparison and always overwrite
 - `--recut` overwrites everything except `LICENSE` and `.tailor/config.yml`
 - Token substitution: `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, `{{HOMEPAGE_URL}}`
 - Licences fetched via GitHub REST API (`GET /licenses/{id}`), not embedded

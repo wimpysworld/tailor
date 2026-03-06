@@ -42,7 +42,7 @@ func captureStderr(t *testing.T, fn func()) string {
 	os.Stderr = oldStderr
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	return buf.String()
 }
 

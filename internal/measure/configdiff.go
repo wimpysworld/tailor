@@ -25,7 +25,7 @@ func (c DiffCategory) Label() string { return string(c) + ":" }
 type DiffResult struct {
 	Destination string
 	Category    DiffCategory
-	Detail  string
+	Detail      string
 }
 
 // CheckConfigDiff compares the loaded config's swatch list against the
@@ -69,7 +69,7 @@ func CheckConfigDiff(cfg *config.Config, defaults []swatch.Swatch) []DiffResult 
 			modeDiffers = append(modeDiffers, DiffResult{
 				Destination: s.Destination,
 				Category:    ModeDiffers,
-				Detail:  fmt.Sprintf("(config: %s, default: %s)", s.Alteration, def.DefaultAlteration),
+				Detail:      fmt.Sprintf("(config: %s, default: %s)", s.Alteration, def.DefaultAlteration),
 			})
 		}
 	}

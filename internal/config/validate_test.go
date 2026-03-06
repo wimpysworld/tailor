@@ -81,9 +81,9 @@ func TestValidateDuplicateDestinationsRejectsDuplicate(t *testing.T) {
 func TestValidateRepoSettingsAcceptsValidConfig(t *testing.T) {
 	cfg := &Config{
 		Repository: &RepositorySettings{
-			HasWiki:    ptr.Bool(false),
-			HasIssues:  ptr.Bool(true),
-			Homepage:   ptr.String("https://example.com"),
+			HasWiki:   ptr.Bool(false),
+			HasIssues: ptr.Bool(true),
+			Homepage:  ptr.String("https://example.com"),
 		},
 	}
 	if err := ValidateRepoSettings(cfg); err != nil {

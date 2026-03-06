@@ -16,8 +16,8 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
-	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
@@ -72,17 +72,17 @@ type testOption func(*alterServerConfig)
 
 // alterServerConfig holds the mock server's response data.
 type alterServerConfig struct {
-	username    string
-	owner       string
-	repo        string
-	repoJSON    repoJSON
-	pvrEnabled  bool
-	licenceID   string
-	licenceBody string
-	noRepo      bool // stub RepoContext to return false
-	userError   int  // non-zero: return this HTTP status for GET /user
-	licenceError int // non-zero: return this HTTP status for GET /licenses/*
-	patchError  int  // non-zero: return this HTTP status for PATCH /repos/*
+	username     string
+	owner        string
+	repo         string
+	repoJSON     repoJSON
+	pvrEnabled   bool
+	licenceID    string
+	licenceBody  string
+	noRepo       bool // stub RepoContext to return false
+	userError    int  // non-zero: return this HTTP status for GET /user
+	licenceError int  // non-zero: return this HTTP status for GET /licenses/*
+	patchError   int  // non-zero: return this HTTP status for PATCH /repos/*
 }
 
 // WithUsername sets the mock username for GET /user.
@@ -193,7 +193,7 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 
 		case r.Method == http.MethodGet && path == repoPath:
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(sc.repoJSON)
+			_ = json.NewEncoder(w).Encode(sc.repoJSON)
 
 		case r.Method == http.MethodGet && path == repoPath+"/private-vulnerability-reporting":
 			w.Header().Set("Content-Type", "application/json")
@@ -226,7 +226,7 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 
 		default:
 			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path)
+			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec // test HTTP handler, not exposed to user input
 		}
 	}))
 	t.Cleanup(server.Close)
@@ -281,13 +281,13 @@ func captureAlterRun(t *testing.T, cfg *config.Config, dir string, mode alter.Ap
 	}
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	return buf.String()
 }
 
-// runAlterExpectError runs alter.Run and returns the error. Stdout and stderr
-// are suppressed. Fails if no error is returned.
-func runAlterExpectError(t *testing.T, cfg *config.Config, dir string, mode alter.ApplyMode, client *api.RESTClient) error {
+// runAlterExpectError runs alter.Run in Apply mode and returns the error.
+// Stdout and stderr are suppressed. Fails if no error is returned.
+func runAlterExpectError(t *testing.T, cfg *config.Config, dir string, client *api.RESTClient) error {
 	t.Helper()
 
 	oldStdout := os.Stdout
@@ -298,7 +298,7 @@ func runAlterExpectError(t *testing.T, cfg *config.Config, dir string, mode alte
 	_, wErr, _ := os.Pipe()
 	os.Stderr = wErr
 
-	err := alter.Run(cfg, dir, mode, client)
+	err := alter.Run(cfg, dir, alter.Apply, client)
 
 	wOut.Close()
 	wErr.Close()
@@ -313,6 +313,8 @@ func runAlterExpectError(t *testing.T, cfg *config.Config, dir string, mode alte
 
 // captureAlterRunWithStderr runs alter.Run capturing both stdout and stderr.
 // Returns stdout, stderr, and the error (which may be nil).
+//
+//nolint:unparam // stdout return kept for test symmetry with captureAlterRun
 func captureAlterRunWithStderr(t *testing.T, cfg *config.Config, dir string, mode alter.ApplyMode, client *api.RESTClient) (string, string, error) {
 	t.Helper()
 
@@ -332,8 +334,8 @@ func captureAlterRunWithStderr(t *testing.T, cfg *config.Config, dir string, mod
 	os.Stderr = oldStderr
 
 	var bufOut, bufErr bytes.Buffer
-	bufOut.ReadFrom(rOut)
-	bufErr.ReadFrom(rErr)
+	_, _ = bufOut.ReadFrom(rOut)
+	_, _ = bufErr.ReadFrom(rErr)
 
 	return bufOut.String(), bufErr.String(), err
 }
@@ -382,7 +384,7 @@ swatches:
 	}
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	// Verify output contains expected "would copy" lines.
@@ -444,7 +446,7 @@ swatches:
 	}
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if !strings.Contains(output, "would set:") {
@@ -745,7 +747,7 @@ swatches:
 	// Record filesystem state before dry-run.
 	dirEntries := func() map[string]int64 {
 		entries := make(map[string]int64)
-		filepath.Walk(tc.Dir, func(path string, info os.FileInfo, _ error) error {
+		_ = filepath.Walk(tc.Dir, func(path string, info os.FileInfo, _ error) error {
 			if !info.IsDir() {
 				rel, _ := filepath.Rel(tc.Dir, path)
 				entries[rel] = info.Size()
@@ -1446,7 +1448,7 @@ swatches:
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
-	err := runAlterExpectError(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
 
 	if !strings.Contains(err.Error(), "unrecognised swatch source") {
 		t.Errorf("error = %q, want substring 'unrecognised swatch source'", err)
@@ -1472,7 +1474,7 @@ swatches:
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
-	err := runAlterExpectError(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
 
 	if !strings.Contains(err.Error(), "duplicate destination") {
 		t.Errorf("error = %q, want substring 'duplicate destination'", err)
@@ -1494,7 +1496,7 @@ swatches:
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
-	err := runAlterExpectError(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
 
 	if !strings.Contains(err.Error(), "unrecognised repository setting") {
 		t.Errorf("error = %q, want substring 'unrecognised repository setting'", err)
@@ -1529,7 +1531,7 @@ swatches:
 	)
 
 	cfg := loadTestConfig(t, tc.Dir)
-	err := runAlterExpectError(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
 
 	if !strings.Contains(err.Error(), "licence") && !strings.Contains(err.Error(), "license") {
 		t.Errorf("error = %q, want substring containing 'licence' or 'license'", err)
@@ -1551,7 +1553,7 @@ swatches:
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
-	err := runAlterExpectError(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
 
 	if !strings.Contains(err.Error(), "username") && !strings.Contains(err.Error(), "user") {
 		t.Errorf("error = %q, want substring containing 'username' or 'user'", err)
@@ -1587,7 +1589,7 @@ swatches:
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
-	err := runAlterExpectError(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
 
 	if err == nil {
 		t.Fatal("expected error from PATCH failure")
@@ -1615,8 +1617,7 @@ swatches:
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
-	stdout, stderr, err := captureAlterRunWithStderr(t, cfg, tc.Dir, alter.Apply, tc.Client)
-
+	_, stderr, err := captureAlterRunWithStderr(t, cfg, tc.Dir, alter.Apply, tc.Client)
 	if err != nil {
 		t.Fatalf("alter.Run() returned unexpected error: %v", err)
 	}
@@ -1630,8 +1631,6 @@ swatches:
 	if _, statErr := os.Stat(filepath.Join(tc.Dir, ".gitignore")); statErr != nil {
 		t.Errorf(".gitignore should have been written despite no repo context: %v", statErr)
 	}
-
-	_ = stdout
 }
 
 // TestAlterRunNoRepoContextLeavesTokensUnsubstituted verifies that without

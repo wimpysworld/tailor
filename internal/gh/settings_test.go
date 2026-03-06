@@ -94,8 +94,8 @@ func TestReadRepoSettings(t *testing.T) {
 			name:        "all fields populated",
 			repoJSON:    fullRepoJSON,
 			pvrJSON:     pvrEnabledJSON,
-			wantDesc: "A tailor for your repos",
-			wantHome: "https://tailor.dev",
+			wantDesc:    "A tailor for your repos",
+			wantHome:    "https://tailor.dev",
 			wantWiki:    false,
 			wantDisc:    true,
 			wantProj:    false,
@@ -135,8 +135,8 @@ func TestReadRepoSettings(t *testing.T) {
 				"web_commit_signoff_required": true
 			}`,
 			pvrJSON:     `{"enabled": false}`,
-			wantDesc: "",
-			wantHome: "",
+			wantDesc:    "",
+			wantHome:    "",
 			wantWiki:    true,
 			wantDisc:    false,
 			wantProj:    true,
@@ -252,8 +252,8 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &config.RepositorySettings{
-		Description:  ptr.String("new desc"),
-		HasWiki:      ptr.Bool(true),
+		Description:    ptr.String("new desc"),
+		HasWiki:        ptr.Bool(true),
 		AllowAutoMerge: ptr.Bool(false),
 	}
 
@@ -409,4 +409,3 @@ func TestApplyRepoSettingsPVRError(t *testing.T) {
 		t.Fatal("ApplyRepoSettings() expected error from PUT, got nil")
 	}
 }
-

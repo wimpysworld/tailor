@@ -15,8 +15,8 @@ import (
 type RepoSettingCategory string
 
 const (
-	WouldSet      RepoSettingCategory = "would set"
-	RepoNoChange  RepoSettingCategory = "no change"
+	WouldSet     RepoSettingCategory = "would set"
+	RepoNoChange RepoSettingCategory = "no change"
 )
 
 // RepoSettingResult records the field name, category, and display value for one

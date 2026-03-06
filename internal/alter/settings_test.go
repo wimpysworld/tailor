@@ -11,8 +11,8 @@ import (
 
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
-	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
@@ -47,7 +47,7 @@ func settingsServer(repo repoJSON, pvrEnabled bool, patchCalled *atomic.Int32) *
 		switch {
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(repo)
+			_ = json.NewEncoder(w).Encode(repo)
 
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
 			w.Header().Set("Content-Type", "application/json")
@@ -75,7 +75,7 @@ func settingsServer(repo repoJSON, pvrEnabled bool, patchCalled *atomic.Int32) *
 
 		default:
 			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path)
+			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec // test HTTP handler, not exposed to user input
 		}
 	}))
 }
@@ -311,9 +311,9 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{
-		HasWiki:         true,
-		HasIssues:       true,
-		Description:     "My project",
+		HasWiki:             true,
+		HasIssues:           true,
+		Description:         "My project",
 		DeleteBranchOnMerge: false,
 	}
 	server := settingsServer(live, true, nil)

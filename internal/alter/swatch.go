@@ -1,7 +1,7 @@
 package alter
 
 import (
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"os"
@@ -58,7 +58,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 // processSwatch determines the category for a single swatch and writes
 // the file when the mode permits. Token substitution occurs upstream in
 // ProcessSwatches before this function is called. The tokens parameter is
-// passed through only for processAlways, which uses it to skip the MD5
+// passed through only for processAlways, which uses it to skip the hash
 // comparison when a source has active substitutions.
 func processSwatch(entry config.SwatchEntry, content []byte, dest string, mode ApplyMode, tokens *TokenContext) (SwatchResult, error) {
 	exists := fileExists(dest)
@@ -115,12 +115,12 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 		return SwatchResult{Destination: entry.Destination, Category: WouldOverwrite}, nil
 	}
 
-	onDisk, err := md5File(dest)
+	onDisk, err := contentHashFile(dest)
 	if err != nil {
 		return SwatchResult{}, fmt.Errorf("hashing on-disk file %q: %w", dest, err)
 	}
 
-	if md5sum(content) == onDisk {
+	if contentHash(content) == onDisk {
 		return SwatchResult{Destination: entry.Destination, Category: NoChange}, nil
 	}
 
@@ -162,17 +162,17 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-// md5sum returns the hex-encoded MD5 digest of data.
-func md5sum(data []byte) string {
-	h := md5.Sum(data)
+// contentHash returns the hex-encoded SHA-256 digest of data.
+func contentHash(data []byte) string {
+	h := sha256.Sum256(data)
 	return hex.EncodeToString(h[:])
 }
 
-// md5File returns the hex-encoded MD5 digest of the file at path.
-func md5File(path string) (string, error) {
+// contentHashFile returns the hex-encoded SHA-256 digest of the file at path.
+func contentHashFile(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
-	return md5sum(data), nil
+	return contentHash(data), nil
 }

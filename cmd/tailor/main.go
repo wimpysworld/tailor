@@ -153,7 +153,7 @@ func (m *MeasureCmd) Run() error {
 type DocketCmd struct{}
 
 // Run executes the docket command.
-func (d *DocketCmd) Run() error {
+func (d *DocketCmd) Run() error { //nolint:unparam // error return required by kong.Command interface
 	result := docket.Run(nil)
 	fmt.Print(docket.FormatOutput(result))
 	return nil

@@ -12,9 +12,9 @@ import (
 type ApplyMode int
 
 const (
-	DryRun     ApplyMode = iota // preview only
-	Apply                       // write if file is absent or alteration permits
-	Recut                       // overwrite unconditionally
+	DryRun ApplyMode = iota // preview only
+	Apply                   // write if file is absent or alteration permits
+	Recut                   // overwrite unconditionally
 )
 
 // ShouldWrite reports whether the mode permits writing to disk.
@@ -50,8 +50,8 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	owner, name, hasRepo := gh.RepoContext()
 	tokens := TokenContext{
 		GitHubUsername: username,
-		Owner:         owner,
-		Name:          name,
+		Owner:          owner,
+		Name:           name,
 	}
 
 	// Repository settings processing.

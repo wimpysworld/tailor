@@ -30,8 +30,9 @@ type HealthResult struct {
 // file exist in dir. Returns results sorted lexicographically by destination
 // within each status group (missing first, then present).
 func CheckHealth(dir string) []HealthResult {
-	var destinations []string
-	for _, s := range swatch.HealthSwatches() {
+	healthSwatches := swatch.HealthSwatches()
+	destinations := make([]string, 0, len(healthSwatches)+1)
+	for _, s := range healthSwatches {
 		destinations = append(destinations, s.Destination)
 	}
 	destinations = append(destinations, swatch.LicenseDestination)

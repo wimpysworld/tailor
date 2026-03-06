@@ -9,9 +9,9 @@ import (
 
 func TestHasRepoContext(t *testing.T) {
 	tests := []struct {
-		name  string
-		tc    alter.TokenContext
-		want  bool
+		name string
+		tc   alter.TokenContext
+		want bool
 	}{
 		{"both set", alter.TokenContext{Owner: "org", Name: "repo"}, true},
 		{"owner empty", alter.TokenContext{Owner: "", Name: "repo"}, false},

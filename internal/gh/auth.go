@@ -7,9 +7,7 @@ import (
 )
 
 // tokenForHost wraps auth.TokenForHost for testability.
-var tokenForHost = func(host string) (string, string) {
-	return auth.TokenForHost(host)
-}
+var tokenForHost = auth.TokenForHost
 
 // CheckAuth verifies that a valid GitHub authentication token is available for github.com.
 // It returns an error if no valid token is available.

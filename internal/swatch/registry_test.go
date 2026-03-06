@@ -34,10 +34,10 @@ func TestAllSwatchesHaveRequiredFields(t *testing.T) {
 
 func TestSwatchAttributes(t *testing.T) {
 	tests := []struct {
-		source    string
-		dest      string
-		mode      swatch.AlterationMode
-		category  swatch.Category
+		source   string
+		dest     string
+		mode     swatch.AlterationMode
+		category swatch.Category
 	}{
 		{".gitignore", ".gitignore", swatch.FirstFit, swatch.Development},
 		{".envrc", ".envrc", swatch.FirstFit, swatch.Development},
@@ -113,8 +113,8 @@ func TestSourceNamesReturnsSortedList(t *testing.T) {
 func TestSourceNamesContainsKnownEntries(t *testing.T) {
 	names := swatch.SourceNames()
 	want := map[string]bool{
-		".gitignore": false,
-		"justfile":   false,
+		".gitignore":  false,
+		"justfile":    false,
 		"SECURITY.md": false,
 	}
 	for _, n := range names {
