@@ -55,7 +55,7 @@ var registry = []Swatch{
 	{Source: ".github/pull_request_template.md", Destination: ".github/pull_request_template.md", DefaultAlteration: Always, Category: Health},
 	{Source: ".github/workflows/tailor.yml", Destination: ".github/workflows/tailor.yml", DefaultAlteration: Always, Category: Development},
 	{Source: ".github/workflows/tailor-automerge.yml", Destination: ".github/workflows/tailor-automerge.yml", DefaultAlteration: Triggered, Category: Development},
-	{Source: ".tailor/config.yml", Destination: ".tailor/config.yml", DefaultAlteration: FirstFit, Category: Development},
+	{Source: ".tailor/config.yml", Destination: ".tailor/config.yml", DefaultAlteration: Always, Category: Development},
 }
 
 // All returns every registered swatch in definition order.

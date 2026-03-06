@@ -72,7 +72,7 @@ func (f *FitCmd) Run() error {
 	}
 
 	today := time.Now().Format("2006-01-02")
-	if err := config.Write(f.Path, cfg, today); err != nil {
+	if err := config.Write(f.Path, cfg, today, "Initially fitted"); err != nil {
 		return err
 	}
 

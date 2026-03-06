@@ -2,10 +2,12 @@ package alter
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
+	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
 // ApplyMode controls whether changes are written to disk.
@@ -32,6 +34,26 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	}
 	if err := config.ValidateRepoSettings(cfg); err != nil {
 		return err
+	}
+
+	// Merge missing default swatch entries into the config when the
+	// config.yml swatch is set to always, or when it is first-fit and
+	// the caller requested a recut.
+	if shouldMerge(cfg, mode) {
+		added := config.MergeDefaultSwatches(cfg)
+		if len(added) > 0 && mode.ShouldWrite() {
+			todayDate := time.Now().Format("2006-01-02")
+			if err := config.Write(dir, cfg, todayDate, "Refitted"); err != nil {
+				return fmt.Errorf("writing refitted config: %w", err)
+			}
+		}
+		// Re-validate after merge as a safety check.
+		if err := config.ValidateSources(cfg); err != nil {
+			return err
+		}
+		if err := config.ValidateDuplicateDestinations(cfg); err != nil {
+			return err
+		}
 	}
 
 	if client == nil {
@@ -84,4 +106,22 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	}
 
 	return nil
+}
+
+// shouldMerge reports whether the config merge step should run. It looks up
+// the config.yml swatch entry and returns true when the alteration mode is
+// always, or when it is first-fit and the caller requested a recut.
+func shouldMerge(cfg *config.Config, mode ApplyMode) bool {
+	for _, e := range cfg.Swatches {
+		if e.Source == configDestination {
+			if e.Alteration == swatch.Always {
+				return true
+			}
+			if e.Alteration == swatch.FirstFit && mode == Recut {
+				return true
+			}
+			return false
+		}
+	}
+	return false
 }

@@ -66,7 +66,7 @@ tailor/
 - `alter` execution order: repository settings, then licence, then swatches
 - SHA-256 comparison for `always` and `triggered` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`) skip hash comparison and always overwrite
 - `triggered` swatches deploy when their condition is met (overwrite like `always`), remove the file when the condition becomes false, and skip when the file is absent and condition is false
-- `--recut` overwrites everything except `LICENSE` and `.tailor/config.yml`
+- `--recut` overwrites everything except `LICENSE`; for `.tailor/config.yml`, recut overrides `first-fit` to `always` (append-only: missing default entries added, existing entries never modified)
 - Token substitution: `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, `{{HOMEPAGE_URL}}`
 - Licences fetched via GitHub REST API (`GET /licenses/{id}`), not embedded
 - `private_vulnerability_reporting_enabled` uses a separate API endpoint (`PUT`/`DELETE`)
