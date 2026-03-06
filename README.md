@@ -63,7 +63,7 @@ Edit `.tailor/config.yml` directly to add or remove swatches or change alteratio
 
 ## Swatches
 
-Swatches are complete template files embedded in the tailor binary. They are copied verbatim to your project, with four exceptions where tokens are substituted at `alter` time:
+Swatches are complete template files embedded in the tailor binary. They are copied verbatim to your project, with five exceptions where tokens are substituted at `alter` time:
 
 | File | Token | Resolved from |
 |------|-------|---------------|
@@ -71,6 +71,7 @@ Swatches are complete template files embedded in the tailor binary. They are cop
 | `SECURITY.md` | `{{ADVISORY_URL}}` | `gh repo view` |
 | `.github/ISSUE_TEMPLATE/config.yml` | `{{SUPPORT_URL}}` | `gh repo view` |
 | `.tailor/config.yml` | `{{HOMEPAGE_URL}}` | `.tailor/config.yml` |
+| `.github/workflows/tailor-automerge.yml` | `{{MERGE_STRATEGY}}` | Repository merge settings |
 
 Licences are not swatches. They are fetched via the GitHub REST API (`GET /licenses/{id}`) at `alter` time and written to `LICENSE`.
 
