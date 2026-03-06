@@ -53,7 +53,7 @@ var templateFuncs = template.FuncMap{
 // It uses text/template rather than yaml.Marshal to control key order,
 // blank lines between swatch entries, and omission of nil pointer fields.
 var configTemplate = template.Must(template.New("config").Funcs(templateFuncs).Parse(
-	`# Initially fitted by tailor on {{ .Date }}
+	`# {{ .Verb }} by tailor on {{ .Date }}
 license: {{ .License }}
 
 {{- if .Repository }}
@@ -124,8 +124,8 @@ swatches:
 {{- end }}
 `))
 
-// Write renders cfg to <dir>/.tailor/config.yml with the given header date.
-func Write(dir string, cfg *Config, date string) error {
+// Write renders cfg to <dir>/.tailor/config.yml with the given header date and verb.
+func Write(dir string, cfg *Config, date string, verb string) error {
 	tailorDir := filepath.Join(dir, ".tailor")
 	if err := os.MkdirAll(tailorDir, 0o755); err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
@@ -134,9 +134,11 @@ func Write(dir string, cfg *Config, date string) error {
 	var buf bytes.Buffer
 	if err := configTemplate.Execute(&buf, struct {
 		Date string
+		Verb string
 		*Config
 	}{
 		Date:   date,
+		Verb:   verb,
 		Config: cfg,
 	}); err != nil {
 		return fmt.Errorf("rendering config template: %w", err)

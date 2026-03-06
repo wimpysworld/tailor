@@ -96,7 +96,7 @@ swatches:
 
   - source: .tailor/config.yml
     destination: .tailor/config.yml
-    alteration: first-fit
+    alteration: always
 
   - source: .github/workflows/tailor-automerge.yml
     destination: .github/workflows/tailor-automerge.yml
@@ -110,7 +110,7 @@ func TestWriteDefaultConfigMatchesSpec(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-02"); err != nil {
+	if err := Write(dir, cfg, "2026-03-02", "Initially fitted"); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -143,7 +143,7 @@ func TestWriteCreatesTailorDirectory(t *testing.T) {
 		},
 	}
 
-	if err := Write(dir, cfg, "2026-01-01"); err != nil {
+	if err := Write(dir, cfg, "2026-01-01", "Initially fitted"); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -214,7 +214,7 @@ swatches:
 `
 
 	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-02"); err != nil {
+	if err := Write(dir, cfg, "2026-03-02", "Initially fitted"); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -279,7 +279,7 @@ swatches:
 `
 
 	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-02"); err != nil {
+	if err := Write(dir, cfg, "2026-03-02", "Initially fitted"); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -308,7 +308,7 @@ func TestWriteYAMLSpecialCharactersQuoted(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-04"); err != nil {
+	if err := Write(dir, cfg, "2026-03-04", "Initially fitted"); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 
@@ -340,7 +340,7 @@ func TestWriteNilRepositoryOmitted(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-04"); err != nil {
+	if err := Write(dir, cfg, "2026-03-04", "Initially fitted"); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
 

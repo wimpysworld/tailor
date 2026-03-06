@@ -34,7 +34,7 @@ type SwatchResult struct {
 	Annotation  string
 }
 
-// configDestination is exempt from recut overwrite.
+// configDestination is the destination path of the config.yml swatch entry.
 const configDestination = ".tailor/config.yml"
 
 // ProcessSwatches evaluates each swatch entry in cfg and returns results.
@@ -55,7 +55,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 			return nil, fmt.Errorf("swatch %q: destination %q escapes project root", entry.Source, entry.Destination)
 		}
 
-		result, err := processSwatch(cfg, entry, content, dest, mode, tokens)
+		result, err := processSwatch(cfg, entry, content, dest, mode)
 		if err != nil {
 			return nil, err
 		}
@@ -67,22 +67,14 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 
 // processSwatch determines the category for a single swatch and writes
 // the file when the mode permits. Token substitution occurs upstream in
-// ProcessSwatches before this function is called. The tokens parameter is
-// passed through only for processAlways, which uses it to skip the hash
-// comparison when a source has active substitutions.
-func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, mode ApplyMode, tokens *TokenContext) (SwatchResult, error) {
+// ProcessSwatches before this function is called.
+func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, mode ApplyMode) (SwatchResult, error) {
 	// Never mode skips unconditionally, regardless of apply mode or file existence.
 	if entry.Alteration == swatch.Never {
 		return SwatchResult{Destination: entry.Destination, Category: Ignored}, nil
 	}
 
 	exists := fileExists(dest)
-
-	// Recut exemption: .tailor/config.yml behaves as first-fit.
-	// Pass DryRun to suppress writes; config.yml is never overwritten.
-	if mode == Recut && entry.Destination == configDestination {
-		return processFirstFit(entry, content, dest, exists, DryRun)
-	}
 
 	if mode == Recut {
 		return processRecut(entry, content, dest, exists, mode)
@@ -92,9 +84,9 @@ func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte,
 	case swatch.FirstFit:
 		return processFirstFit(entry, content, dest, exists, mode)
 	case swatch.Always:
-		return processAlways(entry, content, dest, exists, mode, tokens)
+		return processAlways(entry, content, dest, exists, mode)
 	case swatch.Triggered:
-		return processTriggered(cfg, entry, content, dest, exists, mode, tokens)
+		return processTriggered(cfg, entry, content, dest, exists, mode)
 	default:
 		return SwatchResult{}, fmt.Errorf("unknown alteration mode %q for swatch %q", entry.Alteration, entry.Source)
 	}
@@ -112,7 +104,7 @@ func processFirstFit(entry config.SwatchEntry, content []byte, dest string, exis
 	return SwatchResult{Destination: entry.Destination, Category: WouldCopy}, nil
 }
 
-func processAlways(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode, tokens *TokenContext) (SwatchResult, error) {
+func processAlways(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
 	if !exists {
 		if mode.ShouldWrite() {
 			if err := writeFile(dest, content); err != nil {
@@ -120,16 +112,6 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 			}
 		}
 		return SwatchResult{Destination: entry.Destination, Category: WouldCopy}, nil
-	}
-
-	// Substituted sources always overwrite; MD5 comparison is skipped.
-	if tokens.HasSubstitution(entry.Source) {
-		if mode.ShouldWrite() {
-			if err := writeFile(dest, content); err != nil {
-				return SwatchResult{}, err
-			}
-		}
-		return SwatchResult{Destination: entry.Destination, Category: WouldOverwrite}, nil
 	}
 
 	onDisk, err := contentHashFile(dest)
@@ -149,11 +131,11 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 	return SwatchResult{Destination: entry.Destination, Category: WouldOverwrite}, nil
 }
 
-func processTriggered(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode, tokens *TokenContext) (SwatchResult, error) {
+func processTriggered(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
 	annotation := triggerAnnotation(entry.Source)
 
 	if swatch.EvaluateTrigger(entry.Source, cfg.Repository) {
-		result, err := processAlways(entry, content, dest, exists, mode, tokens)
+		result, err := processAlways(entry, content, dest, exists, mode)
 		if err != nil {
 			return result, err
 		}

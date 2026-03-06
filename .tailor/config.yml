@@ -82,4 +82,4 @@ swatches:
 
   - source: .tailor/config.yml
     destination: .tailor/config.yml
-    alteration: first-fit
+    alteration: always

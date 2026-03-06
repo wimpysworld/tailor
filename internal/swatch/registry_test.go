@@ -55,7 +55,7 @@ func TestSwatchAttributes(t *testing.T) {
 		{".github/pull_request_template.md", ".github/pull_request_template.md", swatch.Always, swatch.Health},
 		{".github/workflows/tailor.yml", ".github/workflows/tailor.yml", swatch.Always, swatch.Development},
 		{".github/workflows/tailor-automerge.yml", ".github/workflows/tailor-automerge.yml", swatch.Triggered, swatch.Development},
-		{".tailor/config.yml", ".tailor/config.yml", swatch.FirstFit, swatch.Development},
+		{".tailor/config.yml", ".tailor/config.yml", swatch.Always, swatch.Development},
 	}
 
 	for _, tt := range tests {

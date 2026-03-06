@@ -94,7 +94,7 @@ swatches:
 
   - source: .tailor/config.yml
     destination: .tailor/config.yml
-    alteration: first-fit
+    alteration: always
 
   - source: .github/workflows/tailor-automerge.yml
     destination: .github/workflows/tailor-automerge.yml

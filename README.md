@@ -94,7 +94,7 @@ Licences are not swatches. They are fetched via the GitHub REST API (`GET /licen
 | `flake.nix` | `first-fit` |
 | `.gitignore` | `first-fit` |
 | `.envrc` | `first-fit` |
-| `.tailor/config.yml` | `first-fit` |
+| `.tailor/config.yml` | `always` |
 | `.github/workflows/tailor-automerge.yml` | `triggered` |
 
 ### Alteration modes
@@ -260,7 +260,7 @@ tailor alter --recut      # Apply and overwrite regardless of mode
 
 Execution order: repository settings, then licence, then swatches.
 
-`--recut` overwrites all files including `first-fit` swatches. Two files are exempt: `LICENSE` (fetched content, not an embedded swatch) and `.tailor/config.yml` (overwriting it would destroy the project configuration).
+`--recut` overwrites all files including `first-fit` swatches. `LICENSE` is exempt (fetched content, not an embedded swatch). For `.tailor/config.yml`, `--recut` overrides `first-fit` to `always` semantics - missing default swatch entries are appended, but existing entries are never modified.
 
 ### `baste`
 

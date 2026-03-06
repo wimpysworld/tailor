@@ -142,11 +142,26 @@ func TestAlwaysWouldOverwriteWhenMD5Differs(t *testing.T) {
 	}
 }
 
-func TestAlwaysSubstitutedSourceAlwaysOverwrites(t *testing.T) {
+func TestAlwaysSubstitutedSourceNoChangeWhenHashMatches(t *testing.T) {
 	dir := t.TempDir()
-	// Write identical content; substituted sources skip MD5, so result is still WouldOverwrite.
+	// Write identical resolved content; hash comparison now applies to substituted sources too.
 	content := mustContent(t, "SECURITY.md")
 	writeOnDisk(t, dir, "SECURITY.md", content)
+
+	cfg := newConfig(entry("SECURITY.md", "SECURITY.md", swatch.Always))
+	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results[0].Category != alter.NoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.NoChange)
+	}
+}
+
+func TestAlwaysSubstitutedSourceOverwritesWhenDifferent(t *testing.T) {
+	dir := t.TempDir()
+	// On-disk content differs from resolved swatch content; expect overwrite.
+	writeOnDisk(t, dir, "SECURITY.md", []byte("stale on-disk content"))
 
 	cfg := newConfig(entry("SECURITY.md", "SECURITY.md", swatch.Always))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
@@ -181,25 +196,34 @@ func TestRecutOverwritesExisting(t *testing.T) {
 	}
 }
 
-func TestRecutConfigYmlExempt(t *testing.T) {
+func TestRecutConfigYmlProcessedAsAlways(t *testing.T) {
 	dir := t.TempDir()
-	writeOnDisk(t, dir, ".tailor/config.yml", []byte("existing config"))
 
-	cfg := newConfig(entry(".tailor/config.yml", ".tailor/config.yml", swatch.FirstFit))
+	// Write the embedded swatch content so hash comparison yields NoChange.
+	embedded := mustContent(t, ".tailor/config.yml")
+	writeOnDisk(t, dir, ".tailor/config.yml", embedded)
+
+	cfg := newConfig(entry(".tailor/config.yml", ".tailor/config.yml", swatch.Always))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if results[0].Category != alter.Skipped {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.Skipped)
+	if results[0].Category != alter.WouldOverwrite {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
 	}
-	// Verify file was NOT overwritten.
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor/config.yml"))
+}
+
+func TestRecutConfigYmlDifferentContentOverwrites(t *testing.T) {
+	dir := t.TempDir()
+	writeOnDisk(t, dir, ".tailor/config.yml", []byte("old content"))
+
+	cfg := newConfig(entry(".tailor/config.yml", ".tailor/config.yml", swatch.Always))
+	results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(data) != "existing config" {
-		t.Error("recut overwrote exempt .tailor/config.yml")
+	if results[0].Category != alter.WouldOverwrite {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
 	}
 }
 
@@ -343,8 +367,10 @@ func TestTriggeredMetFileExistsDifferentContent(t *testing.T) {
 
 func TestTriggeredMetFileExistsSameContent(t *testing.T) {
 	dir := t.TempDir()
-	content := mustContent(t, triggeredSource)
-	writeOnDisk(t, dir, triggeredSource, content)
+	// Write resolved content (substitutions applied) so the hash matches.
+	raw := mustContent(t, triggeredSource)
+	resolved := bytes.ReplaceAll(raw, []byte("{{MERGE_STRATEGY}}"), []byte("--squash"))
+	writeOnDisk(t, dir, triggeredSource, resolved)
 
 	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
 	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: boolPtr(true)}
@@ -353,9 +379,9 @@ func TestTriggeredMetFileExistsSameContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Substituted swatches always overwrite; hash comparison is skipped.
-	if results[0].Category != alter.WouldOverwrite {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
+	// Resolved content hashes equal; no overwrite needed.
+	if results[0].Category != alter.NoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.NoChange)
 	}
 }
 
