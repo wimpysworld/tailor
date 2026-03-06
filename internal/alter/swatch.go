@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -49,6 +50,10 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 
 		content = tokens.Substitute(content, entry.Source)
 		dest := filepath.Join(dir, entry.Destination)
+
+		if !isInsideDir(dir, dest) {
+			return nil, fmt.Errorf("swatch %q: destination %q escapes project root", entry.Source, entry.Destination)
+		}
 
 		result, err := processSwatch(cfg, entry, content, dest, mode, tokens)
 		if err != nil {
@@ -222,4 +227,12 @@ func contentHashFile(path string) (string, error) {
 		return "", err
 	}
 	return contentHash(data), nil
+}
+
+// isInsideDir reports whether path is inside dir after cleaning. Prevents path
+// traversal via ".." components in swatch destinations.
+func isInsideDir(dir, path string) bool {
+	absDir := filepath.Clean(dir) + string(filepath.Separator)
+	absPath := filepath.Clean(path)
+	return strings.HasPrefix(absPath, absDir)
 }

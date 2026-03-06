@@ -276,7 +276,7 @@ skip (never):                              .github/workflows/tailor-automerge.ym
 `skipped (first-fit, exists)` - `first-fit` swatch whose destination already exists; no comparison is performed.
 `skip (never)` - swatch with `alteration: never`; skipped unconditionally.
 
-Output order: actionable items first (`would set`, `would copy`, `would overwrite`, `would deploy`, `would remove`), then informational (`no change`, `skipped (first-fit, exists)`, `skip (never)`). Within each category, entries are sorted lexicographically by path or field name. The category label is padded to a fixed width for consistent column alignment.
+Output order: actionable items first (`would set`, `would copy`, `would overwrite`, `would deploy`, `would remove`), then informational (`no change`, `skipped (first-fit, exists)`, `skip (never)`). Within each category, entries are sorted lexicographically by path or field name. The category label width is computed dynamically from the longest label for consistent column alignment.
 
 ### `measure`
 
