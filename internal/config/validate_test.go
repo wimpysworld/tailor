@@ -129,6 +129,9 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 		"allow_rebase_merge",
 		"allow_squash_merge",
 		"allow_update_branch",
+		"automated_security_fixes_enabled",
+		"can_approve_pull_request_reviews",
+		"default_workflow_permissions",
 		"delete_branch_on_merge",
 		"description",
 		"has_discussions",
@@ -141,6 +144,8 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 		"private_vulnerability_reporting_enabled",
 		"squash_merge_commit_message",
 		"squash_merge_commit_title",
+		"topics",
+		"vulnerability_alerts_enabled",
 		"web_commit_signoff_required",
 	}
 	if len(names) != len(expected) {
@@ -150,6 +155,110 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 		if name != expected[i] {
 			t.Errorf("repoSettingNames()[%d] = %q, want %q", i, name, expected[i])
 		}
+	}
+}
+
+func TestValidateWorkflowPermissionsAcceptsRead(t *testing.T) {
+	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.String("read")}}
+	if err := ValidateWorkflowPermissions(cfg); err != nil {
+		t.Fatalf("ValidateWorkflowPermissions(read): %v", err)
+	}
+}
+
+func TestValidateWorkflowPermissionsAcceptsWrite(t *testing.T) {
+	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.String("write")}}
+	if err := ValidateWorkflowPermissions(cfg); err != nil {
+		t.Fatalf("ValidateWorkflowPermissions(write): %v", err)
+	}
+}
+
+func TestValidateWorkflowPermissionsAcceptsNil(t *testing.T) {
+	cfg := &Config{Repository: &RepositorySettings{}}
+	if err := ValidateWorkflowPermissions(cfg); err != nil {
+		t.Fatalf("ValidateWorkflowPermissions(nil): %v", err)
+	}
+}
+
+func TestValidateWorkflowPermissionsAcceptsNilRepository(t *testing.T) {
+	cfg := &Config{}
+	if err := ValidateWorkflowPermissions(cfg); err != nil {
+		t.Fatalf("ValidateWorkflowPermissions(nil repo): %v", err)
+	}
+}
+
+func TestValidateWorkflowPermissionsRejectsInvalid(t *testing.T) {
+	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.String("admin")}}
+	err := ValidateWorkflowPermissions(cfg)
+	if err == nil {
+		t.Fatal("ValidateWorkflowPermissions(admin) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), `"admin"`) {
+		t.Errorf("error = %q, want it to mention the invalid value", err)
+	}
+}
+
+func TestValidateTopicsAcceptsValid(t *testing.T) {
+	topics := []string{"go", "cli-tool", "3d-printing"}
+	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	if err := ValidateTopics(cfg); err != nil {
+		t.Fatalf("ValidateTopics(valid): %v", err)
+	}
+}
+
+func TestValidateTopicsAcceptsNil(t *testing.T) {
+	cfg := &Config{Repository: &RepositorySettings{}}
+	if err := ValidateTopics(cfg); err != nil {
+		t.Fatalf("ValidateTopics(nil): %v", err)
+	}
+}
+
+func TestValidateTopicsAcceptsEmpty(t *testing.T) {
+	topics := []string{}
+	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	if err := ValidateTopics(cfg); err != nil {
+		t.Fatalf("ValidateTopics(empty): %v", err)
+	}
+}
+
+func TestValidateTopicsRejectsUppercase(t *testing.T) {
+	topics := []string{"Go"}
+	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	err := ValidateTopics(cfg)
+	if err == nil {
+		t.Fatal("ValidateTopics(uppercase) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), `"Go"`) {
+		t.Errorf("error = %q, want it to mention the invalid topic", err)
+	}
+}
+
+func TestValidateTopicsRejectsStartingWithHyphen(t *testing.T) {
+	topics := []string{"-invalid"}
+	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	err := ValidateTopics(cfg)
+	if err == nil {
+		t.Fatal("ValidateTopics(hyphen start) expected error, got nil")
+	}
+}
+
+func TestValidateTopicsRejectsTooLong(t *testing.T) {
+	topics := []string{strings.Repeat("a", 51)}
+	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	err := ValidateTopics(cfg)
+	if err == nil {
+		t.Fatal("ValidateTopics(too long) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "exceeds 50 characters") {
+		t.Errorf("error = %q, want it to mention length", err)
+	}
+}
+
+func TestValidateTopicsRejectsSpecialChars(t *testing.T) {
+	topics := []string{"hello_world"}
+	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	err := ValidateTopics(cfg)
+	if err == nil {
+		t.Fatal("ValidateTopics(underscore) expected error, got nil")
 	}
 }
 
