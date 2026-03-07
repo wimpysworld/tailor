@@ -1,4 +1,4 @@
-# Refitted by tailor on 2026-03-06
+# Refitted by tailor on 2026-03-07
 license: MIT
 
 repository:
@@ -18,6 +18,72 @@ repository:
   allow_auto_merge: true
   web_commit_signoff_required: false
   private_vulnerability_reporting_enabled: true
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: true
+  default_workflow_permissions: read
+  can_approve_pull_request_reviews: false
+  topics:
+    - community-health-files
+    - github-community-health
+    - github-config
+    - github-actions
+    - github-api
+    - github-security
+    - github-label-management
+    - github-templates
+    - github-automation
+    - github-repository-management
+    - yaml-configuration
+    - github-settings
+
+labels:
+  - name: bug
+    color: d20f39
+    description: "Something isn't working"
+
+  - name: documentation
+    color: 04a5e5
+    description: Documentation improvement
+
+  - name: duplicate
+    color: 8839ef
+    description: Already exists
+
+  - name: enhancement
+    color: 1e66f5
+    description: New feature request
+
+  - name: good first issue
+    color: 40a02b
+    description: Good for newcomers
+
+  - name: help wanted
+    color: 179299
+    description: Extra attention needed
+
+  - name: invalid
+    color: e64553
+    description: Not valid or relevant
+
+  - name: question
+    color: 7287fd
+    description: Needs more information
+
+  - name: wontfix
+    color: dc8a78
+    description: Will not be worked on
+
+  - name: dependencies
+    color: fe640b
+    description: Dependency update
+
+  - name: github_actions
+    color: ea76cb
+    description: GitHub Actions update
+
+  - name: hacktoberfest-accepted
+    color: df8e1d
+    description: Hacktoberfest contribution
 
 swatches:
   - source: .github/workflows/tailor.yml
