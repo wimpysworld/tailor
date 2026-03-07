@@ -277,26 +277,44 @@ func TestReadRepoSettingsRepoAPIError(t *testing.T) {
 	}
 }
 
-func TestReadRepoSettingsPVRAPIError(t *testing.T) {
+func TestReadRepoSettingsPVR403GracefulDegradation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/repos/testowner/testrepo":
 			fmt.Fprint(w, fullRepoJSON)
-		default:
+		case "/repos/testowner/testrepo/private-vulnerability-reporting":
 			w.WriteHeader(http.StatusForbidden)
 			fmt.Fprint(w, `{"message": "Forbidden"}`)
+		case "/repos/testowner/testrepo/automated-security-fixes":
+			fmt.Fprint(w, asfEnabledJSON)
+		case "/repos/testowner/testrepo/vulnerability-alerts":
+			w.WriteHeader(http.StatusNoContent)
+		case "/repos/testowner/testrepo/actions/permissions/workflow":
+			fmt.Fprint(w, wfPermsReadJSON)
+		default:
+			http.NotFound(w, r)
 		}
 	}))
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	_, err := ReadRepoSettings(client, "testowner", "testrepo")
-	if err == nil {
-		t.Fatal("ReadRepoSettings() expected error for PVR failure, got nil")
+	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	if err != nil {
+		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
+
+	// PVR should be nil (inaccessible).
+	if settings.PrivateVulnerabilityReportEnabled != nil {
+		t.Errorf("PrivateVulnerabilityReportEnabled = %v, want nil", *settings.PrivateVulnerabilityReportEnabled)
+	}
+	// Other fields should be populated.
+	testutil.AssertBoolPtr(t, settings.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
+	testutil.AssertBoolPtr(t, settings.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	testutil.AssertStringPtr(t, settings.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
+	testutil.AssertStringPtr(t, settings.Description, false, "A tailor for your repos", "description")
 }
 
-func TestReadRepoSettingsVAAPIError(t *testing.T) {
+func TestReadRepoSettingsVA403GracefulDegradation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/repos/testowner/testrepo":
@@ -308,6 +326,8 @@ func TestReadRepoSettingsVAAPIError(t *testing.T) {
 		case "/repos/testowner/testrepo/vulnerability-alerts":
 			w.WriteHeader(http.StatusForbidden)
 			fmt.Fprint(w, `{"message": "Forbidden"}`)
+		case "/repos/testowner/testrepo/actions/permissions/workflow":
+			fmt.Fprint(w, wfPermsReadJSON)
 		default:
 			http.NotFound(w, r)
 		}
@@ -315,13 +335,22 @@ func TestReadRepoSettingsVAAPIError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	_, err := ReadRepoSettings(client, "testowner", "testrepo")
-	if err == nil {
-		t.Fatal("ReadRepoSettings() expected error for VA failure, got nil")
+	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	if err != nil {
+		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
+
+	// VA should be nil (inaccessible).
+	if settings.VulnerabilityAlertsEnabled != nil {
+		t.Errorf("VulnerabilityAlertsEnabled = %v, want nil", *settings.VulnerabilityAlertsEnabled)
+	}
+	// Other fields should be populated.
+	testutil.AssertBoolPtr(t, settings.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
+	testutil.AssertBoolPtr(t, settings.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
+	testutil.AssertStringPtr(t, settings.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
 }
 
-func TestReadRepoSettingsASFAPIError(t *testing.T) {
+func TestReadRepoSettingsASF403GracefulDegradation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/repos/testowner/testrepo":
@@ -331,6 +360,10 @@ func TestReadRepoSettingsASFAPIError(t *testing.T) {
 		case "/repos/testowner/testrepo/automated-security-fixes":
 			w.WriteHeader(http.StatusForbidden)
 			fmt.Fprint(w, `{"message": "Forbidden"}`)
+		case "/repos/testowner/testrepo/vulnerability-alerts":
+			w.WriteHeader(http.StatusNoContent)
+		case "/repos/testowner/testrepo/actions/permissions/workflow":
+			fmt.Fprint(w, wfPermsReadJSON)
 		default:
 			http.NotFound(w, r)
 		}
@@ -338,13 +371,22 @@ func TestReadRepoSettingsASFAPIError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	_, err := ReadRepoSettings(client, "testowner", "testrepo")
-	if err == nil {
-		t.Fatal("ReadRepoSettings() expected error for ASF failure, got nil")
+	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	if err != nil {
+		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
+
+	// ASF should be nil (inaccessible).
+	if settings.AutomatedSecurityFixesEnabled != nil {
+		t.Errorf("AutomatedSecurityFixesEnabled = %v, want nil", *settings.AutomatedSecurityFixesEnabled)
+	}
+	// Other fields should be populated.
+	testutil.AssertBoolPtr(t, settings.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
+	testutil.AssertBoolPtr(t, settings.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	testutil.AssertStringPtr(t, settings.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
 }
 
-func TestReadRepoSettingsWFPermsAPIError(t *testing.T) {
+func TestReadRepoSettingsWFPerms403GracefulDegradation(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/repos/testowner/testrepo":
@@ -365,9 +407,81 @@ func TestReadRepoSettingsWFPermsAPIError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
+	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	if err != nil {
+		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
+	}
+
+	// Workflow permissions should be nil (inaccessible).
+	if settings.DefaultWorkflowPermissions != nil {
+		t.Errorf("DefaultWorkflowPermissions = %v, want nil", *settings.DefaultWorkflowPermissions)
+	}
+	if settings.CanApprovePullRequestReviews != nil {
+		t.Errorf("CanApprovePullRequestReviews = %v, want nil", *settings.CanApprovePullRequestReviews)
+	}
+	// Other fields should be populated.
+	testutil.AssertBoolPtr(t, settings.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
+	testutil.AssertBoolPtr(t, settings.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
+	testutil.AssertBoolPtr(t, settings.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+}
+
+func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/testowner/testrepo":
+			fmt.Fprint(w, fullRepoJSON)
+		default:
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message": "Forbidden"}`)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	if err != nil {
+		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
+	}
+
+	// All sub-call fields should be nil.
+	if settings.PrivateVulnerabilityReportEnabled != nil {
+		t.Errorf("PrivateVulnerabilityReportEnabled = %v, want nil", *settings.PrivateVulnerabilityReportEnabled)
+	}
+	if settings.AutomatedSecurityFixesEnabled != nil {
+		t.Errorf("AutomatedSecurityFixesEnabled = %v, want nil", *settings.AutomatedSecurityFixesEnabled)
+	}
+	if settings.VulnerabilityAlertsEnabled != nil {
+		t.Errorf("VulnerabilityAlertsEnabled = %v, want nil", *settings.VulnerabilityAlertsEnabled)
+	}
+	if settings.DefaultWorkflowPermissions != nil {
+		t.Errorf("DefaultWorkflowPermissions = %v, want nil", *settings.DefaultWorkflowPermissions)
+	}
+	if settings.CanApprovePullRequestReviews != nil {
+		t.Errorf("CanApprovePullRequestReviews = %v, want nil", *settings.CanApprovePullRequestReviews)
+	}
+	// Core repo fields should still be populated.
+	testutil.AssertStringPtr(t, settings.Description, false, "A tailor for your repos", "description")
+	testutil.AssertBoolPtr(t, settings.HasWiki, false, false, "has_wiki")
+}
+
+func TestReadRepoSettingsNon403StillFails(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/testowner/testrepo":
+			fmt.Fprint(w, fullRepoJSON)
+		case "/repos/testowner/testrepo/private-vulnerability-reporting":
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, `{"message": "Internal Server Error"}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
 	_, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err == nil {
-		t.Fatal("ReadRepoSettings() expected error for workflow permissions failure, got nil")
+		t.Fatal("ReadRepoSettings() expected error for 500, got nil")
 	}
 }
 

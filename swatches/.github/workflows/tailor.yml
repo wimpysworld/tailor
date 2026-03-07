@@ -4,6 +4,12 @@ on:
     - cron: "0 9 * * 1" # Weekly
   workflow_dispatch:
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
 jobs:
   alter:
     runs-on: ubuntu-slim

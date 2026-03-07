@@ -57,50 +57,70 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 		return nil, fmt.Errorf("fetching repo settings: %w", err)
 	}
 
+	s := &config.RepositorySettings{
+		Description:              ptr.String(repo.Description),
+		Homepage:                 ptr.String(repo.Homepage),
+		HasWiki:                  ptr.Bool(repo.HasWiki),
+		HasDiscussions:           ptr.Bool(repo.HasDiscussions),
+		HasProjects:              ptr.Bool(repo.HasProjects),
+		HasIssues:                ptr.Bool(repo.HasIssues),
+		AllowMergeCommit:         ptr.Bool(repo.AllowMergeCommit),
+		AllowSquashMerge:         ptr.Bool(repo.AllowSquashMerge),
+		AllowRebaseMerge:         ptr.Bool(repo.AllowRebaseMerge),
+		SquashMergeCommitTitle:   ptr.String(repo.SquashMergeCommitTitle),
+		SquashMergeCommitMessage: ptr.String(repo.SquashMergeCommitMessage),
+		MergeCommitTitle:         ptr.String(repo.MergeCommitTitle),
+		MergeCommitMessage:       ptr.String(repo.MergeCommitMessage),
+		DeleteBranchOnMerge:      ptr.Bool(repo.DeleteBranchOnMerge),
+		AllowUpdateBranch:        ptr.Bool(repo.AllowUpdateBranch),
+		AllowAutoMerge:           ptr.Bool(repo.AllowAutoMerge),
+		Topics:                   &repo.Topics,
+		WebCommitSignoffRequired: ptr.Bool(repo.WebCommitSignoffRequired),
+	}
+
+	// Each sub-call below uses classifyHTTPError to detect 403 responses.
+	// On scope/role errors the corresponding field stays nil (unknown),
+	// allowing the caller to receive a partial result instead of aborting.
+
 	var pvr vulnerabilityReportingResponse
 	if err := client.Get(fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name), &pvr); err != nil {
-		return nil, fmt.Errorf("fetching private vulnerability reporting: %w", err)
+		classified := classifyHTTPError(err, "fetch private vulnerability reporting")
+		if !isAccessError(classified) {
+			return nil, fmt.Errorf("fetching private vulnerability reporting: %w", err)
+		}
+	} else {
+		s.PrivateVulnerabilityReportEnabled = ptr.Bool(pvr.Enabled)
 	}
 
 	var asf vulnerabilityReportingResponse
 	if err := client.Get(fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name), &asf); err != nil {
-		return nil, fmt.Errorf("fetching automated security fixes: %w", err)
+		classified := classifyHTTPError(err, "fetch automated security fixes")
+		if !isAccessError(classified) {
+			return nil, fmt.Errorf("fetching automated security fixes: %w", err)
+		}
+	} else {
+		s.AutomatedSecurityFixesEnabled = ptr.Bool(asf.Enabled)
 	}
 
-	vulnerabilityAlerts, err := readVulnerabilityAlerts(client, owner, name)
-	if err != nil {
-		return nil, err
+	vulnerabilityAlerts, vaErr := readVulnerabilityAlerts(client, owner, name)
+	if vaErr != nil {
+		classified := classifyHTTPError(vaErr, "fetch vulnerability alerts")
+		if !isAccessError(classified) {
+			return nil, vaErr
+		}
+	} else {
+		s.VulnerabilityAlertsEnabled = ptr.Bool(vulnerabilityAlerts)
 	}
 
 	var wfPerms workflowPermissionsResponse
 	if err := client.Get(fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name), &wfPerms); err != nil {
-		return nil, fmt.Errorf("fetching workflow permissions: %w", err)
-	}
-
-	s := &config.RepositorySettings{
-		Description:                       ptr.String(repo.Description),
-		Homepage:                          ptr.String(repo.Homepage),
-		HasWiki:                           ptr.Bool(repo.HasWiki),
-		HasDiscussions:                    ptr.Bool(repo.HasDiscussions),
-		HasProjects:                       ptr.Bool(repo.HasProjects),
-		HasIssues:                         ptr.Bool(repo.HasIssues),
-		AllowMergeCommit:                  ptr.Bool(repo.AllowMergeCommit),
-		AllowSquashMerge:                  ptr.Bool(repo.AllowSquashMerge),
-		AllowRebaseMerge:                  ptr.Bool(repo.AllowRebaseMerge),
-		SquashMergeCommitTitle:            ptr.String(repo.SquashMergeCommitTitle),
-		SquashMergeCommitMessage:          ptr.String(repo.SquashMergeCommitMessage),
-		MergeCommitTitle:                  ptr.String(repo.MergeCommitTitle),
-		MergeCommitMessage:                ptr.String(repo.MergeCommitMessage),
-		DeleteBranchOnMerge:               ptr.Bool(repo.DeleteBranchOnMerge),
-		AllowUpdateBranch:                 ptr.Bool(repo.AllowUpdateBranch),
-		AllowAutoMerge:                    ptr.Bool(repo.AllowAutoMerge),
-		Topics:                            &repo.Topics,
-		WebCommitSignoffRequired:          ptr.Bool(repo.WebCommitSignoffRequired),
-		PrivateVulnerabilityReportEnabled: ptr.Bool(pvr.Enabled),
-		AutomatedSecurityFixesEnabled:     ptr.Bool(asf.Enabled),
-		VulnerabilityAlertsEnabled:        ptr.Bool(vulnerabilityAlerts),
-		DefaultWorkflowPermissions:        ptr.String(wfPerms.DefaultWorkflowPermissions),
-		CanApprovePullRequestReviews:      ptr.Bool(wfPerms.CanApprovePullRequestReviews),
+		classified := classifyHTTPError(err, "fetch workflow permissions")
+		if !isAccessError(classified) {
+			return nil, fmt.Errorf("fetching workflow permissions: %w", err)
+		}
+	} else {
+		s.DefaultWorkflowPermissions = ptr.String(wfPerms.DefaultWorkflowPermissions)
+		s.CanApprovePullRequestReviews = ptr.Bool(wfPerms.CanApprovePullRequestReviews)
 	}
 
 	return s, nil
