@@ -79,10 +79,11 @@ type alterServerConfig struct {
 	pvrEnabled   bool
 	licenceID    string
 	licenceBody  string
-	noRepo       bool // stub RepoContext to return false
-	userError    int  // non-zero: return this HTTP status for GET /user
-	licenceError int  // non-zero: return this HTTP status for GET /licenses/*
-	patchError   int  // non-zero: return this HTTP status for PATCH /repos/*
+	labels       []config.LabelEntry // labels returned by GET /repos/{owner}/{repo}/labels
+	noRepo       bool                // stub RepoContext to return false
+	userError    int                 // non-zero: return this HTTP status for GET /user
+	licenceError int                 // non-zero: return this HTTP status for GET /licenses/*
+	patchError   int                 // non-zero: return this HTTP status for PATCH /repos/*
 }
 
 // WithUsername sets the mock username for GET /user.
@@ -114,6 +115,11 @@ func WithLicence(id, body string) testOption {
 		c.licenceID = id
 		c.licenceBody = body
 	}
+}
+
+// WithLabels sets the labels returned by GET /repos/{owner}/{repo}/labels.
+func WithLabels(labels []config.LabelEntry) testOption {
+	return func(c *alterServerConfig) { c.labels = labels }
 }
 
 // WithNoRepo stubs the repo context to return false (no GitHub remote).
@@ -237,6 +243,31 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 
 		case r.Method == http.MethodPut && path == repoPath+"/actions/permissions/workflow":
 			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodPut && path == repoPath+"/vulnerability-alerts":
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodDelete && path == repoPath+"/vulnerability-alerts":
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodPut && path == repoPath+"/automated-security-fixes":
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodDelete && path == repoPath+"/automated-security-fixes":
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodGet && path == repoPath+"/labels":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(sc.labels)
+
+		case r.Method == http.MethodPost && path == repoPath+"/labels":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, body)
+
+		case (r.Method == http.MethodPatch || r.Method == http.MethodDelete) && strings.HasPrefix(path, repoPath+"/labels/"):
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, `{}`)
 
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -1842,6 +1873,97 @@ func allNonConfigSwatchesYAML() string {
 	return sb.String()
 }
 
+// allDefaultRepoSettingsYAML returns YAML for all default repo settings fields
+// (excluding description, homepage, topics which are skipped during merge).
+func allDefaultRepoSettingsYAML(t *testing.T) string {
+	t.Helper()
+	defaults, err := config.DefaultConfig("none")
+	if err != nil {
+		t.Fatalf("loading default config: %v", err)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("repository:\n")
+	r := defaults.Repository
+	if r.HasWiki != nil {
+		fmt.Fprintf(&sb, "  has_wiki: %t\n", *r.HasWiki)
+	}
+	if r.HasDiscussions != nil {
+		fmt.Fprintf(&sb, "  has_discussions: %t\n", *r.HasDiscussions)
+	}
+	if r.HasProjects != nil {
+		fmt.Fprintf(&sb, "  has_projects: %t\n", *r.HasProjects)
+	}
+	if r.HasIssues != nil {
+		fmt.Fprintf(&sb, "  has_issues: %t\n", *r.HasIssues)
+	}
+	if r.AllowMergeCommit != nil {
+		fmt.Fprintf(&sb, "  allow_merge_commit: %t\n", *r.AllowMergeCommit)
+	}
+	if r.AllowSquashMerge != nil {
+		fmt.Fprintf(&sb, "  allow_squash_merge: %t\n", *r.AllowSquashMerge)
+	}
+	if r.AllowRebaseMerge != nil {
+		fmt.Fprintf(&sb, "  allow_rebase_merge: %t\n", *r.AllowRebaseMerge)
+	}
+	if r.SquashMergeCommitTitle != nil {
+		fmt.Fprintf(&sb, "  squash_merge_commit_title: %s\n", *r.SquashMergeCommitTitle)
+	}
+	if r.SquashMergeCommitMessage != nil {
+		fmt.Fprintf(&sb, "  squash_merge_commit_message: %s\n", *r.SquashMergeCommitMessage)
+	}
+	if r.MergeCommitTitle != nil {
+		fmt.Fprintf(&sb, "  merge_commit_title: %s\n", *r.MergeCommitTitle)
+	}
+	if r.MergeCommitMessage != nil {
+		fmt.Fprintf(&sb, "  merge_commit_message: %s\n", *r.MergeCommitMessage)
+	}
+	if r.DeleteBranchOnMerge != nil {
+		fmt.Fprintf(&sb, "  delete_branch_on_merge: %t\n", *r.DeleteBranchOnMerge)
+	}
+	if r.AllowUpdateBranch != nil {
+		fmt.Fprintf(&sb, "  allow_update_branch: %t\n", *r.AllowUpdateBranch)
+	}
+	if r.AllowAutoMerge != nil {
+		fmt.Fprintf(&sb, "  allow_auto_merge: %t\n", *r.AllowAutoMerge)
+	}
+	if r.WebCommitSignoffRequired != nil {
+		fmt.Fprintf(&sb, "  web_commit_signoff_required: %t\n", *r.WebCommitSignoffRequired)
+	}
+	if r.PrivateVulnerabilityReportEnabled != nil {
+		fmt.Fprintf(&sb, "  private_vulnerability_reporting_enabled: %t\n", *r.PrivateVulnerabilityReportEnabled)
+	}
+	if r.VulnerabilityAlertsEnabled != nil {
+		fmt.Fprintf(&sb, "  vulnerability_alerts_enabled: %t\n", *r.VulnerabilityAlertsEnabled)
+	}
+	if r.AutomatedSecurityFixesEnabled != nil {
+		fmt.Fprintf(&sb, "  automated_security_fixes_enabled: %t\n", *r.AutomatedSecurityFixesEnabled)
+	}
+	if r.DefaultWorkflowPermissions != nil {
+		fmt.Fprintf(&sb, "  default_workflow_permissions: %s\n", *r.DefaultWorkflowPermissions)
+	}
+	if r.CanApprovePullRequestReviews != nil {
+		fmt.Fprintf(&sb, "  can_approve_pull_request_reviews: %t\n", *r.CanApprovePullRequestReviews)
+	}
+	return sb.String()
+}
+
+// allDefaultLabelsYAML returns YAML for all default labels.
+func allDefaultLabelsYAML(t *testing.T) string {
+	t.Helper()
+	defaults, err := config.DefaultConfig("none")
+	if err != nil {
+		t.Fatalf("loading default config: %v", err)
+	}
+
+	var sb strings.Builder
+	sb.WriteString("labels:\n")
+	for _, l := range defaults.Labels {
+		fmt.Fprintf(&sb, "  - name: %s\n    color: %q\n    description: %q\n", l.Name, l.Color, l.Description)
+	}
+	return sb.String()
+}
+
 // TestConfigMergeMissingSwatchesApply verifies that Apply mode with a config
 // missing two swatches merges them into cfg.Swatches so they are processed.
 // The config file on disk is first rewritten with a "Refitted" header by the
@@ -1883,12 +2005,15 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 	}
 }
 
-// TestConfigMergeAllPresentApply verifies that Apply mode with all swatches
-// already present does not trigger a merge rewrite. The merge step finds no
-// missing entries, so config.Write is not called. Swatch processing then
-// handles config.yml via processAlways (hash comparison).
+// TestConfigMergeAllPresentApply verifies that Apply mode with all swatches,
+// repo settings, and labels already present does not trigger a merge rewrite.
+// The merge step finds no missing entries, so config.Write is not called.
+// Swatch processing then handles config.yml via processAlways (hash comparison).
 func TestConfigMergeAllPresentApply(t *testing.T) {
-	configYAML := "license: none\nswatches:\n" +
+	configYAML := "license: none\n" +
+		allDefaultRepoSettingsYAML(t) +
+		allDefaultLabelsYAML(t) +
+		"swatches:\n" +
 		"  - source: .tailor/config.yml\n    destination: .tailor/config.yml\n    alteration: always\n" +
 		allNonConfigSwatchesYAML()
 
@@ -2009,5 +2134,230 @@ func TestConfigMergeDryRunNoRewrite(t *testing.T) {
 
 	if !bytes.Equal(originalData, afterData) {
 		t.Error("config.yml was rewritten during dry-run despite ShouldWrite() being false")
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Phase 2 - Merge integration tests (repo settings + labels)
+// ---------------------------------------------------------------------------
+
+// TestAlterRunMergeRepoSettingsAndLabels verifies that a config missing repo
+// settings fields and the labels section receives defaults during the merge
+// step, and the config file is rewritten with the merged content.
+func TestAlterRunMergeRepoSettingsAndLabels(t *testing.T) {
+	// Config has config.yml swatch set to always (triggers shouldMerge),
+	// a partial repository section (only has_wiki), and no labels.
+	configYAML := `license: none
+repository:
+  has_wiki: false
+swatches:
+  - source: .tailor/config.yml
+    destination: .tailor/config.yml
+    alteration: always
+  - source: .gitignore
+    destination: .gitignore
+    alteration: first-fit
+`
+	tc := setupAlterTest(t, configYAML)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+
+	// Read the rewritten config file.
+	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	if err != nil {
+		t.Fatalf("reading config after merge: %v", err)
+	}
+	content := string(data)
+
+	// Verify repo settings fields were merged from defaults.
+	for _, field := range []string{
+		"has_issues:",
+		"allow_squash_merge:",
+		"delete_branch_on_merge:",
+		"allow_auto_merge:",
+		"default_workflow_permissions:",
+	} {
+		if !strings.Contains(content, field) {
+			t.Errorf("merged config missing default repo setting %q", field)
+		}
+	}
+
+	// Verify has_wiki was preserved (not overwritten by default).
+	if !strings.Contains(content, "has_wiki: false") {
+		t.Errorf("has_wiki was overwritten; expected 'has_wiki: false' to be preserved")
+	}
+
+	// Verify labels were merged from defaults.
+	if !strings.Contains(content, "labels:") {
+		t.Error("merged config missing labels section")
+	}
+	for _, label := range []string{"bug", "enhancement", "documentation"} {
+		if !strings.Contains(content, label) {
+			t.Errorf("merged config missing default label %q", label)
+		}
+	}
+}
+
+// TestAlterRunMergeCompleteConfigNotRewritten verifies that a config already
+// containing all default repo settings and labels is not rewritten.
+func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
+	// Build a complete config by loading the embedded default.
+	defaults, err := config.DefaultConfig("none")
+	if err != nil {
+		t.Fatalf("loading default config: %v", err)
+	}
+
+	// Generate YAML for a complete config that includes all repo settings
+	// and labels. Use the embedded defaults as the source of truth.
+	var sb strings.Builder
+	sb.WriteString("license: none\n\nrepository:\n")
+
+	// Write all default repo settings (except description, homepage, topics
+	// which are nil/skipped).
+	if defaults.Repository != nil {
+		if defaults.Repository.HasWiki != nil {
+			fmt.Fprintf(&sb, "  has_wiki: %t\n", *defaults.Repository.HasWiki)
+		}
+		if defaults.Repository.HasDiscussions != nil {
+			fmt.Fprintf(&sb, "  has_discussions: %t\n", *defaults.Repository.HasDiscussions)
+		}
+		if defaults.Repository.HasProjects != nil {
+			fmt.Fprintf(&sb, "  has_projects: %t\n", *defaults.Repository.HasProjects)
+		}
+		if defaults.Repository.HasIssues != nil {
+			fmt.Fprintf(&sb, "  has_issues: %t\n", *defaults.Repository.HasIssues)
+		}
+		if defaults.Repository.AllowMergeCommit != nil {
+			fmt.Fprintf(&sb, "  allow_merge_commit: %t\n", *defaults.Repository.AllowMergeCommit)
+		}
+		if defaults.Repository.AllowSquashMerge != nil {
+			fmt.Fprintf(&sb, "  allow_squash_merge: %t\n", *defaults.Repository.AllowSquashMerge)
+		}
+		if defaults.Repository.AllowRebaseMerge != nil {
+			fmt.Fprintf(&sb, "  allow_rebase_merge: %t\n", *defaults.Repository.AllowRebaseMerge)
+		}
+		if defaults.Repository.SquashMergeCommitTitle != nil {
+			fmt.Fprintf(&sb, "  squash_merge_commit_title: %s\n", *defaults.Repository.SquashMergeCommitTitle)
+		}
+		if defaults.Repository.SquashMergeCommitMessage != nil {
+			fmt.Fprintf(&sb, "  squash_merge_commit_message: %s\n", *defaults.Repository.SquashMergeCommitMessage)
+		}
+		if defaults.Repository.DeleteBranchOnMerge != nil {
+			fmt.Fprintf(&sb, "  delete_branch_on_merge: %t\n", *defaults.Repository.DeleteBranchOnMerge)
+		}
+		if defaults.Repository.AllowUpdateBranch != nil {
+			fmt.Fprintf(&sb, "  allow_update_branch: %t\n", *defaults.Repository.AllowUpdateBranch)
+		}
+		if defaults.Repository.AllowAutoMerge != nil {
+			fmt.Fprintf(&sb, "  allow_auto_merge: %t\n", *defaults.Repository.AllowAutoMerge)
+		}
+		if defaults.Repository.WebCommitSignoffRequired != nil {
+			fmt.Fprintf(&sb, "  web_commit_signoff_required: %t\n", *defaults.Repository.WebCommitSignoffRequired)
+		}
+		if defaults.Repository.PrivateVulnerabilityReportEnabled != nil {
+			fmt.Fprintf(&sb, "  private_vulnerability_reporting_enabled: %t\n", *defaults.Repository.PrivateVulnerabilityReportEnabled)
+		}
+		if defaults.Repository.VulnerabilityAlertsEnabled != nil {
+			fmt.Fprintf(&sb, "  vulnerability_alerts_enabled: %t\n", *defaults.Repository.VulnerabilityAlertsEnabled)
+		}
+		if defaults.Repository.AutomatedSecurityFixesEnabled != nil {
+			fmt.Fprintf(&sb, "  automated_security_fixes_enabled: %t\n", *defaults.Repository.AutomatedSecurityFixesEnabled)
+		}
+		if defaults.Repository.DefaultWorkflowPermissions != nil {
+			fmt.Fprintf(&sb, "  default_workflow_permissions: %s\n", *defaults.Repository.DefaultWorkflowPermissions)
+		}
+		if defaults.Repository.CanApprovePullRequestReviews != nil {
+			fmt.Fprintf(&sb, "  can_approve_pull_request_reviews: %t\n", *defaults.Repository.CanApprovePullRequestReviews)
+		}
+	}
+
+	sb.WriteString("\nlabels:\n")
+	for _, l := range defaults.Labels {
+		fmt.Fprintf(&sb, "  - name: %s\n    color: %q\n    description: %q\n", l.Name, l.Color, l.Description)
+	}
+
+	sb.WriteString("\nswatches:\n")
+	sb.WriteString("  - source: .tailor/config.yml\n")
+	sb.WriteString("    destination: .tailor/config.yml\n")
+	sb.WriteString("    alteration: always\n")
+	for _, s := range defaults.Swatches {
+		if s.Source == config.ConfigSwatchSource {
+			continue
+		}
+		fmt.Fprintf(&sb, "  - source: %s\n    destination: %s\n    alteration: %s\n", s.Source, s.Destination, s.Alteration)
+	}
+
+	configYAML := sb.String()
+	tc := setupAlterTest(t, configYAML)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	// Record original config content.
+	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	if err != nil {
+		t.Fatalf("reading original config: %v", err)
+	}
+
+	cfg := loadTestConfig(t, tc.Dir)
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+
+	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	if err != nil {
+		t.Fatalf("reading config after alter: %v", err)
+	}
+
+	if !bytes.Equal(originalData, afterData) {
+		t.Error("complete config was rewritten despite having all defaults already present")
+	}
+}
+
+// TestAlterRunMergeRepoSettingsOnly verifies that config rewrite triggers
+// when only repo settings are merged (no new swatches, labels already present).
+func TestAlterRunMergeRepoSettingsOnly(t *testing.T) {
+	configYAML := `license: none
+labels:
+  - name: custom-label
+    color: "000000"
+    description: "A custom label"
+swatches:
+  - source: .tailor/config.yml
+    destination: .tailor/config.yml
+    alteration: always
+  - source: .gitignore
+    destination: .gitignore
+    alteration: first-fit
+`
+	tc := setupAlterTest(t, configYAML)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	if err != nil {
+		t.Fatalf("reading original config: %v", err)
+	}
+
+	cfg := loadTestConfig(t, tc.Dir)
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+
+	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	if err != nil {
+		t.Fatalf("reading config after merge: %v", err)
+	}
+
+	// Config should be rewritten because repo settings were merged.
+	if bytes.Equal(originalData, afterData) {
+		t.Error("config was not rewritten despite missing repo settings fields")
+	}
+
+	content := string(afterData)
+
+	// Verify merged repo settings are present.
+	if !strings.Contains(content, "has_issues:") {
+		t.Error("merged config missing default repo setting has_issues")
+	}
+
+	// Verify labels were NOT replaced (already had entries).
+	if !strings.Contains(content, "custom-label") {
+		t.Error("existing custom label was lost during merge")
 	}
 }
