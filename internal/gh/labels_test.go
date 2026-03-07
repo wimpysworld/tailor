@@ -135,7 +135,7 @@ func TestApplyLabelsCreatesMissing(t *testing.T) {
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, nil)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, nil)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestApplyLabelsPatchesChanged(t *testing.T) {
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
@@ -213,7 +213,7 @@ func TestApplyLabelsSkipsMatched(t *testing.T) {
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
@@ -242,7 +242,7 @@ func TestApplyLabelsCaseInsensitiveMatch(t *testing.T) {
 		{Name: "Bug", Color: "d73a4a", Description: "Old desc"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestApplyLabelsCaseInsensitiveSkip(t *testing.T) {
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
@@ -298,7 +298,7 @@ func TestApplyLabelsColorCaseInsensitive(t *testing.T) {
 		{Name: "bug", Color: "d73a4a", Description: "desc"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
@@ -322,7 +322,7 @@ func TestApplyLabelsNoDeleteExtraLabels(t *testing.T) {
 		{Name: "enhancement", Color: "a2eeef", Description: "New feature or request"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
@@ -357,7 +357,7 @@ func TestApplyLabelsMixedOperations(t *testing.T) {
 		{Name: "wontfix", Color: "ffffff", Description: "Will not fix"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
@@ -386,7 +386,7 @@ func TestApplyLabelsCreateError(t *testing.T) {
 		{Name: "bug", Color: "d73a4a", Description: "desc"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, nil)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, nil)
 	if err == nil {
 		t.Fatal("ApplyLabels() expected error from POST, got nil")
 	}
@@ -407,7 +407,7 @@ func TestApplyLabelsPatchError(t *testing.T) {
 		{Name: "bug", Color: "d73a4a", Description: "old"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err == nil {
 		t.Fatal("ApplyLabels() expected error from PATCH, got nil")
 	}
@@ -453,7 +453,7 @@ func TestApplyLabelsPatchesCasingChange(t *testing.T) {
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
@@ -487,7 +487,7 @@ func TestUpdateLabelSendsNewName(t *testing.T) {
 		{Name: "enhancement", Color: "a2eeef", Description: "Old desc"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
@@ -514,11 +514,176 @@ func TestApplyLabelsDescriptionOnlyChange(t *testing.T) {
 		{Name: "bug", Color: "d73a4a", Description: "Old description"},
 	}
 
-	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
 	if gotMethod != http.MethodPatch {
 		t.Errorf("method = %s, want PATCH for description-only change", gotMethod)
+	}
+}
+
+func TestApplyLabelsCreate403SkipsAndContinues(t *testing.T) {
+	// When a POST (create) returns 403, the label is skipped and the next
+	// label is still processed.
+	var calls []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		// First POST (alpha) returns 403, second POST (beta) succeeds.
+		if r.URL.Path == "/repos/testowner/testrepo/labels" && len(calls) == 1 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		fmt.Fprint(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	desired := []config.LabelEntry{
+		{Name: "alpha", Color: "aa0000", Description: "first"},
+		{Name: "beta", Color: "bb0000", Description: "second"},
+	}
+
+	result, err := ApplyLabels(client, "testowner", "testrepo", desired, nil)
+	if err != nil {
+		t.Fatalf("ApplyLabels() returned hard error: %v", err)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 API calls, got %d: %v", len(calls), calls)
+	}
+	if len(result.Skipped) != 1 {
+		t.Fatalf("expected 1 skipped, got %d", len(result.Skipped))
+	}
+	if result.Skipped[0].Operation != `create label "alpha"` {
+		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, `create label "alpha"`)
+	}
+	if !isAccessError(result.Skipped[0].Err) {
+		t.Errorf("skipped error is not an access error: %v", result.Skipped[0].Err)
+	}
+	if len(result.Applied) != 1 || result.Applied[0] != `create label "beta"` {
+		t.Errorf("applied = %v, want [create label \"beta\"]", result.Applied)
+	}
+}
+
+func TestApplyLabelsUpdate403SkipsAndContinues(t *testing.T) {
+	// When a PATCH (update) returns 403, the label is skipped and the next
+	// label is still processed.
+	var calls []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		// First PATCH (alpha) returns 403, second PATCH (beta) succeeds.
+		if r.Method == http.MethodPatch && r.URL.Path == "/repos/testowner/testrepo/labels/alpha" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	desired := []config.LabelEntry{
+		{Name: "alpha", Color: "ff0000", Description: "changed"},
+		{Name: "beta", Color: "00ff00", Description: "changed"},
+	}
+	current := []config.LabelEntry{
+		{Name: "alpha", Color: "aa0000", Description: "old"},
+		{Name: "beta", Color: "bb0000", Description: "old"},
+	}
+
+	result, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	if err != nil {
+		t.Fatalf("ApplyLabels() returned hard error: %v", err)
+	}
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 API calls, got %d: %v", len(calls), calls)
+	}
+	if len(result.Skipped) != 1 {
+		t.Fatalf("expected 1 skipped, got %d", len(result.Skipped))
+	}
+	if result.Skipped[0].Operation != `update label "alpha"` {
+		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, `update label "alpha"`)
+	}
+	if !isAccessError(result.Skipped[0].Err) {
+		t.Errorf("skipped error is not an access error: %v", result.Skipped[0].Err)
+	}
+	if len(result.Applied) != 1 || result.Applied[0] != `update label "beta"` {
+		t.Errorf("applied = %v, want [update label \"beta\"]", result.Applied)
+	}
+}
+
+func TestApplyLabelsNon403ErrorStillAborts(t *testing.T) {
+	// A non-access error (e.g. 500) on create should still abort.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, `{"message": "Internal Server Error"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	desired := []config.LabelEntry{
+		{Name: "alpha", Color: "aa0000", Description: "first"},
+		{Name: "beta", Color: "bb0000", Description: "second"},
+	}
+
+	_, err := ApplyLabels(client, "testowner", "testrepo", desired, nil)
+	if err == nil {
+		t.Fatal("ApplyLabels() expected hard error from 500, got nil")
+	}
+}
+
+func TestApplyLabelsMixed403AndSuccess(t *testing.T) {
+	// Three labels: create (403), update (success), no-change (no call).
+	// Verifies skipped and applied are both populated correctly.
+	var calls []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		if r.Method == http.MethodPost {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	desired := []config.LabelEntry{
+		{Name: "new-label", Color: "00ff00", Description: "brand new"},
+		{Name: "existing", Color: "ff0000", Description: "changed"},
+		{Name: "unchanged", Color: "aabbcc", Description: "same"},
+	}
+	current := []config.LabelEntry{
+		{Name: "existing", Color: "aabbcc", Description: "old"},
+		{Name: "unchanged", Color: "aabbcc", Description: "same"},
+	}
+
+	result, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	if err != nil {
+		t.Fatalf("ApplyLabels() returned hard error: %v", err)
+	}
+	// POST for new-label (403), PATCH for existing (success), no call for unchanged.
+	if len(calls) != 2 {
+		t.Fatalf("expected 2 API calls, got %d: %v", len(calls), calls)
+	}
+	if len(result.Skipped) != 1 {
+		t.Fatalf("expected 1 skipped, got %d", len(result.Skipped))
+	}
+	if result.Skipped[0].Operation != `create label "new-label"` {
+		t.Errorf("skipped = %q, want %q", result.Skipped[0].Operation, `create label "new-label"`)
+	}
+	if len(result.Applied) != 1 || result.Applied[0] != `update label "existing"` {
+		t.Errorf("applied = %v, want [update label \"existing\"]", result.Applied)
 	}
 }

@@ -143,34 +143,68 @@ func readVulnerabilityAlerts(client *api.RESTClient, owner, name string) (bool, 
 	return false, fmt.Errorf("fetching vulnerability alerts: %w", err)
 }
 
+// SkippedOperation records a sub-operation that was skipped due to
+// insufficient token scope or repository role.
+type SkippedOperation struct {
+	Operation string // e.g. "enabling private vulnerability reporting"
+	Err       error  // *ErrInsufficientScope or *ErrInsufficientRole
+}
+
+// ApplyResult collects the outcome of ApplyRepoSettings. Applied lists
+// operations that succeeded, Skipped lists those that failed with access
+// errors and were gracefully skipped.
+type ApplyResult struct {
+	Applied []string
+	Skipped []SkippedOperation
+}
+
 // ApplyRepoSettings sends a PATCH /repos/{owner}/{repo} with the declared
 // settings. It also handles fields that require separate API endpoints:
 // private vulnerability reporting, vulnerability alerts, automated security
-// fixes, topics, and Actions workflow permissions. Returns an error if any
-// API call fails.
-func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *config.RepositorySettings) error {
+// fixes, topics, and Actions workflow permissions. Access errors (insufficient
+// scope or role) are collected in the returned ApplyResult rather than aborting.
+// Hard errors still return as the error value.
+func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *config.RepositorySettings) (*ApplyResult, error) {
 	p := buildSettingsPayload(settings)
+	result := &ApplyResult{}
 
 	if len(p.Body) > 0 {
 		payload, err := json.Marshal(p.Body)
 		if err != nil {
-			return fmt.Errorf("marshalling repo settings: %w", err)
+			return nil, fmt.Errorf("marshalling repo settings: %w", err)
 		}
 		if err := client.Patch(fmt.Sprintf("repos/%s/%s", owner, name), bytes.NewReader(payload), nil); err != nil {
-			return fmt.Errorf("patching repo settings: %w", err)
+			classified := classifyHTTPError(err, "patch repo settings")
+			if isAccessError(classified) {
+				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "patch repo settings", Err: classified})
+			} else {
+				return nil, fmt.Errorf("patching repo settings: %w", err)
+			}
+		} else {
+			result.Applied = append(result.Applied, "patch repo settings")
 		}
 	}
 
 	if p.PrivateVulnerabilityReporting != nil {
 		pvrPath := fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name)
+		var opName string
+		var pvrErr error
 		if *p.PrivateVulnerabilityReporting {
-			if err := client.Put(pvrPath, bytes.NewReader([]byte("{}")), nil); err != nil {
-				return fmt.Errorf("enabling private vulnerability reporting: %w", err)
+			opName = "enable private vulnerability reporting"
+			pvrErr = client.Put(pvrPath, bytes.NewReader([]byte("{}")), nil)
+		} else {
+			opName = "disable private vulnerability reporting"
+			pvrErr = client.Delete(pvrPath, nil)
+		}
+		if pvrErr != nil {
+			classified := classifyHTTPError(pvrErr, opName)
+			if isAccessError(classified) {
+				result.Skipped = append(result.Skipped, SkippedOperation{Operation: opName, Err: classified})
+			} else {
+				return nil, fmt.Errorf("%s: %w", opName, pvrErr)
 			}
 		} else {
-			if err := client.Delete(pvrPath, nil); err != nil {
-				return fmt.Errorf("disabling private vulnerability reporting: %w", err)
-			}
+			result.Applied = append(result.Applied, opName)
 		}
 	}
 
@@ -189,31 +223,66 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *con
 	// Disable security fixes before disabling alerts.
 	if disableASF {
 		if err := client.Delete(asfPath, nil); err != nil {
-			return fmt.Errorf("disabling automated security fixes: %w", err)
+			classified := classifyHTTPError(err, "disable automated security fixes")
+			if isAccessError(classified) {
+				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "disable automated security fixes", Err: classified})
+			} else {
+				return nil, fmt.Errorf("disabling automated security fixes: %w", err)
+			}
+		} else {
+			result.Applied = append(result.Applied, "disable automated security fixes")
 		}
 	}
 
 	// Enable or disable vulnerability alerts.
 	if enableVA {
 		if err := client.Put(vaPath, bytes.NewReader([]byte("{}")), nil); err != nil {
-			return fmt.Errorf("enabling vulnerability alerts: %w", err)
+			classified := classifyHTTPError(err, "enable vulnerability alerts")
+			if isAccessError(classified) {
+				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "enable vulnerability alerts", Err: classified})
+			} else {
+				return nil, fmt.Errorf("enabling vulnerability alerts: %w", err)
+			}
+		} else {
+			result.Applied = append(result.Applied, "enable vulnerability alerts")
 		}
 	} else if disableVA {
 		if err := client.Delete(vaPath, nil); err != nil {
-			return fmt.Errorf("disabling vulnerability alerts: %w", err)
+			classified := classifyHTTPError(err, "disable vulnerability alerts")
+			if isAccessError(classified) {
+				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "disable vulnerability alerts", Err: classified})
+			} else {
+				return nil, fmt.Errorf("disabling vulnerability alerts: %w", err)
+			}
+		} else {
+			result.Applied = append(result.Applied, "disable vulnerability alerts")
 		}
 	}
 
 	// Enable security fixes after enabling alerts.
 	if enableASF {
 		if err := client.Put(asfPath, bytes.NewReader([]byte("{}")), nil); err != nil {
-			return fmt.Errorf("enabling automated security fixes: %w", err)
+			classified := classifyHTTPError(err, "enable automated security fixes")
+			if isAccessError(classified) {
+				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "enable automated security fixes", Err: classified})
+			} else {
+				return nil, fmt.Errorf("enabling automated security fixes: %w", err)
+			}
+		} else {
+			result.Applied = append(result.Applied, "enable automated security fixes")
 		}
 	}
 
 	if p.DefaultWorkflowPermissions != nil || p.CanApprovePullRequestReviews != nil {
 		if err := applyWorkflowPermissions(client, owner, name, p); err != nil {
-			return err
+			classified := classifyHTTPError(err, "set workflow permissions")
+			if isAccessError(classified) {
+				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "set workflow permissions", Err: classified})
+			} else {
+				return nil, err
+			}
+		} else {
+			result.Applied = append(result.Applied, "set workflow permissions")
 		}
 	}
 
@@ -223,14 +292,21 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *con
 		}{Names: *p.Topics}
 		payload, err := json.Marshal(topicsBody)
 		if err != nil {
-			return fmt.Errorf("marshalling topics: %w", err)
+			return nil, fmt.Errorf("marshalling topics: %w", err)
 		}
 		if err := client.Put(fmt.Sprintf("repos/%s/%s/topics", owner, name), bytes.NewReader(payload), nil); err != nil {
-			return fmt.Errorf("setting topics: %w", err)
+			classified := classifyHTTPError(err, "set topics")
+			if isAccessError(classified) {
+				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "set topics", Err: classified})
+			} else {
+				return nil, fmt.Errorf("setting topics: %w", err)
+			}
+		} else {
+			result.Applied = append(result.Applied, "set topics")
 		}
 	}
 
-	return nil
+	return result, nil
 }
 
 // applyWorkflowPermissions sends a PUT to the Actions workflow permissions

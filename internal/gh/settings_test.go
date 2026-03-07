@@ -2,6 +2,7 @@ package gh
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -506,7 +507,7 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 		AllowAutoMerge: ptr.Bool(false),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -676,7 +677,7 @@ func TestApplyRepoSettingsPVRPut(t *testing.T) {
 		PrivateVulnerabilityReportEnabled: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -705,7 +706,7 @@ func TestApplyRepoSettingsPVRDelete(t *testing.T) {
 		PrivateVulnerabilityReportEnabled: ptr.Bool(false),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -732,7 +733,7 @@ func TestApplyRepoSettingsNoPatchWhenOnlyPVR(t *testing.T) {
 		PrivateVulnerabilityReportEnabled: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -747,6 +748,24 @@ func TestApplyRepoSettingsNoPatchWhenOnlyPVR(t *testing.T) {
 
 func TestApplyRepoSettingsPatchError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, `{"message": "Internal Server Error"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		HasWiki: ptr.Bool(true),
+	}
+
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err == nil {
+		t.Fatal("ApplyRepoSettings() expected error from PATCH, got nil")
+	}
+}
+
+func TestApplyRepoSettingsPatch403Skipped(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
 		fmt.Fprint(w, `{"message": "Forbidden"}`)
 	}))
@@ -757,9 +776,15 @@ func TestApplyRepoSettingsPatchError(t *testing.T) {
 		HasWiki: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
-	if err == nil {
-		t.Fatal("ApplyRepoSettings() expected error from PATCH, got nil")
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("ApplyRepoSettings() unexpected hard error: %v", err)
+	}
+	if len(result.Skipped) != 1 {
+		t.Fatalf("expected 1 skipped operation, got %d", len(result.Skipped))
+	}
+	if result.Skipped[0].Operation != "patch repo settings" {
+		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, "patch repo settings")
 	}
 }
 
@@ -783,7 +808,7 @@ func TestApplyRepoSettingsWorkflowPermsBothFields(t *testing.T) {
 		CanApprovePullRequestReviews: ptr.Bool(false),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -830,7 +855,7 @@ func TestApplyRepoSettingsWorkflowPermsPartialFetchesCurrent(t *testing.T) {
 		DefaultWorkflowPermissions: ptr.String("read"),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -860,7 +885,7 @@ func TestApplyRepoSettingsWorkflowPermsSkippedWhenBothNil(t *testing.T) {
 		HasWiki: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -890,9 +915,15 @@ func TestApplyRepoSettingsWorkflowPermsGetError(t *testing.T) {
 		CanApprovePullRequestReviews: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
-	if err == nil {
-		t.Fatal("ApplyRepoSettings() expected error from GET workflow permissions, got nil")
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("ApplyRepoSettings() unexpected hard error: %v", err)
+	}
+	if len(result.Skipped) != 1 {
+		t.Fatalf("expected 1 skipped operation, got %d", len(result.Skipped))
+	}
+	if result.Skipped[0].Operation != "set workflow permissions" {
+		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, "set workflow permissions")
 	}
 }
 
@@ -909,7 +940,7 @@ func TestApplyRepoSettingsWorkflowPermsPutError(t *testing.T) {
 		CanApprovePullRequestReviews: ptr.Bool(false),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err == nil {
 		t.Fatal("ApplyRepoSettings() expected error from PUT workflow permissions, got nil")
 	}
@@ -927,7 +958,7 @@ func TestApplyRepoSettingsPVRError(t *testing.T) {
 		PrivateVulnerabilityReportEnabled: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err == nil {
 		t.Fatal("ApplyRepoSettings() expected error from PUT, got nil")
 	}
@@ -949,7 +980,7 @@ func TestApplyRepoSettingsVAPut(t *testing.T) {
 		VulnerabilityAlertsEnabled: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -978,7 +1009,7 @@ func TestApplyRepoSettingsVADelete(t *testing.T) {
 		VulnerabilityAlertsEnabled: ptr.Bool(false),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1007,7 +1038,7 @@ func TestApplyRepoSettingsASFPut(t *testing.T) {
 		AutomatedSecurityFixesEnabled: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1036,7 +1067,7 @@ func TestApplyRepoSettingsASFDelete(t *testing.T) {
 		AutomatedSecurityFixesEnabled: ptr.Bool(false),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1068,7 +1099,7 @@ func TestApplyRepoSettingsEnableBothVABeforeASF(t *testing.T) {
 		AutomatedSecurityFixesEnabled: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1105,7 +1136,7 @@ func TestApplyRepoSettingsDisableBothASFBeforeVA(t *testing.T) {
 		AutomatedSecurityFixesEnabled: ptr.Bool(false),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1135,7 +1166,7 @@ func TestApplyRepoSettingsVAError(t *testing.T) {
 		VulnerabilityAlertsEnabled: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err == nil {
 		t.Fatal("ApplyRepoSettings() expected error from VA PUT, got nil")
 	}
@@ -1153,7 +1184,7 @@ func TestApplyRepoSettingsASFError(t *testing.T) {
 		AutomatedSecurityFixesEnabled: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err == nil {
 		t.Fatal("ApplyRepoSettings() expected error from ASF PUT, got nil")
 	}
@@ -1179,7 +1210,7 @@ func TestApplyRepoSettingsTopicsPut(t *testing.T) {
 		Topics: &topics,
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1223,7 +1254,7 @@ func TestApplyRepoSettingsTopicsPutEmpty(t *testing.T) {
 		Topics: &topics,
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1258,7 +1289,7 @@ func TestApplyRepoSettingsTopicsSkippedWhenNil(t *testing.T) {
 		HasWiki: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1285,7 +1316,7 @@ func TestApplyRepoSettingsTopicsError(t *testing.T) {
 		Topics: &topics,
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err == nil {
 		t.Fatal("ApplyRepoSettings() expected error from topics PUT, got nil")
 	}
@@ -1306,7 +1337,7 @@ func TestApplyRepoSettingsNoPatchWhenOnlyVAAndASF(t *testing.T) {
 		AutomatedSecurityFixesEnabled: ptr.Bool(true),
 	}
 
-	err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1318,5 +1349,187 @@ func TestApplyRepoSettingsNoPatchWhenOnlyVAAndASF(t *testing.T) {
 		if m == http.MethodPatch {
 			t.Error("should not send PATCH when only VA and ASF are set")
 		}
+	}
+}
+
+// --- Task 2.2: partial application tests ---
+
+func TestApplyRepoSettingsPartialPatchSucceedsPVR403(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/testowner/testrepo/private-vulnerability-reporting" {
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message": "Must have admin rights"}`)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		HasWiki:                           ptr.Bool(true),
+		PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+	}
+
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("unexpected hard error: %v", err)
+	}
+	if len(result.Applied) != 1 || result.Applied[0] != "patch repo settings" {
+		t.Errorf("Applied = %v, want [patch repo settings]", result.Applied)
+	}
+	if len(result.Skipped) != 1 {
+		t.Fatalf("expected 1 skipped, got %d", len(result.Skipped))
+	}
+	if result.Skipped[0].Operation != "enable private vulnerability reporting" {
+		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, "enable private vulnerability reporting")
+	}
+
+	var roleErr *ErrInsufficientRole
+	if !errors.As(result.Skipped[0].Err, &roleErr) {
+		t.Errorf("skipped error type = %T, want *ErrInsufficientRole", result.Skipped[0].Err)
+	}
+}
+
+func TestApplyRepoSettingsPartialVA403ASFSkipped(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/testowner/testrepo/vulnerability-alerts" {
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message": "Must have admin rights"}`)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		VulnerabilityAlertsEnabled:    ptr.Bool(true),
+		AutomatedSecurityFixesEnabled: ptr.Bool(true),
+	}
+
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("unexpected hard error: %v", err)
+	}
+
+	// VA skipped, ASF should still be attempted (and succeed).
+	if len(result.Skipped) != 1 {
+		t.Fatalf("expected 1 skipped, got %d: %v", len(result.Skipped), result.Skipped)
+	}
+	if result.Skipped[0].Operation != "enable vulnerability alerts" {
+		t.Errorf("skipped = %q, want %q", result.Skipped[0].Operation, "enable vulnerability alerts")
+	}
+	if len(result.Applied) != 1 || result.Applied[0] != "enable automated security fixes" {
+		t.Errorf("Applied = %v, want [enable automated security fixes]", result.Applied)
+	}
+}
+
+func TestApplyRepoSettingsPartialTopics403(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/testowner/testrepo/topics" {
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	topics := []string{"go"}
+	settings := &config.RepositorySettings{
+		HasWiki: ptr.Bool(true),
+		Topics:  &topics,
+	}
+
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("unexpected hard error: %v", err)
+	}
+	if len(result.Applied) != 1 || result.Applied[0] != "patch repo settings" {
+		t.Errorf("Applied = %v, want [patch repo settings]", result.Applied)
+	}
+	if len(result.Skipped) != 1 || result.Skipped[0].Operation != "set topics" {
+		t.Errorf("Skipped = %v, want [{set topics ...}]", result.Skipped)
+	}
+}
+
+func TestApplyRepoSettingsAllSkipped(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		HasWiki:                           ptr.Bool(true),
+		PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+		VulnerabilityAlertsEnabled:        ptr.Bool(true),
+	}
+
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("unexpected hard error: %v", err)
+	}
+	if len(result.Applied) != 0 {
+		t.Errorf("Applied = %v, want empty", result.Applied)
+	}
+	if len(result.Skipped) != 3 {
+		t.Errorf("expected 3 skipped, got %d: %v", len(result.Skipped), result.Skipped)
+	}
+}
+
+func TestApplyRepoSettingsApplyResultPopulatedOnSuccess(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings := &config.RepositorySettings{
+		HasWiki:                           ptr.Bool(true),
+		PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+		VulnerabilityAlertsEnabled:        ptr.Bool(true),
+	}
+
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Skipped) != 0 {
+		t.Errorf("Skipped = %v, want empty", result.Skipped)
+	}
+	if len(result.Applied) != 3 {
+		t.Errorf("expected 3 applied, got %d: %v", len(result.Applied), result.Applied)
+	}
+}
+
+func TestApplyRepoSettingsHardErrorStopsExecution(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/testowner/testrepo/private-vulnerability-reporting" {
+			w.WriteHeader(http.StatusInternalServerError)
+			fmt.Fprint(w, `{"message": "Internal Server Error"}`)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	topics := []string{"go"}
+	settings := &config.RepositorySettings{
+		HasWiki:                           ptr.Bool(true),
+		PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+		Topics:                            &topics,
+	}
+
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	if err == nil {
+		t.Fatal("expected hard error from PVR 500")
+	}
+	if result != nil {
+		t.Errorf("expected nil result on hard error, got %v", result)
 	}
 }

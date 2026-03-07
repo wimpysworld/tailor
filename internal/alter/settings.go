@@ -48,7 +48,7 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 	results := compareSettings(cfg.Repository, live)
 
 	if mode.ShouldWrite() && hasChanges(results) {
-		if err := gh.ApplyRepoSettings(client, owner, name, cfg.Repository); err != nil {
+		if _, err := gh.ApplyRepoSettings(client, owner, name, cfg.Repository); err != nil {
 			return nil, err
 		}
 	}

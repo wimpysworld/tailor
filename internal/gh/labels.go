@@ -75,7 +75,13 @@ func hasNextPage(link string) bool {
 // from desired are left untouched (no delete/prune).
 //
 // Name matching is case-insensitive per GitHub's label behaviour.
-func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []config.LabelEntry) error {
+//
+// Access errors (insufficient scope or role) on individual labels are collected
+// in the returned ApplyResult rather than aborting, so a 403 on one label does
+// not prevent others from being applied.
+func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []config.LabelEntry) (*ApplyResult, error) {
+	result := &ApplyResult{}
+
 	currentMap := make(map[string]config.LabelEntry, len(current))
 	for _, l := range current {
 		currentMap[strings.ToLower(l.Name)] = l
@@ -87,19 +93,33 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 
 		if !found {
 			if err := createLabel(client, owner, repo, d); err != nil {
-				return err
+				opName := fmt.Sprintf("create label %q", d.Name)
+				classified := classifyHTTPError(err, opName)
+				if isAccessError(classified) {
+					result.Skipped = append(result.Skipped, SkippedOperation{Operation: opName, Err: classified})
+					continue
+				}
+				return nil, err
 			}
+			result.Applied = append(result.Applied, fmt.Sprintf("create label %q", d.Name))
 			continue
 		}
 
 		if config.LabelNeedsUpdate(existing, d) {
 			if err := updateLabel(client, owner, repo, existing.Name, d); err != nil {
-				return err
+				opName := fmt.Sprintf("update label %q", d.Name)
+				classified := classifyHTTPError(err, opName)
+				if isAccessError(classified) {
+					result.Skipped = append(result.Skipped, SkippedOperation{Operation: opName, Err: classified})
+					continue
+				}
+				return nil, err
 			}
+			result.Applied = append(result.Applied, fmt.Sprintf("update label %q", d.Name))
 		}
 	}
 
-	return nil
+	return result, nil
 }
 
 // createLabel sends a POST to create a new label.

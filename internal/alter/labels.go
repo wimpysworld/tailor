@@ -47,7 +47,7 @@ func ProcessLabels(cfg *config.Config, mode ApplyMode, client *api.RESTClient, o
 	results := compareLabels(cfg.Labels, current)
 
 	if mode.ShouldWrite() && hasLabelChanges(results) {
-		if err := gh.ApplyLabels(client, owner, name, cfg.Labels, current); err != nil {
+		if _, err := gh.ApplyLabels(client, owner, name, cfg.Labels, current); err != nil {
 			return nil, err
 		}
 	}

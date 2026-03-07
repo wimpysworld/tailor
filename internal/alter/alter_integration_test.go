@@ -1558,10 +1558,39 @@ swatches:
 	}
 }
 
-// TestAlterRunErrorPatchFailure verifies that a 403 from PATCH on repo
+// TestAlterRunErrorPatchFailure verifies that a 500 from PATCH on repo
 // settings propagates as an error. No swatch files should be written because
 // repo settings are processed before swatches.
 func TestAlterRunErrorPatchFailure(t *testing.T) {
+	configYAML := `license: none
+repository:
+  has_wiki: false
+swatches:
+  - path: .gitignore
+    alteration: first-fit
+`
+	tc := setupAlterTest(t, configYAML,
+		WithRepoSettings(repoJSON{HasWiki: true}),
+		WithPatchError(http.StatusInternalServerError),
+	)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
+
+	if err == nil {
+		t.Fatal("expected error from PATCH failure")
+	}
+
+	// No swatch files should have been written (repo settings fail first).
+	if _, statErr := os.Stat(filepath.Join(tc.Dir, ".gitignore")); statErr == nil {
+		t.Error(".gitignore was written despite PATCH failure")
+	}
+}
+
+// TestAlterRunPatch403GracefulDegradation verifies that a 403 from PATCH on
+// repo settings is gracefully degraded (skipped), and swatches still proceed.
+func TestAlterRunPatch403GracefulDegradation(t *testing.T) {
 	configYAML := `license: none
 repository:
   has_wiki: false
@@ -1576,15 +1605,11 @@ swatches:
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
-	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	if err == nil {
-		t.Fatal("expected error from PATCH failure")
-	}
-
-	// No swatch files should have been written (repo settings fail first).
-	if _, statErr := os.Stat(filepath.Join(tc.Dir, ".gitignore")); statErr == nil {
-		t.Error(".gitignore was written despite PATCH failure")
+	// Swatch files should be written despite the PATCH 403.
+	if _, statErr := os.Stat(filepath.Join(tc.Dir, ".gitignore")); statErr != nil {
+		t.Error(".gitignore was not written despite graceful PATCH degradation")
 	}
 }
 
