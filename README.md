@@ -1,6 +1,6 @@
 # Tailor
 
-Ready-to-wear project templates for GitHub repositories. Tailor fits projects with community health files, dev tooling, and repository settings, then keeps them current with automated alterations.
+Ready-to-wear project templates for GitHub repositories. Tailor fits projects with community health files, security policy, dev tooling, and repository settings that meet GitHub's community and security best practice, then keeps them current with automated alterations. It also ships a Dependabot automerge workflow so patch and minor updates land without manual intervention.
 
 If you manage multiple projects across different GitHub organisations and find that configurations keep drifting out of sync, Tailor fixes that. It is opinionated by design - built for solo devs and small teams who want consistent, well-maintained repositories without the overhead.
 
@@ -100,6 +100,10 @@ All state lives in `.tailor/config.yml` with four sections: `license`, `reposito
 license: MIT
 
 repository:
+  topics:
+    - automation
+    - developer-tools
+    - golang
   has_wiki: false
   has_discussions: false
   allow_squash_merge: true
