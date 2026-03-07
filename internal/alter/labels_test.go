@@ -209,8 +209,8 @@ func TestProcessLabelsCaseInsensitiveMatch(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("got %d results, want 1", len(results))
 	}
-	if results[0].Category != alter.LabelNoChange {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.LabelNoChange)
+	if results[0].Category != alter.WouldUpdate {
+		t.Errorf("category = %q, want %q (casing differs)", results[0].Category, alter.WouldUpdate)
 	}
 }
 
@@ -428,6 +428,61 @@ func TestProcessLabelsColorCaseInsensitive(t *testing.T) {
 	}
 	if results[0].Category != alter.LabelNoChange {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.LabelNoChange)
+	}
+}
+
+func TestProcessLabelsCasingOnlyApplyCallsAPI(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	var writeCalled atomic.Int32
+	current := []config.LabelEntry{
+		{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
+	}
+	server := labelsServer(current, &writeCalled)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Labels: []config.LabelEntry{
+			{Name: "Bug", Color: "d73a4a", Description: "Something isn't working"},
+		},
+	}
+
+	_, err := alter.ProcessLabels(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if writeCalled.Load() == 0 {
+		t.Error("expected PATCH call for casing-only change, but none received")
+	}
+}
+
+func TestProcessLabelsExactNameNoChange(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	var writeCalled atomic.Int32
+	current := []config.LabelEntry{
+		{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
+	}
+	server := labelsServer(current, &writeCalled)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Labels: []config.LabelEntry{
+			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
+		},
+	}
+
+	results, err := alter.ProcessLabels(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if writeCalled.Load() != 0 {
+		t.Error("should not call API when name matches exactly, but write was called")
+	}
+	if len(results) != 1 || results[0].Category != alter.LabelNoChange {
+		t.Errorf("expected LabelNoChange, got %v", results)
 	}
 }
 

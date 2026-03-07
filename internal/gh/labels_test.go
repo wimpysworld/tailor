@@ -256,6 +256,8 @@ func TestApplyLabelsCaseInsensitiveMatch(t *testing.T) {
 }
 
 func TestApplyLabelsCaseInsensitiveSkip(t *testing.T) {
+	// When names match case-insensitively AND case-sensitively, and colour and
+	// description also match, no API call should be made.
 	requestCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
@@ -265,7 +267,7 @@ func TestApplyLabelsCaseInsensitiveSkip(t *testing.T) {
 
 	client := newTestClient(t, server)
 	desired := []config.LabelEntry{
-		{Name: "Bug", Color: "d73a4a", Description: "Something is not working"},
+		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 	current := []config.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
@@ -276,7 +278,7 @@ func TestApplyLabelsCaseInsensitiveSkip(t *testing.T) {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
 	if requestCount != 0 {
-		t.Errorf("expected 0 API calls for case-insensitive match, got %d", requestCount)
+		t.Errorf("expected 0 API calls for exact match, got %d", requestCount)
 	}
 }
 
@@ -425,6 +427,72 @@ func TestHasNextPage(t *testing.T) {
 		if got := hasNextPage(tt.link); got != tt.want {
 			t.Errorf("hasNextPage(%q) = %v, want %v", tt.link, got, tt.want)
 		}
+	}
+}
+
+func TestApplyLabelsPatchesCasingChange(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	var gotBody map[string]string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{"name":"Bug","color":"d73a4a","description":"Something is not working"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	desired := []config.LabelEntry{
+		{Name: "Bug", Color: "d73a4a", Description: "Something is not working"},
+	}
+	current := []config.LabelEntry{
+		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
+	}
+
+	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	if err != nil {
+		t.Fatalf("ApplyLabels() error: %v", err)
+	}
+	if gotMethod != http.MethodPatch {
+		t.Errorf("method = %s, want PATCH for casing-only change", gotMethod)
+	}
+	if gotPath != "/repos/testowner/testrepo/labels/bug" {
+		t.Errorf("path = %s, want /repos/testowner/testrepo/labels/bug", gotPath)
+	}
+	if gotBody["new_name"] != "Bug" {
+		t.Errorf("body new_name = %q, want %q", gotBody["new_name"], "Bug")
+	}
+}
+
+func TestUpdateLabelSendsNewName(t *testing.T) {
+	var gotBody map[string]string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &gotBody)
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, `{}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	desired := []config.LabelEntry{
+		{Name: "Enhancement", Color: "a2eeef", Description: "New feature"},
+	}
+	current := []config.LabelEntry{
+		{Name: "enhancement", Color: "a2eeef", Description: "Old desc"},
+	}
+
+	err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	if err != nil {
+		t.Fatalf("ApplyLabels() error: %v", err)
+	}
+	if gotBody["new_name"] != "Enhancement" {
+		t.Errorf("body new_name = %q, want %q", gotBody["new_name"], "Enhancement")
 	}
 }
 
