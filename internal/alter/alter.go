@@ -38,7 +38,9 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	// the caller requested a recut.
 	if shouldMerge(cfg, mode) {
 		added := config.MergeDefaultSwatches(cfg)
-		if len(added) > 0 && mode.ShouldWrite() {
+		repoMerged := config.MergeDefaultRepoSettings(cfg)
+		labelsMerged := config.MergeDefaultLabels(cfg)
+		if (len(added) > 0 || repoMerged || labelsMerged) && mode.ShouldWrite() {
 			todayDate := time.Now().Format("2006-01-02")
 			if err := config.Write(dir, cfg, todayDate, "Refitted"); err != nil {
 				return fmt.Errorf("writing refitted config: %w", err)
@@ -46,6 +48,9 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		}
 		// Re-validate after merge as a safety check.
 		if err := validateConfig(cfg); err != nil {
+			return err
+		}
+		if err := config.ValidateRepoSettings(cfg); err != nil {
 			return err
 		}
 	}
