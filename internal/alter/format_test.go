@@ -10,14 +10,14 @@ func TestFormatOutputSwatchesOnly(t *testing.T) {
 		{Path: ".github/FUNDING.yml", Category: WouldOverwrite},
 		{Path: "CONTRIBUTING.md", Category: WouldCopy},
 		{Path: "LICENSE", Category: NoChange},
-		{Path: ".tailor/config.yml", Category: SkippedFirstFit},
+		{Path: ".tailor.yml", Category: SkippedFirstFit},
 	}
 
 	got := FormatOutput(nil, nil, swatches)
 	want := "would copy:                  CONTRIBUTING.md\n" +
 		"would overwrite:             .github/FUNDING.yml\n" +
 		"no change:                   LICENSE\n" +
-		"skipped (first-fit, exists): .tailor/config.yml\n"
+		"skipped (first-fit, exists): .tailor.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput swatches only:\ngot:\n%s\nwant:\n%s", got, want)
