@@ -20,38 +20,38 @@ const (
 // Label returns the status string with a trailing colon, suitable for formatted output.
 func (s HealthStatus) Label() string { return string(s) + ":" }
 
-// HealthResult pairs a destination path with its on-disk status.
+// HealthResult pairs a path with its on-disk status.
 type HealthResult struct {
-	Destination string
-	Status      HealthStatus
+	Path   string
+	Status HealthStatus
 }
 
-// CheckHealth checks whether each health swatch destination and the LICENSE
-// file exist in dir. Returns results sorted lexicographically by destination
-// within each status group (missing first, then present).
+// CheckHealth checks whether each health swatch path and the LICENSE file
+// exist in dir. Returns results sorted lexicographically by path within each
+// status group (missing first, then present).
 func CheckHealth(dir string) []HealthResult {
 	healthSwatches := swatch.HealthSwatches()
-	destinations := make([]string, 0, len(healthSwatches)+1)
+	paths := make([]string, 0, len(healthSwatches)+1)
 	for _, s := range healthSwatches {
-		destinations = append(destinations, s.Destination)
+		paths = append(paths, s.Path)
 	}
-	destinations = append(destinations, swatch.LicenseDestination)
+	paths = append(paths, swatch.LicenseDestination)
 
 	var missing, present []HealthResult
-	for _, dest := range destinations {
-		path := filepath.Join(dir, dest)
-		if fsutil.FileExists(path) {
-			present = append(present, HealthResult{Destination: dest, Status: Present})
+	for _, p := range paths {
+		fullPath := filepath.Join(dir, p)
+		if fsutil.FileExists(fullPath) {
+			present = append(present, HealthResult{Path: p, Status: Present})
 		} else {
-			missing = append(missing, HealthResult{Destination: dest, Status: Missing})
+			missing = append(missing, HealthResult{Path: p, Status: Missing})
 		}
 	}
 
 	slices.SortFunc(missing, func(a, b HealthResult) int {
-		return cmp.Compare(a.Destination, b.Destination)
+		return cmp.Compare(a.Path, b.Path)
 	})
 	slices.SortFunc(present, func(a, b HealthResult) int {
-		return cmp.Compare(a.Destination, b.Destination)
+		return cmp.Compare(a.Path, b.Path)
 	})
 
 	return append(missing, present...)

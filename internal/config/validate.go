@@ -15,34 +15,32 @@ var (
 	labelHexRegexp = regexp.MustCompile(`^[0-9a-fA-F]{6}$`)
 )
 
-// ValidateSources checks that every swatch source in cfg matches a known
-// embedded swatch. Returns an error listing the unrecognised source and all
-// valid source names.
-func ValidateSources(cfg *Config) error {
-	valid := swatch.SourceNames()
+// ValidatePaths checks that every swatch path in cfg matches a known embedded
+// swatch. Returns an error listing the unrecognised path and all valid paths.
+func ValidatePaths(cfg *Config) error {
+	valid := swatch.Paths()
 	known := make(map[string]bool, len(valid))
 	for _, name := range valid {
 		known[name] = true
 	}
 	for _, s := range cfg.Swatches {
-		if !known[s.Source] {
-			return fmt.Errorf("unrecognised swatch source %q in config; valid sources: %s",
-				s.Source, strings.Join(valid, ", "))
+		if !known[s.Path] {
+			return fmt.Errorf("unrecognised swatch path %q in config; valid paths: %s",
+				s.Path, strings.Join(valid, ", "))
 		}
 	}
 	return nil
 }
 
-// ValidateDuplicateDestinations checks that no two swatches share a
-// destination. Returns an error identifying the conflicting entries.
-func ValidateDuplicateDestinations(cfg *Config) error {
-	seen := make(map[string]string, len(cfg.Swatches))
+// ValidateDuplicatePaths checks that no two swatches share a path. Returns an
+// error identifying the duplicate.
+func ValidateDuplicatePaths(cfg *Config) error {
+	seen := make(map[string]bool, len(cfg.Swatches))
 	for _, s := range cfg.Swatches {
-		if prev, ok := seen[s.Destination]; ok {
-			return fmt.Errorf("duplicate destination %q in config: sources %q and %q both target the same file",
-				s.Destination, prev, s.Source)
+		if seen[s.Path] {
+			return fmt.Errorf("duplicate swatch path %q in config", s.Path)
 		}
-		seen[s.Destination] = s.Source
+		seen[s.Path] = true
 	}
 	return nil
 }

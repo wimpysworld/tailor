@@ -28,34 +28,33 @@ const (
 // Licences are not embedded swatches; they are fetched via gh at alter time.
 const LicenseDestination = "LICENSE"
 
-// Swatch describes a single template file with its source-to-destination
-// mapping, default alteration mode, and category.
+// Swatch describes a single template file with its path, default alteration
+// mode, and category.
 type Swatch struct {
-	Source            string
-	Destination       string
+	Path              string
 	DefaultAlteration AlterationMode
 	Category          Category
 }
 
 // registry is the ordered list of all built-in swatches.
 var registry = []Swatch{
-	{Source: ".gitignore", Destination: ".gitignore", DefaultAlteration: FirstFit, Category: Development},
-	{Source: ".envrc", Destination: ".envrc", DefaultAlteration: FirstFit, Category: Development},
-	{Source: "SECURITY.md", Destination: "SECURITY.md", DefaultAlteration: Always, Category: Health},
-	{Source: "CODE_OF_CONDUCT.md", Destination: "CODE_OF_CONDUCT.md", DefaultAlteration: Always, Category: Health},
-	{Source: "CONTRIBUTING.md", Destination: "CONTRIBUTING.md", DefaultAlteration: Always, Category: Health},
-	{Source: "SUPPORT.md", Destination: "SUPPORT.md", DefaultAlteration: Always, Category: Health},
-	{Source: "flake.nix", Destination: "flake.nix", DefaultAlteration: FirstFit, Category: Development},
-	{Source: "justfile", Destination: "justfile", DefaultAlteration: FirstFit, Category: Development},
-	{Source: ".github/FUNDING.yml", Destination: ".github/FUNDING.yml", DefaultAlteration: FirstFit, Category: Health},
-	{Source: ".github/dependabot.yml", Destination: ".github/dependabot.yml", DefaultAlteration: FirstFit, Category: Health},
-	{Source: ".github/ISSUE_TEMPLATE/bug_report.yml", Destination: ".github/ISSUE_TEMPLATE/bug_report.yml", DefaultAlteration: Always, Category: Health},
-	{Source: ".github/ISSUE_TEMPLATE/feature_request.yml", Destination: ".github/ISSUE_TEMPLATE/feature_request.yml", DefaultAlteration: Always, Category: Health},
-	{Source: ".github/ISSUE_TEMPLATE/config.yml", Destination: ".github/ISSUE_TEMPLATE/config.yml", DefaultAlteration: FirstFit, Category: Health},
-	{Source: ".github/pull_request_template.md", Destination: ".github/pull_request_template.md", DefaultAlteration: Always, Category: Health},
-	{Source: ".github/workflows/tailor.yml", Destination: ".github/workflows/tailor.yml", DefaultAlteration: Always, Category: Development},
-	{Source: ".github/workflows/tailor-automerge.yml", Destination: ".github/workflows/tailor-automerge.yml", DefaultAlteration: Triggered, Category: Development},
-	{Source: ".tailor/config.yml", Destination: ".tailor/config.yml", DefaultAlteration: Always, Category: Development},
+	{Path: ".gitignore", DefaultAlteration: FirstFit, Category: Development},
+	{Path: ".envrc", DefaultAlteration: FirstFit, Category: Development},
+	{Path: "SECURITY.md", DefaultAlteration: Always, Category: Health},
+	{Path: "CODE_OF_CONDUCT.md", DefaultAlteration: Always, Category: Health},
+	{Path: "CONTRIBUTING.md", DefaultAlteration: Always, Category: Health},
+	{Path: "SUPPORT.md", DefaultAlteration: Always, Category: Health},
+	{Path: "flake.nix", DefaultAlteration: FirstFit, Category: Development},
+	{Path: "justfile", DefaultAlteration: FirstFit, Category: Development},
+	{Path: ".github/FUNDING.yml", DefaultAlteration: FirstFit, Category: Health},
+	{Path: ".github/dependabot.yml", DefaultAlteration: FirstFit, Category: Health},
+	{Path: ".github/ISSUE_TEMPLATE/bug_report.yml", DefaultAlteration: Always, Category: Health},
+	{Path: ".github/ISSUE_TEMPLATE/feature_request.yml", DefaultAlteration: Always, Category: Health},
+	{Path: ".github/ISSUE_TEMPLATE/config.yml", DefaultAlteration: FirstFit, Category: Health},
+	{Path: ".github/pull_request_template.md", DefaultAlteration: Always, Category: Health},
+	{Path: ".github/workflows/tailor.yml", DefaultAlteration: Always, Category: Development},
+	{Path: ".github/workflows/tailor-automerge.yml", DefaultAlteration: Triggered, Category: Development},
+	{Path: ".tailor.yml", DefaultAlteration: Always, Category: Development},
 }
 
 // All returns every registered swatch in definition order.
@@ -65,23 +64,23 @@ func All() []Swatch {
 	return out
 }
 
-// BySource returns the swatch matching the given source path, or an error if
-// no such swatch exists.
-func BySource(source string) (Swatch, error) {
+// ByPath returns the swatch matching the given path, or an error if no such
+// swatch exists.
+func ByPath(path string) (Swatch, error) {
 	for _, s := range registry {
-		if s.Source == source {
+		if s.Path == path {
 			return s, nil
 		}
 	}
-	return Swatch{}, fmt.Errorf("unknown swatch source: %q", source)
+	return Swatch{}, fmt.Errorf("unknown swatch path: %q", path)
 }
 
-// SourceNames returns the source names of all registered swatches, sorted
+// Paths returns the paths of all registered swatches, sorted
 // lexicographically.
-func SourceNames() []string {
+func Paths() []string {
 	names := make([]string, len(registry))
 	for i, s := range registry {
-		names[i] = s.Source
+		names[i] = s.Path
 	}
 	sort.Strings(names)
 	return names

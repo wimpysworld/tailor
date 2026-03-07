@@ -10,71 +10,68 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-func TestValidateSourcesAcceptsValidConfig(t *testing.T) {
+func TestValidatePathsAcceptsValidConfig(t *testing.T) {
 	cfg := &Config{
 		Swatches: []SwatchEntry{
-			{Source: ".gitignore", Destination: ".gitignore", Alteration: swatch.FirstFit},
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: ".gitignore", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
-	if err := ValidateSources(cfg); err != nil {
-		t.Fatalf("ValidateSources() returned unexpected error: %v", err)
+	if err := ValidatePaths(cfg); err != nil {
+		t.Fatalf("ValidatePaths() returned unexpected error: %v", err)
 	}
 }
 
-func TestValidateSourcesRejectsUnknownSource(t *testing.T) {
+func TestValidatePathsRejectsUnknownPath(t *testing.T) {
 	cfg := &Config{
 		Swatches: []SwatchEntry{
-			{Source: "nonexistent.txt", Destination: "nonexistent.txt", Alteration: swatch.Always},
+			{Path: "nonexistent.txt", Alteration: swatch.Always},
 		},
 	}
-	err := ValidateSources(cfg)
+	err := ValidatePaths(cfg)
 	if err == nil {
-		t.Fatal("ValidateSources() expected error for unknown source, got nil")
+		t.Fatal("ValidatePaths() expected error for unknown path, got nil")
 	}
-	if !strings.Contains(err.Error(), `unrecognised swatch source "nonexistent.txt"`) {
-		t.Errorf("error = %q, want it to contain unrecognised source message", err)
+	if !strings.Contains(err.Error(), `unrecognised swatch path "nonexistent.txt"`) {
+		t.Errorf("error = %q, want it to contain unrecognised path message", err)
 	}
-	if !strings.Contains(err.Error(), "valid sources:") {
-		t.Errorf("error = %q, want it to list valid sources", err)
+	if !strings.Contains(err.Error(), "valid paths:") {
+		t.Errorf("error = %q, want it to list valid paths", err)
 	}
 }
 
-func TestValidateSourcesAcceptsEmptySwatches(t *testing.T) {
+func TestValidatePathsAcceptsEmptySwatches(t *testing.T) {
 	cfg := &Config{}
-	if err := ValidateSources(cfg); err != nil {
-		t.Fatalf("ValidateSources() on empty swatches: %v", err)
+	if err := ValidatePaths(cfg); err != nil {
+		t.Fatalf("ValidatePaths() on empty swatches: %v", err)
 	}
 }
 
-func TestValidateDuplicateDestinationsAcceptsUnique(t *testing.T) {
+func TestValidateDuplicatePathsAcceptsUnique(t *testing.T) {
 	cfg := &Config{
 		Swatches: []SwatchEntry{
-			{Source: ".gitignore", Destination: ".gitignore", Alteration: swatch.FirstFit},
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: ".gitignore", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
-	if err := ValidateDuplicateDestinations(cfg); err != nil {
-		t.Fatalf("ValidateDuplicateDestinations() returned unexpected error: %v", err)
+	if err := ValidateDuplicatePaths(cfg); err != nil {
+		t.Fatalf("ValidateDuplicatePaths() returned unexpected error: %v", err)
 	}
 }
 
-func TestValidateDuplicateDestinationsRejectsDuplicate(t *testing.T) {
+func TestValidateDuplicatePathsRejectsDuplicate(t *testing.T) {
 	cfg := &Config{
 		Swatches: []SwatchEntry{
-			{Source: ".gitignore", Destination: "shared.txt", Alteration: swatch.FirstFit},
-			{Source: "justfile", Destination: "shared.txt", Alteration: swatch.FirstFit},
+			{Path: ".gitignore", Alteration: swatch.FirstFit},
+			{Path: ".gitignore", Alteration: swatch.Always},
 		},
 	}
-	err := ValidateDuplicateDestinations(cfg)
+	err := ValidateDuplicatePaths(cfg)
 	if err == nil {
-		t.Fatal("ValidateDuplicateDestinations() expected error for duplicate destination, got nil")
+		t.Fatal("ValidateDuplicatePaths() expected error for duplicate path, got nil")
 	}
-	if !strings.Contains(err.Error(), `duplicate destination "shared.txt"`) {
-		t.Errorf("error = %q, want it to contain duplicate destination message", err)
-	}
-	if !strings.Contains(err.Error(), `".gitignore"`) || !strings.Contains(err.Error(), `"justfile"`) {
-		t.Errorf("error = %q, want it to identify both conflicting sources", err)
+	if !strings.Contains(err.Error(), `duplicate swatch path ".gitignore"`) {
+		t.Errorf("error = %q, want it to contain duplicate path message", err)
 	}
 }
 
@@ -474,17 +471,15 @@ func TestValidateLabelsRejectsDuplicateNamesCaseInsensitive(t *testing.T) {
 }
 
 func TestValidateAllPassesSpecYAML(t *testing.T) {
-	// The specYAML from config_test.go is a valid config. Verify all three
-	// validators accept it.
 	var cfg Config
 	if err := yaml.Unmarshal([]byte(specYAML), &cfg); err != nil {
 		t.Fatalf("Unmarshal failed: %v", err)
 	}
-	if err := ValidateSources(&cfg); err != nil {
-		t.Errorf("ValidateSources: %v", err)
+	if err := ValidatePaths(&cfg); err != nil {
+		t.Errorf("ValidatePaths: %v", err)
 	}
-	if err := ValidateDuplicateDestinations(&cfg); err != nil {
-		t.Errorf("ValidateDuplicateDestinations: %v", err)
+	if err := ValidateDuplicatePaths(&cfg); err != nil {
+		t.Errorf("ValidateDuplicatePaths: %v", err)
 	}
 	if err := ValidateRepoSettings(&cfg); err != nil {
 		t.Errorf("ValidateRepoSettings: %v", err)

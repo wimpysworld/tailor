@@ -21,14 +21,14 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 
 	if cfg.License == "" || cfg.License == "none" {
 		if !exists {
-			fmt.Fprintln(os.Stderr, "No licence file found and no licence configured. Add 'license: MIT' (or another identifier) to '.tailor/config.yml' and run 'tailor alter'.")
+			fmt.Fprintln(os.Stderr, "No licence file found and no licence configured. Add 'license: MIT' (or another identifier) to '.tailor.yml' and run 'tailor alter'.")
 		}
 		return nil, nil
 	}
 
 	// Licence is exempt from recut: never overwrite an existing LICENSE.
 	if exists {
-		return &SwatchResult{Destination: licenceDestination, Category: SkippedFirstFit}, nil
+		return &SwatchResult{Path: licenceDestination, Category: SkippedFirstFit}, nil
 	}
 
 	// LICENSE absent: fetch and (conditionally) write.
@@ -42,5 +42,5 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 		}
 	}
 
-	return &SwatchResult{Destination: licenceDestination, Category: WouldCopy}, nil
+	return &SwatchResult{Path: licenceDestination, Category: WouldCopy}, nil
 }

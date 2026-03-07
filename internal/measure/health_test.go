@@ -18,7 +18,7 @@ func TestCheckHealthEmptyDir(t *testing.T) {
 
 	for _, r := range results {
 		if r.Status != Missing {
-			t.Errorf("destination %q: status = %q, want %q", r.Destination, r.Status, Missing)
+			t.Errorf("destination %q: status = %q, want %q", r.Path, r.Status, Missing)
 		}
 	}
 }
@@ -52,7 +52,7 @@ func TestCheckHealthAllPresent(t *testing.T) {
 
 	for _, r := range results {
 		if r.Status != Present {
-			t.Errorf("destination %q: status = %q, want %q", r.Destination, r.Status, Present)
+			t.Errorf("destination %q: status = %q, want %q", r.Path, r.Status, Present)
 		}
 	}
 }
@@ -80,7 +80,7 @@ func TestCheckHealthMixedPresence(t *testing.T) {
 		case Present:
 			present++
 		default:
-			t.Errorf("unexpected status %q for %q", r.Status, r.Destination)
+			t.Errorf("unexpected status %q for %q", r.Status, r.Path)
 		}
 	}
 
@@ -107,7 +107,7 @@ func TestCheckHealthSortOrder(t *testing.T) {
 			seenPresent = true
 		}
 		if r.Status == Missing && seenPresent {
-			t.Errorf("missing entry %q appeared after present entries", r.Destination)
+			t.Errorf("missing entry %q appeared after present entries", r.Path)
 		}
 	}
 
@@ -115,9 +115,9 @@ func TestCheckHealthSortOrder(t *testing.T) {
 	var missingDests, presentDests []string
 	for _, r := range results {
 		if r.Status == Missing {
-			missingDests = append(missingDests, r.Destination)
+			missingDests = append(missingDests, r.Path)
 		} else {
-			presentDests = append(presentDests, r.Destination)
+			presentDests = append(presentDests, r.Path)
 		}
 	}
 
@@ -144,7 +144,7 @@ func TestCheckHealthDirectoryNotCountedAsFile(t *testing.T) {
 	results := CheckHealth(dir)
 
 	for _, r := range results {
-		if r.Destination == "LICENSE" {
+		if r.Path == "LICENSE" {
 			if r.Status != Missing {
 				t.Errorf("LICENSE directory should be reported as missing, got %q", r.Status)
 			}

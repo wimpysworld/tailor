@@ -69,16 +69,16 @@ func (tc *TokenContext) MergeStrategy() string {
 	return "--squash"
 }
 
-// Substitute replaces tokens in content based on the swatch source.
-func (tc *TokenContext) Substitute(content []byte, source string) []byte {
-	switch source {
+// Substitute replaces tokens in content based on the swatch path.
+func (tc *TokenContext) Substitute(content []byte, path string) []byte {
+	switch path {
 	case ".github/FUNDING.yml":
 		return bytes.ReplaceAll(content, []byte("{{GITHUB_USERNAME}}"), []byte(tc.GitHubUsername))
 	case "SECURITY.md":
 		return bytes.ReplaceAll(content, []byte("{{ADVISORY_URL}}"), []byte(tc.AdvisoryURL()))
 	case ".github/ISSUE_TEMPLATE/config.yml":
 		return bytes.ReplaceAll(content, []byte("{{SUPPORT_URL}}"), []byte(tc.SupportURL()))
-	case ".tailor/config.yml":
+	case ".tailor.yml":
 		return bytes.ReplaceAll(content, []byte("{{HOMEPAGE_URL}}"), []byte(tc.HomepageURL()))
 	case ".github/workflows/tailor-automerge.yml":
 		return bytes.ReplaceAll(content, []byte("{{MERGE_STRATEGY}}"), []byte(tc.MergeStrategy()))

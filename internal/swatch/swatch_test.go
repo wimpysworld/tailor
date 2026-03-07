@@ -16,13 +16,13 @@ func TestContentAvailableForAllRegisteredSwatches(t *testing.T) {
 	}
 
 	for _, s := range all {
-		t.Run(s.Source, func(t *testing.T) {
-			data, err := swatch.Content(s.Source)
+		t.Run(s.Path, func(t *testing.T) {
+			data, err := swatch.Content(s.Path)
 			if err != nil {
-				t.Fatalf("Content(%q) returned error: %v", s.Source, err)
+				t.Fatalf("Content(%q) returned error: %v", s.Path, err)
 			}
 			if len(data) == 0 {
-				t.Fatalf("Content(%q) returned empty bytes", s.Source)
+				t.Fatalf("Content(%q) returned empty bytes", s.Path)
 			}
 		})
 	}

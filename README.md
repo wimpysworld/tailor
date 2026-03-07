@@ -25,7 +25,7 @@ cd my-project
 tailor alter
 ```
 
-`fit` creates the directory and writes `.tailor/config.yml` with the full default swatch set. `alter` copies the files and applies repository settings. The default licence is MIT.
+`fit` creates the directory and writes `.tailor.yml` with the full default swatch set. `alter` copies the files and applies repository settings. The default licence is MIT.
 
 ```bash
 tailor fit ./my-project --license=Apache-2.0
@@ -38,13 +38,13 @@ tailor fit ./my-project --description="Short description"
 ```bash
 cd existing-project
 tailor measure                # See what's missing
-tailor fit .                  # Create .tailor/config.yml
+tailor fit .                  # Create .tailor.yml
 tailor alter                  # Apply swatches and settings
 ```
 
 `measure` checks which community health files are present or missing. `fit .` works in an existing directory without error. If the project has a GitHub remote, `fit` reads the live repository settings so it preserves anything already configured.
 
-Edit `.tailor/config.yml` to add swatches or change alteration modes, then run `alter`. Set `alteration: never` on any swatch you want tailor to skip.
+Edit `.tailor.yml` to add swatches or change alteration modes, then run `alter`. Set `alteration: never` on any swatch you want tailor to skip.
 
 ## Core Concepts
 
@@ -57,7 +57,7 @@ Swatches are complete template files embedded in the tailor binary. Most are cop
 | `.github/FUNDING.yml` | `{{GITHUB_USERNAME}}` | `gh api user` |
 | `SECURITY.md` | `{{ADVISORY_URL}}` | `gh repo view` |
 | `.github/ISSUE_TEMPLATE/config.yml` | `{{SUPPORT_URL}}` | `gh repo view` |
-| `.tailor/config.yml` | `{{HOMEPAGE_URL}}` | `.tailor/config.yml` |
+| `.tailor.yml` | `{{HOMEPAGE_URL}}` | `.tailor.yml` |
 | `.github/workflows/tailor-automerge.yml` | `{{MERGE_STRATEGY}}` | Repository merge settings |
 
 Licences are not swatches. They are fetched from the GitHub REST API (`GET /licenses/{id}`) at `alter` time and written to `LICENSE`.
@@ -81,7 +81,7 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 | `flake.nix` | `first-fit` |
 | `.gitignore` | `first-fit` |
 | `.envrc` | `first-fit` |
-| `.tailor/config.yml` | `always` |
+| `.tailor.yml` | `always` |
 | `.github/workflows/tailor-automerge.yml` | `triggered` |
 
 ### Alteration modes
@@ -93,7 +93,7 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 
 ### Configuration
 
-All state lives in `.tailor/config.yml` with four sections: `license`, `repository`, `labels`, and `swatches`.
+All state lives in `.tailor.yml` with four sections: `license`, `repository`, `labels`, and `swatches`.
 
 ```yaml
 # Initially fitted by tailor on 2026-03-04
@@ -115,24 +115,21 @@ repository:
   can_approve_pull_request_reviews: false
 
 swatches:
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
 
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: first-fit
 ```
 
-Each swatch entry has three fields:
+Each swatch entry has two fields:
 
 | Field | Description |
 |-------|-------------|
-| `source` | Swatch name, matching the path relative to `swatches/` in the binary |
-| `destination` | Output path relative to the project root |
+| `path` | File path relative to the project root (also matches the swatch name in the binary) |
 | `alteration` | `always`, `first-fit`, `triggered`, or `never` |
 
-Set `alteration: never` to stop tailor managing a file. The entry stays visible in `config.yml` and prevents `alter --recut` from re-adding it.
+Set `alteration: never` to stop tailor managing a file. The entry stays visible in `.tailor.yml` and prevents `alter --recut` from re-adding it.
 
 ## Repository Settings
 
@@ -240,7 +237,7 @@ The workflow uses `gh pr merge --auto`, which waits for all branch protection ru
 
 > **Prerequisite:** Auto-merge requires [branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches) with at least one required status check on the default branch. Without this, `gh pr merge --auto` merges immediately with no CI gate.
 
-**Opt-out:** set `alteration: never` on the automerge swatch entry in `.tailor/config.yml`.
+**Opt-out:** set `alteration: never` on the automerge swatch entry in `.tailor.yml`.
 
 **Manual catch-up:** the workflow supports `workflow_dispatch` for repositories with pre-existing open Dependabot PRs. Triggering it manually enables auto-merge on all open Dependabot PRs regardless of ecosystem.
 
@@ -248,7 +245,7 @@ The workflow uses `gh pr merge --auto`, which waits for all branch protection ru
 
 ### `fit <path>`
 
-Creates a project directory and writes `.tailor/config.yml` with the full default swatch set. Does not copy files or apply settings.
+Creates a project directory and writes `.tailor.yml` with the full default swatch set. Does not copy files or apply settings.
 
 ```bash
 tailor fit ./my-project
@@ -257,18 +254,18 @@ tailor fit ./my-project --license=none
 tailor fit ./my-project --description="Short description"
 ```
 
-When a GitHub remote exists, `fit` queries the live repository configuration for the `repository` section. Otherwise, built-in defaults are used. Exits with an error if `.tailor/config.yml` already exists.
+When a GitHub remote exists, `fit` queries the live repository configuration for the `repository` section. Otherwise, built-in defaults are used. Exits with an error if `.tailor.yml` already exists.
 
 ### `alter`
 
-Reads `.tailor/config.yml` in the current directory and applies swatches, licence, and repository settings. Execution order: repository settings, then licence, then swatches.
+Reads `.tailor.yml` in the current directory and applies swatches, licence, and repository settings. Execution order: repository settings, then licence, then swatches.
 
 ```bash
 tailor alter              # Apply changes
 tailor alter --recut      # Overwrite regardless of mode
 ```
 
-`--recut` overwrites all files including `first-fit` swatches. `LICENSE` is exempt (fetched content, not an embedded swatch). For `.tailor/config.yml`, `--recut` appends missing default swatch entries but never modifies existing entries.
+`--recut` overwrites all files including `first-fit` swatches. `LICENSE` is exempt (fetched content, not an embedded swatch). For `.tailor.yml`, `--recut` appends missing default swatch entries but never modifies existing entries.
 
 ### `baste`
 
@@ -297,7 +294,7 @@ tailor docket
 
 ### `measure`
 
-Checks community health files and configuration alignment. No network access, no authentication, no `.tailor/config.yml` required.
+Checks community health files and configuration alignment. No network access, no authentication, no `.tailor.yml` required.
 
 ```bash
 tailor measure
@@ -314,8 +311,8 @@ mode-differs:   SECURITY.md          (config: first-fit, default: always)
 |--------|---------|
 | `missing` | Health file does not exist on disk |
 | `present` | Health file exists on disk |
-| `not-configured` | Default swatch not in `config.yml` |
-| `config-only` | Swatch in `config.yml` not in the built-in default set |
+| `not-configured` | Default swatch not in `.tailor.yml` |
+| `config-only` | Swatch in `.tailor.yml` not in the built-in default set |
 | `mode-differs` | Alteration mode differs from the default |
 
-The `not-configured`, `config-only`, and `mode-differs` statuses appear only when `.tailor/config.yml` is present.
+The `not-configured`, `config-only`, and `mode-differs` statuses appear only when `.tailor.yml` is present.

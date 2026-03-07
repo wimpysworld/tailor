@@ -16,8 +16,8 @@ func newConfig(entries ...config.SwatchEntry) *config.Config {
 	return &config.Config{Swatches: entries}
 }
 
-func entry(source, dest string, mode swatch.AlterationMode) config.SwatchEntry {
-	return config.SwatchEntry{Source: source, Destination: dest, Alteration: mode}
+func entry(path string, mode swatch.AlterationMode) config.SwatchEntry {
+	return config.SwatchEntry{Path: path, Alteration: mode}
 }
 
 func mustContent(t *testing.T, source string) []byte {
@@ -62,7 +62,7 @@ func TestFirstFitSkipWhenExists(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, ".gitignore", []byte("existing"))
 
-	cfg := newConfig(entry(".gitignore", ".gitignore", swatch.FirstFit))
+	cfg := newConfig(entry(".gitignore", swatch.FirstFit))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestFirstFitSkipWhenExists(t *testing.T) {
 func TestFirstFitCopyWhenAbsent(t *testing.T) {
 	dir := t.TempDir()
 
-	cfg := newConfig(entry(".gitignore", ".gitignore", swatch.FirstFit))
+	cfg := newConfig(entry(".gitignore", swatch.FirstFit))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
@@ -95,7 +95,7 @@ func TestFirstFitCopyWhenAbsent(t *testing.T) {
 func TestFirstFitApplyWritesFile(t *testing.T) {
 	dir := t.TempDir()
 
-	cfg := newConfig(entry(".gitignore", ".gitignore", swatch.FirstFit))
+	cfg := newConfig(entry(".gitignore", swatch.FirstFit))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +119,7 @@ func TestAlwaysNoChangeWhenMD5Matches(t *testing.T) {
 	content := mustContent(t, "CODE_OF_CONDUCT.md")
 	writeOnDisk(t, dir, "CODE_OF_CONDUCT.md", content)
 
-	cfg := newConfig(entry("CODE_OF_CONDUCT.md", "CODE_OF_CONDUCT.md", swatch.Always))
+	cfg := newConfig(entry("CODE_OF_CONDUCT.md", swatch.Always))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +133,7 @@ func TestAlwaysWouldOverwriteWhenMD5Differs(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, "CODE_OF_CONDUCT.md", []byte("old content"))
 
-	cfg := newConfig(entry("CODE_OF_CONDUCT.md", "CODE_OF_CONDUCT.md", swatch.Always))
+	cfg := newConfig(entry("CODE_OF_CONDUCT.md", swatch.Always))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
@@ -149,7 +149,7 @@ func TestAlwaysSubstitutedSourceNoChangeWhenHashMatches(t *testing.T) {
 	content := mustContent(t, "SECURITY.md")
 	writeOnDisk(t, dir, "SECURITY.md", content)
 
-	cfg := newConfig(entry("SECURITY.md", "SECURITY.md", swatch.Always))
+	cfg := newConfig(entry("SECURITY.md", swatch.Always))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
@@ -164,7 +164,7 @@ func TestAlwaysSubstitutedSourceOverwritesWhenDifferent(t *testing.T) {
 	// On-disk content differs from resolved swatch content; expect overwrite.
 	writeOnDisk(t, dir, "SECURITY.md", []byte("stale on-disk content"))
 
-	cfg := newConfig(entry("SECURITY.md", "SECURITY.md", swatch.Always))
+	cfg := newConfig(entry("SECURITY.md", swatch.Always))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func TestRecutOverwritesExisting(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, ".gitignore", []byte("old"))
 
-	cfg := newConfig(entry(".gitignore", ".gitignore", swatch.FirstFit))
+	cfg := newConfig(entry(".gitignore", swatch.FirstFit))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
@@ -199,15 +199,15 @@ func TestRecutOverwritesExisting(t *testing.T) {
 
 func TestConfigYmlSkippedInProcessSwatches(t *testing.T) {
 	dir := t.TempDir()
-	writeOnDisk(t, dir, ".tailor/config.yml", []byte("old content"))
+	writeOnDisk(t, dir, ".tailor.yml", []byte("old content"))
 
-	cfg := newConfig(entry(".tailor/config.yml", ".tailor/config.yml", swatch.Always))
+	cfg := newConfig(entry(".tailor.yml", swatch.Always))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(results) != 0 {
-		t.Errorf("expected no results for config.yml swatch, got %d", len(results))
+		t.Errorf("expected no results for config swatch, got %d", len(results))
 	}
 }
 
@@ -224,7 +224,7 @@ func TestWouldCopyWhenAbsentRegardlessOfMode(t *testing.T) {
 	for _, m := range modes {
 		t.Run(m.name, func(t *testing.T) {
 			dir := t.TempDir()
-			cfg := newConfig(entry(".gitignore", ".gitignore", swatch.FirstFit))
+			cfg := newConfig(entry(".gitignore", swatch.FirstFit))
 			results, err := alter.ProcessSwatches(cfg, dir, m.mode, &alter.TokenContext{})
 			if err != nil {
 				t.Fatal(err)
@@ -240,7 +240,7 @@ func TestAlwaysApplyWritesOnOverwrite(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, "CODE_OF_CONDUCT.md", []byte("old"))
 
-	cfg := newConfig(entry("CODE_OF_CONDUCT.md", "CODE_OF_CONDUCT.md", swatch.Always))
+	cfg := newConfig(entry("CODE_OF_CONDUCT.md", swatch.Always))
 	results, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
@@ -271,7 +271,7 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 	for _, m := range modes {
 		t.Run(m.name+"/absent", func(t *testing.T) {
 			dir := t.TempDir()
-			cfg := newConfig(entry(".gitignore", ".gitignore", swatch.Never))
+			cfg := newConfig(entry(".gitignore", swatch.Never))
 			results, err := alter.ProcessSwatches(cfg, dir, m.mode, &alter.TokenContext{})
 			if err != nil {
 				t.Fatal(err)
@@ -290,7 +290,7 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 		t.Run(m.name+"/exists", func(t *testing.T) {
 			dir := t.TempDir()
 			writeOnDisk(t, dir, ".gitignore", []byte("existing"))
-			cfg := newConfig(entry(".gitignore", ".gitignore", swatch.Never))
+			cfg := newConfig(entry(".gitignore", swatch.Never))
 			results, err := alter.ProcessSwatches(cfg, dir, m.mode, &alter.TokenContext{})
 			if err != nil {
 				t.Fatal(err)
@@ -312,13 +312,13 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 	}
 }
 
-// triggeredSource is the swatch source that has a trigger condition.
+// triggeredSource is the swatch path that has a trigger condition.
 const triggeredSource = ".github/workflows/tailor-automerge.yml"
 
 func TestTriggeredMetFileAbsentWouldCopy(t *testing.T) {
 	dir := t.TempDir()
 
-	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
 	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(true)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
@@ -334,7 +334,7 @@ func TestTriggeredMetFileExistsDifferentContent(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, triggeredSource, []byte("old content"))
 
-	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
 	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(true)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
@@ -353,7 +353,7 @@ func TestTriggeredMetFileExistsSameContent(t *testing.T) {
 	resolved := bytes.ReplaceAll(raw, []byte("{{MERGE_STRATEGY}}"), []byte("--squash"))
 	writeOnDisk(t, dir, triggeredSource, resolved)
 
-	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
 	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(true)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
@@ -370,7 +370,7 @@ func TestTriggeredNotMetFileExistsDryRun(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, triggeredSource, []byte("existing"))
 
-	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
 	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(false)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
@@ -390,7 +390,7 @@ func TestTriggeredNotMetFileExistsApply(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, triggeredSource, []byte("existing"))
 
-	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
 	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(false)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
@@ -409,7 +409,7 @@ func TestTriggeredNotMetFileExistsApply(t *testing.T) {
 func TestTriggeredNotMetFileAbsent(t *testing.T) {
 	dir := t.TempDir()
 
-	cfg := newConfig(entry(triggeredSource, triggeredSource, swatch.Triggered))
+	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
 	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(false)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
@@ -424,7 +424,7 @@ func TestTriggeredNotMetFileAbsent(t *testing.T) {
 func TestNestedDestinationCreatesDirectories(t *testing.T) {
 	dir := t.TempDir()
 
-	cfg := newConfig(entry(".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/bug_report.yml", swatch.Always))
+	cfg := newConfig(entry(".github/ISSUE_TEMPLATE/bug_report.yml", swatch.Always))
 	_, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)

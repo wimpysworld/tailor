@@ -10,7 +10,7 @@ import (
 func TestLookupTriggerHit(t *testing.T) {
 	tc, ok := swatch.LookupTrigger(".github/workflows/tailor-automerge.yml")
 	if !ok {
-		t.Fatal("LookupTrigger() returned false for automerge source")
+		t.Fatal("LookupTrigger() returned false for automerge path")
 	}
 	if tc.ConfigField != "allow_auto_merge" {
 		t.Errorf("ConfigField = %q, want %q", tc.ConfigField, "allow_auto_merge")
@@ -23,7 +23,7 @@ func TestLookupTriggerHit(t *testing.T) {
 func TestLookupTriggerMiss(t *testing.T) {
 	_, ok := swatch.LookupTrigger("nonexistent.yml")
 	if ok {
-		t.Fatal("LookupTrigger() returned true for unknown source")
+		t.Fatal("LookupTrigger() returned true for unknown path")
 	}
 }
 
@@ -31,8 +31,8 @@ func boolPtr(b bool) *bool { return &b }
 
 func TestEvaluateTriggerNoCondition(t *testing.T) {
 	repo := &config.RepositorySettings{}
-	if !swatch.EvaluateTrigger("no-trigger-source.yml", repo) {
-		t.Error("EvaluateTrigger() = false for source with no trigger condition, want true")
+	if !swatch.EvaluateTrigger("no-trigger-path.yml", repo) {
+		t.Error("EvaluateTrigger() = false for path with no trigger condition, want true")
 	}
 }
 
@@ -72,6 +72,6 @@ func TestEvaluateTriggerFieldNil(t *testing.T) {
 func TestEvaluateTriggerUnknownSource(t *testing.T) {
 	repo := &config.RepositorySettings{}
 	if !swatch.EvaluateTrigger("unknown-file.yml", repo) {
-		t.Error("EvaluateTrigger() = false for unknown source, want true")
+		t.Error("EvaluateTrigger() = false for unknown path, want true")
 	}
 }

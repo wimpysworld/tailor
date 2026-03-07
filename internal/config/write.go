@@ -59,9 +59,9 @@ var templateFuncs = template.FuncMap{
 	},
 }
 
-// configTemplate renders .tailor/config.yml in the exact format specified.
-// It uses text/template rather than yaml.Marshal to control key order,
-// blank lines between swatch entries, and omission of nil pointer fields.
+// configTemplate renders .tailor.yml in the exact format specified. It uses
+// text/template rather than yaml.Marshal to control key order, blank lines
+// between swatch entries, and omission of nil pointer fields.
 var configTemplate = template.Must(template.New("config").Funcs(templateFuncs).Parse(
 	`# {{ .Verb }} by tailor on {{ .Date }}
 license: {{ .License }}
@@ -150,19 +150,13 @@ labels:
 swatches:
 {{- range $i, $s := .Swatches }}
 {{ if $i }}
-{{ end }}  - source: {{ $s.Source }}
-    destination: {{ $s.Destination }}
+{{ end }}  - path: {{ $s.Path }}
     alteration: {{ $s.Alteration }}
 {{- end }}
 `))
 
-// Write renders cfg to <dir>/.tailor/config.yml with the given header date and verb.
+// Write renders cfg to <dir>/.tailor.yml with the given header date and verb.
 func Write(dir string, cfg *Config, date string, verb string) error {
-	tailorDir := filepath.Join(dir, ".tailor")
-	if err := os.MkdirAll(tailorDir, 0o755); err != nil {
-		return fmt.Errorf("creating config directory: %w", err)
-	}
-
 	var buf bytes.Buffer
 	if err := configTemplate.Execute(&buf, struct {
 		Date string
@@ -176,7 +170,7 @@ func Write(dir string, cfg *Config, date string, verb string) error {
 		return fmt.Errorf("rendering config template: %w", err)
 	}
 
-	path := filepath.Join(tailorDir, "config.yml")
+	path := filepath.Join(dir, ".tailor.yml")
 	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
 		return fmt.Errorf("writing config: %w", err)
 	}

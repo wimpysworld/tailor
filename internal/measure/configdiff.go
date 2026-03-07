@@ -23,63 +23,63 @@ func (c DiffCategory) Label() string { return string(c) + ":" }
 
 // DiffResult describes a single config-diff finding.
 type DiffResult struct {
-	Destination string
-	Category    DiffCategory
-	Detail      string
+	Path     string
+	Category DiffCategory
+	Detail   string
 }
 
 // CheckConfigDiff compares the loaded config's swatch list against the
 // default swatch set. Returns results grouped by category in the order:
 // not-configured, config-only, mode-differs. Within each category, entries
-// are sorted lexicographically by destination.
+// are sorted lexicographically by path.
 func CheckConfigDiff(cfg *config.Config, defaults []swatch.Swatch) []DiffResult {
-	// Build lookup maps by destination.
-	configByDest := make(map[string]config.SwatchEntry, len(cfg.Swatches))
+	// Build lookup maps by path.
+	configByPath := make(map[string]config.SwatchEntry, len(cfg.Swatches))
 	for _, s := range cfg.Swatches {
-		configByDest[s.Destination] = s
+		configByPath[s.Path] = s
 	}
 
-	defaultByDest := make(map[string]swatch.Swatch, len(defaults))
+	defaultByPath := make(map[string]swatch.Swatch, len(defaults))
 	for _, s := range defaults {
-		defaultByDest[s.Destination] = s
+		defaultByPath[s.Path] = s
 	}
 
 	var notConfigured, configOnly, modeDiffers []DiffResult
 
-	// Destinations in default set but not in config.
+	// Paths in default set but not in config.
 	for _, s := range defaults {
-		if _, found := configByDest[s.Destination]; !found {
+		if _, found := configByPath[s.Path]; !found {
 			notConfigured = append(notConfigured, DiffResult{
-				Destination: s.Destination,
-				Category:    NotConfigured,
+				Path:     s.Path,
+				Category: NotConfigured,
 			})
 		}
 	}
 
-	// Destinations in config but not in default set, or in both but with
-	// differing alteration mode.
+	// Paths in config but not in default set, or in both but with differing
+	// alteration mode.
 	for _, s := range cfg.Swatches {
-		def, found := defaultByDest[s.Destination]
+		def, found := defaultByPath[s.Path]
 		if !found {
 			configOnly = append(configOnly, DiffResult{
-				Destination: s.Destination,
-				Category:    ConfigOnly,
+				Path:     s.Path,
+				Category: ConfigOnly,
 			})
 		} else if s.Alteration != def.DefaultAlteration {
 			modeDiffers = append(modeDiffers, DiffResult{
-				Destination: s.Destination,
-				Category:    ModeDiffers,
-				Detail:      fmt.Sprintf("(config: %s, default: %s)", s.Alteration, def.DefaultAlteration),
+				Path:     s.Path,
+				Category: ModeDiffers,
+				Detail:   fmt.Sprintf("(config: %s, default: %s)", s.Alteration, def.DefaultAlteration),
 			})
 		}
 	}
 
-	sortByDest := func(a, b DiffResult) int {
-		return cmp.Compare(a.Destination, b.Destination)
+	sortByPath := func(a, b DiffResult) int {
+		return cmp.Compare(a.Path, b.Path)
 	}
-	slices.SortFunc(notConfigured, sortByDest)
-	slices.SortFunc(configOnly, sortByDest)
-	slices.SortFunc(modeDiffers, sortByDest)
+	slices.SortFunc(notConfigured, sortByPath)
+	slices.SortFunc(configOnly, sortByPath)
+	slices.SortFunc(modeDiffers, sortByPath)
 
 	return slices.Concat(notConfigured, configOnly, modeDiffers)
 }

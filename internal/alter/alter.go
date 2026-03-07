@@ -34,8 +34,8 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	}
 
 	// Merge missing default swatch entries into the config when the
-	// config.yml swatch is set to always, or when it is first-fit and
-	// the caller requested a recut.
+	// config swatch is set to always, or when it is first-fit and the
+	// caller requested a recut.
 	if shouldMerge(cfg, mode) {
 		added := config.MergeDefaultSwatches(cfg)
 		repoMerged := config.MergeDefaultRepoSettings(cfg)
@@ -113,20 +113,20 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	return nil
 }
 
-// validateConfig runs source and duplicate-destination validation in sequence.
+// validateConfig runs path and duplicate-path validation in sequence.
 func validateConfig(cfg *config.Config) error {
-	if err := config.ValidateSources(cfg); err != nil {
+	if err := config.ValidatePaths(cfg); err != nil {
 		return err
 	}
-	return config.ValidateDuplicateDestinations(cfg)
+	return config.ValidateDuplicatePaths(cfg)
 }
 
 // shouldMerge reports whether the config merge step should run. It looks up
-// the config.yml swatch entry and returns true when the alteration mode is
-// always, or when it is first-fit and the caller requested a recut.
+// the config swatch entry and returns true when the alteration mode is always,
+// or when it is first-fit and the caller requested a recut.
 func shouldMerge(cfg *config.Config, mode ApplyMode) bool {
 	for _, e := range cfg.Swatches {
-		if e.Source == configSource {
+		if e.Path == configPath {
 			if e.Alteration == swatch.Always {
 				return true
 			}

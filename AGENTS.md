@@ -48,7 +48,7 @@ tailor/
 - `never` beats `triggered` - a user can suppress a triggered swatch by setting `alteration: never`
 - Triggered swatches use a lookup table in `internal/swatch/trigger.go` mapping source paths to config field conditions
 - `EvaluateTrigger(source string, repo any)` uses reflection to match yaml tags on `RepositorySettings`; `repo` is `any` (not `*config.RepositorySettings`) to avoid a circular import
-- Adding a new triggered swatch requires: an entry in `triggerConditions` (trigger.go), a registry entry (registry.go), and inclusion in `swatches/.tailor/config.yml`
+- Adding a new triggered swatch requires: an entry in `triggerConditions` (trigger.go), a registry entry (registry.go), and inclusion in `swatches/.tailor.yml`
 
 ## Testing
 
@@ -64,9 +64,9 @@ tailor/
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
 - `alter` execution order: repository settings, then labels, then licence, then swatches
-- SHA-256 comparison for `always` and `triggered` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor/config.yml`, `.github/workflows/tailor-automerge.yml`) compare the resolved content hash against the on-disk file
+- SHA-256 comparison for `always` and `triggered` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor.yml`, `.github/workflows/tailor-automerge.yml`) compare the resolved content hash against the on-disk file
 - `triggered` swatches deploy when their condition is met (overwrite like `always`), remove the file when the condition becomes false, and skip when the file is absent and condition is false
-- `--recut` overwrites everything except `LICENSE`; for `.tailor/config.yml`, recut overrides `first-fit` to `always` (append-only: missing default entries added, existing entries never modified)
+- `--recut` overwrites everything except `LICENSE`; for `.tailor.yml`, recut overrides `first-fit` to `always` (append-only: missing default entries added, existing entries never modified)
 - Token substitution: `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, `{{HOMEPAGE_URL}}`, `{{MERGE_STRATEGY}}`
 - Licences fetched via GitHub REST API (`GET /licenses/{id}`), not embedded
 - Several repository settings use separate API endpoints rather than the main repo PATCH:
@@ -88,7 +88,7 @@ tailor/
 ## Security considerations
 
 - Never store or log GitHub tokens; rely on `go-gh` token resolution for authentication
-- Validate swatch `source` values against the embedded set before writing files
+- Validate swatch `path` values against the embedded set before writing files
 - Validate `repository` setting field names against the allowed list before API calls
-- Reject duplicate destinations in config before making any changes
+- Reject duplicate paths in config before making any changes
 - Create intermediate directories safely; do not follow symlinks outside project root

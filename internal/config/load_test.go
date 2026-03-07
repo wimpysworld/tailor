@@ -57,8 +57,7 @@ func TestLoadTriggeredAlterationMode(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, `license: MIT
 swatches:
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: triggered
 `)
 
@@ -75,8 +74,7 @@ func TestLoadNeverAlterationMode(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, `license: MIT
 swatches:
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: never
 `)
 
@@ -93,8 +91,7 @@ func TestLoadInvalidAlterationMode(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, `license: MIT
 swatches:
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: sometimes
 `)
 
@@ -107,39 +104,20 @@ swatches:
 	}
 }
 
-func TestLoadEmptySource(t *testing.T) {
+func TestLoadEmptyPath(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, `license: MIT
 swatches:
-  - source: ""
-    destination: justfile
+  - path: ""
     alteration: always
 `)
 
 	_, err := Load(dir)
 	if err == nil {
-		t.Fatal("Load() expected error for empty source, got nil")
+		t.Fatal("Load() expected error for empty path, got nil")
 	}
-	if !strings.Contains(err.Error(), "source must not be empty") {
-		t.Errorf("error = %q, want source must not be empty", err.Error())
-	}
-}
-
-func TestLoadEmptyDestination(t *testing.T) {
-	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, `license: MIT
-swatches:
-  - source: justfile
-    destination: ""
-    alteration: always
-`)
-
-	_, err := Load(dir)
-	if err == nil {
-		t.Fatal("Load() expected error for empty destination, got nil")
-	}
-	if !strings.Contains(err.Error(), "destination must not be empty") {
-		t.Errorf("error = %q, want destination must not be empty", err.Error())
+	if !strings.Contains(err.Error(), "path must not be empty") {
+		t.Errorf("error = %q, want path must not be empty", err.Error())
 	}
 }
 
@@ -237,8 +215,8 @@ func TestExistsFalse(t *testing.T) {
 
 func TestExistsFalseForDirectory(t *testing.T) {
 	dir := t.TempDir()
-	// Create .tailor/config.yml as a directory, not a file.
-	if err := os.MkdirAll(filepath.Join(dir, ".tailor", "config.yml"), 0o755); err != nil {
+	// Create .tailor.yml as a directory, not a file.
+	if err := os.MkdirAll(filepath.Join(dir, ".tailor.yml"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 
@@ -250,8 +228,7 @@ func TestExistsFalseForDirectory(t *testing.T) {
 func TestLoadAbsentLicense(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, `swatches:
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: always
 `)
 
@@ -268,8 +245,7 @@ func TestLoadEmptyLicense(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, `license: ""
 swatches:
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: always
 `)
 
@@ -302,8 +278,7 @@ func TestLoadWithoutRepositorySection(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, `license: Apache-2.0
 swatches:
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: first-fit
 `)
 

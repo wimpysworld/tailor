@@ -23,7 +23,7 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 		t.Fatalf("Run() error: %v", err)
 	}
 
-	configPath := filepath.Join(dir, ".tailor", "config.yml")
+	configPath := filepath.Join(dir, ".tailor.yml")
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
@@ -35,8 +35,8 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 		t.Error("config missing 'license: MIT'")
 	}
 
-	// Verify 17 swatches are present (count "- source:" occurrences).
-	if count := strings.Count(content, "- source:"); count != 17 {
+	// Verify 17 swatches are present (count "- path:" occurrences).
+	if count := strings.Count(content, "- path:"); count != 17 {
 		t.Errorf("swatch count = %d, want 17", count)
 	}
 
@@ -84,7 +84,7 @@ func TestFitExistingDirectoryWithoutConfig(t *testing.T) {
 		t.Fatalf("Run() error: %v", err)
 	}
 
-	configPath := filepath.Join(dir, ".tailor", "config.yml")
+	configPath := filepath.Join(dir, ".tailor.yml")
 	if _, err := os.Stat(configPath); err != nil {
 		t.Fatalf("config file not created: %v", err)
 	}
@@ -96,12 +96,8 @@ func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 
 	dir := t.TempDir()
 
-	// Pre-create .tailor/config.yml.
-	tailorDir := filepath.Join(dir, ".tailor")
-	if err := os.MkdirAll(tailorDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(tailorDir, "config.yml"), []byte("license: MIT\n"), 0o644); err != nil {
+	// Pre-create .tailor.yml.
+	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte("license: MIT\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
@@ -111,7 +107,7 @@ func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 		t.Fatal("Run() expected error, got nil")
 	}
 
-	wantMsg := ".tailor/config.yml already exists at " + dir
+	wantMsg := ".tailor.yml already exists at " + dir
 	if !strings.Contains(err.Error(), wantMsg) {
 		t.Errorf("error = %q, want substring %q", err.Error(), wantMsg)
 	}
@@ -131,7 +127,7 @@ func TestFitLicenseNone(t *testing.T) {
 		t.Fatalf("Run() error: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor", "config.yml"))
+	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -152,7 +148,7 @@ func TestFitDescriptionNoRepoContext(t *testing.T) {
 		t.Fatalf("Run() error: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor", "config.yml"))
+	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -173,7 +169,7 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 		t.Fatalf("Run() error: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor", "config.yml"))
+	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -202,7 +198,7 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 	}
 }
 
-// setupAlterTest creates a temp directory with a minimal .tailor/config.yml,
+// setupAlterTest creates a temp directory with a minimal .tailor.yml,
 // starts an httptest server that handles the API calls alter.Run makes,
 // sets GH_TOKEN so go-gh creates a client, redirects http.DefaultTransport
 // to the test server, and chdir to the temp directory.
@@ -212,12 +208,8 @@ func setupAlterTest(t *testing.T) {
 	ghfake.FakeNoRepo(t)
 
 	dir := t.TempDir()
-	tailorDir := filepath.Join(dir, ".tailor")
-	if err := os.MkdirAll(tailorDir, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
 	cfg := "license: none\nswatches: []\n"
-	if err := os.WriteFile(filepath.Join(tailorDir, "config.yml"), []byte(cfg), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte(cfg), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 

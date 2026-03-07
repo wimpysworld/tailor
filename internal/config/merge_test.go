@@ -7,11 +7,11 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// allNonConfigSwatches returns every registered swatch except .tailor/config.yml.
+// allNonConfigSwatches returns every registered swatch except .tailor.yml.
 func allNonConfigSwatches() []swatch.Swatch {
 	var out []swatch.Swatch
 	for _, s := range swatch.All() {
-		if s.Source != ConfigSwatchSource {
+		if s.Path != ConfigSwatchPath {
 			out = append(out, s)
 		}
 	}
@@ -22,9 +22,8 @@ func TestMergeAllPresent(t *testing.T) {
 	var entries []SwatchEntry
 	for _, s := range allNonConfigSwatches() {
 		entries = append(entries, SwatchEntry{
-			Source:      s.Source,
-			Destination: s.Destination,
-			Alteration:  s.DefaultAlteration,
+			Path:       s.Path,
+			Alteration: s.DefaultAlteration,
 		})
 	}
 	cfg := &Config{Swatches: entries}
@@ -43,8 +42,8 @@ func TestMergeAllPresent(t *testing.T) {
 func TestMergeSubset(t *testing.T) {
 	cfg := &Config{
 		Swatches: []SwatchEntry{
-			{Source: ".gitignore", Destination: ".gitignore", Alteration: swatch.FirstFit},
-			{Source: "SECURITY.md", Destination: "SECURITY.md", Alteration: swatch.Always},
+			{Path: ".gitignore", Alteration: swatch.FirstFit},
+			{Path: "SECURITY.md", Alteration: swatch.Always},
 		},
 	}
 
@@ -60,24 +59,21 @@ func TestMergeSubset(t *testing.T) {
 	}
 
 	// Verify each added entry has the correct alteration mode from the registry.
-	addedBySource := make(map[string]SwatchEntry, len(added))
+	addedByPath := make(map[string]SwatchEntry, len(added))
 	for _, e := range added {
-		addedBySource[e.Source] = e
+		addedByPath[e.Path] = e
 	}
 	for _, s := range expected {
-		if s.Source == ".gitignore" || s.Source == "SECURITY.md" {
+		if s.Path == ".gitignore" || s.Path == "SECURITY.md" {
 			continue
 		}
-		e, ok := addedBySource[s.Source]
+		e, ok := addedByPath[s.Path]
 		if !ok {
-			t.Errorf("missing added entry for source %q", s.Source)
+			t.Errorf("missing added entry for path %q", s.Path)
 			continue
 		}
 		if e.Alteration != s.DefaultAlteration {
-			t.Errorf("source %q: alteration = %q, want %q", s.Source, e.Alteration, s.DefaultAlteration)
-		}
-		if e.Destination != s.Destination {
-			t.Errorf("source %q: destination = %q, want %q", s.Source, e.Destination, s.Destination)
+			t.Errorf("path %q: alteration = %q, want %q", s.Path, e.Alteration, s.DefaultAlteration)
 		}
 	}
 }
@@ -85,7 +81,7 @@ func TestMergeSubset(t *testing.T) {
 func TestMergeNeverNotDuplicated(t *testing.T) {
 	cfg := &Config{
 		Swatches: []SwatchEntry{
-			{Source: ".gitignore", Destination: ".gitignore", Alteration: swatch.Never},
+			{Path: ".gitignore", Alteration: swatch.Never},
 		},
 	}
 
@@ -94,7 +90,7 @@ func TestMergeNeverNotDuplicated(t *testing.T) {
 	// .gitignore already present (with never), should not be duplicated.
 	count := 0
 	for _, e := range cfg.Swatches {
-		if e.Source == ".gitignore" {
+		if e.Path == ".gitignore" {
 			count++
 		}
 	}
@@ -104,25 +100,8 @@ func TestMergeNeverNotDuplicated(t *testing.T) {
 
 	// Should not be in the added slice either.
 	for _, e := range added {
-		if e.Source == ".gitignore" {
+		if e.Path == ".gitignore" {
 			t.Fatal(".gitignore should not appear in added slice")
-		}
-	}
-}
-
-func TestMergeRemappedDestination(t *testing.T) {
-	cfg := &Config{
-		Swatches: []SwatchEntry{
-			{Source: ".gitignore", Destination: "custom/.gitignore", Alteration: swatch.FirstFit},
-		},
-	}
-
-	added := MergeDefaultSwatches(cfg)
-
-	// Source matches, so it should not be treated as missing.
-	for _, e := range added {
-		if e.Source == ".gitignore" {
-			t.Fatal(".gitignore with remapped destination should not be added again")
 		}
 	}
 }
@@ -140,10 +119,10 @@ func TestMergeEmptyConfig(t *testing.T) {
 		t.Fatalf("expected %d total swatches, got %d", len(expected), len(cfg.Swatches))
 	}
 
-	// Verify no config.yml entry was added.
+	// Verify no config swatch entry was added.
 	for _, e := range cfg.Swatches {
-		if e.Source == ConfigSwatchSource {
-			t.Fatal("config.yml swatch should not be added by merge")
+		if e.Path == ConfigSwatchPath {
+			t.Fatal("config swatch should not be added by merge")
 		}
 	}
 }

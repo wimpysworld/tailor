@@ -7,10 +7,10 @@ import (
 	"github.com/wimpysworld/tailor"
 )
 
-const embeddedConfigPath = "swatches/.tailor/config.yml"
+const embeddedConfigPath = "swatches/.tailor.yml"
 
 // DefaultConfig returns the embedded default configuration with the given
-// license. It parses swatches/.tailor/config.yml from the embedded filesystem,
+// license. It parses swatches/.tailor.yml from the embedded filesystem,
 // validates its contents, and overrides the license field.
 func DefaultConfig(license string) (*Config, error) {
 	data, err := fs.ReadFile(tailor.SwatchFS, embeddedConfigPath)

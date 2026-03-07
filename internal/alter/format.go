@@ -46,7 +46,7 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 
 	for _, r := range sortedSwatches {
 		label := swatchLabel(r)
-		fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Destination)
+		fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Path)
 	}
 
 	return b.String()
@@ -102,7 +102,7 @@ func repoOrder(c RepoSettingCategory) int {
 }
 
 // sortSwatchResults returns a sorted copy: actionable (WouldCopy, WouldOverwrite)
-// before informational (NoChange, SkippedFirstFit), lexicographic by destination within
+// before informational (NoChange, SkippedFirstFit), lexicographic by path within
 // each group.
 func sortSwatchResults(results []SwatchResult) []SwatchResult {
 	if len(results) == 0 {
@@ -114,7 +114,7 @@ func sortSwatchResults(results []SwatchResult) []SwatchResult {
 		if c := cmp.Compare(swatchOrder(a.Category), swatchOrder(b.Category)); c != 0 {
 			return c
 		}
-		return strings.Compare(a.Destination, b.Destination)
+		return strings.Compare(a.Path, b.Path)
 	})
 	return sorted
 }

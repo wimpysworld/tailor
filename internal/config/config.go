@@ -6,7 +6,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// Config represents the contents of .tailor/config.yml.
+// Config represents the contents of .tailor.yml.
 type Config struct {
 	License    string              `yaml:"license"`
 	Repository *RepositorySettings `yaml:"repository,omitempty"`
@@ -63,9 +63,8 @@ type RepositorySettings struct {
 	Extra map[string]interface{} `yaml:",inline"`
 }
 
-// SwatchEntry describes a single swatch mapping in the config file.
+// SwatchEntry describes a single swatch entry in the config file.
 type SwatchEntry struct {
-	Source      string                `yaml:"source"`
-	Destination string                `yaml:"destination"`
-	Alteration  swatch.AlterationMode `yaml:"alteration"`
+	Path       string                `yaml:"path"`
+	Alteration swatch.AlterationMode `yaml:"alteration"`
 }

@@ -98,7 +98,7 @@ func TestHomepageURLWithoutRepoContext(t *testing.T) {
 func TestSubstituteTailorConfigYmlWithRepoContext(t *testing.T) {
 	tc := &alter.TokenContext{Owner: "org", Name: "repo"}
 	input := []byte("homepage: \"{{HOMEPAGE_URL}}\"\n")
-	got := tc.Substitute(input, ".tailor/config.yml")
+	got := tc.Substitute(input, ".tailor.yml")
 	want := []byte("homepage: \"https://github.com/org/repo\"\n")
 	if !bytes.Equal(got, want) {
 		t.Errorf("got %q, want %q", got, want)
@@ -108,7 +108,7 @@ func TestSubstituteTailorConfigYmlWithRepoContext(t *testing.T) {
 func TestSubstituteTailorConfigYmlWithoutRepoContext(t *testing.T) {
 	tc := &alter.TokenContext{}
 	input := []byte("homepage: \"{{HOMEPAGE_URL}}\"\n")
-	got := tc.Substitute(input, ".tailor/config.yml")
+	got := tc.Substitute(input, ".tailor.yml")
 	if !bytes.Equal(got, input) {
 		t.Errorf("expected no substitution, got %q", got)
 	}

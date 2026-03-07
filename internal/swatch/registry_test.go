@@ -15,12 +15,9 @@ func TestAllReturns16Swatches(t *testing.T) {
 
 func TestAllSwatchesHaveRequiredFields(t *testing.T) {
 	for _, s := range swatch.All() {
-		t.Run(s.Source, func(t *testing.T) {
-			if s.Source == "" {
-				t.Error("Source is empty")
-			}
-			if s.Destination == "" {
-				t.Error("Destination is empty")
+		t.Run(s.Path, func(t *testing.T) {
+			if s.Path == "" {
+				t.Error("Path is empty")
 			}
 			if s.DefaultAlteration != swatch.Always && s.DefaultAlteration != swatch.FirstFit && s.DefaultAlteration != swatch.Triggered {
 				t.Errorf("DefaultAlteration is %q, want %q, %q, or %q", s.DefaultAlteration, swatch.Always, swatch.FirstFit, swatch.Triggered)
@@ -34,38 +31,34 @@ func TestAllSwatchesHaveRequiredFields(t *testing.T) {
 
 func TestSwatchAttributes(t *testing.T) {
 	tests := []struct {
-		source   string
-		dest     string
+		path     string
 		mode     swatch.AlterationMode
 		category swatch.Category
 	}{
-		{".gitignore", ".gitignore", swatch.FirstFit, swatch.Development},
-		{".envrc", ".envrc", swatch.FirstFit, swatch.Development},
-		{"SECURITY.md", "SECURITY.md", swatch.Always, swatch.Health},
-		{"CODE_OF_CONDUCT.md", "CODE_OF_CONDUCT.md", swatch.Always, swatch.Health},
-		{"CONTRIBUTING.md", "CONTRIBUTING.md", swatch.Always, swatch.Health},
-		{"SUPPORT.md", "SUPPORT.md", swatch.Always, swatch.Health},
-		{"flake.nix", "flake.nix", swatch.FirstFit, swatch.Development},
-		{"justfile", "justfile", swatch.FirstFit, swatch.Development},
-		{".github/FUNDING.yml", ".github/FUNDING.yml", swatch.FirstFit, swatch.Health},
-		{".github/dependabot.yml", ".github/dependabot.yml", swatch.FirstFit, swatch.Health},
-		{".github/ISSUE_TEMPLATE/bug_report.yml", ".github/ISSUE_TEMPLATE/bug_report.yml", swatch.Always, swatch.Health},
-		{".github/ISSUE_TEMPLATE/feature_request.yml", ".github/ISSUE_TEMPLATE/feature_request.yml", swatch.Always, swatch.Health},
-		{".github/ISSUE_TEMPLATE/config.yml", ".github/ISSUE_TEMPLATE/config.yml", swatch.FirstFit, swatch.Health},
-		{".github/pull_request_template.md", ".github/pull_request_template.md", swatch.Always, swatch.Health},
-		{".github/workflows/tailor.yml", ".github/workflows/tailor.yml", swatch.Always, swatch.Development},
-		{".github/workflows/tailor-automerge.yml", ".github/workflows/tailor-automerge.yml", swatch.Triggered, swatch.Development},
-		{".tailor/config.yml", ".tailor/config.yml", swatch.Always, swatch.Development},
+		{".gitignore", swatch.FirstFit, swatch.Development},
+		{".envrc", swatch.FirstFit, swatch.Development},
+		{"SECURITY.md", swatch.Always, swatch.Health},
+		{"CODE_OF_CONDUCT.md", swatch.Always, swatch.Health},
+		{"CONTRIBUTING.md", swatch.Always, swatch.Health},
+		{"SUPPORT.md", swatch.Always, swatch.Health},
+		{"flake.nix", swatch.FirstFit, swatch.Development},
+		{"justfile", swatch.FirstFit, swatch.Development},
+		{".github/FUNDING.yml", swatch.FirstFit, swatch.Health},
+		{".github/dependabot.yml", swatch.FirstFit, swatch.Health},
+		{".github/ISSUE_TEMPLATE/bug_report.yml", swatch.Always, swatch.Health},
+		{".github/ISSUE_TEMPLATE/feature_request.yml", swatch.Always, swatch.Health},
+		{".github/ISSUE_TEMPLATE/config.yml", swatch.FirstFit, swatch.Health},
+		{".github/pull_request_template.md", swatch.Always, swatch.Health},
+		{".github/workflows/tailor.yml", swatch.Always, swatch.Development},
+		{".github/workflows/tailor-automerge.yml", swatch.Triggered, swatch.Development},
+		{".tailor.yml", swatch.Always, swatch.Development},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.source, func(t *testing.T) {
-			s, err := swatch.BySource(tt.source)
+		t.Run(tt.path, func(t *testing.T) {
+			s, err := swatch.ByPath(tt.path)
 			if err != nil {
-				t.Fatalf("BySource(%q) returned error: %v", tt.source, err)
-			}
-			if s.Destination != tt.dest {
-				t.Errorf("Destination = %q, want %q", s.Destination, tt.dest)
+				t.Fatalf("ByPath(%q) returned error: %v", tt.path, err)
 			}
 			if s.DefaultAlteration != tt.mode {
 				t.Errorf("DefaultAlteration = %q, want %q", s.DefaultAlteration, tt.mode)
@@ -77,10 +70,10 @@ func TestSwatchAttributes(t *testing.T) {
 	}
 }
 
-func TestBySourceUnknownReturnsError(t *testing.T) {
-	_, err := swatch.BySource("nonexistent.txt")
+func TestByPathUnknownReturnsError(t *testing.T) {
+	_, err := swatch.ByPath("nonexistent.txt")
 	if err == nil {
-		t.Fatal("BySource(\"nonexistent.txt\") expected error, got nil")
+		t.Fatal("ByPath(\"nonexistent.txt\") expected error, got nil")
 	}
 }
 
@@ -94,25 +87,25 @@ func TestHealthSwatchesReturnsCorrectSubset(t *testing.T) {
 
 	for _, s := range health {
 		if s.Category != swatch.Health {
-			t.Errorf("HealthSwatches() included %q with category %q", s.Source, s.Category)
+			t.Errorf("HealthSwatches() included %q with category %q", s.Path, s.Category)
 		}
 	}
 }
 
-func TestSourceNamesReturnsSortedList(t *testing.T) {
-	names := swatch.SourceNames()
+func TestPathsReturnsSortedList(t *testing.T) {
+	names := swatch.Paths()
 	if len(names) != 17 {
-		t.Fatalf("SourceNames() returned %d names, want 17", len(names))
+		t.Fatalf("Paths() returned %d names, want 17", len(names))
 	}
 	for i := 1; i < len(names); i++ {
 		if names[i] < names[i-1] {
-			t.Fatalf("SourceNames() not sorted: %q comes after %q", names[i], names[i-1])
+			t.Fatalf("Paths() not sorted: %q comes after %q", names[i], names[i-1])
 		}
 	}
 }
 
-func TestSourceNamesContainsKnownEntries(t *testing.T) {
-	names := swatch.SourceNames()
+func TestPathsContainsKnownEntries(t *testing.T) {
+	names := swatch.Paths()
 	want := map[string]bool{
 		".gitignore":  false,
 		"justfile":    false,
@@ -125,7 +118,7 @@ func TestSourceNamesContainsKnownEntries(t *testing.T) {
 	}
 	for name, found := range want {
 		if !found {
-			t.Errorf("SourceNames() missing %q", name)
+			t.Errorf("Paths() missing %q", name)
 		}
 	}
 }
@@ -133,8 +126,8 @@ func TestSourceNamesContainsKnownEntries(t *testing.T) {
 func TestAllIsACopy(t *testing.T) {
 	a := swatch.All()
 	b := swatch.All()
-	a[0].Source = "modified"
-	if b[0].Source == "modified" {
+	a[0].Path = "modified"
+	if b[0].Path == "modified" {
 		t.Fatal("All() returned a shared slice, not a copy")
 	}
 }

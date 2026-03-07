@@ -7,16 +7,16 @@ import (
 
 func TestFormatOutputWithoutConfig(t *testing.T) {
 	health := []HealthResult{
-		{Destination: ".github/FUNDING.yml", Status: Missing},
-		{Destination: ".github/ISSUE_TEMPLATE/bug_report.yml", Status: Missing},
-		{Destination: ".github/ISSUE_TEMPLATE/feature_request.yml", Status: Missing},
-		{Destination: ".github/dependabot.yml", Status: Missing},
-		{Destination: ".github/pull_request_template.md", Status: Missing},
-		{Destination: "CONTRIBUTING.md", Status: Missing},
-		{Destination: "SUPPORT.md", Status: Missing},
-		{Destination: "CODE_OF_CONDUCT.md", Status: Present},
-		{Destination: "LICENSE", Status: Present},
-		{Destination: "SECURITY.md", Status: Present},
+		{Path: ".github/FUNDING.yml", Status: Missing},
+		{Path: ".github/ISSUE_TEMPLATE/bug_report.yml", Status: Missing},
+		{Path: ".github/ISSUE_TEMPLATE/feature_request.yml", Status: Missing},
+		{Path: ".github/dependabot.yml", Status: Missing},
+		{Path: ".github/pull_request_template.md", Status: Missing},
+		{Path: "CONTRIBUTING.md", Status: Missing},
+		{Path: "SUPPORT.md", Status: Missing},
+		{Path: "CODE_OF_CONDUCT.md", Status: Present},
+		{Path: "LICENSE", Status: Present},
+		{Path: "SECURITY.md", Status: Present},
 	}
 
 	got := FormatOutput(health, nil, false)
@@ -32,7 +32,7 @@ func TestFormatOutputWithoutConfig(t *testing.T) {
 		"present:        LICENSE\n" +
 		"present:        SECURITY.md\n" +
 		"\n" +
-		"No .tailor/config.yml found. Run `tailor fit <path>` to initialise, or create `.tailor/config.yml` manually to enable configuration alignment checks.\n"
+		"No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks.\n"
 
 	if got != want {
 		t.Errorf("FormatOutput without config:\ngot:\n%s\nwant:\n%s", got, want)
@@ -41,15 +41,15 @@ func TestFormatOutputWithoutConfig(t *testing.T) {
 
 func TestFormatOutputWithConfig(t *testing.T) {
 	health := []HealthResult{
-		{Destination: "CONTRIBUTING.md", Status: Missing},
-		{Destination: "LICENSE", Status: Present},
-		{Destination: "SECURITY.md", Status: Present},
+		{Path: "CONTRIBUTING.md", Status: Missing},
+		{Path: "LICENSE", Status: Present},
+		{Path: "SECURITY.md", Status: Present},
 	}
 
 	diff := []DiffResult{
-		{Destination: ".github/dependabot.yml", Category: NotConfigured},
-		{Destination: "some-custom-swatch.yml", Category: ConfigOnly},
-		{Destination: "SECURITY.md", Category: ModeDiffers, Detail: "(config: first-fit, default: always)"},
+		{Path: ".github/dependabot.yml", Category: NotConfigured},
+		{Path: "some-custom-swatch.yml", Category: ConfigOnly},
+		{Path: "SECURITY.md", Category: ModeDiffers, Detail: "(config: first-fit, default: always)"},
 	}
 
 	got := FormatOutput(health, diff, true)
@@ -101,7 +101,7 @@ func TestFormatOutputEmptyResults(t *testing.T) {
 
 func TestFormatOutputHealthOnlyWithConfig(t *testing.T) {
 	health := []HealthResult{
-		{Destination: "LICENSE", Status: Present},
+		{Path: "LICENSE", Status: Present},
 	}
 
 	got := FormatOutput(health, nil, true)
@@ -113,7 +113,7 @@ func TestFormatOutputHealthOnlyWithConfig(t *testing.T) {
 }
 
 func TestAdvisoryMessageContent(t *testing.T) {
-	want := "No .tailor/config.yml found. Run `tailor fit <path>` to initialise, or create `.tailor/config.yml` manually to enable configuration alignment checks."
+	want := "No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks."
 	if AdvisoryMessage != want {
 		t.Errorf("AdvisoryMessage =\n%q\nwant:\n%q", AdvisoryMessage, want)
 	}

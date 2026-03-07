@@ -26,7 +26,7 @@ var cli struct {
 	Docket  DocketCmd        `cmd:"" help:"Display GitHub authentication state and repository context."`
 }
 
-// FitCmd creates a new project directory with a default .tailor/config.yml.
+// FitCmd creates a new project directory with a default .tailor.yml.
 type FitCmd struct {
 	Path        string `arg:"" help:"Project directory to create."`
 	License     string `help:"Licence identifier." default:"MIT"`
@@ -44,7 +44,7 @@ func (f *FitCmd) Run() error {
 	}
 
 	if config.Exists(f.Path) {
-		return fmt.Errorf(".tailor/config.yml already exists at %s; edit it directly to change swatch configuration", f.Path)
+		return fmt.Errorf(".tailor.yml already exists at %s; edit it directly to change swatch configuration", f.Path)
 	}
 
 	cfg, err := config.DefaultConfig(f.License)
@@ -76,7 +76,7 @@ func (f *FitCmd) Run() error {
 		return err
 	}
 
-	fmt.Printf("Fitted %s with .tailor/config.yml\n", f.Path)
+	fmt.Printf("Fitted %s with .tailor.yml\n", f.Path)
 	return nil
 }
 
@@ -116,7 +116,7 @@ func runAlter(mode alter.ApplyMode) error {
 
 	cfg, err := config.Load(dir)
 	if err != nil {
-		return fmt.Errorf(".tailor/config.yml is missing or malformed. Run 'tailor fit <path>' to create a valid configuration, or edit .tailor/config.yml directly to correct it")
+		return fmt.Errorf(".tailor.yml is missing or malformed. Run 'tailor fit <path>' to create a valid configuration, or edit .tailor.yml directly to correct it")
 	}
 
 	return alter.Run(cfg, dir, mode, nil)

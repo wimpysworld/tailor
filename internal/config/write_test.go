@@ -87,72 +87,55 @@ labels:
     description: Hacktoberfest contribution
 
 swatches:
-  - source: .github/workflows/tailor.yml
-    destination: .github/workflows/tailor.yml
+  - path: .github/workflows/tailor.yml
     alteration: always
 
-  - source: .github/dependabot.yml
-    destination: .github/dependabot.yml
+  - path: .github/dependabot.yml
     alteration: first-fit
 
-  - source: .github/FUNDING.yml
-    destination: .github/FUNDING.yml
+  - path: .github/FUNDING.yml
     alteration: first-fit
 
-  - source: .github/ISSUE_TEMPLATE/bug_report.yml
-    destination: .github/ISSUE_TEMPLATE/bug_report.yml
+  - path: .github/ISSUE_TEMPLATE/bug_report.yml
     alteration: always
 
-  - source: .github/ISSUE_TEMPLATE/feature_request.yml
-    destination: .github/ISSUE_TEMPLATE/feature_request.yml
+  - path: .github/ISSUE_TEMPLATE/feature_request.yml
     alteration: always
 
-  - source: .github/ISSUE_TEMPLATE/config.yml
-    destination: .github/ISSUE_TEMPLATE/config.yml
+  - path: .github/ISSUE_TEMPLATE/config.yml
     alteration: first-fit
 
-  - source: .github/pull_request_template.md
-    destination: .github/pull_request_template.md
+  - path: .github/pull_request_template.md
     alteration: always
 
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
 
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
 
-  - source: CONTRIBUTING.md
-    destination: CONTRIBUTING.md
+  - path: CONTRIBUTING.md
     alteration: always
 
-  - source: SUPPORT.md
-    destination: SUPPORT.md
+  - path: SUPPORT.md
     alteration: always
 
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: first-fit
 
-  - source: flake.nix
-    destination: flake.nix
+  - path: flake.nix
     alteration: first-fit
 
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 
-  - source: .envrc
-    destination: .envrc
+  - path: .envrc
     alteration: first-fit
 
-  - source: .tailor/config.yml
-    destination: .tailor/config.yml
+  - path: .tailor.yml
     alteration: always
 
-  - source: .github/workflows/tailor-automerge.yml
-    destination: .github/workflows/tailor-automerge.yml
+  - path: .github/workflows/tailor-automerge.yml
     alteration: triggered
 `
 
@@ -167,7 +150,7 @@ func TestWriteDefaultConfigMatchesSpec(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor", "config.yml"))
+	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -177,13 +160,13 @@ func TestWriteDefaultConfigMatchesSpec(t *testing.T) {
 	}
 }
 
-func TestWriteCreatesTailorDirectory(t *testing.T) {
+func TestWriteCreatesFile(t *testing.T) {
 	dir := t.TempDir()
-	tailorDir := filepath.Join(dir, ".tailor")
+	configFile := filepath.Join(dir, ".tailor.yml")
 
-	// Confirm .tailor/ does not exist before Write.
-	if _, err := os.Stat(tailorDir); err == nil {
-		t.Fatal(".tailor/ already exists before Write")
+	// Confirm .tailor.yml does not exist before Write.
+	if _, err := os.Stat(configFile); err == nil {
+		t.Fatal(".tailor.yml already exists before Write")
 	}
 
 	cfg := &Config{
@@ -192,7 +175,7 @@ func TestWriteCreatesTailorDirectory(t *testing.T) {
 			HasWiki: ptr.Bool(false),
 		},
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -200,12 +183,12 @@ func TestWriteCreatesTailorDirectory(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	info, err := os.Stat(tailorDir)
+	info, err := os.Stat(configFile)
 	if err != nil {
-		t.Fatalf(".tailor/ not created: %v", err)
+		t.Fatalf(".tailor.yml not created: %v", err)
 	}
-	if !info.IsDir() {
-		t.Error(".tailor is not a directory")
+	if info.IsDir() {
+		t.Error(".tailor.yml is a directory, want file")
 	}
 }
 
@@ -237,7 +220,7 @@ func TestWriteOptionalFieldsPresent(t *testing.T) {
 			CanApprovePullRequestReviews:      ptr.Bool(true),
 		},
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -269,8 +252,7 @@ repository:
   can_approve_pull_request_reviews: true
 
 swatches:
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: first-fit
 `
 
@@ -279,7 +261,7 @@ swatches:
 		t.Fatalf("Write: %v", err)
 	}
 
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor", "config.yml"))
+	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -314,7 +296,7 @@ func TestWriteOptionalFieldsOmitted(t *testing.T) {
 			CanApprovePullRequestReviews:      ptr.Bool(false),
 		},
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -342,8 +324,7 @@ repository:
   can_approve_pull_request_reviews: false
 
 swatches:
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: first-fit
 `
 
@@ -352,7 +333,7 @@ swatches:
 		t.Fatalf("Write: %v", err)
 	}
 
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor", "config.yml"))
+	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -372,7 +353,7 @@ func TestWriteYAMLSpecialCharactersQuoted(t *testing.T) {
 			AllowSquashMerge: ptr.Bool(true),
 		},
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -381,7 +362,7 @@ func TestWriteYAMLSpecialCharactersQuoted(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor", "config.yml"))
+	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}
@@ -404,7 +385,7 @@ func TestWriteNilRepositoryOmitted(t *testing.T) {
 	cfg := &Config{
 		License: "MIT",
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -413,7 +394,7 @@ func TestWriteNilRepositoryOmitted(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor", "config.yml"))
+	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("ReadFile: %v", err)
 	}

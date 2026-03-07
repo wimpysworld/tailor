@@ -103,9 +103,9 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	}
 	for i, g := range got.Swatches {
 		w := want.Swatches[i]
-		if g.Source != w.Source || g.Destination != w.Destination || g.Alteration != w.Alteration {
-			t.Errorf("swatch[%d] = {%q, %q, %q}, want {%q, %q, %q}",
-				i, g.Source, g.Destination, g.Alteration, w.Source, w.Destination, w.Alteration)
+		if g.Path != w.Path || g.Alteration != w.Alteration {
+			t.Errorf("swatch[%d] = {%q, %q}, want {%q, %q}",
+				i, g.Path, g.Alteration, w.Path, w.Alteration)
 		}
 	}
 }
@@ -127,16 +127,16 @@ func TestDefaultConfigSwatchOrder(t *testing.T) {
 	}
 
 	first := cfg.Swatches[0]
-	if first.Source != ".github/workflows/tailor.yml" {
-		t.Errorf("first swatch Source = %q, want %q", first.Source, ".github/workflows/tailor.yml")
+	if first.Path != ".github/workflows/tailor.yml" {
+		t.Errorf("first swatch Path = %q, want %q", first.Path, ".github/workflows/tailor.yml")
 	}
 	if first.Alteration != swatch.Always {
 		t.Errorf("first swatch Alteration = %q, want %q", first.Alteration, swatch.Always)
 	}
 
 	last := cfg.Swatches[len(cfg.Swatches)-1]
-	if last.Source != ".github/workflows/tailor-automerge.yml" {
-		t.Errorf("last swatch Source = %q, want %q", last.Source, ".github/workflows/tailor-automerge.yml")
+	if last.Path != ".github/workflows/tailor-automerge.yml" {
+		t.Errorf("last swatch Path = %q, want %q", last.Path, ".github/workflows/tailor-automerge.yml")
 	}
 	if last.Alteration != swatch.Triggered {
 		t.Errorf("last swatch Alteration = %q, want %q", last.Alteration, swatch.Triggered)

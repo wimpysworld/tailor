@@ -25,17 +25,17 @@ const (
 	SkippedNever    SwatchCategory = "skip (never)"
 )
 
-// SwatchResult records the destination path and categorised outcome for one
-// swatch entry. Annotation carries optional context such as the trigger
-// condition name, appended to the category label in formatted output.
+// SwatchResult records the path and categorised outcome for one swatch entry.
+// Annotation carries optional context such as the trigger condition name,
+// appended to the category label in formatted output.
 type SwatchResult struct {
-	Destination string
-	Category    SwatchCategory
-	Annotation  string
+	Path       string
+	Category   SwatchCategory
+	Annotation string
 }
 
-// configSource is the source path of the config.yml swatch entry.
-const configSource = config.ConfigSwatchSource
+// configPath is the path of the config swatch entry.
+const configPath = config.ConfigSwatchPath
 
 // ProcessSwatches evaluates each swatch entry in cfg and returns results.
 // When mode is Apply or Recut, it writes files to disk.
@@ -43,20 +43,20 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 	results := make([]SwatchResult, 0, len(cfg.Swatches))
 
 	for _, entry := range cfg.Swatches {
-		if entry.Source == configSource {
+		if entry.Path == configPath {
 			continue
 		}
 
-		content, err := swatch.Content(entry.Source)
+		content, err := swatch.Content(entry.Path)
 		if err != nil {
-			return nil, fmt.Errorf("reading swatch %q: %w", entry.Source, err)
+			return nil, fmt.Errorf("reading swatch %q: %w", entry.Path, err)
 		}
 
-		content = tokens.Substitute(content, entry.Source)
-		dest := filepath.Join(dir, entry.Destination)
+		content = tokens.Substitute(content, entry.Path)
+		dest := filepath.Join(dir, entry.Path)
 
 		if !isInsideDir(dir, dest) {
-			return nil, fmt.Errorf("swatch %q: destination %q escapes project root", entry.Source, entry.Destination)
+			return nil, fmt.Errorf("swatch %q: path escapes project root", entry.Path)
 		}
 
 		result, err := processSwatch(cfg, entry, content, dest, mode)
@@ -75,7 +75,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, mode ApplyMode) (SwatchResult, error) {
 	// Never mode skips unconditionally, regardless of apply mode or file existence.
 	if entry.Alteration == swatch.Never {
-		return SwatchResult{Destination: entry.Destination, Category: SkippedNever}, nil
+		return SwatchResult{Path: entry.Path, Category: SkippedNever}, nil
 	}
 
 	exists := fileExists(dest)
@@ -92,20 +92,20 @@ func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte,
 	case swatch.Triggered:
 		return processTriggered(cfg, entry, content, dest, exists, mode)
 	default:
-		return SwatchResult{}, fmt.Errorf("unknown alteration mode %q for swatch %q", entry.Alteration, entry.Source)
+		return SwatchResult{}, fmt.Errorf("unknown alteration mode %q for swatch %q", entry.Alteration, entry.Path)
 	}
 }
 
 func processFirstFit(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
 	if exists {
-		return SwatchResult{Destination: entry.Destination, Category: SkippedFirstFit}, nil
+		return SwatchResult{Path: entry.Path, Category: SkippedFirstFit}, nil
 	}
 	if mode.ShouldWrite() {
 		if err := writeFile(dest, content); err != nil {
 			return SwatchResult{}, err
 		}
 	}
-	return SwatchResult{Destination: entry.Destination, Category: WouldCopy}, nil
+	return SwatchResult{Path: entry.Path, Category: WouldCopy}, nil
 }
 
 func processAlways(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
@@ -115,7 +115,7 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 				return SwatchResult{}, err
 			}
 		}
-		return SwatchResult{Destination: entry.Destination, Category: WouldCopy}, nil
+		return SwatchResult{Path: entry.Path, Category: WouldCopy}, nil
 	}
 
 	onDisk, err := contentHashFile(dest)
@@ -124,7 +124,7 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 	}
 
 	if contentHash(content) == onDisk {
-		return SwatchResult{Destination: entry.Destination, Category: NoChange}, nil
+		return SwatchResult{Path: entry.Path, Category: NoChange}, nil
 	}
 
 	if mode.ShouldWrite() {
@@ -132,13 +132,13 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 			return SwatchResult{}, err
 		}
 	}
-	return SwatchResult{Destination: entry.Destination, Category: WouldOverwrite}, nil
+	return SwatchResult{Path: entry.Path, Category: WouldOverwrite}, nil
 }
 
 func processTriggered(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
-	annotation := triggerAnnotation(entry.Source)
+	annotation := triggerAnnotation(entry.Path)
 
-	if swatch.EvaluateTrigger(entry.Source, cfg.Repository) {
+	if swatch.EvaluateTrigger(entry.Path, cfg.Repository) {
 		result, err := processAlways(entry, content, dest, exists, mode)
 		if err != nil {
 			return result, err
@@ -152,18 +152,18 @@ func processTriggered(cfg *config.Config, entry config.SwatchEntry, content []by
 			if err := os.Remove(dest); err != nil {
 				return SwatchResult{}, fmt.Errorf("removing file %q: %w", dest, err)
 			}
-			return SwatchResult{Destination: entry.Destination, Category: Removed, Annotation: annotation}, nil
+			return SwatchResult{Path: entry.Path, Category: Removed, Annotation: annotation}, nil
 		}
-		return SwatchResult{Destination: entry.Destination, Category: WouldRemove, Annotation: annotation}, nil
+		return SwatchResult{Path: entry.Path, Category: WouldRemove, Annotation: annotation}, nil
 	}
 
-	return SwatchResult{Destination: entry.Destination, Category: SkippedNever, Annotation: annotation}, nil
+	return SwatchResult{Path: entry.Path, Category: SkippedNever, Annotation: annotation}, nil
 }
 
-// triggerAnnotation returns the formatted trigger context string for a source
+// triggerAnnotation returns the formatted trigger context string for a swatch
 // path, e.g. "triggered: allow_auto_merge". Returns empty if no trigger exists.
-func triggerAnnotation(source string) string {
-	tc, ok := swatch.LookupTrigger(source)
+func triggerAnnotation(path string) string {
+	tc, ok := swatch.LookupTrigger(path)
 	if !ok {
 		return ""
 	}
@@ -180,7 +180,7 @@ func processRecut(entry config.SwatchEntry, content []byte, dest string, exists 
 			return SwatchResult{}, err
 		}
 	}
-	return SwatchResult{Destination: entry.Destination, Category: category}, nil
+	return SwatchResult{Path: entry.Path, Category: category}, nil
 }
 
 // writeFile creates parent directories and writes data to path.

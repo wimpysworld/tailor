@@ -142,9 +142,9 @@ func WithPatchError(statusCode int) testOption {
 	return func(c *alterServerConfig) { c.patchError = statusCode }
 }
 
-// setupAlterTest creates a temp dir, writes .tailor/config.yml from the
-// provided YAML string, sets up a mock HTTP server, stubs the repo context,
-// and returns an alterTestContext ready for use with alter.Run.
+// setupAlterTest creates a temp dir, writes .tailor.yml from the provided
+// YAML string, sets up a mock HTTP server, stubs the repo context, and
+// returns an alterTestContext ready for use with alter.Run.
 func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterTestContext {
 	t.Helper()
 
@@ -162,12 +162,8 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 	dir := t.TempDir()
 
 	// Write config file.
-	cfgDir := filepath.Join(dir, ".tailor")
-	if err := os.MkdirAll(cfgDir, 0o755); err != nil {
-		t.Fatalf("creating .tailor dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(cfgDir, "config.yml"), []byte(configYAML), 0o644); err != nil {
-		t.Fatalf("writing config.yml: %v", err)
+	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte(configYAML), 0o644); err != nil {
+		t.Fatalf("writing .tailor.yml: %v", err)
 	}
 
 	ctx := &alterTestContext{Dir: dir}
@@ -289,7 +285,7 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 	return ctx
 }
 
-// loadTestConfig loads .tailor/config.yml from dir through the config package,
+// loadTestConfig loads .tailor.yml from dir through the config package,
 // matching the real alter.Run code path.
 func loadTestConfig(t *testing.T, dir string) *config.Config {
 	t.Helper()
@@ -407,8 +403,7 @@ func requireNotContains(t *testing.T, output, substr string) {
 func TestAlterRunDryRunSmokeTest(t *testing.T) {
 	configYAML := `license: mit
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML)
@@ -464,8 +459,7 @@ func TestAlterRunDryRunWithRepoSettings(t *testing.T) {
 repository:
   has_wiki: false
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML,
@@ -512,8 +506,7 @@ swatches:
 func TestAlterRunApplyWritesFiles(t *testing.T) {
 	configYAML := `license: mit
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML)
@@ -561,14 +554,11 @@ repository:
   has_wiki: false
   delete_branch_on_merge: true
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML,
@@ -604,14 +594,11 @@ func TestAlterRunDryRunAllFilesPresent(t *testing.T) {
 repository:
   has_wiki: false
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML,
@@ -661,14 +648,11 @@ swatches:
 func TestAlterRunDryRunMixedFiles(t *testing.T) {
 	configYAML := `license: mit
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
-  - source: CONTRIBUTING.md
-    destination: CONTRIBUTING.md
+  - path: CONTRIBUTING.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML)
@@ -702,8 +686,7 @@ swatches:
 func TestAlterRunDryRunAlwaysSwatchDiffersContent(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML)
@@ -735,8 +718,7 @@ swatches:
 func TestAlterRunDryRunSubstitutedSwatchAlwaysOverwrites(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML)
@@ -768,17 +750,13 @@ func TestAlterRunDryRunNoFilesWritten(t *testing.T) {
 repository:
   has_wiki: false
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
-  - source: CONTRIBUTING.md
-    destination: CONTRIBUTING.md
+  - path: CONTRIBUTING.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML,
@@ -847,14 +825,11 @@ repository:
   has_wiki: false
   has_issues: true
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
-  - source: CONTRIBUTING.md
-    destination: CONTRIBUTING.md
+  - path: CONTRIBUTING.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML,
@@ -935,14 +910,11 @@ func TestAlterRunDryRunColumnWidth(t *testing.T) {
 repository:
   has_wiki: false
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1003,14 +975,11 @@ func TestAlterRunApplyEmptyProject(t *testing.T) {
 repository:
   has_wiki: false
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1050,14 +1019,11 @@ swatches:
 func TestAlterRunApplyFileContentMatchesEmbedded(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
-  - source: CONTRIBUTING.md
-    destination: CONTRIBUTING.md
+  - path: CONTRIBUTING.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML)
@@ -1084,8 +1050,7 @@ swatches:
 func TestAlterRunApplyFundingYmlSubstituted(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: .github/FUNDING.yml
-    destination: .github/FUNDING.yml
+  - path: .github/FUNDING.yml
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1113,8 +1078,7 @@ swatches:
 func TestAlterRunApplySecurityMdSubstituted(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1143,8 +1107,7 @@ swatches:
 func TestAlterRunApplyCreatesIntermediateDirectories(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: .github/ISSUE_TEMPLATE/bug_report.yml
-    destination: .github/ISSUE_TEMPLATE/bug_report.yml
+  - path: .github/ISSUE_TEMPLATE/bug_report.yml
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML)
@@ -1178,14 +1141,11 @@ swatches:
 func TestAlterRunApplyFirstFitPreservesExisting(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: .github/FUNDING.yml
-    destination: .github/FUNDING.yml
+  - path: .github/FUNDING.yml
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML)
@@ -1226,8 +1186,7 @@ swatches:
 func TestAlterRunApplyAlwaysSwatchNoWriteOnMD5Match(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML)
@@ -1271,8 +1230,7 @@ swatches:
 func TestAlterRunApplyLicencePreservesExisting(t *testing.T) {
 	configYAML := `license: mit
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1303,8 +1261,7 @@ repository:
   has_wiki: false
   delete_branch_on_merge: true
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1353,11 +1310,9 @@ swatches:
 func TestAlterRunRecutOverwritesFirstFitSwatches(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML)
@@ -1388,8 +1343,7 @@ swatches:
 func TestAlterRunRecutDoesNotOverwriteLicence(t *testing.T) {
 	configYAML := `license: mit
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1416,8 +1370,7 @@ swatches:
 func TestAlterRunRecutMergesConfigAndOverwrites(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: .tailor/config.yml
-    destination: .tailor/config.yml
+  - path: .tailor.yml
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML)
@@ -1426,7 +1379,7 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Recut, tc.Client)
 
-	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1442,8 +1395,7 @@ swatches:
 func TestAlterRunRecutResolvesTokens(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: .github/FUNDING.yml
-    destination: .github/FUNDING.yml
+  - path: .github/FUNDING.yml
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1481,8 +1433,7 @@ swatches:
 func TestAlterRunErrorUnrecognisedSwatchSource(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: nonexistent.txt
-    destination: nonexistent.txt
+  - path: nonexistent.txt
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML)
@@ -1491,11 +1442,11 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
 
-	if !strings.Contains(err.Error(), "unrecognised swatch source") {
-		t.Errorf("error = %q, want substring 'unrecognised swatch source'", err)
+	if !strings.Contains(err.Error(), "unrecognised swatch path") {
+		t.Errorf("error = %q, want substring 'unrecognised swatch path'", err)
 	}
 	if !strings.Contains(err.Error(), ".gitignore") {
-		t.Errorf("error should list valid sources, got: %q", err)
+		t.Errorf("error should list valid paths, got: %q", err)
 	}
 }
 
@@ -1504,11 +1455,9 @@ swatches:
 func TestAlterRunErrorDuplicateDestination(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
-  - source: CODE_OF_CONDUCT.md
-    destination: .gitignore
+  - path: .gitignore
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML)
@@ -1517,8 +1466,8 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
 
-	if !strings.Contains(err.Error(), "duplicate destination") {
-		t.Errorf("error = %q, want substring 'duplicate destination'", err)
+	if !strings.Contains(err.Error(), "duplicate swatch path") {
+		t.Errorf("error = %q, want substring 'duplicate swatch path'", err)
 	}
 }
 
@@ -1529,8 +1478,7 @@ func TestAlterRunErrorUnrecognisedRepoSetting(t *testing.T) {
 repository:
   unknown_setting: true
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML)
@@ -1546,7 +1494,7 @@ swatches:
 }
 
 // TestAlterRunErrorMissingConfigFile verifies that config.Load returns an
-// error when .tailor/config.yml does not exist. This error is caught by the
+// error when .tailor.yml does not exist. This error is caught by the
 // CLI layer (cmd/tailor), not by alter.Run which receives a pre-loaded config.
 func TestAlterRunErrorMissingConfigFile(t *testing.T) {
 	dir := t.TempDir()
@@ -1564,8 +1512,7 @@ func TestAlterRunErrorMissingConfigFile(t *testing.T) {
 func TestAlterRunErrorLicenceFetchFailure(t *testing.T) {
 	configYAML := `license: bad-id
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1585,8 +1532,7 @@ swatches:
 func TestAlterRunErrorGetUserFailure(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1620,8 +1566,7 @@ func TestAlterRunErrorPatchFailure(t *testing.T) {
 repository:
   has_wiki: false
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1651,8 +1596,7 @@ func TestAlterRunNoRepoContextWarning(t *testing.T) {
 repository:
   has_wiki: false
 swatches:
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML, WithNoRepo())
@@ -1680,11 +1624,9 @@ swatches:
 func TestAlterRunNoRepoContextLeavesTokensUnsubstituted(t *testing.T) {
 	configYAML := `license: none
 swatches:
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
-  - source: .github/ISSUE_TEMPLATE/config.yml
-    destination: .github/ISSUE_TEMPLATE/config.yml
+  - path: .github/ISSUE_TEMPLATE/config.yml
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML, WithNoRepo())
@@ -1726,8 +1668,7 @@ func TestAlterRunTriggeredAutoMergeTrue(t *testing.T) {
 repository:
   allow_auto_merge: true
 swatches:
-  - source: .github/workflows/tailor-automerge.yml
-    destination: .github/workflows/tailor-automerge.yml
+  - path: .github/workflows/tailor-automerge.yml
     alteration: triggered
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1776,8 +1717,7 @@ func TestAlterRunTriggeredAutoMergeFalse(t *testing.T) {
 repository:
   allow_auto_merge: false
 swatches:
-  - source: .github/workflows/tailor-automerge.yml
-    destination: .github/workflows/tailor-automerge.yml
+  - path: .github/workflows/tailor-automerge.yml
     alteration: triggered
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1828,8 +1768,7 @@ func TestAlterRunNeverSuppressesTriggered(t *testing.T) {
 repository:
   allow_auto_merge: true
 swatches:
-  - source: .github/workflows/tailor-automerge.yml
-    destination: .github/workflows/tailor-automerge.yml
+  - path: .github/workflows/tailor-automerge.yml
     alteration: never
 `
 	tc := setupAlterTest(t, configYAML,
@@ -1860,15 +1799,15 @@ swatches:
 // ---------------------------------------------------------------------------
 
 // allNonConfigSwatchesYAML returns a YAML swatches block containing every
-// registered swatch except .tailor/config.yml, using each swatch's default
+// registered swatch except .tailor.yml, using each swatch's default
 // alteration mode.
 func allNonConfigSwatchesYAML() string {
 	var sb strings.Builder
 	for _, s := range swatch.All() {
-		if s.Source == ".tailor/config.yml" {
+		if s.Path == ".tailor.yml" {
 			continue
 		}
-		fmt.Fprintf(&sb, "  - source: %s\n    destination: %s\n    alteration: %s\n", s.Source, s.Destination, s.DefaultAlteration)
+		fmt.Fprintf(&sb, "  - path: %s\n    alteration: %s\n", s.Path, s.DefaultAlteration)
 	}
 	return sb.String()
 }
@@ -1973,12 +1912,12 @@ func allDefaultLabelsYAML(t *testing.T) string {
 func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 	// Config includes config.yml swatch (always) but omits SUPPORT.md and justfile.
 	configYAML := "license: none\nswatches:\n" +
-		"  - source: .tailor/config.yml\n    destination: .tailor/config.yml\n    alteration: always\n"
+		"  - path: .tailor.yml\n    alteration: always\n"
 	for _, s := range swatch.All() {
-		if s.Source == ".tailor/config.yml" || s.Source == "SUPPORT.md" || s.Source == "justfile" {
+		if s.Path == ".tailor.yml" || s.Path == "SUPPORT.md" || s.Path == "justfile" {
 			continue
 		}
-		configYAML += fmt.Sprintf("  - source: %s\n    destination: %s\n    alteration: %s\n", s.Source, s.Destination, s.DefaultAlteration)
+		configYAML += fmt.Sprintf("  - path: %s\n    alteration: %s\n", s.Path, s.DefaultAlteration)
 	}
 
 	tc := setupAlterTest(t, configYAML)
@@ -1996,7 +1935,7 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 	}
 
 	// The config file on disk must exist (swatch processing writes it).
-	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("config.yml not found after apply: %v", err)
 	}
@@ -2014,13 +1953,13 @@ func TestConfigMergeAllPresentApply(t *testing.T) {
 		allDefaultRepoSettingsYAML(t) +
 		allDefaultLabelsYAML(t) +
 		"swatches:\n" +
-		"  - source: .tailor/config.yml\n    destination: .tailor/config.yml\n    alteration: always\n" +
+		"  - path: .tailor.yml\n    alteration: always\n" +
 		allNonConfigSwatchesYAML()
 
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	cfgPath := filepath.Join(tc.Dir, ".tailor/config.yml")
+	cfgPath := filepath.Join(tc.Dir, ".tailor.yml")
 
 	cfg := loadTestConfig(t, tc.Dir)
 	captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
@@ -2045,13 +1984,13 @@ func TestConfigMergeAllPresentApply(t *testing.T) {
 func TestConfigMergeFirstFitApplySkips(t *testing.T) {
 	// Config with first-fit for config.yml, missing SUPPORT.md.
 	configYAML := "license: none\nswatches:\n" +
-		"  - source: .tailor/config.yml\n    destination: .tailor/config.yml\n    alteration: first-fit\n" +
-		"  - source: .gitignore\n    destination: .gitignore\n    alteration: first-fit\n"
+		"  - path: .tailor.yml\n    alteration: first-fit\n" +
+		"  - path: .gitignore\n    alteration: first-fit\n"
 
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading original config: %v", err)
 	}
@@ -2059,7 +1998,7 @@ func TestConfigMergeFirstFitApplySkips(t *testing.T) {
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading config after apply: %v", err)
 	}
@@ -2080,8 +2019,8 @@ func TestConfigMergeFirstFitApplySkips(t *testing.T) {
 func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 	// Config with first-fit for config.yml, missing most swatches.
 	configYAML := "license: none\nswatches:\n" +
-		"  - source: .tailor/config.yml\n    destination: .tailor/config.yml\n    alteration: first-fit\n" +
-		"  - source: .gitignore\n    destination: .gitignore\n    alteration: first-fit\n"
+		"  - path: .tailor.yml\n    alteration: first-fit\n" +
+		"  - path: .gitignore\n    alteration: first-fit\n"
 
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
@@ -2099,7 +2038,7 @@ func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 	}
 
 	// config.yml must exist on disk (recut overwrites it via swatch processing).
-	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("config.yml not found after recut: %v", err)
 	}
@@ -2113,13 +2052,13 @@ func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 func TestConfigMergeDryRunNoRewrite(t *testing.T) {
 	// Config missing most swatches, config.yml set to always.
 	configYAML := "license: none\nswatches:\n" +
-		"  - source: .tailor/config.yml\n    destination: .tailor/config.yml\n    alteration: always\n" +
-		"  - source: .gitignore\n    destination: .gitignore\n    alteration: first-fit\n"
+		"  - path: .tailor.yml\n    alteration: always\n" +
+		"  - path: .gitignore\n    alteration: first-fit\n"
 
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading original config: %v", err)
 	}
@@ -2127,7 +2066,7 @@ func TestConfigMergeDryRunNoRewrite(t *testing.T) {
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 
-	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading config after dry-run: %v", err)
 	}
@@ -2151,11 +2090,9 @@ func TestAlterRunMergeRepoSettingsAndLabels(t *testing.T) {
 repository:
   has_wiki: false
 swatches:
-  - source: .tailor/config.yml
-    destination: .tailor/config.yml
+  - path: .tailor.yml
     alteration: always
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML)
@@ -2165,7 +2102,7 @@ swatches:
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
 	// Read the rewritten config file.
-	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading config after merge: %v", err)
 	}
@@ -2279,14 +2216,13 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 	}
 
 	sb.WriteString("\nswatches:\n")
-	sb.WriteString("  - source: .tailor/config.yml\n")
-	sb.WriteString("    destination: .tailor/config.yml\n")
+	sb.WriteString("  - path: .tailor.yml\n")
 	sb.WriteString("    alteration: always\n")
 	for _, s := range defaults.Swatches {
-		if s.Source == config.ConfigSwatchSource {
+		if s.Path == config.ConfigSwatchPath {
 			continue
 		}
-		fmt.Fprintf(&sb, "  - source: %s\n    destination: %s\n    alteration: %s\n", s.Source, s.Destination, s.Alteration)
+		fmt.Fprintf(&sb, "  - path: %s\n    alteration: %s\n", s.Path, s.Alteration)
 	}
 
 	configYAML := sb.String()
@@ -2294,7 +2230,7 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	// Record original config content.
-	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading original config: %v", err)
 	}
@@ -2302,7 +2238,7 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading config after alter: %v", err)
 	}
@@ -2321,17 +2257,15 @@ labels:
     color: "000000"
     description: "A custom label"
 swatches:
-  - source: .tailor/config.yml
-    destination: .tailor/config.yml
+  - path: .tailor.yml
     alteration: always
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 `
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading original config: %v", err)
 	}
@@ -2339,7 +2273,7 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor/config.yml"))
+	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading config after merge: %v", err)
 	}

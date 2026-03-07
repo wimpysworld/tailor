@@ -11,8 +11,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-// specYAML is the exact config body from the specification (lines 331-415),
-// minus the leading comment which is not part of the data model.
+// specYAML is the exact config body from the specification, minus the leading
+// comment which is not part of the data model.
 const specYAML = `license: MIT
 
 repository:
@@ -32,72 +32,55 @@ repository:
   private_vulnerability_reporting_enabled: true
 
 swatches:
-  - source: .github/workflows/tailor.yml
-    destination: .github/workflows/tailor.yml
+  - path: .github/workflows/tailor.yml
     alteration: always
 
-  - source: .github/dependabot.yml
-    destination: .github/dependabot.yml
+  - path: .github/dependabot.yml
     alteration: first-fit
 
-  - source: .github/FUNDING.yml
-    destination: .github/FUNDING.yml
+  - path: .github/FUNDING.yml
     alteration: first-fit
 
-  - source: .github/ISSUE_TEMPLATE/bug_report.yml
-    destination: .github/ISSUE_TEMPLATE/bug_report.yml
+  - path: .github/ISSUE_TEMPLATE/bug_report.yml
     alteration: always
 
-  - source: .github/ISSUE_TEMPLATE/feature_request.yml
-    destination: .github/ISSUE_TEMPLATE/feature_request.yml
+  - path: .github/ISSUE_TEMPLATE/feature_request.yml
     alteration: always
 
-  - source: .github/ISSUE_TEMPLATE/config.yml
-    destination: .github/ISSUE_TEMPLATE/config.yml
+  - path: .github/ISSUE_TEMPLATE/config.yml
     alteration: first-fit
 
-  - source: .github/pull_request_template.md
-    destination: .github/pull_request_template.md
+  - path: .github/pull_request_template.md
     alteration: always
 
-  - source: SECURITY.md
-    destination: SECURITY.md
+  - path: SECURITY.md
     alteration: always
 
-  - source: CODE_OF_CONDUCT.md
-    destination: CODE_OF_CONDUCT.md
+  - path: CODE_OF_CONDUCT.md
     alteration: always
 
-  - source: CONTRIBUTING.md
-    destination: CONTRIBUTING.md
+  - path: CONTRIBUTING.md
     alteration: always
 
-  - source: SUPPORT.md
-    destination: SUPPORT.md
+  - path: SUPPORT.md
     alteration: always
 
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: first-fit
 
-  - source: flake.nix
-    destination: flake.nix
+  - path: flake.nix
     alteration: first-fit
 
-  - source: .gitignore
-    destination: .gitignore
+  - path: .gitignore
     alteration: first-fit
 
-  - source: .envrc
-    destination: .envrc
+  - path: .envrc
     alteration: first-fit
 
-  - source: .tailor/config.yml
-    destination: .tailor/config.yml
+  - path: .tailor.yml
     alteration: always
 
-  - source: .github/workflows/tailor-automerge.yml
-    destination: .github/workflows/tailor-automerge.yml
+  - path: .github/workflows/tailor-automerge.yml
     alteration: triggered
 `
 
@@ -137,19 +120,16 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 
 	// Spot-check the first and last swatch entries.
 	first := cfg.Swatches[0]
-	if first.Source != ".github/workflows/tailor.yml" {
-		t.Errorf("first swatch Source = %q", first.Source)
-	}
-	if first.Destination != ".github/workflows/tailor.yml" {
-		t.Errorf("first swatch Destination = %q", first.Destination)
+	if first.Path != ".github/workflows/tailor.yml" {
+		t.Errorf("first swatch Path = %q", first.Path)
 	}
 	if first.Alteration != swatch.Always {
 		t.Errorf("first swatch Alteration = %q", first.Alteration)
 	}
 
 	last := cfg.Swatches[16]
-	if last.Source != ".github/workflows/tailor-automerge.yml" {
-		t.Errorf("last swatch Source = %q", last.Source)
+	if last.Path != ".github/workflows/tailor-automerge.yml" {
+		t.Errorf("last swatch Path = %q", last.Path)
 	}
 	if last.Alteration != swatch.Triggered {
 		t.Errorf("last swatch Alteration = %q", last.Alteration)
@@ -186,9 +166,9 @@ func TestMarshalRoundTrip(t *testing.T) {
 
 	for i, s := range roundTripped.Swatches {
 		o := original.Swatches[i]
-		if s.Source != o.Source || s.Destination != o.Destination || s.Alteration != o.Alteration {
-			t.Errorf("swatch[%d] mismatch: got {%q, %q, %q}, want {%q, %q, %q}",
-				i, s.Source, s.Destination, s.Alteration, o.Source, o.Destination, o.Alteration)
+		if s.Path != o.Path || s.Alteration != o.Alteration {
+			t.Errorf("swatch[%d] mismatch: got {%q, %q}, want {%q, %q}",
+				i, s.Path, s.Alteration, o.Path, o.Alteration)
 		}
 	}
 }
@@ -196,8 +176,7 @@ func TestMarshalRoundTrip(t *testing.T) {
 func TestRepositoryNilWhenAbsent(t *testing.T) {
 	input := `license: MIT
 swatches:
-  - source: justfile
-    destination: justfile
+  - path: justfile
     alteration: first-fit
 `
 	var cfg Config
@@ -214,7 +193,7 @@ func TestRepositoryOmittedInMarshalWhenNil(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -235,7 +214,7 @@ func TestOptionalRepositoryFieldsOmitted(t *testing.T) {
 			HasWiki: ptr.Bool(false),
 		},
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -339,7 +318,7 @@ func TestNewFieldsRoundTrip(t *testing.T) {
 			CanApprovePullRequestReviews:  ptr.Bool(true),
 		},
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -375,7 +354,7 @@ func TestNewFieldsOmittedInMarshal(t *testing.T) {
 			HasWiki: ptr.Bool(false),
 		},
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -468,7 +447,7 @@ func TestLabelsRoundTrip(t *testing.T) {
 			{Name: "enhancement", Color: "a2eeef", Description: "New feature or request"},
 		},
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 
@@ -498,7 +477,7 @@ func TestLabelsOmittedInMarshalWhenNil(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Swatches: []SwatchEntry{
-			{Source: "justfile", Destination: "justfile", Alteration: swatch.FirstFit},
+			{Path: "justfile", Alteration: swatch.FirstFit},
 		},
 	}
 

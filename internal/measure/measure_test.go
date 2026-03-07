@@ -16,8 +16,7 @@ func buildDefaultConfigYAML() string {
 	b.WriteString("license: MIT\n")
 	b.WriteString("swatches:\n")
 	for _, s := range swatch.All() {
-		b.WriteString("  - source: " + s.Source + "\n")
-		b.WriteString("    destination: " + s.Destination + "\n")
+		b.WriteString("  - path: " + s.Path + "\n")
 		b.WriteString("    alteration: " + string(s.DefaultAlteration) + "\n")
 	}
 	return b.String()
@@ -48,7 +47,7 @@ func TestIntegrationEmptyDirNoConfig(t *testing.T) {
 		"missing:        SECURITY.md\n" +
 		"missing:        SUPPORT.md\n" +
 		"\n" +
-		"No .tailor/config.yml found. Run `tailor fit <path>` to initialise, or create `.tailor/config.yml` manually to enable configuration alignment checks.\n"
+		"No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks.\n"
 
 	if got != want {
 		t.Errorf("empty dir, no config:\ngot:\n%s\nwant:\n%s", got, want)
@@ -84,7 +83,7 @@ func TestIntegrationSomeHealthFilesNoConfig(t *testing.T) {
 		"present:        LICENSE\n" +
 		"present:        SECURITY.md\n" +
 		"\n" +
-		"No .tailor/config.yml found. Run `tailor fit <path>` to initialise, or create `.tailor/config.yml` manually to enable configuration alignment checks.\n"
+		"No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks.\n"
 
 	if got != want {
 		t.Errorf("some health files, no config:\ngot:\n%s\nwant:\n%s", got, want)
@@ -154,21 +153,19 @@ func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 	b.WriteString("swatches:\n")
 	for _, s := range swatch.All() {
 		// Skip .github/dependabot.yml to produce not-configured.
-		if s.Destination == ".github/dependabot.yml" {
+		if s.Path == ".github/dependabot.yml" {
 			continue
 		}
 		alt := string(s.DefaultAlteration)
 		// Override SECURITY.md mode to produce mode-differs.
-		if s.Destination == "SECURITY.md" {
+		if s.Path == "SECURITY.md" {
 			alt = "first-fit"
 		}
-		b.WriteString("  - source: " + s.Source + "\n")
-		b.WriteString("    destination: " + s.Destination + "\n")
+		b.WriteString("  - path: " + s.Path + "\n")
 		b.WriteString("    alteration: " + alt + "\n")
 	}
 	// Add a custom swatch not in defaults to produce config-only.
-	b.WriteString("  - source: some-custom-swatch.yml\n")
-	b.WriteString("    destination: some-custom-swatch.yml\n")
+	b.WriteString("  - path: some-custom-swatch.yml\n")
 	b.WriteString("    alteration: always\n")
 
 	testutil.WriteConfig(t, dir, b.String())
@@ -226,27 +223,24 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 	b.WriteString("swatches:\n")
 	for _, s := range swatch.All() {
 		// Omit two defaults to produce two not-configured entries.
-		if s.Destination == ".github/dependabot.yml" || s.Destination == ".envrc" {
+		if s.Path == ".github/dependabot.yml" || s.Path == ".envrc" {
 			continue
 		}
 		alt := string(s.DefaultAlteration)
 		// Override two modes to produce two mode-differs entries.
-		if s.Destination == "SECURITY.md" {
+		if s.Path == "SECURITY.md" {
 			alt = "first-fit"
 		}
-		if s.Destination == "CODE_OF_CONDUCT.md" {
+		if s.Path == "CODE_OF_CONDUCT.md" {
 			alt = "first-fit"
 		}
-		b.WriteString("  - source: " + s.Source + "\n")
-		b.WriteString("    destination: " + s.Destination + "\n")
+		b.WriteString("  - path: " + s.Path + "\n")
 		b.WriteString("    alteration: " + alt + "\n")
 	}
 	// Add two config-only entries.
-	b.WriteString("  - source: beta-custom.yml\n")
-	b.WriteString("    destination: beta-custom.yml\n")
+	b.WriteString("  - path: beta-custom.yml\n")
 	b.WriteString("    alteration: always\n")
-	b.WriteString("  - source: alpha-custom.yml\n")
-	b.WriteString("    destination: alpha-custom.yml\n")
+	b.WriteString("  - path: alpha-custom.yml\n")
 	b.WriteString("    alteration: first-fit\n")
 
 	testutil.WriteConfig(t, dir, b.String())

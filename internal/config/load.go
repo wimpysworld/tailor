@@ -11,15 +11,15 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-const configPath = ".tailor/config.yml"
+const configPath = ".tailor.yml"
 
-// Exists reports whether .tailor/config.yml is present in dir.
+// Exists reports whether .tailor.yml is present in dir.
 func Exists(dir string) bool {
 	return fsutil.FileExists(filepath.Join(dir, configPath))
 }
 
-// Load reads and parses .tailor/config.yml from dir, returning
-// the validated Config or an error.
+// Load reads and parses .tailor.yml from dir, returning the validated Config
+// or an error.
 func Load(dir string) (*Config, error) {
 	path := filepath.Join(dir, configPath)
 	data, err := os.ReadFile(path)
@@ -48,11 +48,8 @@ func parseAndValidate(data []byte, context string) (*Config, error) {
 // validate checks the parsed config for structural correctness.
 func validate(cfg *Config) error {
 	for i, s := range cfg.Swatches {
-		if s.Source == "" {
-			return fmt.Errorf("swatch[%d]: source must not be empty", i)
-		}
-		if s.Destination == "" {
-			return fmt.Errorf("swatch[%d]: destination must not be empty", i)
+		if s.Path == "" {
+			return fmt.Errorf("swatch[%d]: path must not be empty", i)
 		}
 		switch s.Alteration {
 		case swatch.Always, swatch.FirstFit, swatch.Triggered, swatch.Never:
