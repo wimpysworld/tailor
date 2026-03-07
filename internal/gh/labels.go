@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -133,7 +134,7 @@ func updateLabel(client *api.RESTClient, owner, repo, name string, label config.
 		return fmt.Errorf("marshalling label update %q: %w", name, err)
 	}
 
-	path := fmt.Sprintf("repos/%s/%s/labels/%s", owner, repo, name)
+	path := fmt.Sprintf("repos/%s/%s/labels/%s", owner, repo, url.PathEscape(name))
 	if err := client.Patch(path, bytes.NewReader(payload), nil); err != nil {
 		return fmt.Errorf("updating label %q: %w", name, err)
 	}
