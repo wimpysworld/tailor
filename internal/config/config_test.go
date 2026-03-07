@@ -512,6 +512,46 @@ func TestLabelsOmittedInMarshalWhenNil(t *testing.T) {
 	}
 }
 
+func TestLabelNeedsUpdateCasingDiffers(t *testing.T) {
+	existing := LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
+	desired := LabelEntry{Name: "Bug", Color: "d73a4a", Description: "desc"}
+	if !LabelNeedsUpdate(existing, desired) {
+		t.Error("LabelNeedsUpdate() = false, want true when name casing differs")
+	}
+}
+
+func TestLabelNeedsUpdateExactMatch(t *testing.T) {
+	existing := LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
+	desired := LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
+	if LabelNeedsUpdate(existing, desired) {
+		t.Error("LabelNeedsUpdate() = true, want false when labels are identical")
+	}
+}
+
+func TestLabelNeedsUpdateColourDiffers(t *testing.T) {
+	existing := LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
+	desired := LabelEntry{Name: "bug", Color: "ff0000", Description: "desc"}
+	if !LabelNeedsUpdate(existing, desired) {
+		t.Error("LabelNeedsUpdate() = false, want true when colour differs")
+	}
+}
+
+func TestLabelNeedsUpdateDescriptionDiffers(t *testing.T) {
+	existing := LabelEntry{Name: "bug", Color: "d73a4a", Description: "old"}
+	desired := LabelEntry{Name: "bug", Color: "d73a4a", Description: "new"}
+	if !LabelNeedsUpdate(existing, desired) {
+		t.Error("LabelNeedsUpdate() = false, want true when description differs")
+	}
+}
+
+func TestLabelNeedsUpdateColourCaseInsensitive(t *testing.T) {
+	existing := LabelEntry{Name: "bug", Color: "D73A4A", Description: "desc"}
+	desired := LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
+	if LabelNeedsUpdate(existing, desired) {
+		t.Error("LabelNeedsUpdate() = true, want false when colour differs only in casing")
+	}
+}
+
 func TestRepositoryStringFields(t *testing.T) {
 	input := `license: MIT
 repository:

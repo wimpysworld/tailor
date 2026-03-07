@@ -124,6 +124,7 @@ func createLabel(client *api.RESTClient, owner, repo string, label config.LabelE
 // The name parameter is the current name on GitHub (used in the URL path).
 func updateLabel(client *api.RESTClient, owner, repo, name string, label config.LabelEntry) error {
 	body := map[string]string{
+		"new_name":    label.Name,
 		"color":       label.Color,
 		"description": label.Description,
 	}

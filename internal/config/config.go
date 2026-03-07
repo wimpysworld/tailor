@@ -21,10 +21,14 @@ type LabelEntry struct {
 	Description string `yaml:"description" json:"description"`
 }
 
-// LabelNeedsUpdate reports whether existing differs from desired in colour or
-// description. Colour comparison is case-insensitive to match GitHub behaviour.
+// LabelNeedsUpdate reports whether existing differs from desired in name casing,
+// colour, or description. Colour comparison is case-insensitive to match GitHub
+// behaviour. Name comparison is case-sensitive: the caller already matched these
+// entries case-insensitively, so a difference here means a casing rename.
 func LabelNeedsUpdate(existing, desired LabelEntry) bool {
-	return !strings.EqualFold(existing.Color, desired.Color) || existing.Description != desired.Description
+	return existing.Name != desired.Name ||
+		!strings.EqualFold(existing.Color, desired.Color) ||
+		existing.Description != desired.Description
 }
 
 // RepositorySettings holds GitHub repository configuration fields.
