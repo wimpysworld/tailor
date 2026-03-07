@@ -51,6 +51,8 @@ var templateFuncs = template.FuncMap{
 			return v != nil
 		case *bool:
 			return v != nil
+		case *[]string:
+			return v != nil
 		default:
 			return false
 		}

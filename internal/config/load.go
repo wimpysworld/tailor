@@ -62,6 +62,9 @@ func validate(cfg *Config) error {
 				i, swatch.Always, swatch.FirstFit, swatch.Triggered, swatch.Never, s.Alteration)
 		}
 	}
+	if err := ValidateRepoSettings(cfg); err != nil {
+		return err
+	}
 	if err := ValidateWorkflowPermissions(cfg); err != nil {
 		return err
 	}

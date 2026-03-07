@@ -1505,9 +1505,10 @@ swatches:
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	cfg := loadTestConfig(t, tc.Dir)
-	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
-
+	_, err := config.Load(tc.Dir)
+	if err == nil {
+		t.Fatal("expected error from config.Load with unrecognised repo setting, got nil")
+	}
 	if !strings.Contains(err.Error(), "unrecognised repository setting") {
 		t.Errorf("error = %q, want substring 'unrecognised repository setting'", err)
 	}
