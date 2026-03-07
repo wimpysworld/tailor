@@ -258,7 +258,7 @@ When a GitHub remote exists, `fit` queries the live repository configuration for
 
 ### `alter`
 
-Reads `.tailor.yml` in the current directory and applies swatches, licence, and repository settings. Execution order: repository settings, then licence, then swatches.
+Reads `.tailor.yml` in the current directory and applies repository settings, labels, licence, and swatches. Execution order: repository settings, then labels, then licence, then swatches.
 
 ```bash
 tailor alter              # Apply changes
