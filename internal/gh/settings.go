@@ -82,34 +82,34 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 	// On scope/role errors the corresponding field stays nil (unknown),
 	// allowing the caller to receive a partial result instead of aborting.
 
-	var pvr vulnerabilityReportingResponse
-	if err := client.Get(fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name), &pvr); err != nil {
-		classified := classifyHTTPError(err, "fetch private vulnerability reporting")
+	pvrEnabled, pvrKnown, pvrErr := readSecurityFeatureEnabled(client, fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name))
+	if pvrKnown {
+		s.PrivateVulnerabilityReportEnabled = ptr.Bool(pvrEnabled)
+	} else if pvrErr != nil {
+		classified := classifyHTTPError(pvrErr, "fetch private vulnerability reporting")
 		if !isAccessError(classified) {
-			return nil, fmt.Errorf("fetching private vulnerability reporting: %w", err)
+			return nil, fmt.Errorf("fetching private vulnerability reporting: %w", pvrErr)
 		}
-	} else {
-		s.PrivateVulnerabilityReportEnabled = ptr.Bool(pvr.Enabled)
 	}
 
-	var asf vulnerabilityReportingResponse
-	if err := client.Get(fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name), &asf); err != nil {
-		classified := classifyHTTPError(err, "fetch automated security fixes")
+	asfEnabled, asfKnown, asfErr := readSecurityFeatureEnabled(client, fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name))
+	if asfKnown {
+		s.AutomatedSecurityFixesEnabled = ptr.Bool(asfEnabled)
+	} else if asfErr != nil {
+		classified := classifyHTTPError(asfErr, "fetch automated security fixes")
 		if !isAccessError(classified) {
-			return nil, fmt.Errorf("fetching automated security fixes: %w", err)
+			return nil, fmt.Errorf("fetching automated security fixes: %w", asfErr)
 		}
-	} else {
-		s.AutomatedSecurityFixesEnabled = ptr.Bool(asf.Enabled)
 	}
 
-	vulnerabilityAlerts, vaErr := readVulnerabilityAlerts(client, owner, name)
-	if vaErr != nil {
+	vaEnabled, vaKnown, vaErr := readSecurityFeatureStatus(client, fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name))
+	if vaKnown {
+		s.VulnerabilityAlertsEnabled = ptr.Bool(vaEnabled)
+	} else if vaErr != nil {
 		classified := classifyHTTPError(vaErr, "fetch vulnerability alerts")
 		if !isAccessError(classified) {
 			return nil, vaErr
 		}
-	} else {
-		s.VulnerabilityAlertsEnabled = ptr.Bool(vulnerabilityAlerts)
 	}
 
 	var wfPerms workflowPermissionsResponse
@@ -126,21 +126,41 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 	return s, nil
 }
 
-// readVulnerabilityAlerts checks whether vulnerability alerts are enabled for a
-// repository. The GET /repos/{owner}/{repo}/vulnerability-alerts endpoint
-// returns 204 when enabled and 404 when disabled, with no JSON body.
-func readVulnerabilityAlerts(client *api.RESTClient, owner, name string) (bool, error) {
-	err := client.Get(fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name), nil)
-	if err == nil {
-		return true, nil
-	}
-
+// isHTTP404 returns true when err wraps an *api.HTTPError with status 404.
+func isHTTP404(err error) bool {
 	var httpErr *api.HTTPError
-	if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
-		return false, nil
-	}
+	return errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound
+}
 
-	return false, fmt.Errorf("fetching vulnerability alerts: %w", err)
+// readSecurityFeatureEnabled reads a security feature GET endpoint that returns
+// {"enabled": bool} on success and 404 when the feature is disabled. It returns
+// (value, true, nil) on success, (false, true, nil) on 404, and
+// (false, false, err) for any other error. The second return value indicates
+// whether the result is known (true) or the call failed for a non-404 reason
+// and the caller should classify the error.
+func readSecurityFeatureEnabled(client *api.RESTClient, path string) (enabled bool, known bool, err error) {
+	var resp vulnerabilityReportingResponse
+	if err := client.Get(path, &resp); err != nil {
+		if isHTTP404(err) {
+			return false, true, nil
+		}
+		return false, false, err
+	}
+	return resp.Enabled, true, nil
+}
+
+// readSecurityFeatureStatus reads a security feature GET endpoint that returns
+// 204 when enabled and 404 when disabled, with no JSON body (e.g. vulnerability
+// alerts). Returns (true, true, nil) on 204, (false, true, nil) on 404, and
+// (false, false, err) for any other error.
+func readSecurityFeatureStatus(client *api.RESTClient, path string) (enabled bool, known bool, err error) {
+	if err := client.Get(path, nil); err != nil {
+		if isHTTP404(err) {
+			return false, true, nil
+		}
+		return false, false, err
+	}
+	return true, true, nil
 }
 
 // SkippedOperation records a sub-operation that was skipped due to
