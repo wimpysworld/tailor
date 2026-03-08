@@ -14,10 +14,10 @@ func TestFormatOutputSwatchesOnly(t *testing.T) {
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	want := "would copy:                  CONTRIBUTING.md\n" +
-		"would overwrite:             .github/FUNDING.yml\n" +
-		"no change:                   LICENSE\n" +
-		"skipped (first-fit, exists): .tailor.yml\n"
+	want := "would copy:                          CONTRIBUTING.md\n" +
+		"would overwrite:                     .github/FUNDING.yml\n" +
+		"no change:                           LICENSE\n" +
+		"skipped (first-fit, exists):         .tailor.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput swatches only:\ngot:\n%s\nwant:\n%s", got, want)
@@ -32,9 +32,9 @@ func TestFormatOutputRepoSettingsOnly(t *testing.T) {
 	}
 
 	got := FormatOutput(repos, nil, nil)
-	want := "would set:                   repository.description = My project\n" +
-		"would set:                   repository.has_wiki = false\n" +
-		"no change:                   repository.has_issues (already true)\n"
+	want := "would set:                           repository.description = My project\n" +
+		"would set:                           repository.has_wiki = false\n" +
+		"no change:                           repository.has_issues (already true)\n"
 
 	if got != want {
 		t.Errorf("FormatOutput repo settings only:\ngot:\n%s\nwant:\n%s", got, want)
@@ -53,10 +53,10 @@ func TestFormatOutputCombined(t *testing.T) {
 	}
 
 	got := FormatOutput(repos, nil, swatches)
-	want := "would set:                   repository.has_wiki = false\n" +
-		"no change:                   repository.has_issues (already true)\n" +
-		"would copy:                  CONTRIBUTING.md\n" +
-		"no change:                   LICENSE\n"
+	want := "would set:                           repository.has_wiki = false\n" +
+		"no change:                           repository.has_issues (already true)\n" +
+		"would copy:                          CONTRIBUTING.md\n" +
+		"no change:                           LICENSE\n"
 
 	if got != want {
 		t.Errorf("FormatOutput combined:\ngot:\n%s\nwant:\n%s", got, want)
@@ -88,12 +88,12 @@ func TestFormatOutputSwatchSorting(t *testing.T) {
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	want := "would copy:                  B-file.md\n" +
-		"would copy:                  C-file.md\n" +
-		"would overwrite:             A-file.md\n" +
-		"no change:                   M-file.md\n" +
-		"no change:                   Z-file.md\n" +
-		"skipped (first-fit, exists): A-file.md\n"
+	want := "would copy:                          B-file.md\n" +
+		"would copy:                          C-file.md\n" +
+		"would overwrite:                     A-file.md\n" +
+		"no change:                           M-file.md\n" +
+		"no change:                           Z-file.md\n" +
+		"skipped (first-fit, exists):         A-file.md\n"
 
 	if got != want {
 		t.Errorf("FormatOutput swatch sorting:\ngot:\n%s\nwant:\n%s", got, want)
@@ -109,10 +109,10 @@ func TestFormatOutputRepoSettingSorting(t *testing.T) {
 	}
 
 	got := FormatOutput(repos, nil, nil)
-	want := "would set:                   repository.allow_squash_merge = true\n" +
-		"would set:                   repository.has_issues = true\n" +
-		"no change:                   repository.description (already A project)\n" +
-		"no change:                   repository.has_wiki (already false)\n"
+	want := "would set:                           repository.allow_squash_merge = true\n" +
+		"would set:                           repository.has_issues = true\n" +
+		"no change:                           repository.description (already A project)\n" +
+		"no change:                           repository.has_wiki (already false)\n"
 
 	if got != want {
 		t.Errorf("FormatOutput repo sorting:\ngot:\n%s\nwant:\n%s", got, want)
@@ -129,6 +129,8 @@ func TestFormatOutputColumnAlignment(t *testing.T) {
 		"skipped (first-fit, exists):",
 		"skip (never):",
 		"would set:",
+		"would skip (insufficient scope):",
+		"would skip (insufficient role):",
 	}
 
 	for _, label := range labels {
@@ -149,10 +151,10 @@ func TestFormatOutputActionableBeforeInformational(t *testing.T) {
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	want := "would copy:                  action1.md\n" +
-		"would overwrite:             action2.md\n" +
-		"no change:                   info1.md\n" +
-		"skipped (first-fit, exists): info2.md\n"
+	want := "would copy:                          action1.md\n" +
+		"would overwrite:                     action2.md\n" +
+		"no change:                           info1.md\n" +
+		"skipped (first-fit, exists):         info2.md\n"
 
 	if got != want {
 		t.Errorf("FormatOutput actionable before informational:\ngot:\n%s\nwant:\n%s", got, want)
@@ -171,8 +173,8 @@ func TestFormatOutputRepoSettingsBeforeSwatches(t *testing.T) {
 
 	// Repo settings line must appear before swatch line.
 	repoIdx := 0
-	swatchIdx := len("would set:                   repository.has_wiki = false\n")
-	if got[:swatchIdx] != "would set:                   repository.has_wiki = false\n" {
+	swatchIdx := len("would set:                           repository.has_wiki = false\n")
+	if got[:swatchIdx] != "would set:                           repository.has_wiki = false\n" {
 		t.Errorf("repo settings not first in output:\ngot:\n%s", got)
 	}
 	_ = repoIdx
@@ -201,10 +203,10 @@ func TestFormatOutputNewCategories(t *testing.T) {
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	want := "would copy:                  copied.md\n" +
-		"would remove:                would-remove.yml\n" +
-		"removed:                     removed.yml\n" +
-		"skip (never):                ignored.yml\n"
+	want := "would copy:                          copied.md\n" +
+		"would remove:                        would-remove.yml\n" +
+		"removed:                             removed.yml\n" +
+		"skip (never):                        ignored.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput new categories:\ngot:\n%s\nwant:\n%s", got, want)
@@ -224,17 +226,56 @@ func TestFormatOutputNewCategorySorting(t *testing.T) {
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	want := "would copy:                  e-would-copy.md\n" +
-		"would overwrite:             f-would-overwrite.md\n" +
-		"would remove:                a-would-remove.yml\n" +
-		"would remove:                b-would-remove.yml\n" +
-		"removed:                     a-removed.yml\n" +
-		"no change:                   d-no-change.md\n" +
-		"skipped (first-fit, exists): c-skipped.md\n" +
-		"skip (never):                z-ignored.yml\n"
+	want := "would copy:                          e-would-copy.md\n" +
+		"would overwrite:                     f-would-overwrite.md\n" +
+		"would remove:                        a-would-remove.yml\n" +
+		"would remove:                        b-would-remove.yml\n" +
+		"removed:                             a-removed.yml\n" +
+		"no change:                           d-no-change.md\n" +
+		"skipped (first-fit, exists):         c-skipped.md\n" +
+		"skip (never):                        z-ignored.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput new category sorting:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputSkipCategories(t *testing.T) {
+	repos := []RepoSettingResult{
+		{Field: "has_wiki", Category: WouldSet, Value: "false"},
+		{Field: "has_issues", Category: RepoNoChange, Value: "true"},
+		{Field: "enable private vulnerability reporting", Category: WouldSkipRole, Value: "insufficient role"},
+		{Field: "patch repo settings", Category: WouldSkipScope, Value: "insufficient scope"},
+	}
+
+	got := FormatOutput(repos, nil, nil)
+	want := "would set:                           repository.has_wiki = false\n" +
+		"no change:                           repository.has_issues (already true)\n" +
+		"would skip (insufficient role):      enable private vulnerability reporting\n" +
+		"would skip (insufficient scope):     patch repo settings\n"
+
+	if got != want {
+		t.Errorf("FormatOutput skip categories:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputSkipSorting(t *testing.T) {
+	repos := []RepoSettingResult{
+		{Field: "enable private vulnerability reporting", Category: WouldSkipRole, Value: "role error"},
+		{Field: "has_wiki", Category: RepoNoChange, Value: "false"},
+		{Field: "description", Category: WouldSet, Value: "My project"},
+		{Field: "patch repo settings", Category: WouldSkipScope, Value: "scope error"},
+	}
+
+	got := FormatOutput(repos, nil, nil)
+	// Order: WouldSet (0), RepoNoChange (1), WouldSkipScope (2), WouldSkipRole (2) - alpha within same order.
+	want := "would set:                           repository.description = My project\n" +
+		"no change:                           repository.has_wiki (already false)\n" +
+		"would skip (insufficient role):      enable private vulnerability reporting\n" +
+		"would skip (insufficient scope):     patch repo settings\n"
+
+	if got != want {
+		t.Errorf("FormatOutput skip sorting:\ngot:\n%s\nwant:\n%s", got, want)
 	}
 }
 

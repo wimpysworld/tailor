@@ -25,12 +25,14 @@ func (m ApplyMode) ShouldWrite() bool { return m == Apply || m == Recut }
 // Run executes the alter command. It validates the config, applies
 // repository settings, fetches the licence, and processes swatches.
 // When client is nil, a default GitHub REST client is created.
-func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) error {
+// The returned Result aggregates applied and skipped operations across
+// all processors; the caller may use it for output or diagnostics.
+func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) (*Result, error) {
 	if err := validateConfig(cfg); err != nil {
-		return err
+		return nil, err
 	}
 	if err := config.ValidateRepoSettings(cfg); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Merge missing default swatch entries into the config when the
@@ -43,15 +45,15 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		if (len(added) > 0 || repoMerged || labelsMerged) && mode.ShouldWrite() {
 			todayDate := time.Now().Format("2006-01-02")
 			if err := config.Write(dir, cfg, todayDate, "Refitted"); err != nil {
-				return fmt.Errorf("writing refitted config: %w", err)
+				return nil, fmt.Errorf("writing refitted config: %w", err)
 			}
 		}
 		// Re-validate after merge as a safety check.
 		if err := validateConfig(cfg); err != nil {
-			return err
+			return nil, err
 		}
 		if err := config.ValidateRepoSettings(cfg); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -59,13 +61,13 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		var err error
 		client, err = api.DefaultRESTClient()
 		if err != nil {
-			return fmt.Errorf("creating GitHub API client: %w", err)
+			return nil, fmt.Errorf("creating GitHub API client: %w", err)
 		}
 	}
 
 	username, err := gh.FetchUsername(client)
 	if err != nil {
-		return fmt.Errorf("fetching GitHub username: %w", err)
+		return nil, fmt.Errorf("fetching GitHub username: %w", err)
 	}
 
 	owner, name, hasRepo := gh.RepoContext()
@@ -79,25 +81,25 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	// Repository settings processing.
 	repoResults, err := ProcessRepoSettings(cfg, mode, client, owner, name, hasRepo)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Labels processing.
 	labelResults, err := ProcessLabels(cfg, mode, client, owner, name, hasRepo)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Licence processing.
 	licenceResult, err := ProcessLicence(cfg, dir, mode, client)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Swatch processing.
 	swatchResults, err := ProcessSwatches(cfg, dir, mode, &tokens)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Merge licence result into swatch results for unified output.
@@ -105,12 +107,17 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		swatchResults = append([]SwatchResult{*licenceResult}, swatchResults...)
 	}
 
+	// Aggregate applied and skipped operations into the result.
+	result := &Result{}
+	aggregateRepoResults(result, repoResults)
+	aggregateLabelResults(result, labelResults)
+
 	output := FormatOutput(repoResults, labelResults, swatchResults)
 	if output != "" {
 		fmt.Print(output)
 	}
 
-	return nil
+	return result, nil
 }
 
 // validateConfig runs path and duplicate-path validation in sequence.
@@ -119,6 +126,32 @@ func validateConfig(cfg *config.Config) error {
 		return err
 	}
 	return config.ValidateDuplicatePaths(cfg)
+}
+
+// aggregateRepoResults classifies repo setting results into applied or skipped
+// entries on the given Result.
+func aggregateRepoResults(r *Result, results []RepoSettingResult) {
+	for _, rs := range results {
+		switch rs.Category {
+		case WouldSet:
+			r.AddApplied(rs.Field)
+		case WouldSkipScope, WouldSkipRole:
+			r.AddSkipped(rs.Field, string(rs.Category))
+		}
+	}
+}
+
+// aggregateLabelResults classifies label results into applied or skipped
+// entries on the given Result.
+func aggregateLabelResults(r *Result, results []LabelResult) {
+	for _, lr := range results {
+		switch lr.Category {
+		case WouldCreate, WouldUpdate:
+			r.AddApplied(lr.Name)
+		case LabelSkipScope, LabelSkipRole:
+			r.AddSkipped(lr.Name, string(lr.Category))
+		}
+	}
 }
 
 // shouldMerge reports whether the config merge step should run. It looks up

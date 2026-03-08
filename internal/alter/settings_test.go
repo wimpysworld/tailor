@@ -793,6 +793,157 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsNoChange(t *testing.T) {
 	}
 }
 
+func TestProcessRepoSettingsPVR403ProducesSkipResult(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	// Server that returns 403 on PVR PUT (apply path), simulating insufficient role.
+	live := repoJSON{HasWiki: true}
+	var patchCalled atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		switch {
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(live)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/vulnerability-alerts":
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+
+		case r.Method == http.MethodPatch && path == "/repos/testowner/testrepo":
+			patchCalled.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, `{}`)
+
+		case r.Method == http.MethodPut && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
+			// Return 403 to simulate insufficient role.
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message":"Resource not accessible by personal access token"}`)
+
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			HasWiki:                           ptr.Bool(false),
+			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should have: has_wiki (WouldSet), pvr (WouldSet from compare), plus a skip result from apply.
+	var skipCount int
+	for _, r := range results {
+		if r.Category == alter.WouldSkipRole || r.Category == alter.WouldSkipScope {
+			skipCount++
+		}
+	}
+	if skipCount == 0 {
+		t.Error("expected at least one WouldSkipRole or WouldSkipScope result, got none")
+	}
+
+	// Verify the skip is for PVR.
+	var foundPVRSkip bool
+	for _, r := range results {
+		if (r.Category == alter.WouldSkipRole || r.Category == alter.WouldSkipScope) &&
+			r.Field == "enable private vulnerability reporting" {
+			foundPVRSkip = true
+		}
+	}
+	if !foundPVRSkip {
+		t.Errorf("expected skip result for PVR, got results: %v", results)
+	}
+}
+
+func TestProcessRepoSettingsPVR403ScopeProducesSkipScope(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	// Server that returns 403 on PATCH (simulating insufficient scope on the main settings call).
+	live := repoJSON{HasWiki: true}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		switch {
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(live)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/vulnerability-alerts":
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+
+		case r.Method == http.MethodPatch && path == "/repos/testowner/testrepo":
+			// Return 403 to simulate insufficient scope on PATCH.
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("X-OAuth-Scopes", "public_repo")
+			w.Header().Set("X-Accepted-OAuth-Scopes", "repo")
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
+
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			HasWiki: ptr.Bool(false),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var foundScopeSkip bool
+	for _, r := range results {
+		if r.Category == alter.WouldSkipScope && r.Field == "patch repo settings" {
+			foundScopeSkip = true
+		}
+	}
+	if !foundScopeSkip {
+		t.Errorf("expected WouldSkipScope result for patch repo settings, got results: %v", results)
+	}
+}
+
 func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 

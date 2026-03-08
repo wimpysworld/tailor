@@ -1,6 +1,7 @@
 package alter
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -16,8 +17,10 @@ import (
 type RepoSettingCategory string
 
 const (
-	WouldSet     RepoSettingCategory = "would set"
-	RepoNoChange RepoSettingCategory = "no change"
+	WouldSet       RepoSettingCategory = "would set"
+	RepoNoChange   RepoSettingCategory = "no change"
+	WouldSkipScope RepoSettingCategory = "would skip (insufficient scope)"
+	WouldSkipRole  RepoSettingCategory = "would skip (insufficient role)"
 )
 
 // RepoSettingResult records the field name, category, and display value for one
@@ -48,12 +51,42 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 	results := compareSettings(cfg.Repository, live)
 
 	if mode.ShouldWrite() && hasChanges(results) {
-		if _, err := gh.ApplyRepoSettings(client, owner, name, cfg.Repository); err != nil {
+		applyResult, err := gh.ApplyRepoSettings(client, owner, name, cfg.Repository)
+		if err != nil {
 			return nil, err
 		}
+		results = append(results, skippedToResults(applyResult)...)
 	}
 
 	return results, nil
+}
+
+// skippedToResults converts gh.ApplyResult skipped operations into
+// RepoSettingResult entries with WouldSkipScope or WouldSkipRole categories.
+func skippedToResults(ar *gh.ApplyResult) []RepoSettingResult {
+	if ar == nil {
+		return nil
+	}
+	var results []RepoSettingResult
+	for _, sk := range ar.Skipped {
+		cat := classifySkipCategory(sk.Err)
+		results = append(results, RepoSettingResult{
+			Field:    sk.Operation,
+			Category: cat,
+			Value:    sk.Err.Error(),
+		})
+	}
+	return results
+}
+
+// classifySkipCategory returns WouldSkipRole for ErrInsufficientRole and
+// WouldSkipScope for ErrInsufficientScope (or any other access error).
+func classifySkipCategory(err error) RepoSettingCategory {
+	var roleErr *gh.ErrInsufficientRole
+	if errors.As(err, &roleErr) {
+		return WouldSkipRole
+	}
+	return WouldSkipScope
 }
 
 // compareSettings iterates non-nil pointer fields in declared and compares

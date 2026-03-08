@@ -1,6 +1,7 @@
 package alter
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -14,9 +15,11 @@ import (
 type LabelCategory string
 
 const (
-	WouldCreate   LabelCategory = "would create"
-	WouldUpdate   LabelCategory = "would update"
-	LabelNoChange LabelCategory = "no change"
+	WouldCreate    LabelCategory = "would create"
+	WouldUpdate    LabelCategory = "would update"
+	LabelNoChange  LabelCategory = "no change"
+	LabelSkipScope LabelCategory = "would skip (insufficient scope)"
+	LabelSkipRole  LabelCategory = "would skip (insufficient role)"
 )
 
 // LabelResult records the label name, category, and display value for one
@@ -47,12 +50,42 @@ func ProcessLabels(cfg *config.Config, mode ApplyMode, client *api.RESTClient, o
 	results := compareLabels(cfg.Labels, current)
 
 	if mode.ShouldWrite() && hasLabelChanges(results) {
-		if _, err := gh.ApplyLabels(client, owner, name, cfg.Labels, current); err != nil {
+		applyResult, err := gh.ApplyLabels(client, owner, name, cfg.Labels, current)
+		if err != nil {
 			return nil, err
 		}
+		results = append(results, labelSkippedToResults(applyResult)...)
 	}
 
 	return results, nil
+}
+
+// labelSkippedToResults converts gh.ApplyResult skipped operations into
+// LabelResult entries with LabelSkipScope or LabelSkipRole categories.
+func labelSkippedToResults(ar *gh.ApplyResult) []LabelResult {
+	if ar == nil {
+		return nil
+	}
+	var results []LabelResult
+	for _, sk := range ar.Skipped {
+		cat := classifyLabelSkipCategory(sk.Err)
+		results = append(results, LabelResult{
+			Name:     sk.Operation,
+			Category: cat,
+			Value:    sk.Err.Error(),
+		})
+	}
+	return results
+}
+
+// classifyLabelSkipCategory returns LabelSkipRole for ErrInsufficientRole and
+// LabelSkipScope for ErrInsufficientScope (or any other access error).
+func classifyLabelSkipCategory(err error) LabelCategory {
+	var roleErr *gh.ErrInsufficientRole
+	if errors.As(err, &roleErr) {
+		return LabelSkipRole
+	}
+	return LabelSkipScope
 }
 
 // compareLabels iterates desired labels and compares each against current

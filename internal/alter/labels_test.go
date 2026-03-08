@@ -486,6 +486,149 @@ func TestProcessLabelsExactNameNoChange(t *testing.T) {
 	}
 }
 
+// partialLabelsServer creates a test server where the first POST returns 403
+// (simulating a scope error) and subsequent POSTs/PATCHes succeed. GET returns
+// the provided current labels.
+func partialLabelsServer(current []config.LabelEntry) *httptest.Server {
+	var postCount atomic.Int32
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		switch {
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/labels":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(current)
+
+		case r.Method == http.MethodPost && path == "/repos/testowner/testrepo/labels":
+			n := postCount.Add(1)
+			if n == 1 {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			fmt.Fprint(w, `{}`)
+
+		case r.Method == http.MethodPatch && pathIsLabel(path):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, `{}`)
+
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec // test HTTP handler
+		}
+	}))
+}
+
+func TestProcessLabelsPartialApplicationWithSkipped(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	// No current labels: both will be created. First POST returns 403.
+	current := []config.LabelEntry{}
+	server := partialLabelsServer(current)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Labels: []config.LabelEntry{
+			{Name: "alpha", Color: "aa0000", Description: "first"},
+			{Name: "beta", Color: "bb0000", Description: "second"},
+		},
+	}
+
+	results, err := alter.ProcessLabels(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Expect 3 results: 2 from compareLabels (both WouldCreate) + 1 skip from ApplyResult.
+	if len(results) != 3 {
+		t.Fatalf("got %d results, want 3", len(results))
+	}
+
+	counts := map[alter.LabelCategory]int{}
+	for _, r := range results {
+		counts[r.Category]++
+	}
+	if counts[alter.WouldCreate] != 2 {
+		t.Errorf("WouldCreate count = %d, want 2", counts[alter.WouldCreate])
+	}
+	if counts[alter.LabelSkipScope] != 1 {
+		t.Errorf("LabelSkipScope count = %d, want 1", counts[alter.LabelSkipScope])
+	}
+}
+
+func TestProcessLabelsSkipDoesNotAbort(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	// One existing label needing update, one new label. The first POST (create)
+	// returns 403, but the second label (update via PATCH) should still succeed.
+	current := []config.LabelEntry{
+		{Name: "beta", Color: "old000", Description: "old"},
+	}
+
+	var patchCalled atomic.Int32
+	var postCount atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		switch {
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/labels":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(current)
+
+		case r.Method == http.MethodPost && path == "/repos/testowner/testrepo/labels":
+			postCount.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
+
+		case r.Method == http.MethodPatch && pathIsLabel(path):
+			patchCalled.Add(1)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			fmt.Fprint(w, `{}`)
+
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec // test HTTP handler
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Labels: []config.LabelEntry{
+			{Name: "alpha", Color: "aa0000", Description: "new label"},
+			{Name: "beta", Color: "bb0000", Description: "updated"},
+		},
+	}
+
+	results, err := alter.ProcessLabels(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The PATCH for beta should still have been called despite alpha's 403.
+	if patchCalled.Load() == 0 {
+		t.Error("expected PATCH call for beta, but none received")
+	}
+
+	// Should have skip result for alpha.
+	var hasSkip bool
+	for _, r := range results {
+		if r.Category == alter.LabelSkipScope {
+			hasSkip = true
+		}
+	}
+	if !hasSkip {
+		t.Error("expected at least one LabelSkipScope result")
+	}
+}
+
 // containsSubstring is a test helper for substring matching.
 func containsSubstring(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstringSearch(s, substr))

@@ -310,7 +310,7 @@ func captureAlterRun(t *testing.T, cfg *config.Config, dir string, mode alter.Ap
 	_, wErr, _ := os.Pipe()
 	os.Stderr = wErr
 
-	err := alter.Run(cfg, dir, mode, client)
+	_, err := alter.Run(cfg, dir, mode, client)
 
 	w.Close()
 	wErr.Close()
@@ -339,7 +339,7 @@ func runAlterExpectError(t *testing.T, cfg *config.Config, dir string, client *a
 	_, wErr, _ := os.Pipe()
 	os.Stderr = wErr
 
-	err := alter.Run(cfg, dir, alter.Apply, client)
+	_, err := alter.Run(cfg, dir, alter.Apply, client)
 
 	wOut.Close()
 	wErr.Close()
@@ -367,7 +367,7 @@ func captureAlterRunWithStderr(t *testing.T, cfg *config.Config, dir string, mod
 	rErr, wErr, _ := os.Pipe()
 	os.Stderr = wErr
 
-	err := alter.Run(cfg, dir, mode, client)
+	_, err := alter.Run(cfg, dir, mode, client)
 
 	wOut.Close()
 	wErr.Close()
@@ -414,7 +414,7 @@ swatches:
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := alter.Run(cfg, tc.Dir, alter.DryRun, tc.Client)
+	_, err := alter.Run(cfg, tc.Dir, alter.DryRun, tc.Client)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -475,7 +475,7 @@ swatches:
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := alter.Run(cfg, tc.Dir, alter.DryRun, tc.Client)
+	_, err := alter.Run(cfg, tc.Dir, alter.DryRun, tc.Client)
 
 	w.Close()
 	os.Stdout = oldStdout
@@ -517,7 +517,7 @@ swatches:
 	_, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := alter.Run(cfg, tc.Dir, alter.Apply, tc.Client)
+	_, err := alter.Run(cfg, tc.Dir, alter.Apply, tc.Client)
 
 	w.Close()
 	os.Stdout = oldStdout

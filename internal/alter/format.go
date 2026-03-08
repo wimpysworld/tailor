@@ -8,9 +8,9 @@ import (
 )
 
 // defaultLabelWidth is the minimum column width for status labels in formatted
-// output. Sized to accommodate "skipped (first-fit, exists): " (29 characters).
+// output. Sized to accommodate "would skip (insufficient scope): " (37 characters).
 // Annotations on triggered swatches may widen this dynamically.
-const defaultLabelWidth = 29
+const defaultLabelWidth = 37
 
 // FormatOutput produces the alter command output from repo settings results,
 // label results, and swatch results (including licence).
@@ -31,6 +31,8 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 			fmt.Fprintf(&b, "%-*srepository.%s = %s\n", width, label, r.Field, r.Value)
 		case RepoNoChange:
 			fmt.Fprintf(&b, "%-*srepository.%s (already %s)\n", width, label, r.Field, r.Value)
+		case WouldSkipScope, WouldSkipRole:
+			fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Field)
 		}
 	}
 
@@ -41,6 +43,8 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 			fmt.Fprintf(&b, "%-*slabel.%s = %s\n", width, label, r.Name, r.Value)
 		case LabelNoChange:
 			fmt.Fprintf(&b, "%-*slabel.%s (already %s)\n", width, label, r.Name, r.Value)
+		case LabelSkipScope, LabelSkipRole:
+			fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Name)
 		}
 	}
 
@@ -96,8 +100,12 @@ func repoOrder(c RepoSettingCategory) int {
 	switch c {
 	case WouldSet:
 		return 0
-	default:
+	case RepoNoChange:
 		return 1
+	case WouldSkipScope, WouldSkipRole:
+		return 2
+	default:
+		return 3
 	}
 }
 
@@ -143,8 +151,12 @@ func labelOrder(c LabelCategory) int {
 		return 0
 	case WouldUpdate:
 		return 1
-	default:
+	case LabelNoChange:
 		return 2
+	case LabelSkipScope, LabelSkipRole:
+		return 3
+	default:
+		return 4
 	}
 }
 
