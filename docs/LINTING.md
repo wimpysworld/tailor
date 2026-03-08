@@ -89,7 +89,7 @@ The `security` job in `.github/workflows/builder.yml` runs `actions/dependency-r
 
 ### Trigger and CI graph position
 
-The job runs only on `pull_request` events (`if: github.event_name == 'pull_request'`). On push, tag, and dispatch events it is skipped. `sentinel` depends on `security` alongside `lint`, `coverage`, and `build-test`; because `sentinel` checks only for `failure` or `cancelled` results, a skipped `security` job passes sentinel on non-PR events. Branch protection targets `sentinel` exclusively, so no additional required-status-check entries are needed.
+The job runs only on `pull_request` events (`if: github.event_name == 'pull_request'`). On push, tag, and dispatch events it is skipped. `sentinel` depends on `security` alongside `lint-code`, `lint-actions`, `coverage`, and `build-test`; because `sentinel` checks only for `failure` or `cancelled` results, a skipped `security` job passes sentinel on non-PR events. Branch protection targets `sentinel` exclusively, so no additional required-status-check entries are needed.
 
 ### Policy
 
