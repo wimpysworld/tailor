@@ -120,7 +120,7 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 		if isAccessError(classified) {
 			warnings = append(warnings, classified)
 		} else {
-			return nil, nil, vaErr
+			return nil, nil, fmt.Errorf("fetching vulnerability alerts: %w", vaErr)
 		}
 	}
 
