@@ -45,12 +45,31 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 		return nil, nil
 	}
 
-	live, _, err := gh.ReadRepoSettings(client, owner, name)
+	live, warnings, err := gh.ReadRepoSettings(client, owner, name)
 	if err != nil {
 		return nil, err
 	}
 
+	// Convert read-path warnings into skip results and collect the affected
+	// field names so the corresponding WouldSet entries can be suppressed.
+	skipResults, skippedFields := readWarningsToResults(warnings, cfg.Repository)
+
 	results := compareSettings(cfg.Repository, live)
+
+	// Remove false-positive WouldSet entries for fields whose live value is
+	// nil only because the read returned a 403.
+	if len(skippedFields) > 0 {
+		filtered := results[:0]
+		for _, r := range results {
+			if skippedFields[r.Field] {
+				continue
+			}
+			filtered = append(filtered, r)
+		}
+		results = filtered
+	}
+
+	results = append(results, skipResults...)
 
 	if mode.ShouldWrite() && hasChanges(results) {
 		applyResult, err := gh.ApplyRepoSettings(client, owner, name, cfg.Repository)
@@ -160,6 +179,96 @@ func compareSettings(declared, live *config.RepositorySettings) []RepoSettingRes
 	}
 
 	return results
+}
+
+// readWarningOperationFields maps read-path operation names (from
+// ErrInsufficientScope/ErrInsufficientRole) to the config field names
+// (YAML tags) they affect. Workflow permissions covers two fields.
+var readWarningOperationFields = map[string][]string{
+	"fetch vulnerability alerts":            {"vulnerability_alerts_enabled"},
+	"fetch automated security fixes":        {"automated_security_fixes_enabled"},
+	"fetch private vulnerability reporting": {"private_vulnerability_reporting_enabled"},
+	"fetch workflow permissions":            {"default_workflow_permissions", "can_approve_pull_request_reviews"},
+}
+
+// readWarningsToResults converts read-path access-error warnings into
+// RepoSettingResult entries with the appropriate skip category. Only fields
+// that the user declared in their config produce results - undeclared fields
+// are silently ignored. It also returns a set of field names that should be
+// suppressed from compareSettings output (because their nil live value is due
+// to a 403, not a real diff).
+func readWarningsToResults(warnings []error, declared *config.RepositorySettings) ([]RepoSettingResult, map[string]bool) {
+	if len(warnings) == 0 {
+		return nil, nil
+	}
+
+	declaredFields := declaredFieldNames(declared)
+
+	var results []RepoSettingResult
+	skippedFields := make(map[string]bool)
+
+	for _, w := range warnings {
+		op := warningOperation(w)
+		fields, ok := readWarningOperationFields[op]
+		if !ok {
+			continue
+		}
+
+		cat := classifySkipCategory(w)
+		ann := skipAnnotation(w)
+
+		for _, f := range fields {
+			if !declaredFields[f] {
+				continue
+			}
+			skippedFields[f] = true
+			results = append(results, RepoSettingResult{
+				Field:      f,
+				Category:   cat,
+				Value:      w.Error(),
+				Annotation: ann,
+			})
+		}
+	}
+
+	return results, skippedFields
+}
+
+// declaredFieldNames returns the set of YAML field names that have non-nil
+// values in the given RepositorySettings.
+func declaredFieldNames(s *config.RepositorySettings) map[string]bool {
+	if s == nil {
+		return nil
+	}
+	rv := reflect.ValueOf(s).Elem()
+	rt := rv.Type()
+	names := make(map[string]bool)
+	for i := range rt.NumField() {
+		f := rt.Field(i)
+		tag := f.Tag.Get("yaml")
+		if tag == "" || tag == ",inline" {
+			continue
+		}
+		key, _, _ := strings.Cut(tag, ",")
+		fv := rv.Field(i)
+		if fv.Kind() == reflect.Ptr && !fv.IsNil() {
+			names[key] = true
+		}
+	}
+	return names
+}
+
+// warningOperation extracts the Operation field from a read-path warning.
+func warningOperation(err error) string {
+	var scopeErr *gh.ErrInsufficientScope
+	if errors.As(err, &scopeErr) {
+		return scopeErr.Operation
+	}
+	var roleErr *gh.ErrInsufficientRole
+	if errors.As(err, &roleErr) {
+		return roleErr.Operation
+	}
+	return ""
 }
 
 // hasChanges returns true if any result is WouldSet.

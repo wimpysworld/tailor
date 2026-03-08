@@ -944,6 +944,219 @@ func TestProcessRepoSettingsPVR403ScopeProducesSkipScope(t *testing.T) {
 	}
 }
 
+// forbiddenReadServer returns a test server where specific GET endpoints
+// return 403 to simulate insufficient role on the read path.
+func forbiddenReadServer(forbidPVR, forbidASF, forbidVA, forbidWF bool) *httptest.Server {
+	repo := repoJSON{}
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		switch {
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(repo)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
+			if forbidPVR {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprint(w, `{"message":"Resource not accessible by personal access token"}`)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
+			if forbidASF {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprint(w, `{"message":"Resource not accessible by personal access token"}`)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/vulnerability-alerts":
+			if forbidVA {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprint(w, `{"message":"Resource not accessible by personal access token"}`)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
+			if forbidWF {
+				w.Header().Set("Content-Type", "application/json")
+				w.Header().Set("X-OAuth-Scopes", "public_repo")
+				w.Header().Set("X-Accepted-OAuth-Scopes", "repo")
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec
+		}
+	}))
+}
+
+func TestProcessRepoSettingsReadPath403PVRProducesSkipRole(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	server := forbiddenReadServer(true, false, false, false)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "private_vulnerability_reporting_enabled" {
+		t.Errorf("field = %q, want %q", results[0].Field, "private_vulnerability_reporting_enabled")
+	}
+	if results[0].Category != alter.WouldSkipRole {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSkipRole)
+	}
+}
+
+func TestProcessRepoSettingsReadPath403ASFProducesSkipRole(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	server := forbiddenReadServer(false, true, false, false)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			AutomatedSecurityFixesEnabled: ptr.Bool(true),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "automated_security_fixes_enabled" {
+		t.Errorf("field = %q, want %q", results[0].Field, "automated_security_fixes_enabled")
+	}
+	if results[0].Category != alter.WouldSkipRole {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSkipRole)
+	}
+}
+
+func TestProcessRepoSettingsReadPath403VAProducesSkipRole(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	server := forbiddenReadServer(false, false, true, false)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			VulnerabilityAlertsEnabled: ptr.Bool(true),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "vulnerability_alerts_enabled" {
+		t.Errorf("field = %q, want %q", results[0].Field, "vulnerability_alerts_enabled")
+	}
+	if results[0].Category != alter.WouldSkipRole {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSkipRole)
+	}
+}
+
+func TestProcessRepoSettingsReadPath403WorkflowProducesSkipScope(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	server := forbiddenReadServer(false, false, false, true)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			DefaultWorkflowPermissions: ptr.String("write"),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Field != "default_workflow_permissions" {
+		t.Errorf("field = %q, want %q", results[0].Field, "default_workflow_permissions")
+	}
+	if results[0].Category != alter.WouldSkipScope {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSkipScope)
+	}
+}
+
+func TestProcessRepoSettingsReadPath403DoesNotProduceWouldSet(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	// All four sub-calls return 403.
+	server := forbiddenReadServer(true, true, true, true)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &config.RepositorySettings{
+			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+			AutomatedSecurityFixesEnabled:     ptr.Bool(true),
+			VulnerabilityAlertsEnabled:        ptr.Bool(true),
+			DefaultWorkflowPermissions:        ptr.String("write"),
+			CanApprovePullRequestReviews:      ptr.Bool(true),
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for _, r := range results {
+		if r.Category == alter.WouldSet {
+			t.Errorf("unexpected WouldSet for field %q; should be a skip category", r.Field)
+		}
+	}
+
+	// All five fields should have skip results.
+	skipCount := 0
+	for _, r := range results {
+		if r.Category == alter.WouldSkipRole || r.Category == alter.WouldSkipScope {
+			skipCount++
+		}
+	}
+	if skipCount != 5 {
+		t.Errorf("got %d skip results, want 5", skipCount)
+	}
+}
+
 func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
