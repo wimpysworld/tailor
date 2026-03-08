@@ -241,6 +241,10 @@ To manage these settings from CI, create a classic PAT with `repo` scope (or a f
   run: tailor alter
 ```
 
+### Branch protection
+
+Branch protection rules and rulesets require `Administration: write`, which `GITHUB_TOKEN` cannot hold regardless of `permissions:` configuration - this is a GitHub platform constraint. Branch protection is out of scope for Tailor; configure it via the GitHub UI or `gh api`.
+
 ### Automerge
 
 The `.github/workflows/tailor-automerge.yml` swatch auto-approves and merges Dependabot pull requests. It deploys automatically when `allow_auto_merge: true` is set in repository settings and removes itself when the setting is false.
