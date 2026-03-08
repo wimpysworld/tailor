@@ -47,7 +47,7 @@ func fieldMatchesYAML(repo any, yamlTag string, want any) bool {
 		rv = rv.Elem()
 	}
 	rt := rv.Type()
-	for i := 0; i < rt.NumField(); i++ {
+	for i := range rt.NumField() {
 		tag := rt.Field(i).Tag.Get("yaml")
 		name, _, _ := strings.Cut(tag, ",")
 		if name != yamlTag {

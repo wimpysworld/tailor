@@ -1759,7 +1759,7 @@ swatches:
 		requireNotContains(t, output, "would copy")
 		requireNotContains(t, output, "would overwrite")
 		// The swatch should not appear in actionable output.
-		// It may appear as "skip (never)" or be silently ignored.
+		// It may appear as "skipped (never)" or be silently ignored.
 		requireNotContains(t, output, "would remove")
 	})
 
@@ -1804,9 +1804,9 @@ swatches:
 
 	cfg := loadTestConfig(t, tc.Dir)
 
-	// DryRun: output should show "skip (never)", not any deploy/copy action.
+	// DryRun: output should show "skipped (never)", not any deploy/copy action.
 	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-	requireContains(t, output, "skip (never):")
+	requireContains(t, output, "skipped (never):")
 	requireContains(t, output, "tailor-automerge.yml")
 	requireNotContains(t, output, "would copy")
 	requireNotContains(t, output, "would overwrite")

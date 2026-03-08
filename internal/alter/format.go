@@ -56,26 +56,27 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 	return b.String()
 }
 
-// repoLabel returns the formatted label for a repo setting result. For skip
-// categories with an annotation, the annotation is embedded inside the
-// parentheses: "would skip (insufficient scope: token missing required scope):".
-func repoLabel(r RepoSettingResult) string {
-	if r.Annotation != "" && (r.Category == WouldSkipScope || r.Category == WouldSkipRole) {
-		base := strings.TrimSuffix(string(r.Category), ")")
-		return base + ": " + r.Annotation + "):"
+// formatAnnotatedLabel embeds an annotation into a skip-category label when
+// isSkip is true and annotation is non-empty. For example:
+// "would skip (insufficient scope: token missing required scope):".
+func formatAnnotatedLabel(category, annotation string, isSkip bool) string {
+	if annotation != "" && isSkip {
+		base := strings.TrimSuffix(category, ")")
+		return base + ": " + annotation + "):"
 	}
-	return string(r.Category) + ":"
+	return category + ":"
 }
 
-// labelResultLabel returns the formatted label for a label result. For skip
-// categories with an annotation, the annotation is embedded inside the
-// parentheses: "would skip (insufficient scope: token missing required scope):".
+// repoLabel returns the formatted label for a repo setting result.
+func repoLabel(r RepoSettingResult) string {
+	isSkip := r.Category == WouldSkipScope || r.Category == WouldSkipRole
+	return formatAnnotatedLabel(string(r.Category), r.Annotation, isSkip)
+}
+
+// labelResultLabel returns the formatted label for a label result.
 func labelResultLabel(r LabelResult) string {
-	if r.Annotation != "" && (r.Category == LabelSkipScope || r.Category == LabelSkipRole) {
-		base := strings.TrimSuffix(string(r.Category), ")")
-		return base + ": " + r.Annotation + "):"
-	}
-	return string(r.Category) + ":"
+	isSkip := r.Category == LabelSkipScope || r.Category == LabelSkipRole
+	return formatAnnotatedLabel(string(r.Category), r.Annotation, isSkip)
 }
 
 // swatchLabel returns the formatted label for a swatch result, including any

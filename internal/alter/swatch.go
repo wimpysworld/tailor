@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/fsutil"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -22,7 +23,7 @@ const (
 	Removed         SwatchCategory = "removed"
 	NoChange        SwatchCategory = "no change"
 	SkippedFirstFit SwatchCategory = "skipped (first-fit, exists)"
-	SkippedNever    SwatchCategory = "skip (never)"
+	SkippedNever    SwatchCategory = "skipped (never)"
 )
 
 // SwatchResult records the path and categorised outcome for one swatch entry.
@@ -78,7 +79,7 @@ func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte,
 		return SwatchResult{Path: entry.Path, Category: SkippedNever}, nil
 	}
 
-	exists := fileExists(dest)
+	exists := fsutil.FileExists(dest)
 
 	if mode == Recut {
 		return processRecut(entry, content, dest, exists)
@@ -190,12 +191,6 @@ func writeFile(path string, data []byte) error {
 		return fmt.Errorf("writing file %q: %w", path, err)
 	}
 	return nil
-}
-
-// fileExists reports whether a file exists at path.
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
 }
 
 // contentHash returns the hex-encoded SHA-256 digest of data.

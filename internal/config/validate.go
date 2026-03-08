@@ -55,11 +55,14 @@ func ValidateRepoSettings(cfg *Config) error {
 	}
 
 	if len(cfg.Repository.Extra) > 0 {
-		valid := repoSettingNames()
+		keys := make([]string, 0, len(cfg.Repository.Extra))
 		for key := range cfg.Repository.Extra {
-			return fmt.Errorf("unrecognised repository setting %q in config; valid settings: %s",
-				key, strings.Join(valid, ", "))
+			keys = append(keys, key)
 		}
+		slices.Sort(keys)
+		valid := repoSettingNames()
+		return fmt.Errorf("unrecognised repository setting %q in config; valid settings: %s",
+			keys[0], strings.Join(valid, ", "))
 	}
 	return nil
 }

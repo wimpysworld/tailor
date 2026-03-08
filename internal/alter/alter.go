@@ -37,9 +37,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	// config swatch is set to always, or when it is first-fit and the
 	// caller requested a recut.
 	if shouldMerge(cfg, mode) {
-		added := config.MergeDefaultSwatches(cfg)
-		repoMerged := config.MergeDefaultRepoSettings(cfg)
-		labelsMerged := config.MergeDefaultLabels(cfg)
+		added, repoMerged, labelsMerged := config.MergeDefaults(cfg)
 		if (len(added) > 0 || repoMerged || labelsMerged) && mode.ShouldWrite() {
 			todayDate := time.Now().Format("2006-01-02")
 			if err := config.Write(dir, cfg, todayDate, "Refitted"); err != nil {

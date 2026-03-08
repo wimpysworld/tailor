@@ -2,6 +2,7 @@ package config
 
 import (
 	"reflect"
+	"slices"
 
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -16,6 +17,22 @@ var repoSettingsSkipFields = map[string]bool{
 	"Topics":      true,
 }
 
+// MergeDefaults calls DefaultConfig once and delegates to the three merge
+// functions, avoiding redundant YAML parses. Returns the newly added swatch
+// entries and whether repo settings or labels were merged.
+func MergeDefaults(cfg *Config) (swatchesAdded []SwatchEntry, repoMerged bool, labelsMerged bool) {
+	swatchesAdded = MergeDefaultSwatches(cfg)
+
+	defaults, err := DefaultConfig("_")
+	if err != nil {
+		return swatchesAdded, false, false
+	}
+
+	repoMerged = mergeRepoSettingsFrom(cfg, defaults)
+	labelsMerged = mergeLabelsFrom(cfg, defaults)
+	return swatchesAdded, repoMerged, labelsMerged
+}
+
 // MergeDefaultRepoSettings fills nil pointer fields in cfg.Repository from the
 // embedded default configuration. It skips Description, Homepage, and Topics.
 // If cfg.Repository is nil, it allocates a new RepositorySettings. Returns true
@@ -23,6 +40,16 @@ var repoSettingsSkipFields = map[string]bool{
 func MergeDefaultRepoSettings(cfg *Config) bool {
 	defaults, err := DefaultConfig("_")
 	if err != nil || defaults.Repository == nil {
+		return false
+	}
+	return mergeRepoSettingsFrom(cfg, defaults)
+}
+
+// mergeRepoSettingsFrom fills nil pointer fields in cfg.Repository from the
+// provided defaults. Shared implementation for MergeDefaultRepoSettings and
+// MergeDefaults.
+func mergeRepoSettingsFrom(cfg *Config, defaults *Config) bool {
+	if defaults.Repository == nil {
 		return false
 	}
 
@@ -74,17 +101,25 @@ func MergeDefaultRepoSettings(cfg *Config) bool {
 // both cases receive the default labels. If cfg.Labels already contains
 // entries, the function leaves them unchanged and returns false.
 func MergeDefaultLabels(cfg *Config) bool {
-	if len(cfg.Labels) > 0 {
-		return false
-	}
-
 	defaults, err := DefaultConfig("_")
 	if err != nil || len(defaults.Labels) == 0 {
 		return false
 	}
+	return mergeLabelsFrom(cfg, defaults)
+}
 
-	cfg.Labels = make([]model.LabelEntry, len(defaults.Labels))
-	copy(cfg.Labels, defaults.Labels)
+// mergeLabelsFrom populates cfg.Labels from the provided defaults when the
+// slice is empty. Shared implementation for MergeDefaultLabels and MergeDefaults.
+func mergeLabelsFrom(cfg *Config, defaults *Config) bool {
+	if len(cfg.Labels) > 0 {
+		return false
+	}
+
+	if len(defaults.Labels) == 0 {
+		return false
+	}
+
+	cfg.Labels = slices.Clone(defaults.Labels)
 
 	return true
 }

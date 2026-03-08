@@ -127,7 +127,7 @@ func TestFormatOutputColumnAlignment(t *testing.T) {
 		"removed:",
 		"no change:",
 		"skipped (first-fit, exists):",
-		"skip (never):",
+		"skipped (never):",
 		"would set:",
 		"would skip (insufficient scope):",
 		"would skip (insufficient role):",
@@ -206,7 +206,7 @@ func TestFormatOutputNewCategories(t *testing.T) {
 	want := "would copy:                          copied.md\n" +
 		"would remove:                        would-remove.yml\n" +
 		"removed:                             removed.yml\n" +
-		"skip (never):                        ignored.yml\n"
+		"skipped (never):                     ignored.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput new categories:\ngot:\n%s\nwant:\n%s", got, want)
@@ -233,7 +233,7 @@ func TestFormatOutputNewCategorySorting(t *testing.T) {
 		"removed:                             a-removed.yml\n" +
 		"no change:                           d-no-change.md\n" +
 		"skipped (first-fit, exists):         c-skipped.md\n" +
-		"skip (never):                        z-ignored.yml\n"
+		"skipped (never):                     z-ignored.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput new category sorting:\ngot:\n%s\nwant:\n%s", got, want)
@@ -316,9 +316,9 @@ func TestFormatOutputAnnotationSkippedNever(t *testing.T) {
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	// "skip (never) (triggered: allow_auto_merge):" = 43 chars + 1 space = 44 width
-	want := "would copy:                                 CONTRIBUTING.md\n" +
-		"skip (never) (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
+	// "skipped (never) (triggered: allow_auto_merge):" = 46 chars + 1 space = 47 width
+	want := "would copy:                                    CONTRIBUTING.md\n" +
+		"skipped (never) (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput annotation ignored:\ngot:\n%s\nwant:\n%s", got, want)

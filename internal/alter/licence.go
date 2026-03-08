@@ -7,6 +7,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/fsutil"
 	"github.com/wimpysworld/tailor/internal/gh"
 )
 
@@ -17,7 +18,7 @@ const licenceDestination = "LICENSE"
 // and an error.
 func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) (*SwatchResult, error) {
 	dest := filepath.Join(dir, licenceDestination)
-	exists := fileExists(dest)
+	exists := fsutil.FileExists(dest)
 
 	if cfg.License == "" || cfg.License == "none" {
 		if !exists {
