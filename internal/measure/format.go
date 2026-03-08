@@ -18,7 +18,11 @@ func FormatOutput(health []HealthResult, diff []DiffResult, hasConfig bool) stri
 	var b strings.Builder
 
 	for _, r := range health {
-		fmt.Fprintf(&b, "%-*s%s\n", labelWidth, r.Status.Label(), r.Path)
+		line := r.Path
+		if r.Detail != "" {
+			line += " " + r.Detail
+		}
+		fmt.Fprintf(&b, "%-*s%s\n", labelWidth, r.Status.Label(), line)
 	}
 
 	for _, r := range diff {

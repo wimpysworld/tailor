@@ -14,8 +14,9 @@ func TestFormatOutputWithoutConfig(t *testing.T) {
 		{Path: ".github/pull_request_template.md", Status: Missing},
 		{Path: "CONTRIBUTING.md", Status: Missing},
 		{Path: "SUPPORT.md", Status: Missing},
+		{Path: "LICENSE", Status: Warning, Detail: "(contains unresolved placeholders)"},
+		{Path: "README.md", Status: Warning, Detail: "(not managed by tailor)"},
 		{Path: "CODE_OF_CONDUCT.md", Status: Present},
-		{Path: "LICENSE", Status: Present},
 		{Path: "SECURITY.md", Status: Present},
 	}
 
@@ -28,8 +29,9 @@ func TestFormatOutputWithoutConfig(t *testing.T) {
 		"missing:        .github/pull_request_template.md\n" +
 		"missing:        CONTRIBUTING.md\n" +
 		"missing:        SUPPORT.md\n" +
+		"warning:        LICENSE (contains unresolved placeholders)\n" +
+		"warning:        README.md (not managed by tailor)\n" +
 		"present:        CODE_OF_CONDUCT.md\n" +
-		"present:        LICENSE\n" +
 		"present:        SECURITY.md\n" +
 		"\n" +
 		"No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks.\n"
@@ -73,6 +75,7 @@ func TestFormatOutputPaddingWidth(t *testing.T) {
 		width int
 	}{
 		{"missing:", 16},
+		{"warning:", 16},
 		{"present:", 16},
 		{"not-configured:", 16},
 		{"config-only:", 16},

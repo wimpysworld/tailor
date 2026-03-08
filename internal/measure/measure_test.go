@@ -1,6 +1,8 @@
 package measure
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -23,8 +25,8 @@ func buildDefaultConfigYAML() string {
 }
 
 // TestIntegrationEmptyDirNoConfig exercises the full measure pipeline against
-// an empty directory with no config file. All 11 health files are missing and
-// the advisory message is printed after a blank line.
+// an empty directory with no config file. All 11 health files are missing,
+// README.md appears as a warning, and the advisory message is printed.
 func TestIntegrationEmptyDirNoConfig(t *testing.T) {
 	dir := t.TempDir()
 
@@ -46,6 +48,7 @@ func TestIntegrationEmptyDirNoConfig(t *testing.T) {
 		"missing:        LICENSE\n" +
 		"missing:        SECURITY.md\n" +
 		"missing:        SUPPORT.md\n" +
+		"warning:        README.md (not managed by tailor)\n" +
 		"\n" +
 		"No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks.\n"
 
@@ -59,7 +62,7 @@ func TestIntegrationEmptyDirNoConfig(t *testing.T) {
 func TestIntegrationSomeHealthFilesNoConfig(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create three health files matching the spec example (lines 258-270).
+	// Create three health files.
 	testutil.CreateFile(t, dir, "CODE_OF_CONDUCT.md")
 	testutil.CreateFile(t, dir, "LICENSE")
 	testutil.CreateFile(t, dir, "SECURITY.md")
@@ -79,6 +82,7 @@ func TestIntegrationSomeHealthFilesNoConfig(t *testing.T) {
 		"missing:        .github/pull_request_template.md\n" +
 		"missing:        CONTRIBUTING.md\n" +
 		"missing:        SUPPORT.md\n" +
+		"warning:        README.md (not managed by tailor)\n" +
 		"present:        CODE_OF_CONDUCT.md\n" +
 		"present:        LICENSE\n" +
 		"present:        SECURITY.md\n" +
@@ -125,6 +129,7 @@ func TestIntegrationConfigMatchesDefaults(t *testing.T) {
 		"missing:        CODE_OF_CONDUCT.md\n" +
 		"missing:        CONTRIBUTING.md\n" +
 		"missing:        SUPPORT.md\n" +
+		"warning:        README.md (not managed by tailor)\n" +
 		"present:        LICENSE\n" +
 		"present:        SECURITY.md\n"
 
@@ -134,8 +139,8 @@ func TestIntegrationConfigMatchesDefaults(t *testing.T) {
 }
 
 // TestIntegrationConfigWithAllDiffCategories exercises the full pipeline with
-// a config that produces entries in all five output categories: missing,
-// present, not-configured, config-only, and mode-differs.
+// a config that produces entries in all six output categories: missing,
+// warning, present, not-configured, config-only, and mode-differs.
 func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 	dir := t.TempDir()
 
@@ -181,8 +186,6 @@ func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 
 	got := FormatOutput(health, diff, hasConfig)
 
-	// This output matches the spec example format (lines 275-281) adapted
-	// to the specific files present in our temp directory.
 	want := "" +
 		"missing:        .github/FUNDING.yml\n" +
 		"missing:        .github/ISSUE_TEMPLATE/bug_report.yml\n" +
@@ -193,6 +196,7 @@ func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 		"missing:        CODE_OF_CONDUCT.md\n" +
 		"missing:        CONTRIBUTING.md\n" +
 		"missing:        SUPPORT.md\n" +
+		"warning:        README.md (not managed by tailor)\n" +
 		"present:        LICENSE\n" +
 		"present:        SECURITY.md\n" +
 		"not-configured: .github/dependabot.yml\n" +
@@ -205,9 +209,9 @@ func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 }
 
 // TestIntegrationOutputOrderAndPadding verifies that entries appear in the
-// correct category order (missing, present, not-configured, config-only,
-// mode-differs), that labels are padded to exactly 16 characters, and that
-// entries within each category are sorted lexicographically by destination.
+// correct category order (missing, warning, present, not-configured,
+// config-only, mode-differs), that labels are padded to exactly 16 characters,
+// and that entries within each category are sorted lexicographically.
 func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 	dir := t.TempDir()
 
@@ -256,10 +260,6 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 
 	got := FormatOutput(health, diff, hasConfig)
 
-	// Build expected output verifying:
-	// 1. Category order: missing, present, not-configured, config-only, mode-differs
-	// 2. Lexicographic sort within each category
-	// 3. 16-char fixed-width label padding
 	want := "" +
 		// missing (sorted lexicographically)
 		"missing:        .github/FUNDING.yml\n" +
@@ -270,6 +270,8 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 		"missing:        .github/pull_request_template.md\n" +
 		"missing:        CODE_OF_CONDUCT.md\n" +
 		"missing:        SUPPORT.md\n" +
+		// warning (sorted lexicographically)
+		"warning:        README.md (not managed by tailor)\n" +
 		// present (sorted lexicographically)
 		"present:        CONTRIBUTING.md\n" +
 		"present:        LICENSE\n" +
@@ -303,5 +305,42 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 		if lastLabelChar != ' ' && lastLabelChar != ':' {
 			t.Errorf("label padding violated, expected space or colon at position 15: %q", line)
 		}
+	}
+}
+
+// TestIntegrationLicenseWithPlaceholders verifies that a LICENSE containing
+// unresolved placeholders appears as warning, not present.
+func TestIntegrationLicenseWithPlaceholders(t *testing.T) {
+	dir := t.TempDir()
+
+	content := "MIT License\n\nCopyright (c) [year] [fullname]\n"
+	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	testutil.CreateFile(t, dir, "README.md")
+
+	health := CheckHealth(dir)
+	got := FormatOutput(health, nil, false)
+
+	if !strings.Contains(got, "warning:        LICENSE (contains unresolved placeholders)") {
+		t.Errorf("expected LICENSE warning line in output:\n%s", got)
+	}
+	if strings.Contains(got, "present:        LICENSE") {
+		t.Errorf("LICENSE with placeholders should not appear as present:\n%s", got)
+	}
+}
+
+// TestIntegrationReadmePresent verifies that no README.md warning appears
+// when README.md exists.
+func TestIntegrationReadmePresent(t *testing.T) {
+	dir := t.TempDir()
+
+	testutil.CreateFile(t, dir, "README.md")
+
+	health := CheckHealth(dir)
+	got := FormatOutput(health, nil, false)
+
+	if strings.Contains(got, "README.md") {
+		t.Errorf("README.md should not appear in output when present:\n%s", got)
 	}
 }
