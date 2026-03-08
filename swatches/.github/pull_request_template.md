@@ -8,20 +8,6 @@ Closes #
 
 <!-- Add any other context, screenshots, or examples about the pull request here. -->
 
-## Type of change
-
-Check all that apply.
-
-- [ ] 🐛 Bug fix
-- [ ] ✨ New feature
-- [ ] 💥 Breaking change
-- [ ] 📚 Documentation update
-- [ ] 🎨 Code style or formatting
-- [ ] ⚡ Performance
-- [ ] 🧪 Test coverage
-- [ ] 📦 Packaging
-- [ ] 👷 CI improvement
-
 ## Checklist
 
 - [ ] I have performed a self-review of my code
