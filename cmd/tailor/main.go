@@ -123,8 +123,7 @@ func runAlter(mode alter.ApplyMode) error {
 		return fmt.Errorf(".tailor.yml is missing or malformed. Run 'tailor fit <path>' to create a valid configuration, or edit .tailor.yml directly to correct it")
 	}
 
-	_, err = alter.Run(cfg, dir, mode, nil)
-	return err
+	return alter.Run(cfg, dir, mode, nil)
 }
 
 // MeasureCmd checks community health files and, when a config is present,

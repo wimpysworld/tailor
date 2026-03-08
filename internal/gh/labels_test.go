@@ -564,9 +564,6 @@ func TestApplyLabelsCreate403SkipsAndContinues(t *testing.T) {
 	if !isAccessError(result.Skipped[0].Err) {
 		t.Errorf("skipped error is not an access error: %v", result.Skipped[0].Err)
 	}
-	if len(result.Applied) != 1 || result.Applied[0] != `create label "beta"` {
-		t.Errorf("applied = %v, want [create label \"beta\"]", result.Applied)
-	}
 }
 
 func TestApplyLabelsUpdate403SkipsAndContinues(t *testing.T) {
@@ -613,9 +610,6 @@ func TestApplyLabelsUpdate403SkipsAndContinues(t *testing.T) {
 	}
 	if !isAccessError(result.Skipped[0].Err) {
 		t.Errorf("skipped error is not an access error: %v", result.Skipped[0].Err)
-	}
-	if len(result.Applied) != 1 || result.Applied[0] != `update label "beta"` {
-		t.Errorf("applied = %v, want [update label \"beta\"]", result.Applied)
 	}
 }
 
@@ -682,8 +676,5 @@ func TestApplyLabelsMixed403AndSuccess(t *testing.T) {
 	}
 	if result.Skipped[0].Operation != `create label "new-label"` {
 		t.Errorf("skipped = %q, want %q", result.Skipped[0].Operation, `create label "new-label"`)
-	}
-	if len(result.Applied) != 1 || result.Applied[0] != `update label "existing"` {
-		t.Errorf("applied = %v, want [update label \"existing\"]", result.Applied)
 	}
 }

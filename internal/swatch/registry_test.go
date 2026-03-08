@@ -54,11 +54,17 @@ func TestSwatchAttributes(t *testing.T) {
 		{".tailor.yml", swatch.Always, swatch.Development},
 	}
 
+	all := swatch.All()
+	byPath := make(map[string]swatch.Swatch, len(all))
+	for _, s := range all {
+		byPath[s.Path] = s
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.path, func(t *testing.T) {
-			s, err := swatch.ByPath(tt.path)
-			if err != nil {
-				t.Fatalf("ByPath(%q) returned error: %v", tt.path, err)
+			s, ok := byPath[tt.path]
+			if !ok {
+				t.Fatalf("swatch %q not found in All()", tt.path)
 			}
 			if s.DefaultAlteration != tt.mode {
 				t.Errorf("DefaultAlteration = %q, want %q", s.DefaultAlteration, tt.mode)
@@ -67,13 +73,6 @@ func TestSwatchAttributes(t *testing.T) {
 				t.Errorf("Category = %q, want %q", s.Category, tt.category)
 			}
 		})
-	}
-}
-
-func TestByPathUnknownReturnsError(t *testing.T) {
-	_, err := swatch.ByPath("nonexistent.txt")
-	if err == nil {
-		t.Fatal("ByPath(\"nonexistent.txt\") expected error, got nil")
 	}
 }
 

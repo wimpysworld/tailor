@@ -1,7 +1,6 @@
 package swatch
 
 import (
-	"fmt"
 	"slices"
 )
 
@@ -62,17 +61,6 @@ func All() []Swatch {
 	out := make([]Swatch, len(registry))
 	copy(out, registry)
 	return out
-}
-
-// ByPath returns the swatch matching the given path, or an error if no such
-// swatch exists.
-func ByPath(path string) (Swatch, error) {
-	for _, s := range registry {
-		if s.Path == path {
-			return s, nil
-		}
-	}
-	return Swatch{}, fmt.Errorf("unknown swatch path: %q", path)
 }
 
 // Paths returns the paths of all registered swatches, sorted

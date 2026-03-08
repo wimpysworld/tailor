@@ -1488,9 +1488,6 @@ func TestApplyRepoSettingsPartialPatchSucceedsPVR403(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected hard error: %v", err)
 	}
-	if len(result.Applied) != 1 || result.Applied[0] != "patch repo settings" {
-		t.Errorf("Applied = %v, want [patch repo settings]", result.Applied)
-	}
 	if len(result.Skipped) != 1 {
 		t.Fatalf("expected 1 skipped, got %d", len(result.Skipped))
 	}
@@ -1533,9 +1530,6 @@ func TestApplyRepoSettingsPartialVA403ASFSkipped(t *testing.T) {
 	if result.Skipped[0].Operation != "enable vulnerability alerts" {
 		t.Errorf("skipped = %q, want %q", result.Skipped[0].Operation, "enable vulnerability alerts")
 	}
-	if len(result.Applied) != 1 || result.Applied[0] != "enable automated security fixes" {
-		t.Errorf("Applied = %v, want [enable automated security fixes]", result.Applied)
-	}
 }
 
 func TestApplyRepoSettingsPartialTopics403(t *testing.T) {
@@ -1560,9 +1554,6 @@ func TestApplyRepoSettingsPartialTopics403(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected hard error: %v", err)
 	}
-	if len(result.Applied) != 1 || result.Applied[0] != "patch repo settings" {
-		t.Errorf("Applied = %v, want [patch repo settings]", result.Applied)
-	}
 	if len(result.Skipped) != 1 || result.Skipped[0].Operation != "set topics" {
 		t.Errorf("Skipped = %v, want [{set topics ...}]", result.Skipped)
 	}
@@ -1585,9 +1576,6 @@ func TestApplyRepoSettingsAllSkipped(t *testing.T) {
 	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("unexpected hard error: %v", err)
-	}
-	if len(result.Applied) != 0 {
-		t.Errorf("Applied = %v, want empty", result.Applied)
 	}
 	if len(result.Skipped) != 3 {
 		t.Errorf("expected 3 skipped, got %d: %v", len(result.Skipped), result.Skipped)
@@ -1613,9 +1601,6 @@ func TestApplyRepoSettingsApplyResultPopulatedOnSuccess(t *testing.T) {
 	}
 	if len(result.Skipped) != 0 {
 		t.Errorf("Skipped = %v, want empty", result.Skipped)
-	}
-	if len(result.Applied) != 3 {
-		t.Errorf("expected 3 applied, got %d: %v", len(result.Applied), result.Applied)
 	}
 }
 

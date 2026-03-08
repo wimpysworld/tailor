@@ -184,11 +184,9 @@ type SkippedOperation struct {
 	Err       error  // *ErrInsufficientScope or *ErrInsufficientRole
 }
 
-// ApplyResult collects the outcome of ApplyRepoSettings. Applied lists
-// operations that succeeded, Skipped lists those that failed with access
-// errors and were gracefully skipped.
+// ApplyResult collects the outcome of ApplyRepoSettings. Skipped lists
+// operations that failed with access errors and were gracefully skipped.
 type ApplyResult struct {
-	Applied []string
 	Skipped []SkippedOperation
 }
 
@@ -214,8 +212,6 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *con
 			} else {
 				return nil, fmt.Errorf("patching repo settings: %w", err)
 			}
-		} else {
-			result.Applied = append(result.Applied, "patch repo settings")
 		}
 	}
 
@@ -237,8 +233,6 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *con
 			} else {
 				return nil, fmt.Errorf("%s: %w", opName, pvrErr)
 			}
-		} else {
-			result.Applied = append(result.Applied, opName)
 		}
 	}
 
@@ -263,8 +257,6 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *con
 			} else {
 				return nil, fmt.Errorf("disabling automated security fixes: %w", err)
 			}
-		} else {
-			result.Applied = append(result.Applied, "disable automated security fixes")
 		}
 	}
 
@@ -277,8 +269,6 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *con
 			} else {
 				return nil, fmt.Errorf("enabling vulnerability alerts: %w", err)
 			}
-		} else {
-			result.Applied = append(result.Applied, "enable vulnerability alerts")
 		}
 	} else if disableVA {
 		if err := client.Delete(vaPath, nil); err != nil {
@@ -288,8 +278,6 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *con
 			} else {
 				return nil, fmt.Errorf("disabling vulnerability alerts: %w", err)
 			}
-		} else {
-			result.Applied = append(result.Applied, "disable vulnerability alerts")
 		}
 	}
 
@@ -302,8 +290,6 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *con
 			} else {
 				return nil, fmt.Errorf("enabling automated security fixes: %w", err)
 			}
-		} else {
-			result.Applied = append(result.Applied, "enable automated security fixes")
 		}
 	}
 
@@ -315,8 +301,6 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *con
 			} else {
 				return nil, err
 			}
-		} else {
-			result.Applied = append(result.Applied, "set workflow permissions")
 		}
 	}
 
@@ -335,8 +319,6 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *con
 			} else {
 				return nil, fmt.Errorf("setting topics: %w", err)
 			}
-		} else {
-			result.Applied = append(result.Applied, "set topics")
 		}
 	}
 

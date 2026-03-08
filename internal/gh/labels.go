@@ -101,7 +101,6 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 				}
 				return nil, err
 			}
-			result.Applied = append(result.Applied, fmt.Sprintf("create label %q", d.Name))
 			continue
 		}
 
@@ -115,7 +114,6 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 				}
 				return nil, err
 			}
-			result.Applied = append(result.Applied, fmt.Sprintf("update label %q", d.Name))
 		}
 	}
 
