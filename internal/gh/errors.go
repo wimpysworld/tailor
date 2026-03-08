@@ -20,8 +20,12 @@ type ErrInsufficientScope struct {
 }
 
 func (e *ErrInsufficientScope) Error() string {
-	return fmt.Sprintf("%s: insufficient scope (have: %v, need: %v): %s",
+	msg := fmt.Sprintf("%s: insufficient scope (have: %v, need: %v): %s",
 		e.Operation, e.HaveScopes, e.NeedScopes, e.Message)
+	if e.DocumentURL != "" {
+		msg += fmt.Sprintf(" (see %s)", e.DocumentURL)
+	}
+	return msg
 }
 
 // ErrInsufficientRole signals the token has sufficient scope but the caller
@@ -35,7 +39,11 @@ type ErrInsufficientRole struct {
 }
 
 func (e *ErrInsufficientRole) Error() string {
-	return fmt.Sprintf("%s: insufficient role (need: %s): %s", e.Operation, e.RequiredRole, e.Message)
+	msg := fmt.Sprintf("%s: insufficient role (need: %s): %s", e.Operation, e.RequiredRole, e.Message)
+	if e.DocumentURL != "" {
+		msg += fmt.Sprintf(" (see %s)", e.DocumentURL)
+	}
+	return msg
 }
 
 // adminRoleOperations maps operation names to their required repository roles.
@@ -105,6 +113,10 @@ func classifyHTTPError(err error, operation string) error {
 
 	haveScopes := parseCSVScopes(httpErr.Headers.Get("X-OAuth-Scopes"))
 	needScopes := parseCSVScopes(httpErr.Headers.Get("X-Accepted-OAuth-Scopes"))
+
+	// api.HTTPError (go-gh v2.13.0) does not expose the documentation_url
+	// field from the JSON error body. DocumentURL is left empty until
+	// upstream adds support or we parse the response body ourselves.
 
 	if role, ok := requiredRole(operation); ok {
 		return &ErrInsufficientRole{

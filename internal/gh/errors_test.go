@@ -20,7 +20,7 @@ func TestErrInsufficientScope_Error(t *testing.T) {
 		Operation:   "enable vulnerability alerts",
 	}
 
-	want := "enable vulnerability alerts: insufficient scope (have: [public_repo], need: [repo]): Must have admin rights to Repository."
+	want := "enable vulnerability alerts: insufficient scope (have: [public_repo], need: [repo]): Must have admin rights to Repository. (see https://docs.github.com/rest/repos/repos#update-a-repository)"
 	if got := err.Error(); got != want {
 		t.Errorf("Error() =\n  %q\nwant:\n  %q", got, want)
 	}
@@ -46,6 +46,35 @@ func TestErrInsufficientRole_Error(t *testing.T) {
 		StatusCode:   403,
 		Message:      "Must have admin rights to Repository.",
 		DocumentURL:  "https://docs.github.com/rest/repos/repos#update-a-repository",
+		Operation:    "enable vulnerability alerts",
+		RequiredRole: "admin",
+	}
+
+	want := "enable vulnerability alerts: insufficient role (need: admin): Must have admin rights to Repository. (see https://docs.github.com/rest/repos/repos#update-a-repository)"
+	if got := err.Error(); got != want {
+		t.Errorf("Error() =\n  %q\nwant:\n  %q", got, want)
+	}
+}
+
+func TestErrInsufficientScope_ErrorWithoutDocURL(t *testing.T) {
+	err := &ErrInsufficientScope{
+		StatusCode: 403,
+		HaveScopes: []string{"public_repo"},
+		NeedScopes: []string{"repo"},
+		Message:    "Forbidden",
+		Operation:  "update repository settings",
+	}
+
+	want := "update repository settings: insufficient scope (have: [public_repo], need: [repo]): Forbidden"
+	if got := err.Error(); got != want {
+		t.Errorf("Error() =\n  %q\nwant:\n  %q", got, want)
+	}
+}
+
+func TestErrInsufficientRole_ErrorWithoutDocURL(t *testing.T) {
+	err := &ErrInsufficientRole{
+		StatusCode:   403,
+		Message:      "Must have admin rights to Repository.",
 		Operation:    "enable vulnerability alerts",
 		RequiredRole: "admin",
 	}

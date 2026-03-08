@@ -45,7 +45,7 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 		return nil, nil
 	}
 
-	live, err := gh.ReadRepoSettings(client, owner, name)
+	live, _, err := gh.ReadRepoSettings(client, owner, name)
 	if err != nil {
 		return nil, err
 	}

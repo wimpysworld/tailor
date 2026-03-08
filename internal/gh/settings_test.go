@@ -208,7 +208,7 @@ func TestReadRepoSettings(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			client := newTestClient(t, server)
-			settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+			settings, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 			if err != nil {
 				t.Fatalf("ReadRepoSettings() error: %v", err)
 			}
@@ -272,7 +272,7 @@ func TestReadRepoSettingsRepoAPIError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	_, err := ReadRepoSettings(client, "testowner", "testrepo")
+	_, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err == nil {
 		t.Fatal("ReadRepoSettings() expected error, got nil")
 	}
@@ -299,7 +299,7 @@ func TestReadRepoSettingsPVR403GracefulDegradation(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	settings, warnings, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
@@ -307,6 +307,14 @@ func TestReadRepoSettingsPVR403GracefulDegradation(t *testing.T) {
 	// PVR should be nil (inaccessible).
 	if settings.PrivateVulnerabilityReportEnabled != nil {
 		t.Errorf("PrivateVulnerabilityReportEnabled = %v, want nil", *settings.PrivateVulnerabilityReportEnabled)
+	}
+	// A warning should be returned for the PVR 403.
+	if len(warnings) != 1 {
+		t.Fatalf("expected 1 warning, got %d", len(warnings))
+	}
+	var roleErr *ErrInsufficientRole
+	if !errors.As(warnings[0], &roleErr) {
+		t.Errorf("expected *ErrInsufficientRole warning, got %T", warnings[0])
 	}
 	// Other fields should be populated.
 	testutil.AssertBoolPtr(t, settings.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
@@ -336,7 +344,7 @@ func TestReadRepoSettingsVA403GracefulDegradation(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	settings, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
@@ -372,7 +380,7 @@ func TestReadRepoSettingsASF403GracefulDegradation(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	settings, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
@@ -408,7 +416,7 @@ func TestReadRepoSettingsWFPerms403GracefulDegradation(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	settings, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
@@ -447,7 +455,7 @@ func TestReadRepoSettingsPVR404ReturnsDisabled(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	settings, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
@@ -481,7 +489,7 @@ func TestReadRepoSettingsASF404ReturnsDisabled(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	settings, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
@@ -514,7 +522,7 @@ func TestReadRepoSettingsVA404ReturnsDisabled(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	settings, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
@@ -540,7 +548,7 @@ func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	settings, warnings, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
@@ -560,6 +568,10 @@ func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
 	}
 	if settings.CanApprovePullRequestReviews != nil {
 		t.Errorf("CanApprovePullRequestReviews = %v, want nil", *settings.CanApprovePullRequestReviews)
+	}
+	// Four warnings: PVR, ASF, VA, workflow permissions.
+	if len(warnings) != 4 {
+		t.Errorf("expected 4 warnings, got %d", len(warnings))
 	}
 	// Core repo fields should still be populated.
 	testutil.AssertStringPtr(t, settings.Description, false, "A tailor for your repos", "description")
@@ -581,7 +593,7 @@ func TestReadRepoSettingsNon403StillFails(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	_, err := ReadRepoSettings(client, "testowner", "testrepo")
+	_, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err == nil {
 		t.Fatal("ReadRepoSettings() expected error for 500, got nil")
 	}

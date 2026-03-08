@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -59,9 +60,12 @@ func (f *FitCmd) Run() error {
 		if err != nil {
 			return err
 		}
-		live, err := gh.ReadRepoSettings(client, owner, name)
+		live, warnings, err := gh.ReadRepoSettings(client, owner, name)
 		if err != nil {
 			return err
+		}
+		for _, w := range warnings {
+			log.Printf("warning: %v", w)
 		}
 		config.MergeRepoSettings(cfg, live, f.Description)
 	} else if f.Description != "" {

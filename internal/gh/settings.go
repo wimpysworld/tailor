@@ -51,10 +51,15 @@ type workflowPermissionsResponse struct {
 // them as a config.RepositorySettings. It makes separate API calls for the
 // standard repository fields, private vulnerability reporting, automated
 // security fixes, vulnerability alerts, and Actions workflow permissions.
-func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.RepositorySettings, error) {
+//
+// The returned warnings slice contains classified access errors
+// (ErrInsufficientScope, ErrInsufficientRole) for sub-calls that returned 403.
+// The corresponding fields in the returned settings are left nil. Callers can
+// log these warnings or ignore them.
+func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.RepositorySettings, []error, error) {
 	var repo repoResponse
 	if err := client.Get(fmt.Sprintf("repos/%s/%s", owner, name), &repo); err != nil {
-		return nil, fmt.Errorf("fetching repo settings: %w", err)
+		return nil, nil, fmt.Errorf("fetching repo settings: %w", err)
 	}
 
 	s := &config.RepositorySettings{
@@ -80,15 +85,18 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 
 	// Each sub-call below uses classifyHTTPError to detect 403 responses.
 	// On scope/role errors the corresponding field stays nil (unknown),
-	// allowing the caller to receive a partial result instead of aborting.
+	// and the classified error is appended to warnings for the caller.
+	var warnings []error
 
 	pvrEnabled, pvrKnown, pvrErr := readSecurityFeatureEnabled(client, fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name))
 	if pvrKnown {
 		s.PrivateVulnerabilityReportEnabled = ptr.Bool(pvrEnabled)
 	} else if pvrErr != nil {
 		classified := classifyHTTPError(pvrErr, "fetch private vulnerability reporting")
-		if !isAccessError(classified) {
-			return nil, fmt.Errorf("fetching private vulnerability reporting: %w", pvrErr)
+		if isAccessError(classified) {
+			warnings = append(warnings, classified)
+		} else {
+			return nil, nil, fmt.Errorf("fetching private vulnerability reporting: %w", pvrErr)
 		}
 	}
 
@@ -97,8 +105,10 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 		s.AutomatedSecurityFixesEnabled = ptr.Bool(asfEnabled)
 	} else if asfErr != nil {
 		classified := classifyHTTPError(asfErr, "fetch automated security fixes")
-		if !isAccessError(classified) {
-			return nil, fmt.Errorf("fetching automated security fixes: %w", asfErr)
+		if isAccessError(classified) {
+			warnings = append(warnings, classified)
+		} else {
+			return nil, nil, fmt.Errorf("fetching automated security fixes: %w", asfErr)
 		}
 	}
 
@@ -107,23 +117,27 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 		s.VulnerabilityAlertsEnabled = ptr.Bool(vaEnabled)
 	} else if vaErr != nil {
 		classified := classifyHTTPError(vaErr, "fetch vulnerability alerts")
-		if !isAccessError(classified) {
-			return nil, vaErr
+		if isAccessError(classified) {
+			warnings = append(warnings, classified)
+		} else {
+			return nil, nil, vaErr
 		}
 	}
 
 	var wfPerms workflowPermissionsResponse
 	if err := client.Get(fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name), &wfPerms); err != nil {
 		classified := classifyHTTPError(err, "fetch workflow permissions")
-		if !isAccessError(classified) {
-			return nil, fmt.Errorf("fetching workflow permissions: %w", err)
+		if isAccessError(classified) {
+			warnings = append(warnings, classified)
+		} else {
+			return nil, nil, fmt.Errorf("fetching workflow permissions: %w", err)
 		}
 	} else {
 		s.DefaultWorkflowPermissions = ptr.String(wfPerms.DefaultWorkflowPermissions)
 		s.CanApprovePullRequestReviews = ptr.Bool(wfPerms.CanApprovePullRequestReviews)
 	}
 
-	return s, nil
+	return s, warnings, nil
 }
 
 // isHTTP404 returns true when err wraps an *api.HTTPError with status 404.
