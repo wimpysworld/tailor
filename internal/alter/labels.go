@@ -23,11 +23,13 @@ const (
 )
 
 // LabelResult records the label name, category, and display value for one
-// label entry.
+// label entry. Annotation carries optional context for skip categories,
+// embedded in the label (e.g. "token missing required scope").
 type LabelResult struct {
-	Name     string
-	Category LabelCategory
-	Value    string
+	Name       string
+	Category   LabelCategory
+	Value      string
+	Annotation string
 }
 
 // ProcessLabels compares declared labels against live labels and optionally
@@ -70,12 +72,24 @@ func labelSkippedToResults(ar *gh.ApplyResult) []LabelResult {
 	for _, sk := range ar.Skipped {
 		cat := classifyLabelSkipCategory(sk.Err)
 		results = append(results, LabelResult{
-			Name:     sk.Operation,
-			Category: cat,
-			Value:    sk.Err.Error(),
+			Name:       sk.Operation,
+			Category:   cat,
+			Value:      sk.Err.Error(),
+			Annotation: labelSkipAnnotation(sk.Err),
 		})
 	}
 	return results
+}
+
+// labelSkipAnnotation extracts a short annotation string from a skip error.
+// For ErrInsufficientRole it returns "<role> required"; for
+// ErrInsufficientScope it returns "token missing required scope".
+func labelSkipAnnotation(err error) string {
+	var roleErr *gh.ErrInsufficientRole
+	if errors.As(err, &roleErr) {
+		return roleErr.RequiredRole + " required"
+	}
+	return "token missing required scope"
 }
 
 // classifyLabelSkipCategory returns LabelSkipRole for ErrInsufficientRole and

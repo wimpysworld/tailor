@@ -24,11 +24,13 @@ const (
 )
 
 // RepoSettingResult records the field name, category, and display value for one
-// repository setting.
+// repository setting. Annotation carries optional context for skip categories,
+// embedded in the label (e.g. "token missing required scope").
 type RepoSettingResult struct {
-	Field    string
-	Category RepoSettingCategory
-	Value    string
+	Field      string
+	Category   RepoSettingCategory
+	Value      string
+	Annotation string
 }
 
 // ProcessRepoSettings compares declared settings against live settings
@@ -71,12 +73,24 @@ func skippedToResults(ar *gh.ApplyResult) []RepoSettingResult {
 	for _, sk := range ar.Skipped {
 		cat := classifySkipCategory(sk.Err)
 		results = append(results, RepoSettingResult{
-			Field:    sk.Operation,
-			Category: cat,
-			Value:    sk.Err.Error(),
+			Field:      sk.Operation,
+			Category:   cat,
+			Value:      sk.Err.Error(),
+			Annotation: skipAnnotation(sk.Err),
 		})
 	}
 	return results
+}
+
+// skipAnnotation extracts a short annotation string from a skip error.
+// For ErrInsufficientRole it returns "<role> required"; for
+// ErrInsufficientScope it returns "token missing required scope".
+func skipAnnotation(err error) string {
+	var roleErr *gh.ErrInsufficientRole
+	if errors.As(err, &roleErr) {
+		return roleErr.RequiredRole + " required"
+	}
+	return "token missing required scope"
 }
 
 // classifySkipCategory returns WouldSkipRole for ErrInsufficientRole and

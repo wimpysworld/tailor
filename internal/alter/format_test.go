@@ -342,3 +342,100 @@ func TestFormatOutputAnnotationMixedWithRepo(t *testing.T) {
 		t.Errorf("FormatOutput annotation mixed with repo:\ngot:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+func TestFormatOutputSkipAnnotationScope(t *testing.T) {
+	repos := []RepoSettingResult{
+		{Field: "vulnerability_alerts_enabled", Category: WouldSkipScope, Annotation: "token missing required scope"},
+	}
+
+	got := FormatOutput(repos, nil, nil)
+	// "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 space = 63 width.
+	want := "would skip (insufficient scope: token missing required scope): vulnerability_alerts_enabled\n"
+
+	if got != want {
+		t.Errorf("FormatOutput skip annotation scope:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputSkipAnnotationRole(t *testing.T) {
+	repos := []RepoSettingResult{
+		{Field: "vulnerability_alerts_enabled", Category: WouldSkipRole, Annotation: "admin required"},
+	}
+
+	got := FormatOutput(repos, nil, nil)
+	// "would skip (insufficient role: admin required):" = 48 chars + 1 space = 49 width.
+	want := "would skip (insufficient role: admin required): vulnerability_alerts_enabled\n"
+
+	if got != want {
+		t.Errorf("FormatOutput skip annotation role:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputSkipAnnotationMixed(t *testing.T) {
+	repos := []RepoSettingResult{
+		{Field: "has_wiki", Category: WouldSet, Value: "false"},
+		{Field: "has_issues", Category: RepoNoChange, Value: "true"},
+		{Field: "vulnerability_alerts_enabled", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Field: "private_vulnerability_reporting_enabled", Category: WouldSkipRole, Annotation: "admin required"},
+	}
+
+	got := FormatOutput(repos, nil, nil)
+	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 = 63.
+	want := "would set:                                                     repository.has_wiki = false\n" +
+		"no change:                                                     repository.has_issues (already true)\n" +
+		"would skip (insufficient role: admin required):                private_vulnerability_reporting_enabled\n" +
+		"would skip (insufficient scope: token missing required scope): vulnerability_alerts_enabled\n"
+
+	if got != want {
+		t.Errorf("FormatOutput skip annotation mixed:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputLabelSkipAnnotations(t *testing.T) {
+	labels := []LabelResult{
+		{Name: "bug", Category: WouldCreate, Value: "#d73a4a"},
+		{Name: "enhancement", Category: LabelSkipScope, Annotation: "token missing required scope"},
+	}
+
+	got := FormatOutput(nil, labels, nil)
+	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 + 1 = 63.
+	want := "would create:                                                  label.bug = #d73a4a\n" +
+		"would skip (insufficient scope: token missing required scope): enhancement\n"
+
+	if got != want {
+		t.Errorf("FormatOutput label skip annotations:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputSkipAnnotationColumnWidth(t *testing.T) {
+	// Verify annotated skip labels widen the column correctly.
+	repos := []RepoSettingResult{
+		{Field: "vuln", Category: WouldSkipScope, Annotation: "token missing required scope"},
+	}
+	got := FormatOutput(repos, nil, nil)
+
+	// "would skip (insufficient scope: token missing required scope):" is 62 chars.
+	// Column width = 63 (62 + 1 space). The field starts at position 63.
+	label := "would skip (insufficient scope: token missing required scope): "
+	if len(label) != 63 {
+		t.Fatalf("expected label+space to be 63 chars, got %d", len(label))
+	}
+	want := label + "vuln\n"
+	if got != want {
+		t.Errorf("FormatOutput skip annotation column width:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputSkipWithoutAnnotation(t *testing.T) {
+	// Skip results without annotations still render with the base label.
+	repos := []RepoSettingResult{
+		{Field: "patch repo settings", Category: WouldSkipScope},
+	}
+
+	got := FormatOutput(repos, nil, nil)
+	want := "would skip (insufficient scope):     patch repo settings\n"
+
+	if got != want {
+		t.Errorf("FormatOutput skip without annotation:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}

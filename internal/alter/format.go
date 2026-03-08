@@ -20,12 +20,12 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 	}
 
 	sortedSwatches := sortSwatchResults(swatchResults)
-	width := labelWidth(sortedSwatches)
+	width := labelWidth(repoResults, labelResults, sortedSwatches)
 
 	var b strings.Builder
 
 	for _, r := range sortRepoResults(repoResults) {
-		label := string(r.Category) + ":"
+		label := repoLabel(r)
 		switch r.Category {
 		case WouldSet:
 			fmt.Fprintf(&b, "%-*srepository.%s = %s\n", width, label, r.Field, r.Value)
@@ -37,7 +37,7 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 	}
 
 	for _, r := range sortLabelResults(labelResults) {
-		label := string(r.Category) + ":"
+		label := labelResultLabel(r)
 		switch r.Category {
 		case WouldCreate, WouldUpdate:
 			fmt.Fprintf(&b, "%-*slabel.%s = %s\n", width, label, r.Name, r.Value)
@@ -56,6 +56,28 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 	return b.String()
 }
 
+// repoLabel returns the formatted label for a repo setting result. For skip
+// categories with an annotation, the annotation is embedded inside the
+// parentheses: "would skip (insufficient scope: token missing required scope):".
+func repoLabel(r RepoSettingResult) string {
+	if r.Annotation != "" && (r.Category == WouldSkipScope || r.Category == WouldSkipRole) {
+		base := strings.TrimSuffix(string(r.Category), ")")
+		return base + ": " + r.Annotation + "):"
+	}
+	return string(r.Category) + ":"
+}
+
+// labelResultLabel returns the formatted label for a label result. For skip
+// categories with an annotation, the annotation is embedded inside the
+// parentheses: "would skip (insufficient scope: token missing required scope):".
+func labelResultLabel(r LabelResult) string {
+	if r.Annotation != "" && (r.Category == LabelSkipScope || r.Category == LabelSkipRole) {
+		base := strings.TrimSuffix(string(r.Category), ")")
+		return base + ": " + r.Annotation + "):"
+	}
+	return string(r.Category) + ":"
+}
+
 // swatchLabel returns the formatted label for a swatch result, including any
 // trigger annotation. For example: "would copy (triggered: allow_auto_merge):".
 func swatchLabel(r SwatchResult) string {
@@ -66,10 +88,20 @@ func swatchLabel(r SwatchResult) string {
 }
 
 // labelWidth computes the column width needed to accommodate all labels. It
-// returns at least defaultLabelWidth, widening if any annotated swatch label
-// exceeds that.
-func labelWidth(swatches []SwatchResult) int {
+// returns at least defaultLabelWidth, widening if any annotated label exceeds
+// that.
+func labelWidth(repos []RepoSettingResult, labels []LabelResult, swatches []SwatchResult) int {
 	width := defaultLabelWidth
+	for _, r := range repos {
+		if w := len(repoLabel(r)) + 1; w > width {
+			width = w
+		}
+	}
+	for _, r := range labels {
+		if w := len(labelResultLabel(r)) + 1; w > width {
+			width = w
+		}
+	}
 	for _, r := range swatches {
 		if w := len(swatchLabel(r)) + 1; w > width {
 			width = w
