@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
-	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
@@ -48,7 +48,7 @@ type workflowPermissionsResponse struct {
 }
 
 // ReadRepoSettings fetches repository settings from the GitHub API and returns
-// them as a config.RepositorySettings. It makes separate API calls for the
+// them as a model.RepositorySettings. It makes separate API calls for the
 // standard repository fields, private vulnerability reporting, automated
 // security fixes, vulnerability alerts, and Actions workflow permissions.
 //
@@ -56,13 +56,13 @@ type workflowPermissionsResponse struct {
 // (ErrInsufficientScope, ErrInsufficientRole) for sub-calls that returned 403.
 // The corresponding fields in the returned settings are left nil. Callers can
 // log these warnings or ignore them.
-func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.RepositorySettings, []error, error) {
+func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.RepositorySettings, []error, error) {
 	var repo repoResponse
 	if err := client.Get(fmt.Sprintf("repos/%s/%s", owner, name), &repo); err != nil {
 		return nil, nil, fmt.Errorf("fetching repo settings: %w", err)
 	}
 
-	s := &config.RepositorySettings{
+	s := &model.RepositorySettings{
 		Description:              ptr.Ptr(repo.Description),
 		Homepage:                 ptr.Ptr(repo.Homepage),
 		HasWiki:                  ptr.Ptr(repo.HasWiki),
@@ -196,7 +196,7 @@ type ApplyResult struct {
 // fixes, topics, and Actions workflow permissions. Access errors (insufficient
 // scope or role) are collected in the returned ApplyResult rather than aborting.
 // Hard errors still return as the error value.
-func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *config.RepositorySettings) (*ApplyResult, error) {
+func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *model.RepositorySettings) (*ApplyResult, error) {
 	p := buildSettingsPayload(settings)
 	result := &ApplyResult{}
 
@@ -398,7 +398,7 @@ var nonPatchFields = map[string]bool{
 // settings, keyed by their yaml tags. Fields that require separate API
 // endpoints are extracted into the returned settingsPayload struct and never
 // appear in the PATCH body.
-func buildSettingsPayload(settings *config.RepositorySettings) settingsPayload {
+func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 	p := settingsPayload{Body: make(map[string]any)}
 
 	v := reflect.ValueOf(settings).Elem()

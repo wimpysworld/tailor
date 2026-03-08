@@ -46,7 +46,10 @@ func TestRunFormatOutputIntegration(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			client := setupDocketTest(t, tt.opts)
 
-			result := Run(client)
+			result, err := Run(client)
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
 			output := FormatOutput(result)
 
 			for _, s := range tt.wantContains {

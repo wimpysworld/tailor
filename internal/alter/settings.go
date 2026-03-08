@@ -11,6 +11,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
+	"github.com/wimpysworld/tailor/internal/model"
 )
 
 // RepoSettingCategory classifies the outcome of processing a single repository setting.
@@ -124,7 +125,7 @@ func classifySkipCategory(err error) RepoSettingCategory {
 
 // compareSettings iterates non-nil pointer fields in declared and compares
 // each against the corresponding field in live. Returns a result per declared field.
-func compareSettings(declared, live *config.RepositorySettings) []RepoSettingResult {
+func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResult {
 	dv := reflect.ValueOf(declared).Elem()
 	lv := reflect.ValueOf(live).Elem()
 	dt := dv.Type()
@@ -197,7 +198,7 @@ var readWarningOperationFields = map[string][]string{
 // are silently ignored. It also returns a set of field names that should be
 // suppressed from compareSettings output (because their nil live value is due
 // to a 403, not a real diff).
-func readWarningsToResults(warnings []error, declared *config.RepositorySettings) ([]RepoSettingResult, map[string]bool) {
+func readWarningsToResults(warnings []error, declared *model.RepositorySettings) ([]RepoSettingResult, map[string]bool) {
 	if len(warnings) == 0 {
 		return nil, nil
 	}
@@ -236,7 +237,7 @@ func readWarningsToResults(warnings []error, declared *config.RepositorySettings
 
 // declaredFieldNames returns the set of YAML field names that have non-nil
 // values in the given RepositorySettings.
-func declaredFieldNames(s *config.RepositorySettings) map[string]bool {
+func declaredFieldNames(s *model.RepositorySettings) map[string]bool {
 	if s == nil {
 		return nil
 	}

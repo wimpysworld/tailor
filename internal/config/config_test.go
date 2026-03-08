@@ -6,6 +6,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
@@ -210,7 +211,7 @@ func TestRepositoryOmittedInMarshalWhenNil(t *testing.T) {
 func TestOptionalRepositoryFieldsOmitted(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
-		Repository: &RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 		Swatches: []SwatchEntry{
@@ -310,7 +311,7 @@ func TestNewFieldsRoundTrip(t *testing.T) {
 	topics := []string{"go", "cli-tool"}
 	cfg := Config{
 		License: "MIT",
-		Repository: &RepositorySettings{
+		Repository: &model.RepositorySettings{
 			VulnerabilityAlertsEnabled:    ptr.Ptr(true),
 			AutomatedSecurityFixesEnabled: ptr.Ptr(false),
 			Topics:                        &topics,
@@ -350,7 +351,7 @@ func TestNewFieldsRoundTrip(t *testing.T) {
 func TestNewFieldsOmittedInMarshal(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
-		Repository: &RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 		Swatches: []SwatchEntry{
@@ -442,7 +443,7 @@ swatches: []
 func TestLabelsRoundTrip(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 			{Name: "enhancement", Color: "a2eeef", Description: "New feature or request"},
 		},
@@ -492,41 +493,41 @@ func TestLabelsOmittedInMarshalWhenNil(t *testing.T) {
 }
 
 func TestLabelNeedsUpdateCasingDiffers(t *testing.T) {
-	existing := LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
-	desired := LabelEntry{Name: "Bug", Color: "d73a4a", Description: "desc"}
-	if !LabelNeedsUpdate(existing, desired) {
+	existing := model.LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
+	desired := model.LabelEntry{Name: "Bug", Color: "d73a4a", Description: "desc"}
+	if !model.LabelNeedsUpdate(existing, desired) {
 		t.Error("LabelNeedsUpdate() = false, want true when name casing differs")
 	}
 }
 
 func TestLabelNeedsUpdateExactMatch(t *testing.T) {
-	existing := LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
-	desired := LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
-	if LabelNeedsUpdate(existing, desired) {
+	existing := model.LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
+	desired := model.LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
+	if model.LabelNeedsUpdate(existing, desired) {
 		t.Error("LabelNeedsUpdate() = true, want false when labels are identical")
 	}
 }
 
 func TestLabelNeedsUpdateColourDiffers(t *testing.T) {
-	existing := LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
-	desired := LabelEntry{Name: "bug", Color: "ff0000", Description: "desc"}
-	if !LabelNeedsUpdate(existing, desired) {
+	existing := model.LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
+	desired := model.LabelEntry{Name: "bug", Color: "ff0000", Description: "desc"}
+	if !model.LabelNeedsUpdate(existing, desired) {
 		t.Error("LabelNeedsUpdate() = false, want true when colour differs")
 	}
 }
 
 func TestLabelNeedsUpdateDescriptionDiffers(t *testing.T) {
-	existing := LabelEntry{Name: "bug", Color: "d73a4a", Description: "old"}
-	desired := LabelEntry{Name: "bug", Color: "d73a4a", Description: "new"}
-	if !LabelNeedsUpdate(existing, desired) {
+	existing := model.LabelEntry{Name: "bug", Color: "d73a4a", Description: "old"}
+	desired := model.LabelEntry{Name: "bug", Color: "d73a4a", Description: "new"}
+	if !model.LabelNeedsUpdate(existing, desired) {
 		t.Error("LabelNeedsUpdate() = false, want true when description differs")
 	}
 }
 
 func TestLabelNeedsUpdateColourCaseInsensitive(t *testing.T) {
-	existing := LabelEntry{Name: "bug", Color: "D73A4A", Description: "desc"}
-	desired := LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
-	if LabelNeedsUpdate(existing, desired) {
+	existing := model.LabelEntry{Name: "bug", Color: "D73A4A", Description: "desc"}
+	desired := model.LabelEntry{Name: "bug", Color: "d73a4a", Description: "desc"}
+	if model.LabelNeedsUpdate(existing, desired) {
 		t.Error("LabelNeedsUpdate() = true, want false when colour differs only in casing")
 	}
 }

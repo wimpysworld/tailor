@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/model"
 )
 
 func TestReadLabelsEmpty(t *testing.T) {
@@ -131,7 +131,7 @@ func TestApplyLabelsCreatesMissing(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 
@@ -172,10 +172,10 @@ func TestApplyLabelsPatchesChanged(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "bug", Color: "ff0000", Description: "Updated desc"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 
@@ -206,10 +206,10 @@ func TestApplyLabelsSkipsMatched(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 
@@ -235,10 +235,10 @@ func TestApplyLabelsCaseInsensitiveMatch(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "bug", Color: "ff0000", Description: "Updated"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "Bug", Color: "d73a4a", Description: "Old desc"},
 	}
 
@@ -266,10 +266,10 @@ func TestApplyLabelsCaseInsensitiveSkip(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 
@@ -291,10 +291,10 @@ func TestApplyLabelsColorCaseInsensitive(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "bug", Color: "D73A4A", Description: "desc"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "desc"},
 	}
 
@@ -316,8 +316,8 @@ func TestApplyLabelsNoDeleteExtraLabels(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{}
-	current := []config.LabelEntry{
+	desired := []model.LabelEntry{}
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 		{Name: "enhancement", Color: "a2eeef", Description: "New feature or request"},
 	}
@@ -346,12 +346,12 @@ func TestApplyLabelsMixedOperations(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Same"},
 		{Name: "enhancement", Color: "ff0000", Description: "Changed colour"},
 		{Name: "new-label", Color: "00ff00", Description: "Brand new"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Same"},
 		{Name: "enhancement", Color: "a2eeef", Description: "Changed colour"},
 		{Name: "wontfix", Color: "ffffff", Description: "Will not fix"},
@@ -382,7 +382,7 @@ func TestApplyLabelsCreateError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "desc"},
 	}
 
@@ -400,10 +400,10 @@ func TestApplyLabelsPatchError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "bug", Color: "ff0000", Description: "new"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "old"},
 	}
 
@@ -446,10 +446,10 @@ func TestApplyLabelsPatchesCasingChange(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "Bug", Color: "d73a4a", Description: "Something is not working"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 	}
 
@@ -480,10 +480,10 @@ func TestUpdateLabelSendsNewName(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "Enhancement", Color: "a2eeef", Description: "New feature"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "enhancement", Color: "a2eeef", Description: "Old desc"},
 	}
 
@@ -507,10 +507,10 @@ func TestApplyLabelsDescriptionOnlyChange(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Updated description"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Old description"},
 	}
 
@@ -543,7 +543,7 @@ func TestApplyLabelsCreate403SkipsAndContinues(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "alpha", Color: "aa0000", Description: "first"},
 		{Name: "beta", Color: "bb0000", Description: "second"},
 	}
@@ -586,11 +586,11 @@ func TestApplyLabelsUpdate403SkipsAndContinues(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "alpha", Color: "ff0000", Description: "changed"},
 		{Name: "beta", Color: "00ff00", Description: "changed"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "alpha", Color: "aa0000", Description: "old"},
 		{Name: "beta", Color: "bb0000", Description: "old"},
 	}
@@ -623,7 +623,7 @@ func TestApplyLabelsNon403ErrorStillAborts(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "alpha", Color: "aa0000", Description: "first"},
 		{Name: "beta", Color: "bb0000", Description: "second"},
 	}
@@ -653,12 +653,12 @@ func TestApplyLabelsMixed403AndSuccess(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	desired := []config.LabelEntry{
+	desired := []model.LabelEntry{
 		{Name: "new-label", Color: "00ff00", Description: "brand new"},
 		{Name: "existing", Color: "ff0000", Description: "changed"},
 		{Name: "unchanged", Color: "aabbcc", Description: "same"},
 	}
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "existing", Color: "aabbcc", Description: "old"},
 		{Name: "unchanged", Color: "aabbcc", Description: "same"},
 	}

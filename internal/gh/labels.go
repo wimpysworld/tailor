@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
-	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/model"
 )
 
 // labelResponse holds the subset of GitHub label fields we read.
@@ -23,8 +23,8 @@ type labelResponse struct {
 
 // ReadLabels fetches all labels from a repository using paginated GET requests.
 // Returns an empty slice (not nil) when the repository has no labels.
-func ReadLabels(client *api.RESTClient, owner, repo string) ([]config.LabelEntry, error) {
-	var all []config.LabelEntry
+func ReadLabels(client *api.RESTClient, owner, repo string) ([]model.LabelEntry, error) {
+	var all []model.LabelEntry
 
 	for page := 1; ; page++ {
 		path := fmt.Sprintf("repos/%s/%s/labels?per_page=100&page=%d", owner, repo, page)
@@ -45,7 +45,7 @@ func ReadLabels(client *api.RESTClient, owner, repo string) ([]config.LabelEntry
 		}
 
 		for _, l := range labels {
-			all = append(all, config.LabelEntry{
+			all = append(all, model.LabelEntry{
 				Name:        l.Name,
 				Color:       l.Color,
 				Description: l.Description,
@@ -58,7 +58,7 @@ func ReadLabels(client *api.RESTClient, owner, repo string) ([]config.LabelEntry
 	}
 
 	if all == nil {
-		all = []config.LabelEntry{}
+		all = []model.LabelEntry{}
 	}
 
 	return all, nil
@@ -79,10 +79,10 @@ func hasNextPage(link string) bool {
 // Access errors (insufficient scope or role) on individual labels are collected
 // in the returned ApplyResult rather than aborting, so a 403 on one label does
 // not prevent others from being applied.
-func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []config.LabelEntry) (*ApplyResult, error) {
+func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []model.LabelEntry) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
-	currentMap := make(map[string]config.LabelEntry, len(current))
+	currentMap := make(map[string]model.LabelEntry, len(current))
 	for _, l := range current {
 		currentMap[strings.ToLower(l.Name)] = l
 	}
@@ -104,7 +104,7 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 			continue
 		}
 
-		if config.LabelNeedsUpdate(existing, d) {
+		if model.LabelNeedsUpdate(existing, d) {
 			if err := updateLabel(client, owner, repo, existing.Name, d); err != nil {
 				opName := fmt.Sprintf("update label %q", d.Name)
 				classified := classifyHTTPError(err, opName)
@@ -121,7 +121,7 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 }
 
 // createLabel sends a POST to create a new label.
-func createLabel(client *api.RESTClient, owner, repo string, label config.LabelEntry) error {
+func createLabel(client *api.RESTClient, owner, repo string, label model.LabelEntry) error {
 	body := labelResponse{
 		Name:        label.Name,
 		Color:       label.Color,
@@ -141,7 +141,7 @@ func createLabel(client *api.RESTClient, owner, repo string, label config.LabelE
 
 // updateLabel sends a PATCH to update an existing label's colour or description.
 // The name parameter is the current name on GitHub (used in the URL path).
-func updateLabel(client *api.RESTClient, owner, repo, name string, label config.LabelEntry) error {
+func updateLabel(client *api.RESTClient, owner, repo, name string, label model.LabelEntry) error {
 	body := map[string]string{
 		"new_name":    label.Name,
 		"color":       label.Color,

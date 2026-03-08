@@ -3,6 +3,7 @@ package config
 import (
 	"reflect"
 
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -26,7 +27,7 @@ func MergeDefaultRepoSettings(cfg *Config) bool {
 	}
 
 	if cfg.Repository == nil {
-		cfg.Repository = &RepositorySettings{}
+		cfg.Repository = &model.RepositorySettings{}
 	}
 
 	dv := reflect.ValueOf(defaults.Repository).Elem()
@@ -82,7 +83,7 @@ func MergeDefaultLabels(cfg *Config) bool {
 		return false
 	}
 
-	cfg.Labels = make([]LabelEntry, len(defaults.Labels))
+	cfg.Labels = make([]model.LabelEntry, len(defaults.Labels))
 	copy(cfg.Labels, defaults.Labels)
 
 	return true

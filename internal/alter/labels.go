@@ -9,6 +9,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
+	"github.com/wimpysworld/tailor/internal/model"
 )
 
 // LabelCategory classifies the outcome of processing a single label entry.
@@ -104,8 +105,8 @@ func classifyLabelSkipCategory(err error) LabelCategory {
 
 // compareLabels iterates desired labels and compares each against current
 // labels. Name matching is case-insensitive per GitHub's label behaviour.
-func compareLabels(desired, current []config.LabelEntry) []LabelResult {
-	currentMap := make(map[string]config.LabelEntry, len(current))
+func compareLabels(desired, current []model.LabelEntry) []LabelResult {
+	currentMap := make(map[string]model.LabelEntry, len(current))
 	for _, l := range current {
 		currentMap[strings.ToLower(l.Name)] = l
 	}
@@ -127,7 +128,7 @@ func compareLabels(desired, current []config.LabelEntry) []LabelResult {
 			continue
 		}
 
-		if config.LabelNeedsUpdate(existing, d) {
+		if model.LabelNeedsUpdate(existing, d) {
 			results = append(results, LabelResult{
 				Name:     d.Name,
 				Category: WouldUpdate,
@@ -147,7 +148,7 @@ func compareLabels(desired, current []config.LabelEntry) []LabelResult {
 }
 
 // formatLabelValue returns a display string for a label entry.
-func formatLabelValue(l config.LabelEntry) string {
+func formatLabelValue(l model.LabelEntry) string {
 	if l.Description != "" {
 		return fmt.Sprintf("#%s %q", l.Color, l.Description)
 	}

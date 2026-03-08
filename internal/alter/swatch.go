@@ -81,7 +81,7 @@ func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte,
 	exists := fileExists(dest)
 
 	if mode == Recut {
-		return processRecut(entry, content, dest, exists, mode)
+		return processRecut(entry, content, dest, exists)
 	}
 
 	switch entry.Alteration {
@@ -170,15 +170,13 @@ func triggerAnnotation(path string) string {
 	return "triggered: " + tc.ConfigField
 }
 
-func processRecut(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
+func processRecut(entry config.SwatchEntry, content []byte, dest string, exists bool) (SwatchResult, error) {
 	category := WouldOverwrite
 	if !exists {
 		category = WouldCopy
 	}
-	if mode.ShouldWrite() {
-		if err := writeFile(dest, content); err != nil {
-			return SwatchResult{}, err
-		}
+	if err := writeFile(dest, content); err != nil {
+		return SwatchResult{}, err
 	}
 	return SwatchResult{Path: entry.Path, Category: category}, nil
 }

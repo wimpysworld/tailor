@@ -8,6 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
@@ -171,7 +172,7 @@ func TestWriteCreatesFile(t *testing.T) {
 
 	cfg := &Config{
 		License: "MIT",
-		Repository: &RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 		Swatches: []SwatchEntry{
@@ -195,7 +196,7 @@ func TestWriteCreatesFile(t *testing.T) {
 func TestWriteOptionalFieldsPresent(t *testing.T) {
 	cfg := &Config{
 		License: "Apache-2.0",
-		Repository: &RepositorySettings{
+		Repository: &model.RepositorySettings{
 			Description:                       ptr.Ptr("My project"),
 			Homepage:                          ptr.Ptr("https://example.com"),
 			HasWiki:                           ptr.Ptr(true),
@@ -274,7 +275,7 @@ swatches:
 func TestWriteOptionalFieldsOmitted(t *testing.T) {
 	cfg := &Config{
 		License: "MIT",
-		Repository: &RepositorySettings{
+		Repository: &model.RepositorySettings{
 			// Description, Homepage, MergeCommitTitle, MergeCommitMessage are nil.
 			HasWiki:                           ptr.Ptr(false),
 			HasDiscussions:                    ptr.Ptr(false),
@@ -347,7 +348,7 @@ func TestWriteYAMLSpecialCharactersQuoted(t *testing.T) {
 	desc := `My project: a tool for #things`
 	cfg := &Config{
 		License: "MIT",
-		Repository: &RepositorySettings{
+		Repository: &model.RepositorySettings{
 			Description:      &desc,
 			HasWiki:          ptr.Ptr(false),
 			AllowSquashMerge: ptr.Ptr(true),

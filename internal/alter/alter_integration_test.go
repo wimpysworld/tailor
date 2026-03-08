@@ -17,6 +17,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -79,11 +80,11 @@ type alterServerConfig struct {
 	pvrEnabled   bool
 	licenceID    string
 	licenceBody  string
-	labels       []config.LabelEntry // labels returned by GET /repos/{owner}/{repo}/labels
-	noRepo       bool                // stub RepoContext to return false
-	userError    int                 // non-zero: return this HTTP status for GET /user
-	licenceError int                 // non-zero: return this HTTP status for GET /licenses/*
-	patchError   int                 // non-zero: return this HTTP status for PATCH /repos/*
+	labels       []model.LabelEntry // labels returned by GET /repos/{owner}/{repo}/labels
+	noRepo       bool               // stub RepoContext to return false
+	userError    int                // non-zero: return this HTTP status for GET /user
+	licenceError int                // non-zero: return this HTTP status for GET /licenses/*
+	patchError   int                // non-zero: return this HTTP status for PATCH /repos/*
 }
 
 // WithUsername sets the mock username for GET /user.
@@ -118,7 +119,7 @@ func WithLicence(id, body string) testOption {
 }
 
 // WithLabels sets the labels returned by GET /repos/{owner}/{repo}/labels.
-func WithLabels(labels []config.LabelEntry) testOption {
+func WithLabels(labels []model.LabelEntry) testOption {
 	return func(c *alterServerConfig) { c.labels = labels }
 }
 

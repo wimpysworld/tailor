@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -132,7 +133,7 @@ func ValidateLabels(cfg *Config) error {
 // repoSettingNames returns the sorted list of recognised yaml tag names from
 // RepositorySettings, excluding the inline Extra field.
 func repoSettingNames() []string {
-	t := reflect.TypeOf(RepositorySettings{})
+	t := reflect.TypeOf(model.RepositorySettings{})
 	var names []string
 	for i := range t.NumField() {
 		tag := t.Field(i).Tag.Get("yaml")

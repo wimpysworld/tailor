@@ -52,6 +52,7 @@ func TestRun(t *testing.T) {
 	tests := []struct {
 		name     string
 		opts     docketTestOpts
+		wantErr  bool
 		wantUser string
 		wantRepo string
 		wantAuth string
@@ -103,9 +104,7 @@ func TestRun(t *testing.T) {
 				apiStatus: http.StatusInternalServerError,
 				apiBody:   `{"message":"Internal Server Error"}`,
 			},
-			wantUser: "(none)",
-			wantRepo: "(none)",
-			wantAuth: "authenticated",
+			wantErr: true,
 		},
 	}
 
@@ -113,7 +112,16 @@ func TestRun(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			client := setupDocketTest(t, tt.opts)
 
-			result := Run(client)
+			result, err := Run(client)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("Run() expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("Run() error = %v", err)
+			}
 
 			if result.User != tt.wantUser {
 				t.Errorf("User = %q, want %q", result.User, tt.wantUser)

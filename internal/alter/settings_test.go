@@ -12,6 +12,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -120,7 +121,7 @@ func TestProcessRepoSettingsNoRepoContext(t *testing.T) {
 	ghfake.FakeNoRepo(t)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 	}
@@ -154,7 +155,7 @@ func TestProcessRepoSettingsWouldSetWhenDiffer(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 	}
@@ -186,7 +187,7 @@ func TestProcessRepoSettingsNoChangeWhenMatch(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 	}
@@ -219,7 +220,7 @@ func TestProcessRepoSettingsApplyCallsAPI(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 	}
@@ -243,7 +244,7 @@ func TestProcessRepoSettingsRecutCallsAPI(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 	}
@@ -267,7 +268,7 @@ func TestProcessRepoSettingsDryRunDoesNotCallAPI(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 	}
@@ -291,7 +292,7 @@ func TestProcessRepoSettingsNoApplyWhenAllMatch(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki:   ptr.Ptr(false),
 			HasIssues: ptr.Ptr(true),
 		},
@@ -314,7 +315,7 @@ func TestProcessRepoSettingsErrorPropagated(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 	}
@@ -339,7 +340,7 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki:             ptr.Ptr(false), // differs
 			HasIssues:           ptr.Ptr(true),  // matches
 			Description:         ptr.Ptr("New"), // differs
@@ -376,7 +377,7 @@ func TestProcessRepoSettingsStringFieldValues(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			Description: ptr.Ptr("new description"),
 			Homepage:    ptr.Ptr("https://old.example.com"), // matches
 		},
@@ -421,7 +422,7 @@ func TestProcessRepoSettingsPrivateVulnerabilityReporting(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 		},
 	}
@@ -454,7 +455,7 @@ func TestProcessRepoSettingsVulnerabilityAlertsNoChange(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			VulnerabilityAlertsEnabled: ptr.Ptr(true),
 		},
 	}
@@ -487,7 +488,7 @@ func TestProcessRepoSettingsVulnerabilityAlertsWouldSet(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			VulnerabilityAlertsEnabled: ptr.Ptr(false),
 		},
 	}
@@ -517,7 +518,7 @@ func TestProcessRepoSettingsAutomatedSecurityFixesNoChange(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			AutomatedSecurityFixesEnabled: ptr.Ptr(false),
 		},
 	}
@@ -547,7 +548,7 @@ func TestProcessRepoSettingsAutomatedSecurityFixesWouldSet(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			AutomatedSecurityFixesEnabled: ptr.Ptr(true),
 		},
 	}
@@ -577,7 +578,7 @@ func TestProcessRepoSettingsTopicsNoChange(t *testing.T) {
 
 	topics := []string{"go", "cli"}
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			Topics: &topics,
 		},
 	}
@@ -610,7 +611,7 @@ func TestProcessRepoSettingsTopicsWouldSet(t *testing.T) {
 
 	topics := []string{"go", "cli", "github"}
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			Topics: &topics,
 		},
 	}
@@ -646,7 +647,7 @@ func TestProcessRepoSettingsTopicsEmptyVsNil(t *testing.T) {
 	// slices.Equal treats nil and empty as equal, so this is no change
 	topics := []string{}
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			Topics: &topics,
 		},
 	}
@@ -680,7 +681,7 @@ func TestProcessRepoSettingsTopicsEmptyMatchesEmpty(t *testing.T) {
 
 	topics := []string{}
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			Topics: &topics,
 		},
 	}
@@ -707,7 +708,7 @@ func TestProcessRepoSettingsDefaultWorkflowPermissionsNoChange(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			DefaultWorkflowPermissions: ptr.Ptr("read"),
 		},
 	}
@@ -740,7 +741,7 @@ func TestProcessRepoSettingsDefaultWorkflowPermissionsWouldSet(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			DefaultWorkflowPermissions: ptr.Ptr("write"),
 		},
 	}
@@ -773,7 +774,7 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsNoChange(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			CanApprovePullRequestReviews: ptr.Ptr(false),
 		},
 	}
@@ -843,7 +844,7 @@ func TestProcessRepoSettingsPVR403ProducesSkipResult(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki:                           ptr.Ptr(false),
 			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 		},
@@ -923,7 +924,7 @@ func TestProcessRepoSettingsPVR403ScopeProducesSkipScope(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
 		},
 	}
@@ -1012,7 +1013,7 @@ func TestProcessRepoSettingsReadPath403PVRProducesSkipRole(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 		},
 	}
@@ -1040,7 +1041,7 @@ func TestProcessRepoSettingsReadPath403ASFProducesSkipRole(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			AutomatedSecurityFixesEnabled: ptr.Ptr(true),
 		},
 	}
@@ -1068,7 +1069,7 @@ func TestProcessRepoSettingsReadPath403VAProducesSkipRole(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			VulnerabilityAlertsEnabled: ptr.Ptr(true),
 		},
 	}
@@ -1096,7 +1097,7 @@ func TestProcessRepoSettingsReadPath403WorkflowProducesSkipScope(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			DefaultWorkflowPermissions: ptr.Ptr("write"),
 		},
 	}
@@ -1125,7 +1126,7 @@ func TestProcessRepoSettingsReadPath403DoesNotProduceWouldSet(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 			AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
 			VulnerabilityAlertsEnabled:        ptr.Ptr(true),
@@ -1167,7 +1168,7 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			CanApprovePullRequestReviews: ptr.Ptr(true),
 		},
 	}

@@ -11,12 +11,13 @@ import (
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
 // labelsServer creates an httptest server that responds to label GET, POST,
 // and PATCH requests. writeCalled is incremented on POST or PATCH.
-func labelsServer(current []config.LabelEntry, writeCalled *atomic.Int32) *httptest.Server {
+func labelsServer(current []model.LabelEntry, writeCalled *atomic.Int32) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
@@ -76,7 +77,7 @@ func TestProcessLabelsNoRepoContext(t *testing.T) {
 	ghfake.FakeNoRepo(t)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -104,13 +105,13 @@ func TestProcessLabelsNoRepoContext(t *testing.T) {
 func TestProcessLabelsWouldCreate(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	current := []config.LabelEntry{}
+	current := []model.LabelEntry{}
 	server := labelsServer(current, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -133,7 +134,7 @@ func TestProcessLabelsWouldCreate(t *testing.T) {
 func TestProcessLabelsWouldUpdate(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "fc5c65", Description: "Old description"},
 	}
 	server := labelsServer(current, nil)
@@ -141,7 +142,7 @@ func TestProcessLabelsWouldUpdate(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -161,7 +162,7 @@ func TestProcessLabelsWouldUpdate(t *testing.T) {
 func TestProcessLabelsNoChange(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 	}
 	server := labelsServer(current, nil)
@@ -169,7 +170,7 @@ func TestProcessLabelsNoChange(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -189,7 +190,7 @@ func TestProcessLabelsNoChange(t *testing.T) {
 func TestProcessLabelsCaseInsensitiveMatch(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "Bug", Color: "d73a4a", Description: "Something isn't working"},
 	}
 	server := labelsServer(current, nil)
@@ -197,7 +198,7 @@ func TestProcessLabelsCaseInsensitiveMatch(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -218,13 +219,13 @@ func TestProcessLabelsApplyCallsAPI(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	var writeCalled atomic.Int32
-	current := []config.LabelEntry{}
+	current := []model.LabelEntry{}
 	server := labelsServer(current, &writeCalled)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -242,13 +243,13 @@ func TestProcessLabelsRecutCallsAPI(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	var writeCalled atomic.Int32
-	current := []config.LabelEntry{}
+	current := []model.LabelEntry{}
 	server := labelsServer(current, &writeCalled)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -266,13 +267,13 @@ func TestProcessLabelsDryRunDoesNotCallAPI(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	var writeCalled atomic.Int32
-	current := []config.LabelEntry{}
+	current := []model.LabelEntry{}
 	server := labelsServer(current, &writeCalled)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -290,7 +291,7 @@ func TestProcessLabelsNoApplyWhenAllMatch(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	var writeCalled atomic.Int32
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		{Name: "enhancement", Color: "a2eeef", Description: "New feature"},
 	}
@@ -299,7 +300,7 @@ func TestProcessLabelsNoApplyWhenAllMatch(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 			{Name: "enhancement", Color: "a2eeef", Description: "New feature"},
 		},
@@ -322,7 +323,7 @@ func TestProcessLabelsErrorPropagated(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -336,7 +337,7 @@ func TestProcessLabelsErrorPropagated(t *testing.T) {
 func TestProcessLabelsMixedResults(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		{Name: "enhancement", Color: "old123", Description: "Old description"},
 	}
@@ -345,7 +346,7 @@ func TestProcessLabelsMixedResults(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 			{Name: "enhancement", Color: "a2eeef", Description: "New feature"},
 			{Name: "documentation", Color: "0075ca", Description: "Docs improvements"},
@@ -378,7 +379,7 @@ func TestProcessLabelsMixedResults(t *testing.T) {
 func TestProcessLabelsUpdateDescriptionOnly(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Old"},
 	}
 	server := labelsServer(current, nil)
@@ -386,7 +387,7 @@ func TestProcessLabelsUpdateDescriptionOnly(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "New"},
 		},
 	}
@@ -406,7 +407,7 @@ func TestProcessLabelsUpdateDescriptionOnly(t *testing.T) {
 func TestProcessLabelsColorCaseInsensitive(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "D73A4A", Description: "Something isn't working"},
 	}
 	server := labelsServer(current, nil)
@@ -414,7 +415,7 @@ func TestProcessLabelsColorCaseInsensitive(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -435,7 +436,7 @@ func TestProcessLabelsCasingOnlyApplyCallsAPI(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	var writeCalled atomic.Int32
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 	}
 	server := labelsServer(current, &writeCalled)
@@ -443,7 +444,7 @@ func TestProcessLabelsCasingOnlyApplyCallsAPI(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "Bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -461,7 +462,7 @@ func TestProcessLabelsExactNameNoChange(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	var writeCalled atomic.Int32
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 	}
 	server := labelsServer(current, &writeCalled)
@@ -469,7 +470,7 @@ func TestProcessLabelsExactNameNoChange(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something isn't working"},
 		},
 	}
@@ -489,7 +490,7 @@ func TestProcessLabelsExactNameNoChange(t *testing.T) {
 // partialLabelsServer creates a test server where the first POST returns 403
 // (simulating a scope error) and subsequent POSTs/PATCHes succeed. GET returns
 // the provided current labels.
-func partialLabelsServer(current []config.LabelEntry) *httptest.Server {
+func partialLabelsServer(current []model.LabelEntry) *httptest.Server {
 	var postCount atomic.Int32
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -527,13 +528,13 @@ func TestProcessLabelsPartialApplicationWithSkipped(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	// No current labels: both will be created. First POST returns 403.
-	current := []config.LabelEntry{}
+	current := []model.LabelEntry{}
 	server := partialLabelsServer(current)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "alpha", Color: "aa0000", Description: "first"},
 			{Name: "beta", Color: "bb0000", Description: "second"},
 		},
@@ -566,7 +567,7 @@ func TestProcessLabelsSkipDoesNotAbort(t *testing.T) {
 
 	// One existing label needing update, one new label. The first POST (create)
 	// returns 403, but the second label (update via PATCH) should still succeed.
-	current := []config.LabelEntry{
+	current := []model.LabelEntry{
 		{Name: "beta", Color: "old000", Description: "old"},
 	}
 
@@ -601,7 +602,7 @@ func TestProcessLabelsSkipDoesNotAbort(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
-		Labels: []config.LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "alpha", Color: "aa0000", Description: "new label"},
 			{Name: "beta", Color: "bb0000", Description: "updated"},
 		},

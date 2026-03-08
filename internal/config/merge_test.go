@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -129,7 +130,7 @@ func TestMergeEmptyConfig(t *testing.T) {
 
 // defaultRepoDefaults returns the default RepositorySettings from the embedded
 // config, for comparison in merge tests.
-func defaultRepoDefaults(t *testing.T) *RepositorySettings {
+func defaultRepoDefaults(t *testing.T) *model.RepositorySettings {
 	t.Helper()
 	defaults, err := DefaultConfig("_")
 	if err != nil {
@@ -214,7 +215,7 @@ func TestMergeRepoSettingsPartialRepository(t *testing.T) {
 	customWiki := true
 	customTitle := "CUSTOM_TITLE"
 	cfg := &Config{
-		Repository: &RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki:                &customWiki,
 			SquashMergeCommitTitle: &customTitle,
 		},
@@ -263,7 +264,7 @@ func TestMergeRepoSettingsFullRepository(t *testing.T) {
 	def := defaultRepoDefaults(t)
 
 	// Deep-copy default into a new RepositorySettings so every field is set.
-	full := &RepositorySettings{}
+	full := &model.RepositorySettings{}
 	dv := reflect.ValueOf(def).Elem()
 	fv := reflect.ValueOf(full).Elem()
 	dt := dv.Type()
@@ -291,7 +292,7 @@ func TestMergeRepoSettingsFullRepository(t *testing.T) {
 }
 
 // defaultLabelDefaults returns the default Labels from the embedded config.
-func defaultLabelDefaults(t *testing.T) []LabelEntry {
+func defaultLabelDefaults(t *testing.T) []model.LabelEntry {
 	t.Helper()
 	defaults, err := DefaultConfig("_")
 	if err != nil {
@@ -319,7 +320,7 @@ func TestMergeLabelsNilLabels(t *testing.T) {
 }
 
 func TestMergeLabelsEmptySlice(t *testing.T) {
-	cfg := &Config{Labels: []LabelEntry{}}
+	cfg := &Config{Labels: []model.LabelEntry{}}
 
 	changed := MergeDefaultLabels(cfg)
 
@@ -337,7 +338,7 @@ func TestMergeLabelsEmptySlice(t *testing.T) {
 }
 
 func TestMergeLabelsNonEmpty(t *testing.T) {
-	custom := []LabelEntry{
+	custom := []model.LabelEntry{
 		{Name: "custom", Color: "ff0000", Description: "a custom label"},
 	}
 	cfg := &Config{Labels: custom}
@@ -365,7 +366,7 @@ func TestMergeLabelsDefaultCount(t *testing.T) {
 
 func TestMergeRepoSettingsSkipsDescriptionHomepageTopics(t *testing.T) {
 	cfg := &Config{
-		Repository: &RepositorySettings{},
+		Repository: &model.RepositorySettings{},
 	}
 
 	MergeDefaultRepoSettings(cfg)

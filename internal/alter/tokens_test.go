@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/alter"
-	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
@@ -117,7 +117,7 @@ func TestSubstituteTailorConfigYmlWithoutRepoContext(t *testing.T) {
 func TestMergeStrategy(t *testing.T) {
 	tests := []struct {
 		name string
-		repo *config.RepositorySettings
+		repo *model.RepositorySettings
 		want string
 	}{
 		{
@@ -127,12 +127,12 @@ func TestMergeStrategy(t *testing.T) {
 		},
 		{
 			name: "no methods explicitly set defaults to squash",
-			repo: &config.RepositorySettings{},
+			repo: &model.RepositorySettings{},
 			want: "--squash",
 		},
 		{
 			name: "only squash enabled",
-			repo: &config.RepositorySettings{
+			repo: &model.RepositorySettings{
 				AllowSquashMerge: ptr.Ptr(true),
 				AllowRebaseMerge: ptr.Ptr(false),
 				AllowMergeCommit: ptr.Ptr(false),
@@ -141,7 +141,7 @@ func TestMergeStrategy(t *testing.T) {
 		},
 		{
 			name: "only rebase enabled",
-			repo: &config.RepositorySettings{
+			repo: &model.RepositorySettings{
 				AllowSquashMerge: ptr.Ptr(false),
 				AllowRebaseMerge: ptr.Ptr(true),
 				AllowMergeCommit: ptr.Ptr(false),
@@ -150,7 +150,7 @@ func TestMergeStrategy(t *testing.T) {
 		},
 		{
 			name: "only merge enabled",
-			repo: &config.RepositorySettings{
+			repo: &model.RepositorySettings{
 				AllowSquashMerge: ptr.Ptr(false),
 				AllowRebaseMerge: ptr.Ptr(false),
 				AllowMergeCommit: ptr.Ptr(true),
@@ -159,7 +159,7 @@ func TestMergeStrategy(t *testing.T) {
 		},
 		{
 			name: "squash and rebase enabled prefers squash",
-			repo: &config.RepositorySettings{
+			repo: &model.RepositorySettings{
 				AllowSquashMerge: ptr.Ptr(true),
 				AllowRebaseMerge: ptr.Ptr(true),
 				AllowMergeCommit: ptr.Ptr(false),
@@ -168,7 +168,7 @@ func TestMergeStrategy(t *testing.T) {
 		},
 		{
 			name: "rebase and merge enabled prefers rebase",
-			repo: &config.RepositorySettings{
+			repo: &model.RepositorySettings{
 				AllowSquashMerge: ptr.Ptr(false),
 				AllowRebaseMerge: ptr.Ptr(true),
 				AllowMergeCommit: ptr.Ptr(true),
@@ -177,7 +177,7 @@ func TestMergeStrategy(t *testing.T) {
 		},
 		{
 			name: "all enabled prefers squash",
-			repo: &config.RepositorySettings{
+			repo: &model.RepositorySettings{
 				AllowSquashMerge: ptr.Ptr(true),
 				AllowRebaseMerge: ptr.Ptr(true),
 				AllowMergeCommit: ptr.Ptr(true),
@@ -186,7 +186,7 @@ func TestMergeStrategy(t *testing.T) {
 		},
 		{
 			name: "all explicitly disabled defaults to squash",
-			repo: &config.RepositorySettings{
+			repo: &model.RepositorySettings{
 				AllowSquashMerge: ptr.Ptr(false),
 				AllowRebaseMerge: ptr.Ptr(false),
 				AllowMergeCommit: ptr.Ptr(false),
@@ -206,7 +206,7 @@ func TestMergeStrategy(t *testing.T) {
 
 func TestSubstituteAutomergeWorkflow(t *testing.T) {
 	tc := &alter.TokenContext{
-		Repository: &config.RepositorySettings{
+		Repository: &model.RepositorySettings{
 			AllowRebaseMerge: ptr.Ptr(true),
 			AllowSquashMerge: ptr.Ptr(false),
 		},

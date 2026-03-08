@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/model"
 )
 
 // TokenContext holds resolved values for template substitution.
 type TokenContext struct {
-	GitHubUsername string                     // from GET /user
-	Owner          string                     // from repo context; empty if no context
-	Name           string                     // from repo context; empty if no context
-	Repository     *config.RepositorySettings // from config; nil if absent
+	GitHubUsername string                    // from GET /user
+	Owner          string                    // from repo context; empty if no context
+	Name           string                    // from repo context; empty if no context
+	Repository     *model.RepositorySettings // from config; nil if absent
 }
 
 // HasRepoContext reports whether owner and name are set.

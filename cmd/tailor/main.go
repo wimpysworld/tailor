@@ -13,6 +13,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/docket"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/measure"
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -70,7 +71,7 @@ func (f *FitCmd) Run() error {
 		config.MergeRepoSettings(cfg, live, f.Description)
 	} else if f.Description != "" {
 		if cfg.Repository == nil {
-			cfg.Repository = &config.RepositorySettings{}
+			cfg.Repository = &model.RepositorySettings{}
 		}
 		cfg.Repository.Description = &f.Description
 	}
@@ -157,8 +158,11 @@ func (m *MeasureCmd) Run() error {
 type DocketCmd struct{}
 
 // Run executes the docket command.
-func (d *DocketCmd) Run() error { //nolint:unparam // error return required by kong.Command interface
-	result := docket.Run(nil)
+func (d *DocketCmd) Run() error {
+	result, err := docket.Run(nil)
+	if err != nil {
+		return err
+	}
 	fmt.Print(docket.FormatOutput(result))
 	return nil
 }

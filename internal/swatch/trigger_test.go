@@ -3,7 +3,7 @@ package swatch_test
 import (
 	"testing"
 
-	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -30,14 +30,14 @@ func TestLookupTriggerMiss(t *testing.T) {
 func boolPtr(b bool) *bool { return &b }
 
 func TestEvaluateTriggerNoCondition(t *testing.T) {
-	repo := &config.RepositorySettings{}
+	repo := &model.RepositorySettings{}
 	if !swatch.EvaluateTrigger("no-trigger-path.yml", repo) {
 		t.Error("EvaluateTrigger() = false for path with no trigger condition, want true")
 	}
 }
 
 func TestEvaluateTriggerNilRepo(t *testing.T) {
-	if swatch.EvaluateTrigger(".github/workflows/tailor-automerge.yml", (*config.RepositorySettings)(nil)) {
+	if swatch.EvaluateTrigger(".github/workflows/tailor-automerge.yml", (*model.RepositorySettings)(nil)) {
 		t.Error("EvaluateTrigger() = true for nil repo, want false")
 	}
 }
@@ -49,28 +49,28 @@ func TestEvaluateTriggerNilInterface(t *testing.T) {
 }
 
 func TestEvaluateTriggerFieldTrue(t *testing.T) {
-	repo := &config.RepositorySettings{AllowAutoMerge: boolPtr(true)}
+	repo := &model.RepositorySettings{AllowAutoMerge: boolPtr(true)}
 	if !swatch.EvaluateTrigger(".github/workflows/tailor-automerge.yml", repo) {
 		t.Error("EvaluateTrigger() = false when allow_auto_merge is true, want true")
 	}
 }
 
 func TestEvaluateTriggerFieldFalse(t *testing.T) {
-	repo := &config.RepositorySettings{AllowAutoMerge: boolPtr(false)}
+	repo := &model.RepositorySettings{AllowAutoMerge: boolPtr(false)}
 	if swatch.EvaluateTrigger(".github/workflows/tailor-automerge.yml", repo) {
 		t.Error("EvaluateTrigger() = true when allow_auto_merge is false, want false")
 	}
 }
 
 func TestEvaluateTriggerFieldNil(t *testing.T) {
-	repo := &config.RepositorySettings{}
+	repo := &model.RepositorySettings{}
 	if swatch.EvaluateTrigger(".github/workflows/tailor-automerge.yml", repo) {
 		t.Error("EvaluateTrigger() = true when allow_auto_merge is nil, want false")
 	}
 }
 
 func TestEvaluateTriggerUnknownSource(t *testing.T) {
-	repo := &config.RepositorySettings{}
+	repo := &model.RepositorySettings{}
 	if !swatch.EvaluateTrigger("unknown-file.yml", repo) {
 		t.Error("EvaluateTrigger() = false for unknown path, want true")
 	}

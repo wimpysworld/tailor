@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/api"
-	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -614,7 +614,7 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		Description:    ptr.Ptr("new desc"),
 		HasWiki:        ptr.Ptr(true),
 		AllowAutoMerge: ptr.Ptr(false),
@@ -665,7 +665,7 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 
 func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
 	topics := []string{"go", "cli"}
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		Description:                       ptr.Ptr("desc"),
 		HasWiki:                           ptr.Ptr(true),
 		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
@@ -725,7 +725,7 @@ func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
 }
 
 func TestBuildSettingsPayloadNilFieldsStayNil(t *testing.T) {
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		HasWiki: ptr.Ptr(true),
 	}
 
@@ -757,7 +757,7 @@ func TestBuildSettingsPayloadNilFieldsStayNil(t *testing.T) {
 
 func TestBuildSettingsPayloadEmptyTopics(t *testing.T) {
 	topics := []string{}
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		Topics: &topics,
 	}
 
@@ -786,7 +786,7 @@ func TestApplyRepoSettingsPVRPut(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 	}
 
@@ -815,7 +815,7 @@ func TestApplyRepoSettingsPVRDelete(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		PrivateVulnerabilityReportEnabled: ptr.Ptr(false),
 	}
 
@@ -842,7 +842,7 @@ func TestApplyRepoSettingsNoPatchWhenOnlyPVR(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 	}
 
@@ -867,7 +867,7 @@ func TestApplyRepoSettingsPatchError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		HasWiki: ptr.Ptr(true),
 	}
 
@@ -885,7 +885,7 @@ func TestApplyRepoSettingsPatch403Skipped(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		HasWiki: ptr.Ptr(true),
 	}
 
@@ -916,7 +916,7 @@ func TestApplyRepoSettingsWorkflowPermsBothFields(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		DefaultWorkflowPermissions:   ptr.Ptr("read"),
 		CanApprovePullRequestReviews: ptr.Ptr(false),
 	}
@@ -964,7 +964,7 @@ func TestApplyRepoSettingsWorkflowPermsPartialFetchesCurrent(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		DefaultWorkflowPermissions: ptr.Ptr("read"),
 	}
 
@@ -994,7 +994,7 @@ func TestApplyRepoSettingsWorkflowPermsSkippedWhenBothNil(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		HasWiki: ptr.Ptr(true),
 	}
 
@@ -1024,7 +1024,7 @@ func TestApplyRepoSettingsWorkflowPermsGetError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		CanApprovePullRequestReviews: ptr.Ptr(true),
 	}
 
@@ -1048,7 +1048,7 @@ func TestApplyRepoSettingsWorkflowPermsPutError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		DefaultWorkflowPermissions:   ptr.Ptr("read"),
 		CanApprovePullRequestReviews: ptr.Ptr(false),
 	}
@@ -1067,7 +1067,7 @@ func TestApplyRepoSettingsPVRError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 	}
 
@@ -1089,7 +1089,7 @@ func TestApplyRepoSettingsVAPut(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		VulnerabilityAlertsEnabled: ptr.Ptr(true),
 	}
 
@@ -1118,7 +1118,7 @@ func TestApplyRepoSettingsVADelete(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		VulnerabilityAlertsEnabled: ptr.Ptr(false),
 	}
 
@@ -1147,7 +1147,7 @@ func TestApplyRepoSettingsASFPut(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		AutomatedSecurityFixesEnabled: ptr.Ptr(true),
 	}
 
@@ -1176,7 +1176,7 @@ func TestApplyRepoSettingsASFDelete(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		AutomatedSecurityFixesEnabled: ptr.Ptr(false),
 	}
 
@@ -1207,7 +1207,7 @@ func TestApplyRepoSettingsEnableBothVABeforeASF(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		VulnerabilityAlertsEnabled:    ptr.Ptr(true),
 		AutomatedSecurityFixesEnabled: ptr.Ptr(true),
 	}
@@ -1244,7 +1244,7 @@ func TestApplyRepoSettingsDisableBothASFBeforeVA(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		VulnerabilityAlertsEnabled:    ptr.Ptr(false),
 		AutomatedSecurityFixesEnabled: ptr.Ptr(false),
 	}
@@ -1275,7 +1275,7 @@ func TestApplyRepoSettingsVAError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		VulnerabilityAlertsEnabled: ptr.Ptr(true),
 	}
 
@@ -1293,7 +1293,7 @@ func TestApplyRepoSettingsASFError(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		AutomatedSecurityFixesEnabled: ptr.Ptr(true),
 	}
 
@@ -1319,7 +1319,7 @@ func TestApplyRepoSettingsTopicsPut(t *testing.T) {
 
 	client := newTestClient(t, server)
 	topics := []string{"go", "cli-tool"}
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		Topics: &topics,
 	}
 
@@ -1363,7 +1363,7 @@ func TestApplyRepoSettingsTopicsPutEmpty(t *testing.T) {
 
 	client := newTestClient(t, server)
 	topics := []string{}
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		Topics: &topics,
 	}
 
@@ -1398,7 +1398,7 @@ func TestApplyRepoSettingsTopicsSkippedWhenNil(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		HasWiki: ptr.Ptr(true),
 	}
 
@@ -1425,7 +1425,7 @@ func TestApplyRepoSettingsTopicsError(t *testing.T) {
 
 	client := newTestClient(t, server)
 	topics := []string{"go"}
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		Topics: &topics,
 	}
 
@@ -1445,7 +1445,7 @@ func TestApplyRepoSettingsNoPatchWhenOnlyVAAndASF(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		VulnerabilityAlertsEnabled:    ptr.Ptr(true),
 		AutomatedSecurityFixesEnabled: ptr.Ptr(true),
 	}
@@ -1479,7 +1479,7 @@ func TestApplyRepoSettingsPartialPatchSucceedsPVR403(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		HasWiki:                           ptr.Ptr(true),
 		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 	}
@@ -1513,7 +1513,7 @@ func TestApplyRepoSettingsPartialVA403ASFSkipped(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		VulnerabilityAlertsEnabled:    ptr.Ptr(true),
 		AutomatedSecurityFixesEnabled: ptr.Ptr(true),
 	}
@@ -1545,7 +1545,7 @@ func TestApplyRepoSettingsPartialTopics403(t *testing.T) {
 
 	client := newTestClient(t, server)
 	topics := []string{"go"}
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		HasWiki: ptr.Ptr(true),
 		Topics:  &topics,
 	}
@@ -1567,7 +1567,7 @@ func TestApplyRepoSettingsAllSkipped(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		HasWiki:                           ptr.Ptr(true),
 		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 		VulnerabilityAlertsEnabled:        ptr.Ptr(true),
@@ -1589,7 +1589,7 @@ func TestApplyRepoSettingsApplyResultPopulatedOnSuccess(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	client := newTestClient(t, server)
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		HasWiki:                           ptr.Ptr(true),
 		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 		VulnerabilityAlertsEnabled:        ptr.Ptr(true),
@@ -1617,7 +1617,7 @@ func TestApplyRepoSettingsHardErrorStopsExecution(t *testing.T) {
 
 	client := newTestClient(t, server)
 	topics := []string{"go"}
-	settings := &config.RepositorySettings{
+	settings := &model.RepositorySettings{
 		HasWiki:                           ptr.Ptr(true),
 		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 		Topics:                            &topics,

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 
 	"github.com/wimpysworld/tailor"
+	"github.com/wimpysworld/tailor/internal/model"
 )
 
 const embeddedConfigPath = "swatches/.tailor.yml"
@@ -45,7 +46,7 @@ func DefaultConfig(license string) (*Config, error) {
 // from the GitHub API. The description flag, when non-empty, overrides
 // whatever the live settings carried. Empty string pointer fields for
 // Description and Homepage are normalised to nil so they are omitted from YAML.
-func MergeRepoSettings(cfg *Config, live *RepositorySettings, description string) {
+func MergeRepoSettings(cfg *Config, live *model.RepositorySettings, description string) {
 	cfg.Repository = live
 
 	if description != "" {

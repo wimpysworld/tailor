@@ -6,6 +6,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
@@ -77,7 +78,7 @@ func TestValidateDuplicatePathsRejectsDuplicate(t *testing.T) {
 
 func TestValidateRepoSettingsAcceptsValidConfig(t *testing.T) {
 	cfg := &Config{
-		Repository: &RepositorySettings{
+		Repository: &model.RepositorySettings{
 			HasWiki:   ptr.Ptr(false),
 			HasIssues: ptr.Ptr(true),
 			Homepage:  ptr.Ptr("https://example.com"),
@@ -156,21 +157,21 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 }
 
 func TestValidateWorkflowPermissionsAcceptsRead(t *testing.T) {
-	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("read")}}
+	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("read")}}
 	if err := ValidateWorkflowPermissions(cfg); err != nil {
 		t.Fatalf("ValidateWorkflowPermissions(read): %v", err)
 	}
 }
 
 func TestValidateWorkflowPermissionsAcceptsWrite(t *testing.T) {
-	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("write")}}
+	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("write")}}
 	if err := ValidateWorkflowPermissions(cfg); err != nil {
 		t.Fatalf("ValidateWorkflowPermissions(write): %v", err)
 	}
 }
 
 func TestValidateWorkflowPermissionsAcceptsNil(t *testing.T) {
-	cfg := &Config{Repository: &RepositorySettings{}}
+	cfg := &Config{Repository: &model.RepositorySettings{}}
 	if err := ValidateWorkflowPermissions(cfg); err != nil {
 		t.Fatalf("ValidateWorkflowPermissions(nil): %v", err)
 	}
@@ -184,7 +185,7 @@ func TestValidateWorkflowPermissionsAcceptsNilRepository(t *testing.T) {
 }
 
 func TestValidateWorkflowPermissionsRejectsInvalid(t *testing.T) {
-	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("admin")}}
+	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("admin")}}
 	err := ValidateWorkflowPermissions(cfg)
 	if err == nil {
 		t.Fatal("ValidateWorkflowPermissions(admin) expected error, got nil")
@@ -196,14 +197,14 @@ func TestValidateWorkflowPermissionsRejectsInvalid(t *testing.T) {
 
 func TestValidateTopicsAcceptsValid(t *testing.T) {
 	topics := []string{"go", "cli-tool", "3d-printing"}
-	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	cfg := &Config{Repository: &model.RepositorySettings{Topics: &topics}}
 	if err := ValidateTopics(cfg); err != nil {
 		t.Fatalf("ValidateTopics(valid): %v", err)
 	}
 }
 
 func TestValidateTopicsAcceptsNil(t *testing.T) {
-	cfg := &Config{Repository: &RepositorySettings{}}
+	cfg := &Config{Repository: &model.RepositorySettings{}}
 	if err := ValidateTopics(cfg); err != nil {
 		t.Fatalf("ValidateTopics(nil): %v", err)
 	}
@@ -211,7 +212,7 @@ func TestValidateTopicsAcceptsNil(t *testing.T) {
 
 func TestValidateTopicsAcceptsEmpty(t *testing.T) {
 	topics := []string{}
-	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	cfg := &Config{Repository: &model.RepositorySettings{Topics: &topics}}
 	if err := ValidateTopics(cfg); err != nil {
 		t.Fatalf("ValidateTopics(empty): %v", err)
 	}
@@ -219,7 +220,7 @@ func TestValidateTopicsAcceptsEmpty(t *testing.T) {
 
 func TestValidateTopicsRejectsUppercase(t *testing.T) {
 	topics := []string{"Go"}
-	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	cfg := &Config{Repository: &model.RepositorySettings{Topics: &topics}}
 	err := ValidateTopics(cfg)
 	if err == nil {
 		t.Fatal("ValidateTopics(uppercase) expected error, got nil")
@@ -231,7 +232,7 @@ func TestValidateTopicsRejectsUppercase(t *testing.T) {
 
 func TestValidateTopicsRejectsStartingWithHyphen(t *testing.T) {
 	topics := []string{"-invalid"}
-	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	cfg := &Config{Repository: &model.RepositorySettings{Topics: &topics}}
 	err := ValidateTopics(cfg)
 	if err == nil {
 		t.Fatal("ValidateTopics(hyphen start) expected error, got nil")
@@ -240,7 +241,7 @@ func TestValidateTopicsRejectsStartingWithHyphen(t *testing.T) {
 
 func TestValidateTopicsRejectsTooLong(t *testing.T) {
 	topics := []string{strings.Repeat("a", 51)}
-	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	cfg := &Config{Repository: &model.RepositorySettings{Topics: &topics}}
 	err := ValidateTopics(cfg)
 	if err == nil {
 		t.Fatal("ValidateTopics(too long) expected error, got nil")
@@ -252,7 +253,7 @@ func TestValidateTopicsRejectsTooLong(t *testing.T) {
 
 func TestValidateTopicsRejectsSpecialChars(t *testing.T) {
 	topics := []string{"hello_world"}
-	cfg := &Config{Repository: &RepositorySettings{Topics: &topics}}
+	cfg := &Config{Repository: &model.RepositorySettings{Topics: &topics}}
 	err := ValidateTopics(cfg)
 	if err == nil {
 		t.Fatal("ValidateTopics(underscore) expected error, got nil")
@@ -261,7 +262,7 @@ func TestValidateTopicsRejectsSpecialChars(t *testing.T) {
 
 func TestValidateLabelsAcceptsValid(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
 			{Name: "enhancement", Color: "a2eeef", Description: "New feature or request"},
 		},
@@ -279,7 +280,7 @@ func TestValidateLabelsAcceptsNil(t *testing.T) {
 }
 
 func TestValidateLabelsAcceptsEmpty(t *testing.T) {
-	cfg := &Config{Labels: []LabelEntry{}}
+	cfg := &Config{Labels: []model.LabelEntry{}}
 	if err := ValidateLabels(cfg); err != nil {
 		t.Fatalf("ValidateLabels(empty): %v", err)
 	}
@@ -287,7 +288,7 @@ func TestValidateLabelsAcceptsEmpty(t *testing.T) {
 
 func TestValidateLabelsRejectsEmptyName(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "", Color: "d73a4a", Description: "desc"},
 		},
 	}
@@ -302,7 +303,7 @@ func TestValidateLabelsRejectsEmptyName(t *testing.T) {
 
 func TestValidateLabelsRejectsLongName(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: strings.Repeat("a", 51), Color: "d73a4a", Description: "desc"},
 		},
 	}
@@ -317,7 +318,7 @@ func TestValidateLabelsRejectsLongName(t *testing.T) {
 
 func TestValidateLabelsAcceptsMaxName(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: strings.Repeat("a", 50), Color: "d73a4a", Description: "desc"},
 		},
 	}
@@ -328,7 +329,7 @@ func TestValidateLabelsAcceptsMaxName(t *testing.T) {
 
 func TestValidateLabelsRejectsEmptyColor(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "", Description: "desc"},
 		},
 	}
@@ -343,7 +344,7 @@ func TestValidateLabelsRejectsEmptyColor(t *testing.T) {
 
 func TestValidateLabelsRejectsHashPrefix(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "#d73a4a", Description: "desc"},
 		},
 	}
@@ -358,7 +359,7 @@ func TestValidateLabelsRejectsHashPrefix(t *testing.T) {
 
 func TestValidateLabelsRejectsShortColor(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73", Description: "desc"},
 		},
 	}
@@ -373,7 +374,7 @@ func TestValidateLabelsRejectsShortColor(t *testing.T) {
 
 func TestValidateLabelsRejectsInvalidHex(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "zzzzzz", Description: "desc"},
 		},
 	}
@@ -388,7 +389,7 @@ func TestValidateLabelsRejectsInvalidHex(t *testing.T) {
 
 func TestValidateLabelsAcceptsUppercaseHex(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "D73A4A", Description: "desc"},
 		},
 	}
@@ -399,7 +400,7 @@ func TestValidateLabelsAcceptsUppercaseHex(t *testing.T) {
 
 func TestValidateLabelsRejectsEmptyDescription(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: ""},
 		},
 	}
@@ -414,7 +415,7 @@ func TestValidateLabelsRejectsEmptyDescription(t *testing.T) {
 
 func TestValidateLabelsRejectsLongDescription(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: strings.Repeat("a", 101)},
 		},
 	}
@@ -429,7 +430,7 @@ func TestValidateLabelsRejectsLongDescription(t *testing.T) {
 
 func TestValidateLabelsAcceptsMaxDescription(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: strings.Repeat("a", 100)},
 		},
 	}
@@ -440,7 +441,7 @@ func TestValidateLabelsAcceptsMaxDescription(t *testing.T) {
 
 func TestValidateLabelsRejectsDuplicateNames(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "bug", Color: "d73a4a", Description: "first"},
 			{Name: "bug", Color: "ff0000", Description: "second"},
 		},
@@ -456,7 +457,7 @@ func TestValidateLabelsRejectsDuplicateNames(t *testing.T) {
 
 func TestValidateLabelsRejectsDuplicateNamesCaseInsensitive(t *testing.T) {
 	cfg := &Config{
-		Labels: []LabelEntry{
+		Labels: []model.LabelEntry{
 			{Name: "Bug", Color: "d73a4a", Description: "first"},
 			{Name: "bug", Color: "ff0000", Description: "second"},
 		},
