@@ -6,7 +6,7 @@
 
 | API category | Endpoint(s) | Required scope | `repo` alone sufficient | `GITHUB_TOKEN` in CI sufficient | Notes |
 |---|---|---|---|---|---|
-| Repo settings PATCH | `PATCH /repos/{owner}/{repo}` | `repo` | Yes | Yes (contents:write) | Caller must have admin role on the repo |
+| Repo settings PATCH | `PATCH /repos/{owner}/{repo}` | `repo` | Yes | Yes (contents:write) | Standard settings work with repo write access, admin-only fields use separate endpoints |
 | Topics | `PUT /repos/{owner}/{repo}/topics` | `repo` | Yes | Yes (contents:write) | Fine-grained: Metadata write |
 | Labels | `GET/POST/PATCH/DELETE /repos/{owner}/{repo}/labels` | `repo` | Yes | Yes (issues:write for writes) | Labels sit under issues permissions in fine-grained |
 | Private vulnerability reporting | `PUT/DELETE /repos/{owner}/{repo}/private-vulnerability-reporting` | `repo` | Yes | No | Requires repo admin or security manager role |
