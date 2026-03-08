@@ -83,6 +83,61 @@ All configs examined were golangci-lint v2 format unless noted. "Linters enabled
 | modernize | Suggests modern Go idioms. Useful but flags existing code that contributors did not write, creating churn in unrelated PRs. |
 | errcheck | Most projects enable it with exclusions for common false positives. Tailor's govet and errorlint coverage catches the high-value error handling issues. |
 
+## Dependency Review Security Gate
+
+The `security` job in `.github/workflows/builder.yml` runs `actions/dependency-review-action@v4` on every pull request to `main`. It blocks merges that introduce a vulnerable or licence-incompatible dependency before code reaches the default branch.
+
+### Trigger and CI graph position
+
+The job runs only on `pull_request` events (`if: github.event_name == 'pull_request'`). On push, tag, and dispatch events it is skipped. `sentinel` depends on `security` alongside `lint`, `coverage`, and `build-test`; because `sentinel` checks only for `failure` or `cancelled` results, a skipped `security` job passes sentinel on non-PR events. Branch protection targets `sentinel` exclusively, so no additional required-status-check entries are needed.
+
+### Policy
+
+| Setting | Value | Rationale |
+|---------|-------|-----------|
+| `fail-on-severity` | `moderate` | Blocks moderate, high, and critical CVEs; low-only vulnerabilities pass. Matches GitHub's recommended starting point. |
+| `deny-licenses` | `GPL-2.0, GPL-3.0, AGPL-3.0-only, AGPL-3.0-or-later, LGPL-2.1, LGPL-3.0` | Deny-list approach per GitHub best practice. Copyleft licences are incompatible with typical Go project distribution; tailor's own dependencies are MIT/BSD/Apache-2.0. |
+| `fail-on-scopes` | `runtime` | Checks runtime dependencies only; test-only imports are excluded to reduce false positives. |
+| `comment-summary-in-pr` | `on-failure` | Posts a summary comment on the PR when the job fails; no noise on clean PRs. |
+
+
+## Workflow Linting (actionlint)
+
+`actionlint` is a static analyser for GitHub Actions workflow files. It checks for undefined expressions, incorrect context references (`github.*`, `env.*`, `secrets.*`), missing `needs` dependencies, invalid runner labels, shell script errors in `run:` steps (via shellcheck), and type mismatches in action inputs.
+
+### CI job: `lint-actions`
+
+The `lint-actions` job runs on every push and pull request event using `devops-actions/actionlint@v0.1.11`, a versioned wrapper around the `rhysd/actionlint` binary. It uses an `ubuntu-slim` runner and requires only a checkout, with no Go toolchain dependency.
+
+`sentinel` depends on `lint-actions` alongside `lint-code`, `coverage`, `build-test`, and `security`. Failure blocks merge through the same sentinel gating pattern as every other required check.
+
+### PR annotations
+
+On pull request events, `devops-actions/actionlint` posts inline review comments on the Files Changed tab via the GitHub API, pinning each error to the exact line that introduced it. This is more contributor-visible than check-run annotations in the Checks tab, which require navigating away from the diff.
+
+### `pull-requests: write` permission
+
+The job declares `pull-requests: write` at job scope to enable the inline annotation API calls. The action uses this permission solely to post comments; it has no write path to repository content or PR metadata (it cannot merge, label, or modify the PR). The permission is not declared at workflow scope, so no other job inherits it.
+
+| Permission | Scope | Purpose |
+|------------|-------|---------|
+| `contents: read` | `lint-actions` job | Checkout |
+| `pull-requests: write` | `lint-actions` job | Inline diff annotations via GitHub API |
+
+The alternative, a problem matcher with `::add-matcher::` and a direct binary invocation, achieves Checks-tab annotations with `contents: read` only, but requires committing `actionlint-matcher.json` to the repository and managing the binary download separately. The inline diff surfacing justifies the narrowly scoped permission increase.
+
+### Local usage
+
+`actionlint` is available in the dev shell via `flake.nix`. The `just lint` recipe runs it alongside `golangci-lint`, so contributors get the same workflow validation locally before pushing.
+
+### Risks
+
+| Risk | Impact | Notes |
+|------|--------|-------|
+| `pull-requests: write` broadens job permissions | Slightly elevated trust for the linting job | Scoped to `lint-actions` only; `devops-actions/actionlint` uses it solely to post annotations. |
+| `actionlint` flags unknown runner labels | False positives for custom or hosted runners | Pass `action-flags: -ignore 'label ".+" is unknown'` if the repo uses self-hosted runners with custom labels. |
+| `devops-actions/actionlint` is a low-star wrapper (9 stars) | Third-party action risk | Mitigated by version-tag pinning; Dependabot tracks updates automatically; the action shells out to official `rhysd/actionlint` releases. |
+
 ## Source Configs
 
 All configs were retrieved via the GitHub API on 6 March 2026.

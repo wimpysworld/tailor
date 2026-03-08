@@ -13,8 +13,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Linter 🧹
+  lint-code:
+    name: Code Linter 🧹
     runs-on: ubuntu-slim
     steps:
       - uses: actions/checkout@v6
@@ -23,6 +23,16 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - uses: golangci/golangci-lint-action@v9
+
+  lint-actions:
+    name: Workflow Linter 📋
+    runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: devops-actions/actionlint@v0.1.11
 
   coverage:
     name: Coverage 📊
@@ -66,6 +76,7 @@ jobs:
       - name: Determine version
         id: version
         run: |
+          # shellcheck disable=SC2193
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
           else
@@ -80,9 +91,22 @@ jobs:
           name: tailor-${{ matrix.os }}-${{ matrix.arch }}
           path: tailor-${{ matrix.os }}-${{ matrix.arch }}
 
+  security:
+    name: Security 🔒
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-slim
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          deny-licenses: GPL-2.0, GPL-3.0, AGPL-3.0-only, AGPL-3.0-or-later, LGPL-2.1, LGPL-3.0
+          fail-on-scopes: runtime
+          comment-summary-in-pr: on-failure
+
   sentinel:
     name: Sentinel 👁️
-    needs: [lint, coverage, build-test]
+    needs: [lint-code, lint-actions, coverage, build-test, security]
     if: always()
     runs-on: ubuntu-slim
     steps:

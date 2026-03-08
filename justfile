@@ -14,6 +14,7 @@ build:
 lint:
     @go vet ./...
     @golangci-lint run
+    @actionlint
 
 # Run tests
 test:

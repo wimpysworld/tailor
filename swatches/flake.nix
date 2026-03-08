@@ -24,6 +24,7 @@
         {
           default = pkgs.mkShell {
             packages = with pkgs; [
+              actionlint
               gh
               jq
               just

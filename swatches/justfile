@@ -6,6 +6,10 @@ default:
 alter:
     @tailor alter
 
+# Run linters
+lint:
+    @actionlint
+
 # Check what tailor would change and measure
 measure:
     @tailor baste
