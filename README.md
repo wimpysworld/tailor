@@ -222,6 +222,25 @@ jobs:
 
 The workflow itself is an `always` swatch, so it stays current as tailor releases update the template. [`wimpysworld/tailor-action`](https://github.com/wimpysworld/tailor-action) installs the binary into the runner.
 
+### Token requirements
+
+`GITHUB_TOKEN` covers all Tailor operations on the workflow's own repository. Three settings require admin role on the repository and cannot be managed via `GITHUB_TOKEN` regardless of how `permissions:` is set in the workflow - this is a GitHub platform constraint:
+
+- `vulnerability_alerts_enabled`
+- `automated_security_fixes_enabled`
+- `private_vulnerability_reporting_enabled`
+
+When these settings appear in `.tailor.yml` and `GITHUB_TOKEN` is used, Tailor logs a warning per skipped setting and continues. The run does not fail.
+
+To manage these settings from CI, create a classic PAT with `repo` scope (or a fine-grained PAT with `Administration: write`), store it as a repository secret, and override `GH_TOKEN` in the workflow step:
+
+```yaml
+- name: Alter swatches
+  env:
+    GH_TOKEN: ${{ secrets.TAILOR_PAT }}
+  run: tailor alter
+```
+
 ### Automerge
 
 The `.github/workflows/tailor-automerge.yml` swatch auto-approves and merges Dependabot pull requests. It deploys automatically when `allow_auto_merge: true` is set in repository settings and removes itself when the setting is false.

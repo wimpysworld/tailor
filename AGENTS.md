@@ -85,6 +85,16 @@ tailor/
 - [Conventional Commits](https://www.conventionalcommits.org/) specification
 - Common prefixes: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`
 
+## CI token requirements
+
+`GITHUB_TOKEN` covers all Tailor operations on the workflow's own repository except three settings that require admin role on the repository:
+
+- `vulnerability_alerts_enabled`
+- `automated_security_fixes_enabled`
+- `private_vulnerability_reporting_enabled`
+
+`GITHUB_TOKEN` never holds `administration` permission regardless of `permissions:` in the workflow - this is a GitHub platform constraint. When `GITHUB_TOKEN` is used and these settings appear in `.tailor.yml`, Tailor skips them with a warning and continues without failing. To manage them from CI, set `GH_TOKEN: ${{ secrets.TAILOR_PAT }}` on the workflow step, where `TAILOR_PAT` is a classic PAT with `repo` scope (or fine-grained with `Administration: write`) stored as a repository secret.
+
 ## Security considerations
 
 - Never store or log GitHub tokens; rely on `go-gh` token resolution for authentication
