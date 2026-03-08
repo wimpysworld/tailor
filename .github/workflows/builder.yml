@@ -29,10 +29,13 @@ jobs:
     runs-on: ubuntu-slim
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@v6
-      - uses: devops-actions/actionlint@v0.1.11
+      - uses: freerangebytes/setup-actionlint@v0.1.1
+      - name: Run actionlint
+        run: |
+          echo "::add-matcher::.github/actionlint-matcher.json"
+          actionlint -color
 
   coverage:
     name: Coverage 📊
