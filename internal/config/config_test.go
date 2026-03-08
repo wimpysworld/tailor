@@ -211,7 +211,7 @@ func TestOptionalRepositoryFieldsOmitted(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Repository: &RepositorySettings{
-			HasWiki: ptr.Bool(false),
+			HasWiki: ptr.Ptr(false),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -311,11 +311,11 @@ func TestNewFieldsRoundTrip(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Repository: &RepositorySettings{
-			VulnerabilityAlertsEnabled:    ptr.Bool(true),
-			AutomatedSecurityFixesEnabled: ptr.Bool(false),
+			VulnerabilityAlertsEnabled:    ptr.Ptr(true),
+			AutomatedSecurityFixesEnabled: ptr.Ptr(false),
 			Topics:                        &topics,
-			DefaultWorkflowPermissions:    ptr.String("write"),
-			CanApprovePullRequestReviews:  ptr.Bool(true),
+			DefaultWorkflowPermissions:    ptr.Ptr("write"),
+			CanApprovePullRequestReviews:  ptr.Ptr(true),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -351,7 +351,7 @@ func TestNewFieldsOmittedInMarshal(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Repository: &RepositorySettings{
-			HasWiki: ptr.Bool(false),
+			HasWiki: ptr.Ptr(false),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},

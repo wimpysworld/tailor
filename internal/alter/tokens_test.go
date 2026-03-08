@@ -133,63 +133,63 @@ func TestMergeStrategy(t *testing.T) {
 		{
 			name: "only squash enabled",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: ptr.Bool(true),
-				AllowRebaseMerge: ptr.Bool(false),
-				AllowMergeCommit: ptr.Bool(false),
+				AllowSquashMerge: ptr.Ptr(true),
+				AllowRebaseMerge: ptr.Ptr(false),
+				AllowMergeCommit: ptr.Ptr(false),
 			},
 			want: "--squash",
 		},
 		{
 			name: "only rebase enabled",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: ptr.Bool(false),
-				AllowRebaseMerge: ptr.Bool(true),
-				AllowMergeCommit: ptr.Bool(false),
+				AllowSquashMerge: ptr.Ptr(false),
+				AllowRebaseMerge: ptr.Ptr(true),
+				AllowMergeCommit: ptr.Ptr(false),
 			},
 			want: "--rebase",
 		},
 		{
 			name: "only merge enabled",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: ptr.Bool(false),
-				AllowRebaseMerge: ptr.Bool(false),
-				AllowMergeCommit: ptr.Bool(true),
+				AllowSquashMerge: ptr.Ptr(false),
+				AllowRebaseMerge: ptr.Ptr(false),
+				AllowMergeCommit: ptr.Ptr(true),
 			},
 			want: "--merge",
 		},
 		{
 			name: "squash and rebase enabled prefers squash",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: ptr.Bool(true),
-				AllowRebaseMerge: ptr.Bool(true),
-				AllowMergeCommit: ptr.Bool(false),
+				AllowSquashMerge: ptr.Ptr(true),
+				AllowRebaseMerge: ptr.Ptr(true),
+				AllowMergeCommit: ptr.Ptr(false),
 			},
 			want: "--squash",
 		},
 		{
 			name: "rebase and merge enabled prefers rebase",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: ptr.Bool(false),
-				AllowRebaseMerge: ptr.Bool(true),
-				AllowMergeCommit: ptr.Bool(true),
+				AllowSquashMerge: ptr.Ptr(false),
+				AllowRebaseMerge: ptr.Ptr(true),
+				AllowMergeCommit: ptr.Ptr(true),
 			},
 			want: "--rebase",
 		},
 		{
 			name: "all enabled prefers squash",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: ptr.Bool(true),
-				AllowRebaseMerge: ptr.Bool(true),
-				AllowMergeCommit: ptr.Bool(true),
+				AllowSquashMerge: ptr.Ptr(true),
+				AllowRebaseMerge: ptr.Ptr(true),
+				AllowMergeCommit: ptr.Ptr(true),
 			},
 			want: "--squash",
 		},
 		{
 			name: "all explicitly disabled defaults to squash",
 			repo: &config.RepositorySettings{
-				AllowSquashMerge: ptr.Bool(false),
-				AllowRebaseMerge: ptr.Bool(false),
-				AllowMergeCommit: ptr.Bool(false),
+				AllowSquashMerge: ptr.Ptr(false),
+				AllowRebaseMerge: ptr.Ptr(false),
+				AllowMergeCommit: ptr.Ptr(false),
 			},
 			want: "--squash",
 		},
@@ -207,8 +207,8 @@ func TestMergeStrategy(t *testing.T) {
 func TestSubstituteAutomergeWorkflow(t *testing.T) {
 	tc := &alter.TokenContext{
 		Repository: &config.RepositorySettings{
-			AllowRebaseMerge: ptr.Bool(true),
-			AllowSquashMerge: ptr.Bool(false),
+			AllowRebaseMerge: ptr.Ptr(true),
+			AllowSquashMerge: ptr.Ptr(false),
 		},
 	}
 	input := []byte("gh pr merge --auto {{MERGE_STRATEGY}} \"$PR_URL\"")

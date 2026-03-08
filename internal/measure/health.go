@@ -93,9 +93,5 @@ func CheckHealth(dir string) []HealthResult {
 	slices.SortFunc(warning, sortByPath)
 	slices.SortFunc(present, sortByPath)
 
-	results := make([]HealthResult, 0, len(missing)+len(warning)+len(present))
-	results = append(results, missing...)
-	results = append(results, warning...)
-	results = append(results, present...)
-	return results
+	return slices.Concat(missing, warning, present)
 }

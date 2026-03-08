@@ -9,10 +9,10 @@ import (
 // repoSettingsSkipFields lists RepositorySettings field names excluded from
 // default merging. Description and Homepage are project-specific (nil'd by
 // DefaultConfig). Topics are project-specific per spec.
-var repoSettingsSkipFields = map[string]struct{}{
-	"Description": {},
-	"Homepage":    {},
-	"Topics":      {},
+var repoSettingsSkipFields = map[string]bool{
+	"Description": true,
+	"Homepage":    true,
+	"Topics":      true,
 }
 
 // MergeDefaultRepoSettings fills nil pointer fields in cfg.Repository from the
@@ -38,7 +38,7 @@ func MergeDefaultRepoSettings(cfg *Config) bool {
 	for i := range dt.NumField() {
 		field := dt.Field(i)
 
-		if _, skip := repoSettingsSkipFields[field.Name]; skip {
+		if repoSettingsSkipFields[field.Name] {
 			continue
 		}
 
@@ -97,9 +97,9 @@ const ConfigSwatchPath = ".tailor.yml"
 // an altered mode does not cause duplication. It returns the slice of newly
 // added entries.
 func MergeDefaultSwatches(cfg *Config) []SwatchEntry {
-	present := make(map[string]struct{}, len(cfg.Swatches))
+	present := make(map[string]bool, len(cfg.Swatches))
 	for _, e := range cfg.Swatches {
-		present[e.Path] = struct{}{}
+		present[e.Path] = true
 	}
 
 	var added []SwatchEntry
@@ -107,7 +107,7 @@ func MergeDefaultSwatches(cfg *Config) []SwatchEntry {
 		if s.Path == ConfigSwatchPath {
 			continue
 		}
-		if _, ok := present[s.Path]; ok {
+		if present[s.Path] {
 			continue
 		}
 		entry := SwatchEntry{

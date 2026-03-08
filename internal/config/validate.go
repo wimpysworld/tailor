@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -144,6 +144,6 @@ func repoSettingNames() []string {
 			names = append(names, name)
 		}
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }

@@ -63,24 +63,24 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 	}
 
 	s := &config.RepositorySettings{
-		Description:              ptr.String(repo.Description),
-		Homepage:                 ptr.String(repo.Homepage),
-		HasWiki:                  ptr.Bool(repo.HasWiki),
-		HasDiscussions:           ptr.Bool(repo.HasDiscussions),
-		HasProjects:              ptr.Bool(repo.HasProjects),
-		HasIssues:                ptr.Bool(repo.HasIssues),
-		AllowMergeCommit:         ptr.Bool(repo.AllowMergeCommit),
-		AllowSquashMerge:         ptr.Bool(repo.AllowSquashMerge),
-		AllowRebaseMerge:         ptr.Bool(repo.AllowRebaseMerge),
-		SquashMergeCommitTitle:   ptr.String(repo.SquashMergeCommitTitle),
-		SquashMergeCommitMessage: ptr.String(repo.SquashMergeCommitMessage),
-		MergeCommitTitle:         ptr.String(repo.MergeCommitTitle),
-		MergeCommitMessage:       ptr.String(repo.MergeCommitMessage),
-		DeleteBranchOnMerge:      ptr.Bool(repo.DeleteBranchOnMerge),
-		AllowUpdateBranch:        ptr.Bool(repo.AllowUpdateBranch),
-		AllowAutoMerge:           ptr.Bool(repo.AllowAutoMerge),
+		Description:              ptr.Ptr(repo.Description),
+		Homepage:                 ptr.Ptr(repo.Homepage),
+		HasWiki:                  ptr.Ptr(repo.HasWiki),
+		HasDiscussions:           ptr.Ptr(repo.HasDiscussions),
+		HasProjects:              ptr.Ptr(repo.HasProjects),
+		HasIssues:                ptr.Ptr(repo.HasIssues),
+		AllowMergeCommit:         ptr.Ptr(repo.AllowMergeCommit),
+		AllowSquashMerge:         ptr.Ptr(repo.AllowSquashMerge),
+		AllowRebaseMerge:         ptr.Ptr(repo.AllowRebaseMerge),
+		SquashMergeCommitTitle:   ptr.Ptr(repo.SquashMergeCommitTitle),
+		SquashMergeCommitMessage: ptr.Ptr(repo.SquashMergeCommitMessage),
+		MergeCommitTitle:         ptr.Ptr(repo.MergeCommitTitle),
+		MergeCommitMessage:       ptr.Ptr(repo.MergeCommitMessage),
+		DeleteBranchOnMerge:      ptr.Ptr(repo.DeleteBranchOnMerge),
+		AllowUpdateBranch:        ptr.Ptr(repo.AllowUpdateBranch),
+		AllowAutoMerge:           ptr.Ptr(repo.AllowAutoMerge),
 		Topics:                   &repo.Topics,
-		WebCommitSignoffRequired: ptr.Bool(repo.WebCommitSignoffRequired),
+		WebCommitSignoffRequired: ptr.Ptr(repo.WebCommitSignoffRequired),
 	}
 
 	// Each sub-call below uses classifyHTTPError to detect 403 responses.
@@ -90,7 +90,7 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 
 	pvrEnabled, pvrKnown, pvrErr := readSecurityFeatureEnabled(client, fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name))
 	if pvrKnown {
-		s.PrivateVulnerabilityReportEnabled = ptr.Bool(pvrEnabled)
+		s.PrivateVulnerabilityReportEnabled = ptr.Ptr(pvrEnabled)
 	} else if pvrErr != nil {
 		classified := classifyHTTPError(pvrErr, "fetch private vulnerability reporting")
 		if isAccessError(classified) {
@@ -102,7 +102,7 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 
 	asfEnabled, asfKnown, asfErr := readSecurityFeatureEnabled(client, fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name))
 	if asfKnown {
-		s.AutomatedSecurityFixesEnabled = ptr.Bool(asfEnabled)
+		s.AutomatedSecurityFixesEnabled = ptr.Ptr(asfEnabled)
 	} else if asfErr != nil {
 		classified := classifyHTTPError(asfErr, "fetch automated security fixes")
 		if isAccessError(classified) {
@@ -114,7 +114,7 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 
 	vaEnabled, vaKnown, vaErr := readSecurityFeatureStatus(client, fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name))
 	if vaKnown {
-		s.VulnerabilityAlertsEnabled = ptr.Bool(vaEnabled)
+		s.VulnerabilityAlertsEnabled = ptr.Ptr(vaEnabled)
 	} else if vaErr != nil {
 		classified := classifyHTTPError(vaErr, "fetch vulnerability alerts")
 		if isAccessError(classified) {
@@ -133,8 +133,8 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*config.Repos
 			return nil, nil, fmt.Errorf("fetching workflow permissions: %w", err)
 		}
 	} else {
-		s.DefaultWorkflowPermissions = ptr.String(wfPerms.DefaultWorkflowPermissions)
-		s.CanApprovePullRequestReviews = ptr.Bool(wfPerms.CanApprovePullRequestReviews)
+		s.DefaultWorkflowPermissions = ptr.Ptr(wfPerms.DefaultWorkflowPermissions)
+		s.CanApprovePullRequestReviews = ptr.Ptr(wfPerms.CanApprovePullRequestReviews)
 	}
 
 	return s, warnings, nil

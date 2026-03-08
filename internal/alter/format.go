@@ -122,7 +122,7 @@ func sortRepoResults(results []RepoSettingResult) []RepoSettingResult {
 		if c := cmp.Compare(repoOrder(a.Category), repoOrder(b.Category)); c != 0 {
 			return c
 		}
-		return strings.Compare(a.Field, b.Field)
+		return cmp.Compare(a.Field, b.Field)
 	})
 	return sorted
 }
@@ -154,7 +154,7 @@ func sortSwatchResults(results []SwatchResult) []SwatchResult {
 		if c := cmp.Compare(swatchOrder(a.Category), swatchOrder(b.Category)); c != 0 {
 			return c
 		}
-		return strings.Compare(a.Path, b.Path)
+		return cmp.Compare(a.Path, b.Path)
 	})
 	return sorted
 }
@@ -171,7 +171,7 @@ func sortLabelResults(results []LabelResult) []LabelResult {
 		if c := cmp.Compare(labelOrder(a.Category), labelOrder(b.Category)); c != 0 {
 			return c
 		}
-		return strings.Compare(a.Name, b.Name)
+		return cmp.Compare(a.Name, b.Name)
 	})
 	return sorted
 }

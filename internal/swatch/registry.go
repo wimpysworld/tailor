@@ -2,7 +2,7 @@ package swatch
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 )
 
 // Category classifies a swatch as either a community health file or a
@@ -82,7 +82,7 @@ func Paths() []string {
 	for i, s := range registry {
 		names[i] = s.Path
 	}
-	sort.Strings(names)
+	slices.Sort(names)
 	return names
 }
 

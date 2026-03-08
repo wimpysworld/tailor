@@ -121,7 +121,7 @@ func TestProcessRepoSettingsNoRepoContext(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki: ptr.Bool(false),
+			HasWiki: ptr.Ptr(false),
 		},
 	}
 
@@ -155,7 +155,7 @@ func TestProcessRepoSettingsWouldSetWhenDiffer(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki: ptr.Bool(false),
+			HasWiki: ptr.Ptr(false),
 		},
 	}
 
@@ -187,7 +187,7 @@ func TestProcessRepoSettingsNoChangeWhenMatch(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki: ptr.Bool(false),
+			HasWiki: ptr.Ptr(false),
 		},
 	}
 
@@ -220,7 +220,7 @@ func TestProcessRepoSettingsApplyCallsAPI(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki: ptr.Bool(false),
+			HasWiki: ptr.Ptr(false),
 		},
 	}
 
@@ -244,7 +244,7 @@ func TestProcessRepoSettingsRecutCallsAPI(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki: ptr.Bool(false),
+			HasWiki: ptr.Ptr(false),
 		},
 	}
 
@@ -268,7 +268,7 @@ func TestProcessRepoSettingsDryRunDoesNotCallAPI(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki: ptr.Bool(false),
+			HasWiki: ptr.Ptr(false),
 		},
 	}
 
@@ -292,8 +292,8 @@ func TestProcessRepoSettingsNoApplyWhenAllMatch(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki:   ptr.Bool(false),
-			HasIssues: ptr.Bool(true),
+			HasWiki:   ptr.Ptr(false),
+			HasIssues: ptr.Ptr(true),
 		},
 	}
 
@@ -315,7 +315,7 @@ func TestProcessRepoSettingsErrorPropagated(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki: ptr.Bool(false),
+			HasWiki: ptr.Ptr(false),
 		},
 	}
 
@@ -340,10 +340,10 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki:             ptr.Bool(false),   // differs
-			HasIssues:           ptr.Bool(true),    // matches
-			Description:         ptr.String("New"), // differs
-			DeleteBranchOnMerge: ptr.Bool(true),    // differs
+			HasWiki:             ptr.Ptr(false), // differs
+			HasIssues:           ptr.Ptr(true),  // matches
+			Description:         ptr.Ptr("New"), // differs
+			DeleteBranchOnMerge: ptr.Ptr(true),  // differs
 		},
 	}
 
@@ -377,8 +377,8 @@ func TestProcessRepoSettingsStringFieldValues(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			Description: ptr.String("new description"),
-			Homepage:    ptr.String("https://old.example.com"), // matches
+			Description: ptr.Ptr("new description"),
+			Homepage:    ptr.Ptr("https://old.example.com"), // matches
 		},
 	}
 
@@ -422,7 +422,7 @@ func TestProcessRepoSettingsPrivateVulnerabilityReporting(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 		},
 	}
 
@@ -455,7 +455,7 @@ func TestProcessRepoSettingsVulnerabilityAlertsNoChange(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			VulnerabilityAlertsEnabled: ptr.Bool(true),
+			VulnerabilityAlertsEnabled: ptr.Ptr(true),
 		},
 	}
 
@@ -488,7 +488,7 @@ func TestProcessRepoSettingsVulnerabilityAlertsWouldSet(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			VulnerabilityAlertsEnabled: ptr.Bool(false),
+			VulnerabilityAlertsEnabled: ptr.Ptr(false),
 		},
 	}
 
@@ -518,7 +518,7 @@ func TestProcessRepoSettingsAutomatedSecurityFixesNoChange(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			AutomatedSecurityFixesEnabled: ptr.Bool(false),
+			AutomatedSecurityFixesEnabled: ptr.Ptr(false),
 		},
 	}
 
@@ -548,7 +548,7 @@ func TestProcessRepoSettingsAutomatedSecurityFixesWouldSet(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			AutomatedSecurityFixesEnabled: ptr.Bool(true),
+			AutomatedSecurityFixesEnabled: ptr.Ptr(true),
 		},
 	}
 
@@ -708,7 +708,7 @@ func TestProcessRepoSettingsDefaultWorkflowPermissionsNoChange(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			DefaultWorkflowPermissions: ptr.String("read"),
+			DefaultWorkflowPermissions: ptr.Ptr("read"),
 		},
 	}
 
@@ -741,7 +741,7 @@ func TestProcessRepoSettingsDefaultWorkflowPermissionsWouldSet(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			DefaultWorkflowPermissions: ptr.String("write"),
+			DefaultWorkflowPermissions: ptr.Ptr("write"),
 		},
 	}
 
@@ -774,7 +774,7 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsNoChange(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			CanApprovePullRequestReviews: ptr.Bool(false),
+			CanApprovePullRequestReviews: ptr.Ptr(false),
 		},
 	}
 
@@ -844,8 +844,8 @@ func TestProcessRepoSettingsPVR403ProducesSkipResult(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki:                           ptr.Bool(false),
-			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+			HasWiki:                           ptr.Ptr(false),
+			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 		},
 	}
 
@@ -924,7 +924,7 @@ func TestProcessRepoSettingsPVR403ScopeProducesSkipScope(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			HasWiki: ptr.Bool(false),
+			HasWiki: ptr.Ptr(false),
 		},
 	}
 
@@ -1013,7 +1013,7 @@ func TestProcessRepoSettingsReadPath403PVRProducesSkipRole(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
+			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
 		},
 	}
 
@@ -1041,7 +1041,7 @@ func TestProcessRepoSettingsReadPath403ASFProducesSkipRole(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			AutomatedSecurityFixesEnabled: ptr.Bool(true),
+			AutomatedSecurityFixesEnabled: ptr.Ptr(true),
 		},
 	}
 
@@ -1069,7 +1069,7 @@ func TestProcessRepoSettingsReadPath403VAProducesSkipRole(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			VulnerabilityAlertsEnabled: ptr.Bool(true),
+			VulnerabilityAlertsEnabled: ptr.Ptr(true),
 		},
 	}
 
@@ -1097,7 +1097,7 @@ func TestProcessRepoSettingsReadPath403WorkflowProducesSkipScope(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			DefaultWorkflowPermissions: ptr.String("write"),
+			DefaultWorkflowPermissions: ptr.Ptr("write"),
 		},
 	}
 
@@ -1126,11 +1126,11 @@ func TestProcessRepoSettingsReadPath403DoesNotProduceWouldSet(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			PrivateVulnerabilityReportEnabled: ptr.Bool(true),
-			AutomatedSecurityFixesEnabled:     ptr.Bool(true),
-			VulnerabilityAlertsEnabled:        ptr.Bool(true),
-			DefaultWorkflowPermissions:        ptr.String("write"),
-			CanApprovePullRequestReviews:      ptr.Bool(true),
+			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
+			AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
+			VulnerabilityAlertsEnabled:        ptr.Ptr(true),
+			DefaultWorkflowPermissions:        ptr.Ptr("write"),
+			CanApprovePullRequestReviews:      ptr.Ptr(true),
 		},
 	}
 
@@ -1168,7 +1168,7 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &config.RepositorySettings{
-			CanApprovePullRequestReviews: ptr.Bool(true),
+			CanApprovePullRequestReviews: ptr.Ptr(true),
 		},
 	}
 

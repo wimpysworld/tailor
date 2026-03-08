@@ -154,64 +154,64 @@ func TestMergeRepoSettings(t *testing.T) {
 		{
 			name: "live settings override defaults entirely",
 			live: &RepositorySettings{
-				Description: ptr.String("live desc"),
-				Homepage:    ptr.String("https://live.example.com"),
-				HasWiki:     ptr.Bool(true),
-				HasIssues:   ptr.Bool(false),
+				Description: ptr.Ptr("live desc"),
+				Homepage:    ptr.Ptr("https://live.example.com"),
+				HasWiki:     ptr.Ptr(true),
+				HasIssues:   ptr.Ptr(false),
 			},
 			description: "",
-			wantDesc:    ptr.String("live desc"),
-			wantHome:    ptr.String("https://live.example.com"),
+			wantDesc:    ptr.Ptr("live desc"),
+			wantHome:    ptr.Ptr("https://live.example.com"),
 		},
 		{
 			name: "description flag overrides live description",
 			live: &RepositorySettings{
-				Description: ptr.String("live desc"),
-				Homepage:    ptr.String("https://live.example.com"),
+				Description: ptr.Ptr("live desc"),
+				Homepage:    ptr.Ptr("https://live.example.com"),
 			},
 			description: "flag desc",
-			wantDesc:    ptr.String("flag desc"),
-			wantHome:    ptr.String("https://live.example.com"),
+			wantDesc:    ptr.Ptr("flag desc"),
+			wantHome:    ptr.Ptr("https://live.example.com"),
 		},
 		{
 			name: "empty description from live produces nil",
 			live: &RepositorySettings{
-				Description: ptr.String(""),
-				Homepage:    ptr.String("https://live.example.com"),
+				Description: ptr.Ptr(""),
+				Homepage:    ptr.Ptr("https://live.example.com"),
 			},
 			description: "",
 			wantDesc:    nil,
-			wantHome:    ptr.String("https://live.example.com"),
+			wantHome:    ptr.Ptr("https://live.example.com"),
 		},
 		{
 			name: "empty homepage from live produces nil",
 			live: &RepositorySettings{
-				Description: ptr.String("live desc"),
-				Homepage:    ptr.String(""),
+				Description: ptr.Ptr("live desc"),
+				Homepage:    ptr.Ptr(""),
 			},
 			description: "",
-			wantDesc:    ptr.String("live desc"),
+			wantDesc:    ptr.Ptr("live desc"),
 			wantHome:    nil,
 		},
 		{
 			name: "non-empty description flag with empty live description sets flag value",
 			live: &RepositorySettings{
-				Description: ptr.String(""),
-				Homepage:    ptr.String("https://live.example.com"),
+				Description: ptr.Ptr(""),
+				Homepage:    ptr.Ptr("https://live.example.com"),
 			},
 			description: "flag desc",
-			wantDesc:    ptr.String("flag desc"),
-			wantHome:    ptr.String("https://live.example.com"),
+			wantDesc:    ptr.Ptr("flag desc"),
+			wantHome:    ptr.Ptr("https://live.example.com"),
 		},
 		{
 			name: "empty description flag with non-empty live description preserves live value",
 			live: &RepositorySettings{
-				Description: ptr.String("live desc"),
-				Homepage:    ptr.String("https://live.example.com"),
+				Description: ptr.Ptr("live desc"),
+				Homepage:    ptr.Ptr("https://live.example.com"),
 			},
 			description: "",
-			wantDesc:    ptr.String("live desc"),
-			wantHome:    ptr.String("https://live.example.com"),
+			wantDesc:    ptr.Ptr("live desc"),
+			wantHome:    ptr.Ptr("https://live.example.com"),
 		},
 	}
 
@@ -220,8 +220,8 @@ func TestMergeRepoSettings(t *testing.T) {
 			cfg := &Config{
 				License: "MIT",
 				Repository: &RepositorySettings{
-					HasWiki:   ptr.Bool(false),
-					HasIssues: ptr.Bool(true),
+					HasWiki:   ptr.Ptr(false),
+					HasIssues: ptr.Ptr(true),
 				},
 			}
 
@@ -257,8 +257,8 @@ func TestMergeRepoSettingsPreservesMergeCommitFields(t *testing.T) {
 	mergeTitle := "PR_TITLE"
 	mergeMessage := "PR_BODY"
 	live := &RepositorySettings{
-		Description:        ptr.String("desc"),
-		AllowMergeCommit:   ptr.Bool(false),
+		Description:        ptr.Ptr("desc"),
+		AllowMergeCommit:   ptr.Ptr(false),
 		MergeCommitTitle:   &mergeTitle,
 		MergeCommitMessage: &mergeMessage,
 	}

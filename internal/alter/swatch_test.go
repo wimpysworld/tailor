@@ -319,7 +319,7 @@ func TestTriggeredMetFileAbsentWouldCopy(t *testing.T) {
 	dir := t.TempDir()
 
 	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(true)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Ptr(true)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
@@ -335,7 +335,7 @@ func TestTriggeredMetFileExistsDifferentContent(t *testing.T) {
 	writeOnDisk(t, dir, triggeredSource, []byte("old content"))
 
 	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(true)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Ptr(true)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
@@ -354,7 +354,7 @@ func TestTriggeredMetFileExistsSameContent(t *testing.T) {
 	writeOnDisk(t, dir, triggeredSource, resolved)
 
 	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(true)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Ptr(true)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
@@ -371,7 +371,7 @@ func TestTriggeredNotMetFileExistsDryRun(t *testing.T) {
 	writeOnDisk(t, dir, triggeredSource, []byte("existing"))
 
 	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(false)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Ptr(false)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
@@ -391,7 +391,7 @@ func TestTriggeredNotMetFileExistsApply(t *testing.T) {
 	writeOnDisk(t, dir, triggeredSource, []byte("existing"))
 
 	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(false)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Ptr(false)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
 	if err != nil {
@@ -410,7 +410,7 @@ func TestTriggeredNotMetFileAbsent(t *testing.T) {
 	dir := t.TempDir()
 
 	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
-	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Bool(false)}
+	cfg.Repository = &config.RepositorySettings{AllowAutoMerge: ptr.Ptr(false)}
 
 	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {

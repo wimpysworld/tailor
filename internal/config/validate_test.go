@@ -78,9 +78,9 @@ func TestValidateDuplicatePathsRejectsDuplicate(t *testing.T) {
 func TestValidateRepoSettingsAcceptsValidConfig(t *testing.T) {
 	cfg := &Config{
 		Repository: &RepositorySettings{
-			HasWiki:   ptr.Bool(false),
-			HasIssues: ptr.Bool(true),
-			Homepage:  ptr.String("https://example.com"),
+			HasWiki:   ptr.Ptr(false),
+			HasIssues: ptr.Ptr(true),
+			Homepage:  ptr.Ptr("https://example.com"),
 		},
 	}
 	if err := ValidateRepoSettings(cfg); err != nil {
@@ -156,14 +156,14 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 }
 
 func TestValidateWorkflowPermissionsAcceptsRead(t *testing.T) {
-	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.String("read")}}
+	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("read")}}
 	if err := ValidateWorkflowPermissions(cfg); err != nil {
 		t.Fatalf("ValidateWorkflowPermissions(read): %v", err)
 	}
 }
 
 func TestValidateWorkflowPermissionsAcceptsWrite(t *testing.T) {
-	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.String("write")}}
+	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("write")}}
 	if err := ValidateWorkflowPermissions(cfg); err != nil {
 		t.Fatalf("ValidateWorkflowPermissions(write): %v", err)
 	}
@@ -184,7 +184,7 @@ func TestValidateWorkflowPermissionsAcceptsNilRepository(t *testing.T) {
 }
 
 func TestValidateWorkflowPermissionsRejectsInvalid(t *testing.T) {
-	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.String("admin")}}
+	cfg := &Config{Repository: &RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("admin")}}
 	err := ValidateWorkflowPermissions(cfg)
 	if err == nil {
 		t.Fatal("ValidateWorkflowPermissions(admin) expected error, got nil")
