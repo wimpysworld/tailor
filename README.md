@@ -42,7 +42,7 @@ tailor fit .                  # Create .tailor.yml
 tailor alter                  # Apply swatches and settings
 ```
 
-`measure` checks which community health files are present or missing. `fit .` works in an existing directory without error. If the project has a GitHub remote, `fit` reads the live repository settings so it preserves anything already configured.
+`measure` checks which community health files are present, missing, or need attention. It warns when `README.md` is absent or when `LICENSE` contains unresolved placeholders. `fit .` works in an existing directory without error. If the project has a GitHub remote, `fit` reads the live repository settings so it preserves anything already configured.
 
 Edit `.tailor.yml` to add swatches or change alteration modes, then run `alter`. Set `alteration: never` on any swatch you want tailor to skip.
 
@@ -325,6 +325,8 @@ tailor measure
 
 ```
 missing:        .github/FUNDING.yml
+warning:        LICENSE (contains unresolved placeholders)
+warning:        README.md (not managed by tailor)
 present:        CODE_OF_CONDUCT.md
 not-configured: .github/dependabot.yml
 mode-differs:   SECURITY.md          (config: first-fit, default: always)
@@ -333,6 +335,7 @@ mode-differs:   SECURITY.md          (config: first-fit, default: always)
 | Status | Meaning |
 |--------|---------|
 | `missing` | Health file does not exist on disk |
+| `warning` | Health diagnostic needing attention (missing `README.md` or unresolved licence placeholders) |
 | `present` | Health file exists on disk |
 | `not-configured` | Default swatch not in `.tailor.yml` |
 | `config-only` | Swatch in `.tailor.yml` not in the built-in default set |

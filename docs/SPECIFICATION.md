@@ -324,8 +324,9 @@ missing:        .github/dependabot.yml
 missing:        .github/pull_request_template.md
 missing:        CONTRIBUTING.md
 missing:        SUPPORT.md
+warning:        LICENSE (contains unresolved placeholders)
+warning:        README.md (not managed by tailor)
 present:        CODE_OF_CONDUCT.md
-present:        LICENSE
 present:        SECURITY.md
 
 No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks.
@@ -335,7 +336,7 @@ No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.
 
 ```
 missing:        CONTRIBUTING.md
-present:        LICENSE
+warning:        LICENSE (contains unresolved placeholders)
 present:        SECURITY.md
 not-configured: .github/dependabot.yml
 config-only:    some-custom-swatch.yml
@@ -344,14 +345,17 @@ mode-differs:   SECURITY.md          (config: first-fit, default: always)
 
 Category definitions:
 - `missing` - health file does not exist on disk
+- `warning` - health diagnostic that requires attention but is not a missing swatch. Two cases are recognised: `LICENSE` exists but contains unresolved placeholder tokens (e.g. `[year]`, `[fullname]`, `{project}`), and `README.md` is absent from the project root. A warned path appears once in the output and does not also appear as `present`
 - `present` - health file exists on disk
 - `not-configured` - default swatch whose destination is not covered by any entry in `.tailor.yml`; the default swatch will not be applied until added
 - `config-only` - swatch in `.tailor.yml` whose destination is not covered by any entry in the built-in default set. This arises when a swatch is removed from the built-in defaults in a newer tailor release but the project's `.tailor.yml` still references it. `alter` will reject unrecognised swatch paths, so this category serves as a diagnostic hint that `.tailor.yml` needs updating
 - `mode-differs` - swatch whose destination appears in both `.tailor.yml` and the default set, but with a different alteration mode; the inline annotation shows both values
 
-Output order: `missing`, `present`, `not-configured`, `config-only`, `mode-differs`. Within each category, entries are sorted lexicographically by destination path. The category label is padded to a fixed width of 16 characters (the length of `not-configured: `) for consistent column alignment. For `mode-differs` entries, the annotation (e.g. `(config: first-fit, default: always)`) is separated from the destination path by a single space; no additional fixed column alignment is applied to the annotation. Health file checks are always performed and reported regardless of whether `.tailor.yml` is present; config-diff categories (`not-configured`, `config-only`, `mode-differs`) are shown only when `.tailor.yml` is present.
+Output order: `missing`, `warning`, `present`, `not-configured`, `config-only`, `mode-differs`. Within each category, entries are sorted lexicographically by destination path. The category label is padded to a fixed width of 16 characters (the length of `not-configured: `) for consistent column alignment. For `warning` entries, the detail annotation (e.g. `(contains unresolved placeholders)`) is separated from the path by a single space, following the same annotation style as `mode-differs`. For `mode-differs` entries, the annotation (e.g. `(config: first-fit, default: always)`) is separated from the destination path by a single space; no additional fixed column alignment is applied to the annotation. Health file checks are always performed and reported regardless of whether `.tailor.yml` is present; config-diff categories (`not-configured`, `config-only`, `mode-differs`) are shown only when `.tailor.yml` is present.
 
-The `present`/`missing` check covers health swatches only. The config-diff check (`config-only`, `not-configured`, `mode-differs`) compares against the full default swatch set (both health and development swatches), since `.tailor.yml` covers all swatches.
+`README.md` is a local health diagnostic, not a swatch or config-diff item. It is checked by exact path at the project root only. `README`, `README.rst`, and other variants do not satisfy the check. The `README.md` warning is not emitted when the file exists. Licence placeholder detection scans for `\[[^\]]+\]` and `\{[^}]+\}` patterns, covering GitHub licence template tokens such as `[year]`, `[fullname]`, `[yyyy]`, `[name of copyright owner]`, and `{project}`. The check runs only when `LICENSE` exists on disk; an absent `LICENSE` stays in the `missing` category.
+
+The `present`/`missing`/`warning` check covers health swatches, `LICENSE`, and `README.md`. The config-diff check (`config-only`, `not-configured`, `mode-differs`) compares against the full default swatch set (both health and development swatches), since `.tailor.yml` covers all swatches.
 
 ### `docket`
 

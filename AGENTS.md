@@ -57,6 +57,8 @@ tailor/
 - Test swatch embedding and config parsing without network access
 - Commands that call `gh` should have their external calls abstracted behind interfaces for testability
 - `measure` is purely local and needs no mocking
+- `measure` emits `warning` results for two local health diagnostics: missing `README.md` (not managed by tailor) and `LICENSE` files containing unresolved placeholder tokens (e.g. `[year]`, `[fullname]`)
+- `README.md` is checked by exact path at the project root; it is a local diagnostic, not a swatch or config-diff item
 
 ## Key implementation details
 
@@ -78,6 +80,7 @@ tailor/
 - `labels` is a top-level config section with its own API layer (`internal/gh/labels.go`) and alter layer (`internal/alter/labels.go`), separate from repository settings
 - `validate.go` includes enum validation for `default_workflow_permissions` ("read"|"write"), topic format validation (lowercase alphanumeric start, max 50 chars, lowercase alphanumerics and hyphens only), and label validation (name length, hex colour, description length, duplicate detection)
 - Dry-run output uses dynamically computed label width for `baste` (accommodates trigger annotations) and fixed 16 chars for `measure`
+- `measure` output order: `missing`, `warning`, `present`, then config-diff categories (`not-configured`, `config-only`, `mode-differs`)
 - Triggered swatch output includes annotation, e.g. `would deploy (triggered: allow_auto_merge):`
 - Branch protection (classic rules and rulesets) is out of scope: it requires `Administration: write`, which `GITHUB_TOKEN` cannot hold, and branch protection rarely drifts for the solo-dev and small-team audience Tailor targets
 
