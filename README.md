@@ -25,7 +25,7 @@ cd my-project
 tailor alter
 ```
 
-`fit` creates the directory and writes `.tailor.yml` with the full default swatch set. `alter` copies the files and applies repository settings. The default licence is MIT.
+`fit` creates the directory and writes `.tailor.yml` with the full default swatch set. `alter` copies the files and applies repository settings. The default licence is BlueOak-1.0.0.
 
 ```bash
 tailor fit ./my-project --license=Apache-2.0
@@ -97,7 +97,7 @@ All state lives in `.tailor.yml` with four sections: `license`, `repository`, `l
 
 ```yaml
 # Initially fitted by tailor on 2026-03-04
-license: MIT
+license: BlueOak-1.0.0
 
 repository:
   topics:

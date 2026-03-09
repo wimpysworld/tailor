@@ -18,7 +18,7 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 
 	dir := filepath.Join(t.TempDir(), "new-project")
 
-	cmd := FitCmd{Path: dir, License: "MIT"}
+	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0"}
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Run() error: %v", err)
 	}
@@ -31,8 +31,8 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 	content := string(data)
 
 	// Verify license.
-	if !strings.Contains(content, "license: MIT") {
-		t.Error("config missing 'license: MIT'")
+	if !strings.Contains(content, "license: BlueOak-1.0.0") {
+		t.Error("config missing 'license: BlueOak-1.0.0'")
 	}
 
 	// Verify 17 swatches are present (count "- path:" occurrences).
@@ -79,7 +79,7 @@ func TestFitExistingDirectoryWithoutConfig(t *testing.T) {
 
 	dir := t.TempDir()
 
-	cmd := FitCmd{Path: dir, License: "MIT"}
+	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0"}
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Run() error: %v", err)
 	}
@@ -97,11 +97,11 @@ func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 	dir := t.TempDir()
 
 	// Pre-create .tailor.yml.
-	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte("license: MIT\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte("license: BlueOak-1.0.0\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 
-	cmd := FitCmd{Path: dir, License: "MIT"}
+	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0"}
 	err := cmd.Run()
 	if err == nil {
 		t.Fatal("Run() expected error, got nil")
@@ -143,7 +143,7 @@ func TestFitDescriptionNoRepoContext(t *testing.T) {
 
 	dir := filepath.Join(t.TempDir(), "with-desc")
 
-	cmd := FitCmd{Path: dir, License: "MIT", Description: "My project description"}
+	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0", Description: "My project description"}
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Run() error: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 
 	dir := filepath.Join(t.TempDir(), "defaults")
 
-	cmd := FitCmd{Path: dir, License: "MIT"}
+	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0"}
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("Run() error: %v", err)
 	}
@@ -318,7 +318,7 @@ func TestFitAuthFailure(t *testing.T) {
 
 	dir := filepath.Join(t.TempDir(), "auth-fail")
 
-	cmd := FitCmd{Path: dir, License: "MIT"}
+	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0"}
 	err := cmd.Run()
 	if err == nil {
 		t.Fatal("Run() expected error, got nil")

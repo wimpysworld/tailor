@@ -14,7 +14,7 @@ import (
 
 // specYAML is the exact config body from the specification, minus the leading
 // comment which is not part of the data model.
-const specYAML = `license: MIT
+const specYAML = `license: BlueOak-1.0.0
 
 repository:
   has_wiki: false
@@ -91,8 +91,8 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 		t.Fatalf("Unmarshal failed: %v", err)
 	}
 
-	if cfg.License != "MIT" {
-		t.Errorf("License = %q, want %q", cfg.License, "MIT")
+	if cfg.License != "BlueOak-1.0.0" {
+		t.Errorf("License = %q, want %q", cfg.License, "BlueOak-1.0.0")
 	}
 
 	if cfg.Repository == nil {

@@ -15,7 +15,7 @@ import (
 // swatches at their default alteration modes.
 func buildDefaultConfigYAML() string {
 	var b strings.Builder
-	b.WriteString("license: MIT\n")
+	b.WriteString("license: BlueOak-1.0.0\n")
 	b.WriteString("swatches:\n")
 	for _, s := range swatch.All() {
 		b.WriteString("  - path: " + s.Path + "\n")
@@ -154,7 +154,7 @@ func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 	// - changes SECURITY.md alteration from always to first-fit (mode-differs)
 	// All other defaults are present at their default modes.
 	var b strings.Builder
-	b.WriteString("license: MIT\n")
+	b.WriteString("license: BlueOak-1.0.0\n")
 	b.WriteString("swatches:\n")
 	for _, s := range swatch.All() {
 		// Skip .github/dependabot.yml to produce not-configured.
@@ -223,7 +223,7 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 	// Config with all three diff categories, multiple entries per category
 	// to verify lexicographic sorting.
 	var b strings.Builder
-	b.WriteString("license: MIT\n")
+	b.WriteString("license: BlueOak-1.0.0\n")
 	b.WriteString("swatches:\n")
 	for _, s := range swatch.All() {
 		// Omit two defaults to produce two not-configured entries.

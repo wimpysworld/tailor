@@ -18,8 +18,8 @@ func TestLoadValidConfig(t *testing.T) {
 		t.Fatalf("Load() error: %v", err)
 	}
 
-	if cfg.License != "MIT" {
-		t.Errorf("License = %q, want %q", cfg.License, "MIT")
+	if cfg.License != "BlueOak-1.0.0" {
+		t.Errorf("License = %q, want %q", cfg.License, "BlueOak-1.0.0")
 	}
 	if cfg.Repository == nil {
 		t.Fatal("Repository is nil")
@@ -55,7 +55,7 @@ func TestLoadMalformedYAML(t *testing.T) {
 
 func TestLoadTriggeredAlterationMode(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: BlueOak-1.0.0
 swatches:
   - path: justfile
     alteration: triggered
@@ -72,7 +72,7 @@ swatches:
 
 func TestLoadNeverAlterationMode(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: BlueOak-1.0.0
 swatches:
   - path: justfile
     alteration: never
@@ -89,7 +89,7 @@ swatches:
 
 func TestLoadInvalidAlterationMode(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: BlueOak-1.0.0
 swatches:
   - path: justfile
     alteration: sometimes
@@ -106,7 +106,7 @@ swatches:
 
 func TestLoadEmptyPath(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: BlueOak-1.0.0
 swatches:
   - path: ""
     alteration: always
@@ -123,7 +123,7 @@ swatches:
 
 func TestLoadLabelsAbsent(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: BlueOak-1.0.0
 swatches: []
 `)
 
@@ -138,7 +138,7 @@ swatches: []
 
 func TestLoadLabelsEmpty(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: BlueOak-1.0.0
 labels: []
 swatches: []
 `)
@@ -157,7 +157,7 @@ swatches: []
 
 func TestLoadLabelsPopulated(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: BlueOak-1.0.0
 labels:
   - name: bug
     color: d73a4a
@@ -179,7 +179,7 @@ swatches: []
 
 func TestLoadRejectsInvalidLabel(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: BlueOak-1.0.0
 labels:
   - name: bug
     color: zzzzzz
@@ -198,7 +198,7 @@ swatches: []
 
 func TestExistsTrue(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, "license: MIT\nswatches: []\n")
+	testutil.WriteConfig(t, dir, "license: BlueOak-1.0.0\nswatches: []\n")
 
 	if !Exists(dir) {
 		t.Error("Exists() = false, want true")
@@ -260,7 +260,7 @@ swatches:
 
 func TestLoadEmptySwatchesList(t *testing.T) {
 	dir := t.TempDir()
-	testutil.WriteConfig(t, dir, `license: MIT
+	testutil.WriteConfig(t, dir, `license: BlueOak-1.0.0
 swatches: []
 `)
 

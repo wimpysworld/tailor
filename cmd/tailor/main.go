@@ -31,7 +31,7 @@ var cli struct {
 // FitCmd creates a new project directory with a default .tailor.yml.
 type FitCmd struct {
 	Path        string `arg:"" help:"Project directory to create."`
-	License     string `help:"Licence identifier." default:"MIT"`
+	License     string `help:"Licence identifier." default:"BlueOak-1.0.0"`
 	Description string `help:"Repository description."`
 }
 

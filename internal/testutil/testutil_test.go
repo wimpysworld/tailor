@@ -8,7 +8,7 @@ import (
 
 func TestWriteConfigCreatesFile(t *testing.T) {
 	dir := t.TempDir()
-	content := "license: MIT\nswatches: []\n"
+	content := "license: BlueOak-1.0.0\nswatches: []\n"
 
 	WriteConfig(t, dir, content)
 

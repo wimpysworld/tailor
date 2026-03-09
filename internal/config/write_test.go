@@ -14,9 +14,9 @@ import (
 )
 
 // wantSpecOutput is the exact byte-for-byte expected output from the
-// specification when writing DefaultConfig("MIT") with date 2026-03-02.
+// specification when writing DefaultConfig("BlueOak-1.0.0") with date 2026-03-02.
 const wantSpecOutput = `# Initially fitted by tailor on 2026-03-02
-license: MIT
+license: BlueOak-1.0.0
 
 repository:
   has_wiki: false
@@ -141,7 +141,7 @@ swatches:
 `
 
 func TestWriteDefaultConfigMatchesSpec(t *testing.T) {
-	cfg, err := DefaultConfig("MIT")
+	cfg, err := DefaultConfig("BlueOak-1.0.0")
 	if err != nil {
 		t.Fatalf("DefaultConfig: %v", err)
 	}

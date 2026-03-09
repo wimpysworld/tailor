@@ -19,7 +19,7 @@ The `fit`, `alter`, and `baste` commands verify that a valid authentication toke
 
 ### New project
 
-`fit` creates the project directory and writes `.tailor.yml` with the full default swatch set in one command, with a `license: MIT` default. Use `--license=<id>` to select a different licence or `--license=none` to opt out. Change into `<path>`, then run `alter` to copy the swatch files, including the `.github/workflows/tailor.yml` workflow that handles weekly automated maintenance. The action opens a pull request whenever swatch content changes, keeping files current without manual intervention.
+`fit` creates the project directory and writes `.tailor.yml` with the full default swatch set in one command, with a `license: BlueOak-1.0.0` default. Use `--license=<id>` to select a different licence or `--license=none` to opt out. Change into `<path>`, then run `alter` to copy the swatch files, including the `.github/workflows/tailor.yml` workflow that handles weekly automated maintenance. The action opens a pull request whenever swatch content changes, keeping files current without manual intervention.
 
 ### Existing project
 
@@ -191,9 +191,9 @@ The default swatch set embedded in the binary is:
 - `.envrc`
 - `.tailor.yml`
 
-A `license` key is included in `.tailor.yml` by default (`license: MIT`). Use `--license=<id>` to select a different licence or `--license=none` to opt out entirely.
+A `license` key is included in `.tailor.yml` by default (`license: BlueOak-1.0.0`). Use `--license=<id>` to select a different licence or `--license=none` to opt out entirely.
 
-`--license=<id>` records the licence identifier in `.tailor.yml`. Defaults to `MIT` if not specified. `--license=none` records `license: none`, opting out of licence creation. The identifier is used to fetch licence text via the GitHub REST API (`GET /licenses/{id}`) at `alter` time; any licence supported by the GitHub API is valid. `fit` does not validate the identifier - validation is deferred to `alter`.
+`--license=<id>` records the licence identifier in `.tailor.yml`. Defaults to `BlueOak-1.0.0` if not specified. `--license=none` records `license: none`, opting out of licence creation. The identifier is used to fetch licence text via the GitHub REST API (`GET /licenses/{id}`) at `alter` time; any licence supported by the GitHub API is valid. `fit` does not validate the identifier - validation is deferred to `alter`.
 
 `--description=<text>` sets the `description` field in the `repository` section of `.tailor.yml`, overriding any value from GitHub. `fit` does not apply the description - it is applied at `alter` time.
 
@@ -202,7 +202,7 @@ A `license` key is included in `.tailor.yml` by default (`license: MIT`). Use `-
 When repository context exists, `fit` queries the live repository configuration via `GET /repos/{owner}/{repo}` and the separate endpoints for private vulnerability reporting, vulnerability alerts, automated security fixes, and Actions workflow permissions to populate the `repository` section with the project's current settings. This ensures that enabling tailor on an existing project does not inadvertently change features that are already configured (e.g. disabling wiki or discussions that are currently enabled). The `--description` flag takes precedence over the value from GitHub. `description` and `homepage` are omitted if empty. When no repository context exists (e.g. a brand-new project with no remote), the built-in defaults from the embedded swatch are used, with `description` and `homepage` normalised to nil by `DefaultConfig` so they are omitted from the generated config.
 
 ```bash
-# Default licence (MIT)
+# Default licence (BlueOak-1.0.0)
 tailor fit ./my-project
 
 # Explicit licence selection
@@ -250,7 +250,7 @@ Behaviour:
 - For `.github/ISSUE_TEMPLATE/config.yml`: substitutes `{{SUPPORT_URL}}` before writing. `{{SUPPORT_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md` from the repository context (owner/name). If no GitHub repository context exists, `{{SUPPORT_URL}}` is left unsubstituted in the written file.
 - For `.tailor.yml`: substitutes `{{HOMEPAGE_URL}}` before writing. `{{HOMEPAGE_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>` from the repository context (owner/name). If no GitHub repository context exists, `{{HOMEPAGE_URL}}` is left unsubstituted in the written file.
 - With `--recut`: overwrites regardless of mode or existence, including `first-fit` swatches - `--recut` will overwrite a `first-fit` swatch file even if it exists and has been locally modified. Use with care. The licence file is exempt from `--recut` and is never overwritten regardless, because it is fetched content not an embedded swatch. For `.tailor.yml`, `--recut` overrides `first-fit` to `always` semantics like any other swatch - this means missing default swatches are appended, but existing entries are never modified or overwritten, because `always` for `.tailor.yml` means "append missing entries". When `--recut` writes a substituted swatch (e.g. `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor.yml`, `.github/workflows/tailor-automerge.yml`), the full token resolution pipeline runs and fresh values are substituted before writing.
-- If no `license` key is present in `.tailor.yml` (or its value is `none`) and no `LICENSE` file exists in the project root, emits a warning: "No licence file found and no licence configured. Add `license: MIT` (or another identifier) to `.tailor.yml` and run `tailor alter`." Warning only; does not block execution.
+- If no `license` key is present in `.tailor.yml` (or its value is `none`) and no `LICENSE` file exists in the project root, emits a warning: "No licence file found and no licence configured. Add `license: BlueOak-1.0.0` (or another identifier) to `.tailor.yml` and run `tailor alter`." Warning only; does not block execution.
 - Creates intermediate directories as needed before writing any swatch whose destination path requires directories that do not yet exist.
 - Never touches files not listed in `.tailor.yml`
 - Modifies files only; does not commit or push
@@ -431,11 +431,11 @@ Behaviour:
 
 `.tailor.yml` has four top-level sections: `license` (a string), `repository` (a map of GitHub repository settings), `labels` (a list of label entries with name, colour, and description), and `swatches` (a list of swatch entries). `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (e.g. `justfile`) are referenced as-is. The `repository` and `labels` sections are optional; if absent, their respective management is skipped.
 
-Default (with `--license=MIT`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
+Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
 
 ```yaml
 # Initially fitted by tailor on 2026-03-02
-license: MIT
+license: BlueOak-1.0.0
 
 repository:
   description: ""

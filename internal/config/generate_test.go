@@ -25,14 +25,14 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 		t.Fatalf("unmarshalling embedded config: %v", err)
 	}
 
-	got, err := DefaultConfig("MIT")
+	got, err := DefaultConfig("BlueOak-1.0.0")
 	if err != nil {
 		t.Fatalf("DefaultConfig() error: %v", err)
 	}
 
 	// License should be the value we passed, not the embedded one.
-	if got.License != "MIT" {
-		t.Errorf("License = %q, want %q", got.License, "MIT")
+	if got.License != "BlueOak-1.0.0" {
+		t.Errorf("License = %q, want %q", got.License, "BlueOak-1.0.0")
 	}
 
 	// Repository settings should match the embedded config exactly.
@@ -112,7 +112,7 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 }
 
 func TestDefaultConfigSwatchCount(t *testing.T) {
-	cfg, err := DefaultConfig("MIT")
+	cfg, err := DefaultConfig("BlueOak-1.0.0")
 	if err != nil {
 		t.Fatalf("DefaultConfig() error: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestDefaultConfigSwatchCount(t *testing.T) {
 }
 
 func TestDefaultConfigSwatchOrder(t *testing.T) {
-	cfg, err := DefaultConfig("MIT")
+	cfg, err := DefaultConfig("BlueOak-1.0.0")
 	if err != nil {
 		t.Fatalf("DefaultConfig() error: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestMergeRepoSettings(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				License: "MIT",
+				License: "BlueOak-1.0.0",
 				Repository: &model.RepositorySettings{
 					HasWiki:   ptr.Ptr(false),
 					HasIssues: ptr.Ptr(true),
@@ -264,7 +264,7 @@ func TestMergeRepoSettingsPreservesMergeCommitFields(t *testing.T) {
 		MergeCommitMessage: &mergeMessage,
 	}
 
-	cfg := &Config{License: "MIT"}
+	cfg := &Config{License: "BlueOak-1.0.0"}
 	MergeRepoSettings(cfg, live, "")
 
 	testutil.AssertStringPtr(t, cfg.Repository.MergeCommitTitle, false, "PR_TITLE", "merge_commit_title")
@@ -276,7 +276,7 @@ func TestDefaultConfigLicenseValues(t *testing.T) {
 		name    string
 		license string
 	}{
-		{name: "MIT", license: "MIT"},
+		{name: "BlueOak-1.0.0", license: "BlueOak-1.0.0"},
 		{name: "Apache-2.0", license: "Apache-2.0"},
 		{name: "none", license: "none"},
 	}
