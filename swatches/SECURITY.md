@@ -2,16 +2,16 @@
 
 ## Supported Versions
 
-Only the latest release is supported. Any security related fixes will be
-released as a new patch release.
+Only the latest release is supported. Security fixes are released as patch versions.
 
 ## Reporting a Vulnerability
 
-If you discover a vulnerability, please [report it privately]({{ADVISORY_URL}}).
-If that link does not work, you can open a regular issue and mark it as a
-security concern.
+**Do not open a public issue for security vulnerabilities.**
 
-Please include steps to reproduce, affected versions, and potential impact.
+[Report vulnerabilities privately]({{ADVISORY_URL}}). Include:
 
-- This project is maintained on a best-efforts basis.
-- We do not have SLAs for responding to security issues.
+- Steps to reproduce
+- Affected versions
+- Potential impact
+
+This project is maintained on a best-efforts basis. There are no guaranteed response times for security reports.

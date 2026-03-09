@@ -17,6 +17,8 @@ Use the [bug report template](../../issues/new?template=bug_report.yml) and incl
 - Expected and actual behaviour
 - Version and environment details
 
+To fix a bug yourself, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Requesting Features
 
 Use the [feature request template](../../issues/new?template=feature_request.yml) and describe:
@@ -29,5 +31,4 @@ Use the [feature request template](../../issues/new?template=feature_request.yml
 
 - This project is maintained on a best-efforts basis.
 - There are no guaranteed response times or support SLAs.
-- Bug reports with clear reproduction steps are prioritised.
 - Security issues should be reported privately per [SECURITY.md](SECURITY.md).
