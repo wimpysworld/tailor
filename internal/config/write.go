@@ -142,10 +142,10 @@ repository:
   can_approve_pull_request_reviews: {{ derefBool .Repository.CanApprovePullRequestReviews }}
 {{- end }}
 {{- if set .Repository.Topics }}
-  topics:
+  topics:{{ if eq (len (derefSlice .Repository.Topics)) 0 }} []{{ else }}
 {{- range derefSlice .Repository.Topics }}
     - {{ yamlVal . }}
-{{- end }}
+{{- end }}{{ end }}
 {{- end }}
 {{- end }}
 {{- if .Labels }}

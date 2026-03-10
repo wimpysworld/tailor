@@ -459,6 +459,48 @@ func TestWriteTopicsOmittedWhenNil(t *testing.T) {
 	}
 }
 
+func TestWriteEmptyTopicsRoundTrip(t *testing.T) {
+	topics := []string{}
+	cfg := &Config{
+		License: "MIT",
+		Repository: &model.RepositorySettings{
+			HasWiki: ptr.Ptr(false),
+			Topics:  &topics,
+		},
+		Swatches: []SwatchEntry{
+			{Path: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+
+	dir := t.TempDir()
+	if err := Write(dir, cfg, "2026-03-10", "Refitted"); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	output := string(got)
+	if !strings.Contains(output, "topics: []") {
+		t.Fatalf("expected 'topics: []' in output, got:\n%s", output)
+	}
+
+	// Round-trip: parse back and verify Topics is non-nil empty slice.
+	var parsed Config
+	if err := yaml.Unmarshal(got, &parsed); err != nil {
+		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, got)
+	}
+
+	if parsed.Repository == nil || parsed.Repository.Topics == nil {
+		t.Fatal("round-tripped Topics is nil, want non-nil empty slice")
+	}
+	if len(*parsed.Repository.Topics) != 0 {
+		t.Errorf("round-tripped Topics length = %d, want 0", len(*parsed.Repository.Topics))
+	}
+}
+
 func TestWriteNilRepositoryOmitted(t *testing.T) {
 	cfg := &Config{
 		License: "MIT",
