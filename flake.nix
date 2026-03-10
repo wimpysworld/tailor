@@ -28,6 +28,7 @@
               gh
               go
               golangci-lint
+              goreleaser
               just
             ];
           };

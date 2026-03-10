@@ -1,0 +1,154 @@
+---
+version: 2
+
+project_name: tailor
+
+builds:
+  - main: ./cmd/tailor
+    binary: tailor
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    goamd64:
+      - v1
+    goarm64:
+      - v8.0
+    ldflags:
+      - "-s -w -X main.version={{ .Version }}"
+
+archives:
+  - id: bare
+    formats:
+      - binary
+    name_template: "tailor-{{ .Os }}-{{ .Arch }}"
+
+  - id: compressed
+    formats:
+      - tar.gz
+    name_template: "tailor_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - README.md
+
+checksum:
+  algorithm: sha256
+  name_template: "tailor_{{ .Version }}_checksums.txt"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+
+release:
+  draft: false
+  prerelease: auto
+  footer: |
+    ## Install
+
+    **bin** (any platform):
+    ```shell
+    bin install github.com/wimpysworld/tailor
+    bin update tailor
+    ```
+    Requires [`bin`](https://github.com/marcosnils/bin).
+
+    **Homebrew** and **Nix** taps, **Docker** images, and **native packages** (deb/rpm) are coming soon.
+
+    Tailor needs a GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN`, or run `gh auth login` locally.
+
+nfpms:
+  - id: packages
+    package_name: tailor
+    vendor: Martin Wimpress
+    maintainer: "Martin Wimpress <code@wimpress.io>"
+    description: "Ready-to-wear project templates for GitHub repositories."
+    homepage: https://github.com/wimpysworld/tailor
+    license: BlueOak-1.0.0
+    formats:
+      - deb
+      - rpm
+      - apk
+      - archlinux
+
+brews:
+  - repository:
+      owner: wimpysworld
+      name: homebrew-tap
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
+    description: "Ready-to-wear project templates for GitHub repositories."
+    homepage: https://github.com/wimpysworld/tailor
+    license: BlueOak-1.0.0
+    install: |
+      bin.install "tailor"
+
+aurs:
+  - name: tailor-bin
+    description: "Ready-to-wear project templates for GitHub repositories."
+    homepage: https://github.com/wimpysworld/tailor
+    maintainers:
+      - "Martin Wimpress <code@wimpress.io>"
+    license: BlueOak-1.0.0
+    private_key: "{{ .Env.AUR_KEY }}"
+    git_url: "ssh://aur@aur.archlinux.org/tailor-bin.git"
+    package: |
+      install -Dm755 tailor "${pkgdir}/usr/bin/tailor"
+
+nix:
+  - name: tailor
+    repository:
+      owner: wimpysworld
+      name: tailor
+      token: "{{ .Env.GITHUB_TOKEN }}"
+    path: pkgs/tailor/default.nix
+    description: "Ready-to-wear project templates for GitHub repositories."
+    homepage: https://github.com/wimpysworld/tailor
+    license: blueOak100
+
+dockers_v2:
+  - id: ghcr
+    dockerfile: Dockerfile
+    images:
+      - "ghcr.io/wimpysworld/tailor"
+    tags:
+      - "{{ .Version }}"
+      - "{{ .Major }}.{{ .Minor }}"
+      - "{{ if not .Prerelease }}latest{{ end }}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      "org.opencontainers.image.title": "{{ .ProjectName }}"
+      "org.opencontainers.image.description": "Ready-to-wear project templates for GitHub repositories."
+      "org.opencontainers.image.source": "{{ .GitURL }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.revision": "{{ .FullCommit }}"
+      "org.opencontainers.image.created": "{{ .Date }}"
+      "org.opencontainers.image.licenses": "BlueOak-1.0.0"
+
+signs:
+  - cmd: cosign
+    artifacts: checksum
+    signature: "${artifact}.sig"
+    args:
+      - "sign-blob"
+      - "--yes"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+
+docker_signs:
+  - cmd: cosign
+    artifacts: all
+    args:
+      - "sign"
+      - "--yes"
+      - "${artifact}@${digest}"

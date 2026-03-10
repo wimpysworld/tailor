@@ -50,25 +50,9 @@ jobs:
           testArguments: -coverprofile=coverage.out -covermode=atomic ./...
           omit: untested
 
-  build-test:
+  test:
     name: Test 🧪
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: linux
-            arch: amd64
-            runner: ubuntu-24.04
-          - os: linux
-            arch: arm64
-            runner: ubuntu-24.04-arm
-          - os: darwin
-            arch: amd64
-            runner: macos-15-intel
-          - os: darwin
-            arch: arm64
-            runner: macos-15
-    runs-on: ${{ matrix.runner }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -76,23 +60,6 @@ jobs:
           go-version-file: go.mod
       - name: Test
         run: go test ./...
-      - name: Determine version
-        id: version
-        run: |
-          # shellcheck disable=SC2193
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=dev-${GITHUB_SHA::8}" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Build
-        run: |
-          go build -ldflags "-s -w -X main.version=${{ steps.version.outputs.version }}" \
-            -o tailor-${{ matrix.os }}-${{ matrix.arch }} ./cmd/tailor
-      - uses: actions/upload-artifact@v7
-        with:
-          name: tailor-${{ matrix.os }}-${{ matrix.arch }}
-          path: tailor-${{ matrix.os }}-${{ matrix.arch }}
 
   security:
     name: Security 🔒
@@ -109,7 +76,7 @@ jobs:
 
   sentinel:
     name: Sentinel 👁️
-    needs: [lint-code, lint-actions, coverage, build-test, security]
+    needs: [lint-code, lint-actions, coverage, test, security]
     if: always()
     runs-on: ubuntu-slim
     steps:
