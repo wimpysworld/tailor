@@ -133,6 +133,10 @@ dockers_v2:
     platforms:
       - linux/amd64
       - linux/arm64
+    retry:
+      attempts: 5
+      delay: 10s
+      max_delay: 2m
     labels:
       "org.opencontainers.image.title": "{{ .ProjectName }}"
       "org.opencontainers.image.description": "Ready-to-wear project templates for GitHub repositories."
