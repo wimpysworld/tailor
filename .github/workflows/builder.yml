@@ -138,6 +138,9 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v21
+
       - name: Install cosign
         if: startsWith(github.ref, 'refs/tags/')
         uses: sigstore/cosign-installer@v4.1.0
