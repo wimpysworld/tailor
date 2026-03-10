@@ -58,11 +58,16 @@ release:
     **bin** (any platform):
     ```shell
     bin install github.com/wimpysworld/tailor
-    bin update tailor
     ```
     Requires [`bin`](https://github.com/marcosnils/bin).
 
-    **Homebrew** and **Nix** taps, **Docker** images, and **native packages** (deb/rpm) are coming soon.
+    **Homebrew**: `brew install wimpysworld/tap/tailor`
+
+    **Nix**: `nix run github:wimpysworld/tailor`
+
+    **Docker**: `docker run --rm ghcr.io/wimpysworld/tailor --version`
+
+    **Native packages**: download `.deb`, `.rpm`, `.apk`, or Arch Linux packages from the assets above. AUR: [`tailor-bin`](https://aur.archlinux.org/packages/tailor-bin).
 
     Tailor needs a GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN`, or run `gh auth login` locally.
 
@@ -80,16 +85,16 @@ nfpms:
       - apk
       - archlinux
 
-brews:
-  - repository:
+homebrew_casks:
+  - ids:
+      - compressed
+    repository:
       owner: wimpysworld
       name: homebrew-tap
       token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     description: "Ready-to-wear project templates for GitHub repositories."
     homepage: https://github.com/wimpysworld/tailor
     license: BlueOak-1.0.0
-    install: |
-      bin.install "tailor"
 
 aurs:
   - name: tailor-bin
@@ -138,11 +143,11 @@ dockers_v2:
 signs:
   - cmd: cosign
     artifacts: checksum
-    signature: "${artifact}.sig"
+    signature: "${artifact}.sigstore.json"
     args:
       - "sign-blob"
       - "--yes"
-      - "--output-signature=${signature}"
+      - "--bundle=${signature}"
       - "${artifact}"
 
 docker_signs:

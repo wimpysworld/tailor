@@ -95,41 +95,51 @@ jobs:
     needs: [sentinel]
     if: >-
       github.repository_owner == 'wimpysworld'
-      && startsWith(github.ref, 'refs/tags/')
+      && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
-      - name: Get version
-        id: version
-        run: echo "version=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
-
-      - uses: actions/download-artifact@v8
+      - uses: actions/setup-go@v6
         with:
-          path: artifacts
-          merge-multiple: true
+          go-version-file: go.mod
 
-      - uses: softprops/action-gh-release@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: Tailor ${{ steps.version.outputs.version }}
-          generate_release_notes: true
-          append_body: true
-          body: |
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-            ## Install or Update
+      - name: Install cosign
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: sigstore/cosign-installer@v4
 
-            Install or update `tailor` using [`bin`](https://github.com/marcosnils/bin):
+      - name: Run GoReleaser (release)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
+          AUR_KEY: ${{ secrets.AUR_KEY }}
 
-            ```shell
-            # Install
-            bin install github.com/wimpysworld/tailor
-
-            # Update
-            bin update tailor
-            ```
-          make_latest: true
-          files: |
-            artifacts/tailor-*
+      - name: Run GoReleaser (snapshot)
+        if: github.ref == 'refs/heads/main'
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean --skip=sign
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

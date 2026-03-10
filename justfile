@@ -9,6 +9,12 @@ alter:
 # Build tailor binary
 build:
     @go build -ldflags "-s -w" -o tailor ./cmd/tailor
+    @goreleaser release --snapshot --clean --skip=sign
+
+# Check goreleaser config and nix flake
+check:
+    @goreleaser check
+    @nix flake check
 
 # Run linters
 lint:
@@ -55,7 +61,13 @@ release VERSION:
     echo "To publish the release:"
     echo "  git push origin {{VERSION}}"
     echo ""
-    echo "This will trigger the GitHub Actions release workflow which will:"
-    echo "  - Build binaries for all platforms"
+    echo "This will trigger GoReleaser via GitHub Actions which will:"
+    echo "  - Cross-compile binaries for linux and darwin (amd64, arm64)"
     echo "  - Generate changelog from commits"
-    echo "  - Create GitHub release with downloadable assets"
+    echo "  - Create GitHub release with bare binaries, tarballs, and checksums"
+    echo "  - Build and publish native packages (deb, rpm, apk, archlinux)"
+    echo "  - Update the Homebrew tap (wimpysworld/homebrew-tap)"
+    echo "  - Update the AUR package (tailor-bin)"
+    echo "  - Publish multi-arch Docker images to GHCR"
+    echo "  - Generate the Nix package (pkgs/tailor/default.nix)"
+    echo "  - Sign checksums and Docker images with cosign (keyless)"

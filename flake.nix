@@ -6,7 +6,7 @@
   };
 
   outputs =
-    { self, nixpkgs }:
+    { nixpkgs, ... }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -25,6 +25,7 @@
           default = pkgs.mkShell {
             packages = with pkgs; [
               actionlint
+              cosign
               gh
               go
               golangci-lint
@@ -34,5 +35,23 @@
           };
         }
       );
-    };
+    }
+    // (
+      if builtins.pathExists ./pkgs/tailor/default.nix then
+        {
+          packages = forAllSystems (
+            system:
+            let
+              pkgs = import nixpkgs { inherit system; };
+              tailor = pkgs.callPackage ./pkgs/tailor/default.nix { };
+            in
+            {
+              tailor = tailor;
+              default = tailor;
+            }
+          );
+        }
+      else
+        { }
+    );
 }

@@ -6,12 +6,50 @@ If you manage multiple projects across different GitHub organisations and find t
 
 ## Install
 
+### bin
+
 ```bash
 bin install github.com/wimpysworld/tailor
 bin update tailor
 ```
 
 Requires [`bin`](https://github.com/marcosnils/bin). Tailor releases publish bare executables, no archive extraction needed.
+
+### Homebrew
+
+```bash
+brew install wimpysworld/tap/tailor
+```
+
+### Nix
+
+```bash
+nix run github:wimpysworld/tailor -- --version
+nix profile install github:wimpysworld/tailor
+```
+
+Or add the flake as an input in your own configuration. The package is available for `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin`.
+
+### Docker
+
+```bash
+docker run --rm ghcr.io/wimpysworld/tailor --version
+```
+
+Images are published to GHCR for `linux/amd64` and `linux/arm64`. Mount your project directory and pass a GitHub token:
+
+```bash
+docker run --rm \
+  -v "$PWD":/work -w /work \
+  -e GH_TOKEN \
+  ghcr.io/wimpysworld/tailor alter
+```
+
+### Native packages
+
+Releases include `.deb`, `.rpm`, `.apk`, and Arch Linux packages. Download the appropriate file from the [latest release](https://github.com/wimpysworld/tailor/releases/latest) and install with your system package manager. The AUR package is [`tailor-bin`](https://aur.archlinux.org/packages/tailor-bin).
+
+### Authentication
 
 Tailor needs a GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN` for CI, or run `gh auth login` locally.
 
