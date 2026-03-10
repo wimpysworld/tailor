@@ -105,6 +105,7 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 | Swatch | Mode |
 |--------|------|
 | `.github/workflows/tailor.yml` | `always` |
+| `.github/workflows/tailor-security.yml` | `always` |
 | `.github/ISSUE_TEMPLATE/bug_report.yml` | `always` |
 | `.github/ISSUE_TEMPLATE/feature_request.yml` | `always` |
 | `.github/pull_request_template.md` | `always` |
@@ -127,7 +128,7 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 - **`always`** - Overwrites the file whenever the embedded swatch content differs from what is on disk. Local edits are not preserved.
 - **`first-fit`** - Copies the file only if it does not already exist. Never overwrites. Use this for files you intend to customise after initial delivery.
 - **`triggered`** - Deploys the file only when a condition in the repository settings is met. Overwrites when active, removes the file when the condition becomes false.
-- **`never`** - Skips the file entirely. Use this to suppress a triggered swatch you do not want.
+- **`never`** - Skips the file entirely. Use this to suppress a triggered swatch you do not want. Repositories that already use CodeQL configured through the GitHub UI should set `.github/workflows/tailor-security.yml` to `alteration: never` to avoid duplicate analysis.
 
 ### Configuration
 

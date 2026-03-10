@@ -6,10 +6,10 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-func TestAllReturns16Swatches(t *testing.T) {
+func TestAllReturns18Swatches(t *testing.T) {
 	all := swatch.All()
-	if len(all) != 17 {
-		t.Fatalf("All() returned %d swatches, want 17", len(all))
+	if len(all) != 18 {
+		t.Fatalf("All() returned %d swatches, want 18", len(all))
 	}
 }
 
@@ -50,6 +50,7 @@ func TestSwatchAttributes(t *testing.T) {
 		{".github/ISSUE_TEMPLATE/config.yml", swatch.FirstFit, swatch.Health},
 		{".github/pull_request_template.md", swatch.Always, swatch.Health},
 		{".github/workflows/tailor.yml", swatch.Always, swatch.Development},
+		{".github/workflows/tailor-security.yml", swatch.Always, swatch.Development},
 		{".github/workflows/tailor-automerge.yml", swatch.Triggered, swatch.Development},
 		{".tailor.yml", swatch.Always, swatch.Development},
 	}
@@ -93,8 +94,8 @@ func TestHealthSwatchesReturnsCorrectSubset(t *testing.T) {
 
 func TestPathsReturnsSortedList(t *testing.T) {
 	names := swatch.Paths()
-	if len(names) != 17 {
-		t.Fatalf("Paths() returned %d names, want 17", len(names))
+	if len(names) != 18 {
+		t.Fatalf("Paths() returned %d names, want 18", len(names))
 	}
 	for i := 1; i < len(names); i++ {
 		if names[i] < names[i-1] {

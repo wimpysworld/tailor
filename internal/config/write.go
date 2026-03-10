@@ -36,6 +36,12 @@ var templateFuncs = template.FuncMap{
 		}
 		return v
 	},
+	"derefSlice": func(p *[]string) []string {
+		if p == nil {
+			return nil
+		}
+		return *p
+	},
 	"derefBool": func(p *bool) string {
 		if p == nil {
 			return ""
@@ -134,6 +140,12 @@ repository:
 {{- end }}
 {{- if set .Repository.CanApprovePullRequestReviews }}
   can_approve_pull_request_reviews: {{ derefBool .Repository.CanApprovePullRequestReviews }}
+{{- end }}
+{{- if set .Repository.Topics }}
+  topics:
+{{- range derefSlice .Repository.Topics }}
+    - {{ yamlVal . }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- if .Labels }}

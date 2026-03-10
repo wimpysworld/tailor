@@ -1019,6 +1019,8 @@ swatches:
     alteration: always
   - path: CONTRIBUTING.md
     alteration: always
+  - path: .github/workflows/tailor-security.yml
+    alteration: always
 `
 	tc := setupAlterTest(t, configYAML)
 	// Pre-write LICENSE to suppress warning.
@@ -1027,7 +1029,7 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	for _, src := range []string{".gitignore", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md"} {
+	for _, src := range []string{".gitignore", "CODE_OF_CONDUCT.md", "CONTRIBUTING.md", ".github/workflows/tailor-security.yml"} {
 		got, err := os.ReadFile(filepath.Join(tc.Dir, src))
 		if err != nil {
 			t.Fatalf("reading %s after apply: %v", src, err)
@@ -1812,6 +1814,35 @@ swatches:
 	automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
 	if _, err := os.Stat(automergeFile); err == nil {
 		t.Error("tailor-automerge.yml was deployed despite alteration: never")
+	}
+}
+
+// TestAlterRunNeverSuppressesAlwaysSecurity verifies that setting alteration to
+// "never" on the security workflow swatch suppresses deployment.
+func TestAlterRunNeverSuppressesAlwaysSecurity(t *testing.T) {
+	configYAML := `license: none
+swatches:
+  - path: .github/workflows/tailor-security.yml
+    alteration: never
+`
+	tc := setupAlterTest(t, configYAML)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+
+	// DryRun: output should show "skip (never)", not any copy/overwrite action.
+	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
+	requireContains(t, output, "skip (never):")
+	requireContains(t, output, "tailor-security.yml")
+	requireNotContains(t, output, "would copy")
+	requireNotContains(t, output, "would overwrite")
+
+	// Apply: file should not be written.
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+
+	securityFile := filepath.Join(tc.Dir, ".github/workflows/tailor-security.yml")
+	if _, err := os.Stat(securityFile); err == nil {
+		t.Error("tailor-security.yml was deployed despite alteration: never")
 	}
 }
 

@@ -91,6 +91,9 @@ swatches:
   - path: .github/workflows/tailor.yml
     alteration: always
 
+  - path: .github/workflows/tailor-security.yml
+    alteration: always
+
   - path: .github/dependabot.yml
     alteration: first-fit
 
@@ -379,6 +382,80 @@ func TestWriteYAMLSpecialCharactersQuoted(t *testing.T) {
 	}
 	if *parsed.Repository.Description != desc {
 		t.Errorf("round-tripped Description = %q, want %q", *parsed.Repository.Description, desc)
+	}
+}
+
+func TestWriteTopicsPreserved(t *testing.T) {
+	topics := []string{"go", "cli", "template"}
+	cfg := &Config{
+		License: "MIT",
+		Repository: &model.RepositorySettings{
+			HasWiki: ptr.Ptr(false),
+			Topics:  &topics,
+		},
+		Swatches: []SwatchEntry{
+			{Path: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+
+	dir := t.TempDir()
+	if err := Write(dir, cfg, "2026-03-10", "Refitted"); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	output := string(got)
+	if !strings.Contains(output, "topics:") {
+		t.Fatalf("output missing topics:\n%s", output)
+	}
+
+	// Round-trip through YAML to confirm topics survive.
+	var parsed Config
+	if err := yaml.Unmarshal(got, &parsed); err != nil {
+		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, got)
+	}
+
+	if parsed.Repository == nil || parsed.Repository.Topics == nil {
+		t.Fatal("parsed Repository.Topics is nil")
+	}
+	if len(*parsed.Repository.Topics) != 3 {
+		t.Fatalf("topics length = %d, want 3", len(*parsed.Repository.Topics))
+	}
+	for i, want := range topics {
+		if (*parsed.Repository.Topics)[i] != want {
+			t.Errorf("topic[%d] = %q, want %q", i, (*parsed.Repository.Topics)[i], want)
+		}
+	}
+}
+
+func TestWriteTopicsOmittedWhenNil(t *testing.T) {
+	cfg := &Config{
+		License: "MIT",
+		Repository: &model.RepositorySettings{
+			HasWiki: ptr.Ptr(false),
+			// Topics is nil - should be omitted from output.
+		},
+		Swatches: []SwatchEntry{
+			{Path: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+
+	dir := t.TempDir()
+	if err := Write(dir, cfg, "2026-03-10", "Refitted"); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	if strings.Contains(string(got), "topics:") {
+		t.Errorf("output contains 'topics:' when Topics is nil:\n%s", got)
 	}
 }
 

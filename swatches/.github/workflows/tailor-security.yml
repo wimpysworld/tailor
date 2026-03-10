@@ -1,0 +1,73 @@
+name: Security 🔒
+on:
+  schedule:
+    - cron: "0 9 * * 0" # Weekly
+  workflow_dispatch:
+
+permissions:
+  read-all
+
+jobs:
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Initialise CodeQL
+        uses: github/codeql-action/init@v4.32.6
+        with:
+          build-mode: autobuild
+
+      - name: Run CodeQL analysis
+        uses: github/codeql-action/analyze@v4.32.6
+
+  update-flake-lock:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Check for flake.lock
+        id: check
+        run: test -f flake.lock && echo "exists=true" >> "$GITHUB_OUTPUT" || echo "exists=false" >> "$GITHUB_OUTPUT"
+
+      - name: Install Nix
+        if: steps.check.outputs.exists == 'true'
+        uses: DeterminateSystems/determinate-nix-action@v3.17.0
+
+      - name: Update flake.lock
+        if: steps.check.outputs.exists == 'true'
+        uses: DeterminateSystems/update-flake-lock@v28
+        with:
+          pr-title: "chore: update flake.lock"
+
+  scorecard:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      actions: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Run OpenSSF Scorecard
+        uses: ossf/scorecard-action@v2.4.3
+        with:
+          results_file: scorecard.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload Scorecard SARIF
+        uses: github/codeql-action/upload-sarif@v4.32.6
+        with:
+          sarif_file: scorecard.sarif
+          category: scorecard
