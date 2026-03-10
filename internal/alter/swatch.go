@@ -88,7 +88,19 @@ func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte,
 		if entry.Alteration == swatch.Triggered && !swatch.EvaluateTrigger(entry.Path, cfg.Repository) {
 			return processTriggered(cfg, entry, content, dest, exists, Apply)
 		}
-		return processRecut(entry, content, dest, exists)
+		result, err := processRecut(entry, content, dest, exists)
+		if err != nil {
+			return result, err
+		}
+		// Triggered swatches use "would deploy" with annotation even
+		// under --recut, per spec.
+		if entry.Alteration == swatch.Triggered {
+			if result.Category == WouldCopy || result.Category == WouldOverwrite {
+				result.Category = WouldDeploy
+			}
+			result.Annotation = triggerAnnotation(entry.Path)
+		}
+		return result, nil
 	}
 
 	switch entry.Alteration {

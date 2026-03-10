@@ -479,8 +479,11 @@ func TestRecutTriggeredConditionTrueOverwrites(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("got %d results, want 1", len(results))
 	}
-	if results[0].Category != alter.WouldOverwrite {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
+	if results[0].Category != alter.WouldDeploy {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldDeploy)
+	}
+	if results[0].Annotation == "" {
+		t.Error("expected trigger annotation, got empty string")
 	}
 }
 
