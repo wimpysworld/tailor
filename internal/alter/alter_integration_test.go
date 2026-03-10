@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -736,8 +737,7 @@ swatches:
 	requireContains(t, output, "SECURITY.md")
 
 	// Must not show "no change" for SECURITY.md.
-	lines := strings.Split(output, "\n")
-	for _, line := range lines {
+	for line := range strings.SplitSeq(output, "\n") {
 		if strings.Contains(line, "SECURITY.md") && strings.Contains(line, "no change") {
 			t.Errorf("substituted swatch SECURITY.md should not show 'no change', got: %s", line)
 		}
@@ -851,7 +851,7 @@ swatches:
 	}
 
 	// Classify each line as actionable or informational.
-	actionableLabels := []string{"would set:", "would copy:", "would overwrite:"}
+	actionableLabels := []string{"would set:", "would copy:", "would overwrite:", "would deploy:"}
 	informationalLabels := []string{"no change:", "skipped (first-fit, exists):"}
 
 	isActionable := func(line string) bool {
@@ -956,14 +956,7 @@ swatches:
 		labelPart := line[:expectedWidth]
 		trimmed := strings.TrimRight(labelPart, " ")
 
-		found := false
-		for _, label := range knownLabels {
-			if trimmed == label {
-				found = true
-				break
-			}
-		}
-		if !found {
+		if !slices.Contains(knownLabels, trimmed) {
 			t.Errorf("label portion %q does not match any known label", trimmed)
 		}
 	}
@@ -1286,7 +1279,7 @@ swatches:
 	}
 
 	// Verify the body contains expected settings.
-	var body map[string]interface{}
+	var body map[string]any
 	if err := json.Unmarshal([]byte(patchCall.Body), &body); err != nil {
 		t.Fatalf("failed to parse PATCH body as JSON: %v", err)
 	}
@@ -1706,7 +1699,7 @@ swatches:
 
 	// DryRun: output should indicate the swatch would be deployed.
 	dryOutput := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-	requireContains(t, dryOutput, "would copy")
+	requireContains(t, dryOutput, "would deploy")
 	requireContains(t, dryOutput, "tailor-automerge.yml")
 	requireContains(t, dryOutput, "triggered: allow_auto_merge")
 
@@ -1758,8 +1751,9 @@ swatches:
 		output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 		requireNotContains(t, output, "would copy")
 		requireNotContains(t, output, "would overwrite")
+		requireNotContains(t, output, "would deploy")
 		// The swatch should not appear in actionable output.
-		// It may appear as "skipped (never)" or be silently ignored.
+		// It may appear as "skip (never)" or be silently ignored.
 		requireNotContains(t, output, "would remove")
 	})
 
@@ -1804,12 +1798,13 @@ swatches:
 
 	cfg := loadTestConfig(t, tc.Dir)
 
-	// DryRun: output should show "skipped (never)", not any deploy/copy action.
+	// DryRun: output should show "skip (never)", not any deploy/copy action.
 	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-	requireContains(t, output, "skipped (never):")
+	requireContains(t, output, "skip (never):")
 	requireContains(t, output, "tailor-automerge.yml")
 	requireNotContains(t, output, "would copy")
 	requireNotContains(t, output, "would overwrite")
+	requireNotContains(t, output, "would deploy")
 
 	// Apply: file should not be written.
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)

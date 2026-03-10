@@ -55,6 +55,15 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 	// field names so the corresponding WouldSet entries can be suppressed.
 	skipResults, skippedFields := readWarningsToResults(warnings, cfg.Repository)
 
+	// Warn when the config wants automated security fixes but alerts are
+	// currently disabled on GitHub - the API will reject the enable call.
+	if cfg.Repository.AutomatedSecurityFixesEnabled != nil &&
+		*cfg.Repository.AutomatedSecurityFixesEnabled &&
+		live.VulnerabilityAlertsEnabled != nil &&
+		!*live.VulnerabilityAlertsEnabled {
+		fmt.Fprintln(os.Stderr, "warning: automated_security_fixes_enabled is true but vulnerability alerts are disabled on GitHub; enable vulnerability_alerts_enabled first")
+	}
+
 	results := compareSettings(cfg.Repository, live)
 
 	// Remove false-positive WouldSet entries for fields whose live value is
@@ -120,7 +129,7 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 		key, _, _ := strings.Cut(tag, ",")
 
 		dfv := dv.Field(i)
-		if dfv.Kind() != reflect.Ptr || dfv.IsNil() {
+		if dfv.Kind() != reflect.Pointer || dfv.IsNil() {
 			continue
 		}
 
@@ -231,7 +240,7 @@ func declaredFieldNames(s *model.RepositorySettings) map[string]bool {
 		}
 		key, _, _ := strings.Cut(tag, ",")
 		fv := rv.Field(i)
-		if fv.Kind() == reflect.Ptr && !fv.IsNil() {
+		if fv.Kind() == reflect.Pointer && !fv.IsNil() {
 			names[key] = true
 		}
 	}

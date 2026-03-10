@@ -19,11 +19,12 @@ type SwatchCategory string
 const (
 	WouldCopy       SwatchCategory = "would copy"
 	WouldOverwrite  SwatchCategory = "would overwrite"
+	WouldDeploy     SwatchCategory = "would deploy"
 	WouldRemove     SwatchCategory = "would remove"
 	Removed         SwatchCategory = "removed"
 	NoChange        SwatchCategory = "no change"
 	SkippedFirstFit SwatchCategory = "skipped (first-fit, exists)"
-	SkippedNever    SwatchCategory = "skipped (never)"
+	SkippedNever    SwatchCategory = "skip (never)"
 )
 
 // SwatchResult records the path and categorised outcome for one swatch entry.
@@ -82,6 +83,11 @@ func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte,
 	exists := fsutil.FileExists(dest)
 
 	if mode == Recut {
+		// Triggered swatches are never overwritten by --recut when the
+		// trigger condition is false.
+		if entry.Alteration == swatch.Triggered && !swatch.EvaluateTrigger(entry.Path, cfg.Repository) {
+			return processTriggered(cfg, entry, content, dest, exists, Apply)
+		}
 		return processRecut(entry, content, dest, exists)
 	}
 
@@ -143,6 +149,11 @@ func processTriggered(cfg *config.Config, entry config.SwatchEntry, content []by
 		result, err := processAlways(entry, content, dest, exists, mode)
 		if err != nil {
 			return result, err
+		}
+		// Triggered swatches use "would deploy" instead of "would copy" or
+		// "would overwrite" per spec.
+		if result.Category == WouldCopy || result.Category == WouldOverwrite {
+			result.Category = WouldDeploy
 		}
 		result.Annotation = annotation
 		return result, nil

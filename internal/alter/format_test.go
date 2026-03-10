@@ -123,11 +123,12 @@ func TestFormatOutputColumnAlignment(t *testing.T) {
 	labels := []string{
 		"would copy:",
 		"would overwrite:",
+		"would deploy:",
 		"would remove:",
 		"removed:",
 		"no change:",
 		"skipped (first-fit, exists):",
-		"skipped (never):",
+		"skip (never):",
 		"would set:",
 		"would skip (insufficient scope):",
 		"would skip (insufficient role):",
@@ -206,7 +207,7 @@ func TestFormatOutputNewCategories(t *testing.T) {
 	want := "would copy:                          copied.md\n" +
 		"would remove:                        would-remove.yml\n" +
 		"removed:                             removed.yml\n" +
-		"skipped (never):                     ignored.yml\n"
+		"skip (never):                        ignored.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput new categories:\ngot:\n%s\nwant:\n%s", got, want)
@@ -233,7 +234,7 @@ func TestFormatOutputNewCategorySorting(t *testing.T) {
 		"removed:                             a-removed.yml\n" +
 		"no change:                           d-no-change.md\n" +
 		"skipped (first-fit, exists):         c-skipped.md\n" +
-		"skipped (never):                     z-ignored.yml\n"
+		"skip (never):                        z-ignored.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput new category sorting:\ngot:\n%s\nwant:\n%s", got, want)
@@ -281,15 +282,15 @@ func TestFormatOutputSkipSorting(t *testing.T) {
 
 func TestFormatOutputAnnotations(t *testing.T) {
 	swatches := []SwatchResult{
-		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldCopy, Annotation: "triggered: allow_auto_merge"},
+		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldDeploy, Annotation: "triggered: allow_auto_merge"},
 		{Path: "LICENSE", Category: NoChange},
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	// Annotated label "would copy (triggered: allow_auto_merge):" is 41 chars,
-	// plus 1 space = 42 column width.
-	want := "would copy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
-		"no change:                                LICENSE\n"
+	// Annotated label "would deploy (triggered: allow_auto_merge):" is 43 chars,
+	// plus 1 space = 44 column width.
+	want := "would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
+		"no change:                                  LICENSE\n"
 
 	if got != want {
 		t.Errorf("FormatOutput annotations:\ngot:\n%s\nwant:\n%s", got, want)
@@ -316,9 +317,9 @@ func TestFormatOutputAnnotationSkippedNever(t *testing.T) {
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	// "skipped (never) (triggered: allow_auto_merge):" = 46 chars + 1 space = 47 width
-	want := "would copy:                                    CONTRIBUTING.md\n" +
-		"skipped (never) (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
+	// "skip (never) (triggered: allow_auto_merge):" = 43 chars + 1 space = 44 width
+	want := "would copy:                                 CONTRIBUTING.md\n" +
+		"skip (never) (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput annotation ignored:\ngot:\n%s\nwant:\n%s", got, want)
@@ -330,13 +331,13 @@ func TestFormatOutputAnnotationMixedWithRepo(t *testing.T) {
 		{Field: "allow_auto_merge", Category: WouldSet, Value: "true"},
 	}
 	swatches := []SwatchResult{
-		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldCopy, Annotation: "triggered: allow_auto_merge"},
+		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldDeploy, Annotation: "triggered: allow_auto_merge"},
 	}
 
 	got := FormatOutput(repos, nil, swatches)
-	// Column width widens to 42 to fit the annotated swatch label.
-	want := "would set:                                repository.allow_auto_merge = true\n" +
-		"would copy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
+	// Column width widens to 44 to fit the annotated swatch label.
+	want := "would set:                                  repository.allow_auto_merge = true\n" +
+		"would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput annotation mixed with repo:\ngot:\n%s\nwant:\n%s", got, want)

@@ -80,7 +80,7 @@ func labelResultLabel(r LabelResult) string {
 }
 
 // swatchLabel returns the formatted label for a swatch result, including any
-// trigger annotation. For example: "would copy (triggered: allow_auto_merge):".
+// trigger annotation. For example: "would deploy (triggered: allow_auto_merge):".
 func swatchLabel(r SwatchResult) string {
 	if r.Annotation != "" {
 		return string(r.Category) + " (" + r.Annotation + "):"
@@ -202,17 +202,19 @@ func swatchOrder(c SwatchCategory) int {
 		return 0
 	case WouldOverwrite:
 		return 1
-	case WouldRemove:
+	case WouldDeploy:
 		return 2
-	case Removed:
+	case WouldRemove:
 		return 3
-	case NoChange:
+	case Removed:
 		return 4
-	case SkippedFirstFit:
+	case NoChange:
 		return 5
-	case SkippedNever:
+	case SkippedFirstFit:
 		return 6
-	default:
+	case SkippedNever:
 		return 7
+	default:
+		return 8
 	}
 }

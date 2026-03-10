@@ -54,7 +54,10 @@ func (f *FitCmd) Run() error {
 		return err
 	}
 
-	owner, name, ok := gh.RepoContext()
+	owner, name, ok, err := gh.RepoContextAt(f.Path)
+	if err != nil {
+		return err
+	}
 
 	if ok {
 		client, err := api.DefaultRESTClient()

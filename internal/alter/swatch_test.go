@@ -316,7 +316,7 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 // triggeredSource is the swatch path that has a trigger condition.
 const triggeredSource = ".github/workflows/tailor-automerge.yml"
 
-func TestTriggeredMetFileAbsentWouldCopy(t *testing.T) {
+func TestTriggeredMetFileAbsentWouldDeploy(t *testing.T) {
 	dir := t.TempDir()
 
 	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
@@ -326,8 +326,8 @@ func TestTriggeredMetFileAbsentWouldCopy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if results[0].Category != alter.WouldCopy {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldCopy)
+	if results[0].Category != alter.WouldDeploy {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldDeploy)
 	}
 }
 
@@ -342,8 +342,8 @@ func TestTriggeredMetFileExistsDifferentContent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if results[0].Category != alter.WouldOverwrite {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
+	if results[0].Category != alter.WouldDeploy {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldDeploy)
 	}
 }
 
@@ -419,6 +419,68 @@ func TestTriggeredNotMetFileAbsent(t *testing.T) {
 	}
 	if results[0].Category != alter.SkippedNever {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.SkippedNever)
+	}
+}
+
+func TestRecutTriggeredConditionFalseSkips(t *testing.T) {
+	dir := t.TempDir()
+	writeOnDisk(t, dir, triggeredSource, []byte("existing content"))
+
+	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
+	cfg.Repository = &model.RepositorySettings{AllowAutoMerge: ptr.Ptr(false)}
+
+	results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	// When condition is false and file exists, recut should remove (like normal alter).
+	if results[0].Category != alter.Removed {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.Removed)
+	}
+	// File should be removed.
+	if _, err := os.Stat(filepath.Join(dir, triggeredSource)); err == nil {
+		t.Error("recut with false trigger did not remove file")
+	}
+}
+
+func TestRecutTriggeredConditionFalseAbsentSkips(t *testing.T) {
+	dir := t.TempDir()
+
+	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
+	cfg.Repository = &model.RepositorySettings{AllowAutoMerge: ptr.Ptr(false)}
+
+	results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	// When condition is false and file absent, skip.
+	if results[0].Category != alter.SkippedNever {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.SkippedNever)
+	}
+}
+
+func TestRecutTriggeredConditionTrueOverwrites(t *testing.T) {
+	dir := t.TempDir()
+	writeOnDisk(t, dir, triggeredSource, []byte("old content"))
+
+	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
+	cfg.Repository = &model.RepositorySettings{AllowAutoMerge: ptr.Ptr(true)}
+
+	results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Category != alter.WouldOverwrite {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -1185,5 +1186,61 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
 	}
 	if results[0].Category != alter.WouldSet {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
+	}
+}
+
+func TestProcessRepoSettingsWarnsASFWithAlertsDisabled(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	// Server where vulnerability-alerts returns 404 (disabled).
+	live := repoJSON{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+
+		switch {
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(live)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/vulnerability-alerts":
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprint(w, `{"message":"Not Found"}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+
+		default:
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{
+		Repository: &model.RepositorySettings{
+			AutomatedSecurityFixesEnabled: ptr.Ptr(true),
+		},
+	}
+
+	stderr := captureStderr(t, func() {
+		_, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	want := "automated_security_fixes_enabled is true but vulnerability alerts are disabled"
+	if !strings.Contains(stderr, want) {
+		t.Errorf("stderr = %q, want substring %q", stderr, want)
 	}
 }
