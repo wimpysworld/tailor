@@ -6,6 +6,8 @@ on:
     tags: ["v*.*.*"]
   pull_request:
     branches: [main]
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions: {}
@@ -193,3 +195,21 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAP_GITHUB_TOKEN: ${{ matrix.mode == 'release' && secrets.TAP_GITHUB_TOKEN || '' }}
           AUR_KEY: ${{ matrix.mode == 'release' && secrets.AUR_KEY || '' }}
+
+  update-tag:
+    name: Update Tag 🏷️
+    if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
+    runs-on: ubuntu-slim
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Update floating major version tag
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          major="${tag%%.*}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -fa "${major}" -m "Update ${major} tag to ${tag}"
+          git push origin "${major}" --force
