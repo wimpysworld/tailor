@@ -19,6 +19,8 @@ check:
 # Run linters
 lint:
     @go vet ./...
+    @gocyclo -top 20 -avg -ignore '_test\.go$' .
+    @ineffassign ./...
     @golangci-lint run
     @actionlint
 

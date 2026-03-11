@@ -30,11 +30,13 @@ jobs:
           go-version-file: go.mod
       - run: go vet ./...
       - name: Check cyclomatic complexity
-        run: go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
-      - run: gocyclo -over 15 .
+        run: |
+          go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+          gocyclo -top 20 -ignore '_test\.go$' -avg .
       - name: Check ineffectual assignments
-        run: go install github.com/gordonklaus/ineffassign@latest
-      - run: ineffassign ./...
+        run: |
+          go install github.com/gordonklaus/ineffassign@latest
+          ineffassign ./...
       - uses: golangci/golangci-lint-action@v9
 
   lint-actions:

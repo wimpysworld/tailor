@@ -28,8 +28,10 @@
               cosign
               gh
               go
+              gocyclo
               golangci-lint
               goreleaser
+              ineffassign
               just
             ];
           };
