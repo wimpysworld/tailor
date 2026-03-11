@@ -29,6 +29,12 @@ jobs:
         with:
           go-version-file: go.mod
       - run: go vet ./...
+      - name: Check cyclomatic complexity
+        run: go install github.com/fzipp/gocyclo/cmd/gocyclo@latest
+      - run: gocyclo -over 15 .
+      - name: Check ineffectual assignments
+        run: go install github.com/gordonklaus/ineffassign@latest
+      - run: ineffassign ./...
       - uses: golangci/golangci-lint-action@v9
 
   lint-actions:
@@ -123,6 +129,15 @@ jobs:
             exit 1
           fi
           echo "All jobs passed"
+
+  report-card:
+    name: Go Report Card 📊
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-slim
+    permissions: {}
+    steps:
+      - name: Refresh Go Report Card
+        run: curl -X POST -F "repo=github.com/$GITHUB_REPOSITORY" https://goreportcard.com/checks
 
   release:
     name: Release 📦 (${{ matrix.mode }})

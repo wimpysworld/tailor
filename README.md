@@ -1,5 +1,7 @@
 # Tailor
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/wimpysworld/tailor)](https://goreportcard.com/report/github.com/wimpysworld/tailor)
+
 Ready-to-wear project templates for GitHub repositories. Tailor fits projects with community health files, security policy, dev tooling, and repository settings that meet GitHub's community standards, then keeps them current with automated alterations. It also ships a Dependabot automerge workflow so patch and minor updates land without manual intervention.
 
 If you manage multiple projects across different GitHub organisations and find that configurations keep drifting out of sync, Tailor fixes that. It is opinionated by design - built for solo devs and small teams who want consistent, well-maintained repositories without the overhead.
