@@ -8,6 +8,8 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions: {}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -16,6 +18,8 @@ jobs:
   lint-code:
     name: Code Linter 🧹
     runs-on: ubuntu-slim
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -40,6 +44,8 @@ jobs:
   coverage:
     name: Coverage 📊
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -69,6 +75,8 @@ jobs:
             arch: arm64
             runner: macos-15
     runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -81,6 +89,9 @@ jobs:
     name: Security 🔒
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-slim
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/dependency-review-action@v4
@@ -95,6 +106,7 @@ jobs:
     needs: [lint-code, lint-actions, coverage, test, security]
     if: always()
     runs-on: ubuntu-slim
+    permissions: {}
     steps:
       - name: Check results
         run: |
