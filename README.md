@@ -65,6 +65,8 @@ The `wimpysworld/tailor` action installs the tailor binary and optionally runs o
 - uses: wimpysworld/tailor@v0
   with:
     alter: true
+  env:
+    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
 ### Inputs
