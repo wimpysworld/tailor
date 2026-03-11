@@ -116,8 +116,8 @@ func TestDefaultConfigSwatchCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultConfig() error: %v", err)
 	}
-	if len(cfg.Swatches) != 18 {
-		t.Errorf("Swatches count = %d, want 18", len(cfg.Swatches))
+	if len(cfg.Swatches) != 17 {
+		t.Errorf("Swatches count = %d, want 17", len(cfg.Swatches))
 	}
 }
 
@@ -136,11 +136,11 @@ func TestDefaultConfigSwatchOrder(t *testing.T) {
 	}
 
 	second := cfg.Swatches[1]
-	if second.Path != ".github/workflows/tailor-security.yml" {
-		t.Errorf("second swatch Path = %q, want %q", second.Path, ".github/workflows/tailor-security.yml")
+	if second.Path != ".github/dependabot.yml" {
+		t.Errorf("second swatch Path = %q, want %q", second.Path, ".github/dependabot.yml")
 	}
-	if second.Alteration != swatch.Always {
-		t.Errorf("second swatch Alteration = %q, want %q", second.Alteration, swatch.Always)
+	if second.Alteration != swatch.FirstFit {
+		t.Errorf("second swatch Alteration = %q, want %q", second.Alteration, swatch.FirstFit)
 	}
 
 	last := cfg.Swatches[len(cfg.Swatches)-1]

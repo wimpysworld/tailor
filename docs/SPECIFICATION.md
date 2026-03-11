@@ -50,7 +50,6 @@ The `fit`, `alter`, and `baste` commands verify that a valid authentication toke
 | `.github/ISSUE_TEMPLATE/config.yml` | `.github/ISSUE_TEMPLATE/config.yml` |
 | `.github/pull_request_template.md` | `.github/pull_request_template.md` |
 | `.github/workflows/tailor.yml` | `.github/workflows/tailor.yml` |
-| `.github/workflows/tailor-security.yml` | `.github/workflows/tailor-security.yml` |
 | `.github/workflows/tailor-automerge.yml` | `.github/workflows/tailor-automerge.yml` |
 | `.tailor.yml` | `.tailor.yml` |
 
@@ -130,7 +129,6 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 | `.github/ISSUE_TEMPLATE/config.yml` | `first-fit` |
 | `.github/pull_request_template.md` | `always` |
 | `.github/workflows/tailor.yml` | `always` |
-| `.github/workflows/tailor-security.yml` | `always` |
 | `.github/workflows/tailor-automerge.yml` | `triggered` |
 | `.github/dependabot.yml` | `first-fit` |
 | `justfile` | `first-fit` |
@@ -158,7 +156,6 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 - `flake.nix`
 - `justfile`
 - `.github/workflows/tailor.yml`
-- `.github/workflows/tailor-security.yml`
 - `.github/workflows/tailor-automerge.yml`
 - `.tailor.yml`
 
@@ -177,7 +174,6 @@ Creates a new project directory and writes `.tailor.yml` with the full default s
 The default swatch set embedded in the binary is:
 
 - `.github/workflows/tailor.yml`
-- `.github/workflows/tailor-security.yml`
 - `.github/workflows/tailor-automerge.yml`
 - `.github/dependabot.yml`
 - `.github/FUNDING.yml`
@@ -516,9 +512,6 @@ swatches:
   - path: .github/workflows/tailor.yml
     alteration: always
 
-  - path: .github/workflows/tailor-security.yml
-    alteration: always
-
   - path: .github/dependabot.yml
     alteration: first-fit
 
@@ -605,7 +598,6 @@ swatches/
 │   ├── pull_request_template.md
 │   └── workflows/
 │       ├── tailor.yml
-│       ├── tailor-security.yml
 │       └── tailor-automerge.yml
 └── .tailor.yml
 ```
@@ -676,22 +668,6 @@ The workflow uses `gh pr merge --auto {{MERGE_STRATEGY}}` where `{{MERGE_STRATEG
 **Manual catch-up**: The workflow supports `workflow_dispatch` for repositories with pre-existing open Dependabot PRs. When triggered manually, a separate `automerge-existing` job lists all open Dependabot PRs and enables auto-merge on each. The manual job does not apply per-ecosystem filtering; required status checks still gate every merge.
 
 **Opt-out**: Users who have `allow_auto_merge: true` but use their own automerge solution can set `alteration: never` on the automerge swatch entry in `.tailor.yml` to suppress deployment while keeping the entry visible.
-
-## Security Workflow
-
-The `.github/workflows/tailor-security.yml` swatch delivers a GitHub Actions workflow that runs weekly security scanning across five jobs: CodeQL, govulncheck SARIF upload, Grype container scanning of the published GHCR image, Nix flake lock updates, and OpenSSF Scorecard. It is an `always` swatch with no token substitution.
-
-The workflow uses `schedule` (weekly) and `workflow_dispatch` triggers with top-level `permissions: read-all`. Jobs that require write access carry job-level permission overrides.
-
-**Jobs**:
-
-- **codeql** - Runs GitHub CodeQL analysis and uploads SARIF results to the Security tab.
-- **govulncheck** - Runs Go vulnerability checking and uploads SARIF results to the Security tab.
-- **grype** - Scans the published GHCR container image with Grype and uploads SARIF results to the Security tab.
-- **update-flake-lock** - Updates `flake.lock` via `DeterminateSystems/update-flake-lock` and opens a PR. The job always runs, but a check step runs `test -f flake.lock` and sets an output (`exists`). The Install Nix and Update flake.lock steps are individually gated with `if: steps.check.outputs.exists == 'true'`, so they are skipped at runtime in repositories that do not use Nix.
-- **scorecard** - Runs OpenSSF Scorecard with `publish_results: true`, uploading findings to the Security tab and publishing results publicly. Requires `id-token: write` at job level.
-
-**Opt-out**: Repositories that already use CodeQL configured through the GitHub UI should set `.github/workflows/tailor-security.yml` to `alteration: never` in `.tailor.yml` to avoid duplicate analysis. This reuses the existing swatch suppression mechanism.
 
 ## Justfile Integration
 

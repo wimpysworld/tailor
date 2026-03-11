@@ -91,9 +91,6 @@ swatches:
   - path: .github/workflows/tailor.yml
     alteration: always
 
-  - path: .github/workflows/tailor-security.yml
-    alteration: always
-
   - path: .github/dependabot.yml
     alteration: first-fit
 

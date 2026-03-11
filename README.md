@@ -1,6 +1,6 @@
 # Tailor
 
-Ready-to-wear project templates for GitHub repositories. Tailor fits projects with community health files, security policy, dev tooling, and repository settings that meet GitHub's community and security best practice, then keeps them current with automated alterations. It also ships a Dependabot automerge workflow so patch and minor updates land without manual intervention.
+Ready-to-wear project templates for GitHub repositories. Tailor fits projects with community health files, security policy, dev tooling, and repository settings that meet GitHub's community standards, then keeps them current with automated alterations. It also ships a Dependabot automerge workflow so patch and minor updates land without manual intervention.
 
 If you manage multiple projects across different GitHub organisations and find that configurations keep drifting out of sync, Tailor fixes that. It is opinionated by design - built for solo devs and small teams who want consistent, well-maintained repositories without the overhead.
 
@@ -105,7 +105,6 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 | Swatch | Mode |
 |--------|------|
 | `.github/workflows/tailor.yml` | `always` |
-| `.github/workflows/tailor-security.yml` | `always` |
 | `.github/ISSUE_TEMPLATE/bug_report.yml` | `always` |
 | `.github/ISSUE_TEMPLATE/feature_request.yml` | `always` |
 | `.github/pull_request_template.md` | `always` |
@@ -128,7 +127,7 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 - **`always`** - Overwrites the file whenever the embedded swatch content differs from what is on disk. Local edits are not preserved.
 - **`first-fit`** - Copies the file only if it does not already exist. Never overwrites. Use this for files you intend to customise after initial delivery.
 - **`triggered`** - Deploys the file only when a condition in the repository settings is met. Overwrites when active, removes the file when the condition becomes false.
-- **`never`** - Skips the file entirely. Use this to suppress a triggered swatch you do not want. Repositories that already use CodeQL configured through the GitHub UI should set `.github/workflows/tailor-security.yml` to `alteration: never` to avoid duplicate analysis.
+- **`never`** - Skips the file entirely. Use this to suppress a triggered swatch you do not want.
 
 ### Configuration
 
