@@ -107,31 +107,53 @@ jobs:
           echo "All jobs passed"
 
   release:
-    name: Release 📦
+    name: Release 📦 (${{ matrix.mode }})
     needs: [sentinel]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: release
+            args: release --clean
+            cosign: true
+          - mode: snapshot
+            args: release --snapshot --clean --skip=sign
+            cosign: false
     if: >-
       always()
       && needs.sentinel.result == 'success'
       && github.repository_owner == 'wimpysworld'
       && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || github.event_name == 'pull_request')
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       packages: write
       id-token: write
     steps:
+      - name: Check variant applies
+        id: guard
+        run: |
+          echo "run=true" >> "$GITHUB_OUTPUT"
+        if: >-
+          (matrix.mode == 'release' && startsWith(github.ref, 'refs/tags/'))
+          || (matrix.mode == 'snapshot' && (github.ref == 'refs/heads/main' || github.event_name == 'pull_request'))
+
       - uses: actions/checkout@v6
+        if: steps.guard.outputs.run == 'true'
         with:
           fetch-depth: 0
 
       - uses: actions/setup-go@v6
+        if: steps.guard.outputs.run == 'true'
         with:
           go-version-file: go.mod
 
       - name: Set up Docker Buildx
+        if: steps.guard.outputs.run == 'true'
         uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
+        if: steps.guard.outputs.run == 'true'
         uses: nick-fields/retry@v3
         with:
           timeout_seconds: 30
@@ -142,28 +164,20 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Install Nix
+        if: steps.guard.outputs.run == 'true'
         uses: DeterminateSystems/nix-installer-action@v21
 
       - name: Install cosign
-        if: startsWith(github.ref, 'refs/tags/')
+        if: steps.guard.outputs.run == 'true' && matrix.cosign
         uses: sigstore/cosign-installer@v4.1.0
 
-      - name: Run GoReleaser (release)
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Run GoReleaser
+        if: steps.guard.outputs.run == 'true'
         uses: goreleaser/goreleaser-action@v7
         with:
           version: "~> v2"
-          args: release --clean
+          args: ${{ matrix.args }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAP_GITHUB_TOKEN: ${{ secrets.TAP_GITHUB_TOKEN }}
-          AUR_KEY: ${{ secrets.AUR_KEY }}
-
-      - name: Run GoReleaser (snapshot)
-        if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          version: "~> v2"
-          args: release --snapshot --clean --skip=sign
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_GITHUB_TOKEN: ${{ matrix.mode == 'release' && secrets.TAP_GITHUB_TOKEN || '' }}
+          AUR_KEY: ${{ matrix.mode == 'release' && secrets.AUR_KEY || '' }}
