@@ -1,7 +1,9 @@
 version: 2
 updates:
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - /
+      - /swatches/.github/workflows
     schedule:
       interval: monthly
     groups:
