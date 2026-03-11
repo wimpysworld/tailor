@@ -51,17 +51,17 @@ release VERSION:
     fi
 
     # Check if tag already exists
-    if git show-ref --tags --verify --quiet "refs/tags/{{VERSION}}"; then
-        echo "Error: Tag {{VERSION}} already exists"
+    if git show-ref --tags --verify --quiet "refs/tags/v{{VERSION}}"; then
+        echo "Error: Tag v{{VERSION}} already exists"
         exit 1
     fi
 
-    echo "Creating release {{VERSION}}..."
-    git tag -a "{{VERSION}}" -m "{{VERSION}}"
-    echo "Tag {{VERSION}} created"
+    echo "Creating release v{{VERSION}}..."
+    git tag -a "v{{VERSION}}" -m "v{{VERSION}}"
+    echo "Tag v{{VERSION}} created"
     echo ""
     echo "To publish the release:"
-    echo "  git push origin {{VERSION}}"
+    echo "  git push origin v{{VERSION}}"
     echo ""
     echo "This will trigger GoReleaser via GitHub Actions which will:"
     echo "  - Cross-compile binaries for linux and darwin (amd64, arm64)"
