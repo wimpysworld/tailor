@@ -27,7 +27,6 @@ jobs:
         uses: github/codeql-action/analyze@v4.32.6
 
   update-flake-lock:
-    if: hashFiles('flake.lock') != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -35,10 +34,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.2
 
+      - name: Check for flake.lock
+        id: check
+        run: test -f flake.lock && echo "found=true" >> "$GITHUB_OUTPUT" || echo "found=false" >> "$GITHUB_OUTPUT"
+
       - name: Install Nix
+        if: steps.check.outputs.found == 'true'
         uses: DeterminateSystems/determinate-nix-action@v3.17.0
 
       - name: Update flake.lock
+        if: steps.check.outputs.found == 'true'
         uses: DeterminateSystems/update-flake-lock@v28
         with:
           pr-title: "chore: update flake.lock"

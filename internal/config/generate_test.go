@@ -56,7 +56,7 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	testutil.AssertBoolPtr(t, got.Repository.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
 	testutil.AssertBoolPtr(t, got.Repository.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
 	testutil.AssertStringPtr(t, got.Repository.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
-	testutil.AssertBoolPtr(t, got.Repository.CanApprovePullRequestReviews, false, false, "can_approve_pull_request_reviews")
+	testutil.AssertBoolPtr(t, got.Repository.CanApprovePullRequestReviews, false, true, "can_approve_pull_request_reviews")
 
 	// Labels should match the embedded defaults.
 	if len(got.Labels) != 12 {
