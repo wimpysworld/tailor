@@ -1,4 +1,4 @@
-name: Dependabot automerge 🤖
+name: Tailor automerge 🤖
 
 on:
   pull_request:
@@ -11,9 +11,10 @@ permissions:
 jobs:
   automerge:
     runs-on: ubuntu-slim
-    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]'
+    if: github.event_name == 'pull_request'
     steps:
       - name: Fetch Dependabot metadata
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
         id: metadata
         uses: dependabot/fetch-metadata@v2.5.0
         with:
@@ -21,32 +22,32 @@ jobs:
           skip-commit-verification: true
 
       - name: Automerge GitHub Actions updates
-        if: steps.metadata.outputs.package-ecosystem == 'github_actions'
+        if: >-
+          github.event.pull_request.user.login == 'dependabot[bot]'
+          && steps.metadata.outputs.package-ecosystem == 'github_actions'
         run: gh pr merge --auto {{MERGE_STRATEGY}} "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Automerge patch and minor dependency updates
-        if: |
-          steps.metadata.outputs.package-ecosystem != 'github_actions' && (
-            steps.metadata.outputs.update-type == 'version-update:semver-patch' ||
-            steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        if: >-
+          github.event.pull_request.user.login == 'dependabot[bot]'
+          && steps.metadata.outputs.package-ecosystem != 'github_actions'
+          && (
+            steps.metadata.outputs.update-type == 'version-update:semver-patch'
+            || steps.metadata.outputs.update-type == 'version-update:semver-minor'
           )
         run: gh pr merge --auto {{MERGE_STRATEGY}} "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  automerge-flake-lock:
-    runs-on: ubuntu-slim
-    if: >-
-      github.event_name == 'pull_request'
-      && github.event.pull_request.user.login == 'github-actions[bot]'
-      && startsWith(github.event.pull_request.head.ref, 'update_flake_lock')
-    steps:
       - name: Automerge flake.lock update
-        run: gh pr merge --auto --squash "$PR_URL"
+        if: >-
+          github.event.pull_request.user.login == 'github-actions[bot]'
+          && startsWith(github.event.pull_request.head.ref, 'update_flake_lock')
+        run: gh pr merge --auto {{MERGE_STRATEGY}} "$PR_URL"
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
