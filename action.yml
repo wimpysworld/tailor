@@ -14,18 +14,29 @@ runs:
       id: version
       shell: bash
       run: |
-        if [[ -n "${{ inputs.version }}" ]]; then
-          v="${{ inputs.version }}"
+        if [[ -n "${INPUT_VERSION}" ]]; then
+          v="${INPUT_VERSION}"
           v="v${v#v}"
-        elif [[ "${{ github.action_ref }}" =~ ^v[0-9]+\.[0-9]+ ]]; then
-          v="${{ github.action_ref }}"
+        elif [[ "${ACTION_REF}" =~ ^v[0-9]+\.[0-9]+ ]]; then
+          v="${ACTION_REF}"
+        elif [[ "${ACTION_REF}" =~ ^v([0-9]+)$ ]]; then
+          major="${BASH_REMATCH[1]}"
+          v=$(gh api "repos/${ACTION_REPO}/releases" --paginate --jq \
+            "[.[] | select(.prerelease == false) | .tag_name | select(startswith(\"v${major}.\"))] | first")
+          if [[ -z "${v}" ]]; then
+            echo "::error::No stable release found for major version v${major}"
+            exit 1
+          fi
         else
-          v=$(gh api "repos/${{ github.action_repository }}/releases/latest" --jq '.tag_name')
+          v=$(gh api "repos/${ACTION_REPO}/releases/latest" --jq '.tag_name')
         fi
         echo "tag=${v}" >> "$GITHUB_OUTPUT"
         echo "version=${v#v}" >> "$GITHUB_OUTPUT"
       env:
         GH_TOKEN: ${{ github.token }}
+        INPUT_VERSION: ${{ inputs.version }}
+        ACTION_REF: ${{ github.action_ref }}
+        ACTION_REPO: ${{ github.action_repository }}
 
     - name: Install tailor
       shell: bash
@@ -41,8 +52,10 @@ runs:
             ;;
         esac
 
-        url="https://github.com/${{ github.action_repository }}/releases/download/${{ steps.version.outputs.tag }}/tailor-${os}-${arch}"
+        url="https://github.com/${ACTION_REPO}/releases/download/${{ steps.version.outputs.tag }}/tailor-${os}-${arch}"
         curl -fsSL "${url}" -o "${RUNNER_TEMP}/tailor"
         chmod +x "${RUNNER_TEMP}/tailor"
         echo "${RUNNER_TEMP}" >> "$GITHUB_PATH"
         echo "Installed tailor ${{ steps.version.outputs.version }} for ${os}/${arch}"
+      env:
+        ACTION_REPO: ${{ github.action_repository }}

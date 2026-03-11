@@ -6,6 +6,7 @@ on:
 
 jobs:
   update-tag:
+    if: ${{ !github.event.release.prerelease }}
     runs-on: ubuntu-slim
     permissions:
       contents: write
