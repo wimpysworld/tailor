@@ -20,7 +20,7 @@ repository:
   vulnerability_alerts_enabled: true
   automated_security_fixes_enabled: true
   default_workflow_permissions: read
-  can_approve_pull_request_reviews: false
+  can_approve_pull_request_reviews: true
 
 labels:
   - name: bug
