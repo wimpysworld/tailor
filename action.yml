@@ -1,5 +1,5 @@
-name: "Setup Tailor"
-description: "Install the tailor CLI for managing project templates"
+name: "Tailor"
+description: "Install and run the tailor CLI for managing project templates"
 branding:
   icon: "scissors"
   color: "purple"
@@ -7,6 +7,26 @@ inputs:
   version:
     description: "Tailor version to install (e.g. 0.2.0). Defaults to the version matching this action release."
     required: false
+  fit:
+    description: "Run tailor fit to bootstrap a new project. Requires GH_TOKEN in the job env."
+    required: false
+    default: "false"
+  alter:
+    description: "Run tailor alter to apply swatches and repository settings. Requires GH_TOKEN in the job env."
+    required: false
+    default: "false"
+  baste:
+    description: "Run tailor baste to preview what alter would change. Requires GH_TOKEN in the job env."
+    required: false
+    default: "false"
+  measure:
+    description: "Run tailor measure to check community health files and configuration alignment."
+    required: false
+    default: "false"
+  docket:
+    description: "Run tailor docket to display authentication state and repository context."
+    required: false
+    default: "false"
 runs:
   using: "composite"
   steps:
@@ -59,3 +79,28 @@ runs:
         echo "Installed tailor ${{ steps.version.outputs.version }} for ${os}/${arch}"
       env:
         ACTION_REPO: ${{ github.action_repository }}
+
+    - name: Run tailor fit
+      if: inputs.fit == 'true'
+      shell: bash
+      run: tailor fit .
+
+    - name: Run tailor alter
+      if: inputs.alter == 'true'
+      shell: bash
+      run: tailor alter
+
+    - name: Run tailor baste
+      if: inputs.baste == 'true'
+      shell: bash
+      run: tailor baste
+
+    - name: Run tailor measure
+      if: inputs.measure == 'true'
+      shell: bash
+      run: tailor measure
+
+    - name: Run tailor docket
+      if: inputs.docket == 'true'
+      shell: bash
+      run: tailor docket

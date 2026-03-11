@@ -18,11 +18,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6.0.1
 
-      - name: Setup tailor
+      - name: Tailor
         uses: wimpysworld/tailor@v0
-
-      - name: Alter swatches
-        run: tailor alter
+        with:
+          alter: true
 
       - name: Create PR
         uses: peter-evans/create-pull-request@v8.1.0
