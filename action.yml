@@ -1,0 +1,48 @@
+name: "Setup Tailor"
+description: "Install the tailor CLI for managing project templates"
+branding:
+  icon: "scissors"
+  color: "purple"
+inputs:
+  version:
+    description: "Tailor version to install (e.g. 0.2.0). Defaults to the version matching this action release."
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Determine version
+      id: version
+      shell: bash
+      run: |
+        if [[ -n "${{ inputs.version }}" ]]; then
+          v="${{ inputs.version }}"
+          v="v${v#v}"
+        elif [[ "${{ github.action_ref }}" =~ ^v[0-9]+\.[0-9]+ ]]; then
+          v="${{ github.action_ref }}"
+        else
+          v=$(gh api "repos/${{ github.action_repository }}/releases/latest" --jq '.tag_name')
+        fi
+        echo "tag=${v}" >> "$GITHUB_OUTPUT"
+        echo "version=${v#v}" >> "$GITHUB_OUTPUT"
+      env:
+        GH_TOKEN: ${{ github.token }}
+
+    - name: Install tailor
+      shell: bash
+      run: |
+        case "${{ runner.os }}-${{ runner.arch }}" in
+          Linux-X64)    os="linux";  arch="amd64" ;;
+          Linux-ARM64)  os="linux";  arch="arm64" ;;
+          macOS-X64)    os="darwin"; arch="amd64" ;;
+          macOS-ARM64)  os="darwin"; arch="arm64" ;;
+          *)
+            echo "::error::Unsupported platform: ${{ runner.os }}-${{ runner.arch }}"
+            exit 1
+            ;;
+        esac
+
+        url="https://github.com/${{ github.action_repository }}/releases/download/${{ steps.version.outputs.tag }}/tailor-${os}-${arch}"
+        curl -fsSL "${url}" -o "${RUNNER_TEMP}/tailor"
+        chmod +x "${RUNNER_TEMP}/tailor"
+        echo "${RUNNER_TEMP}" >> "$GITHUB_PATH"
+        echo "Installed tailor ${{ steps.version.outputs.version }} for ${os}/${arch}"

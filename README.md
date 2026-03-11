@@ -247,7 +247,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup tailor
-        uses: wimpysworld/tailor-action@v1
+        uses: wimpysworld/tailor@v0
 
       - name: Alter swatches
         run: tailor alter
@@ -259,7 +259,7 @@ jobs:
           title: "chore: alter tailor swatches"
 ```
 
-The workflow itself is an `always` swatch, so it stays current as tailor releases update the template. [`wimpysworld/tailor-action`](https://github.com/wimpysworld/tailor-action) installs the binary into the runner.
+The workflow itself is an `always` swatch, so it stays current as tailor releases update the template. The `action.yml` at the repository root installs the binary into the runner.
 
 ### Token requirements
 
@@ -323,8 +323,8 @@ When a GitHub remote exists, `fit` queries the live repository configuration for
 Reads `.tailor.yml` in the current directory and applies repository settings, labels, licence, and swatches. Execution order: repository settings, then labels, then licence, then swatches.
 
 ```bash
-tailor alter              # Apply changes
-tailor alter --recut      # Overwrite regardless of mode
+tailor alter            # Apply changes
+tailor alter --recut    # Overwrite regardless of mode
 ```
 
 `--recut` overwrites all files including `first-fit` swatches. `LICENSE` is exempt (fetched content, not an embedded swatch). For `.tailor.yml`, `--recut` appends missing default swatch entries but never modifies existing entries.
@@ -338,12 +338,12 @@ tailor baste
 ```
 
 ```
-would set:                                      repository.has_wiki = false
-would copy:                                     LICENSE
-would overwrite:                                SECURITY.md
-no change:                                      .github/workflows/tailor.yml
-skipped (first-fit, exists):                    justfile
-would deploy (triggered: allow_auto_merge):     .github/workflows/tailor-automerge.yml
+     would set: repository.has_wiki = false
+    would copy: LICENSE
+ would overwrite: SECURITY.md
+     no change: .github/workflows/tailor.yml
+skipped (first-fit, exists): justfile
+would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
 ```
 
 ### `docket`
@@ -363,16 +363,16 @@ tailor measure
 ```
 
 ```
-missing:        .github/FUNDING.yml
-warning:        LICENSE (contains unresolved placeholders)
-warning:        README.md (not managed by tailor)
-present:        CODE_OF_CONDUCT.md
+       missing: .github/FUNDING.yml
+       warning: LICENSE (contains unresolved placeholders)
+       warning: README.md (not managed by tailor)
+       present: CODE_OF_CONDUCT.md
 not-configured: .github/dependabot.yml
-mode-differs:   SECURITY.md          (config: first-fit, default: always)
+  mode-differs: SECURITY.md (config: first-fit, default: always)
 ```
 
 | Status | Meaning |
-|--------|---------|
+|--------|--------|
 | `missing` | Health file does not exist on disk |
 | `warning` | Health diagnostic needing attention (missing `README.md` or unresolved licence placeholders) |
 | `present` | Health file exists on disk |

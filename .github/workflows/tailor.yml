@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v6.0.1
 
       - name: Setup tailor
-        uses: wimpysworld/tailor-action@v0.1.0
+        uses: wimpysworld/tailor@v0
 
       - name: Alter swatches
         run: tailor alter

@@ -1,0 +1,22 @@
+name: Update action tag 🏷️
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-tag:
+    runs-on: ubuntu-slim
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Update floating major version tag
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          major="${tag%%.*}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -fa "${major}" -m "Update ${major} tag to ${tag}"
+          git push origin "${major}" --force
