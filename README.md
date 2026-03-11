@@ -6,6 +6,8 @@ Ready-to-wear project templates for GitHub repositories. Tailor fits projects wi
 
 If you manage multiple projects across different GitHub organisations and find that configurations keep drifting out of sync, Tailor fixes that. It is opinionated by design - built for solo devs and small teams who want consistent, well-maintained repositories without the overhead.
 
+This README covers both the CLI and the [GitHub Action](#github-action).
+
 ## Install
 
 ### bin
@@ -54,6 +56,35 @@ Releases include `.deb`, `.rpm`, `.apk`, and Arch Linux packages. Download the a
 ### Authentication
 
 Tailor needs a GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN` for CI, or run `gh auth login` locally.
+
+## GitHub Action
+
+The `wimpysworld/tailor` action installs the tailor binary and optionally runs one or more commands. Pin to a major version tag to receive non-breaking updates automatically.
+
+```yaml
+- uses: wimpysworld/tailor@v0
+  with:
+    alter: true
+```
+
+### Inputs
+
+| Input | Description | Default |
+|-------|-------------|---------|
+| `version` | Tailor version to install (e.g. `0.2.0`). Defaults to the version matching the action release. | latest for the pinned major |
+| `fit` | Run `tailor fit` to bootstrap a new project. Requires `GH_TOKEN` in the job env. | `false` |
+| `alter` | Run `tailor alter` to apply swatches and repository settings. Requires `GH_TOKEN` in the job env. | `false` |
+| `baste` | Run `tailor baste` to preview what alter would change. Requires `GH_TOKEN` in the job env. | `false` |
+| `measure` | Run `tailor measure` to check community health files and configuration alignment. | `false` |
+| `docket` | Run `tailor docket` to display authentication state and repository context. | `false` |
+
+### Supported platforms
+
+Linux (amd64, arm64) and macOS (amd64, arm64).
+
+### Version resolution
+
+The `version` input takes precedence when set. Without it, the action resolves the version from its ref: a full tag such as `v0.2.0` pins exactly, while a major tag such as `v0` resolves to the latest stable `v0.x.x` release.
 
 ## Quick Start
 
