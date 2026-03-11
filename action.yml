@@ -1,5 +1,5 @@
-name: "Tailor"
-description: "Install and run the tailor CLI for managing project templates"
+name: "Tailor your Templates"
+description: "Install and run the tailor CLI to measure, fit, and alter your GitHub project templates 🪡"
 branding:
   icon: "scissors"
   color: "purple"
