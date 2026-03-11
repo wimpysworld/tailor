@@ -8,6 +8,8 @@ on:
     branches: [main]
   release:
     types: [published]
+  schedule:
+    - cron: "0 9 * * 0" # Weekly
   workflow_dispatch:
 
 permissions: {}
@@ -101,19 +103,35 @@ jobs:
 
   security:
     name: Security 🔒
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-slim
+    if: github.event_name != 'release'
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       pull-requests: write
+      security-events: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/dependency-review-action@v4
+        if: github.event_name == 'pull_request'
         with:
           fail-on-severity: moderate
           allow-licenses: 0BSD, AFL-2.0, AFL-2.1, AFL-3.0, ANTLR-PD, ANTLR-PD-fallback, Apache-1.0, Apache-1.1, Apache-2.0, Artistic-2.0, BlueOak-1.0.0, BSD-1-Clause, BSD-2-Clause, BSD-2-Clause-FreeBSD, BSD-2-Clause-NetBSD, BSD-2-Clause-Patent, BSD-2-Clause-Views, BSD-3-Clause, BSD-3-Clause-Attribution, BSD-3-Clause-Clear, BSD-3-Clause-HP, BSD-3-Clause-LBNL, BSD-3-Clause-Modification, BSD-3-Clause-No-Nuclear-License-2014, BSD-3-Clause-No-Nuclear-Warranty, BSD-3-Clause-Open-MPI, BSD-3-Clause-Sun, BSD-4-Clause, BSD-4-Clause-Shortened, BSD-4-Clause-UC, BSD-Source-Code, BSL-1.0, bzip2-1.0.5, bzip2-1.0.6, CC0-1.0, CNRI-Python, CNRI-Python-GPL-Compatible, curl, ECL-2.0, FTL, HPND-Fenneberg-Livingston, HPND-sell-regexpr, HTMLTIDY, ICU, ImageMagick, Info-ZIP, Intel, Intel-ACPI, ISC, JasPer-2.0, Libpng, libpng-2.0, libtiff, Linux-OpenIB, LZMA-SDK-9.22, MIT, MIT-0, MIT-advertising, MIT-CMU, MIT-Modern-Variant, MIT-open-group, MITNFA, MS-PL, MulanPSL-1.0, MulanPSL-2.0, Multics, NCSA, Net-SNMP, NetCDF, NIST-Software, NTP, OLDAP-2.7, OLDAP-2.8, OpenSSL, PostgreSQL, PSF-2.0, SGI-B-2.0, SHL-0.5, Spencer-99, SunPro, TCL, TCP-wrappers, UCAR, Unicode-DFS-2015, Unicode-DFS-2016, UnixCrypt, Unlicense, UPL-1.0, W3C, X11, XFree86-1.1, Xnet, Zlib, zlib-acknowledgement, ZPL-2.0, ZPL-2.1
           fail-on-scopes: runtime
           comment-summary-in-pr: on-failure
+
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@v1.0.4
+        with:
+          go-version-file: go.mod
+          output-format: sarif
+          output-file: govulncheck.sarif
+
+      - name: Upload SARIF
+        uses: github/codeql-action/upload-sarif@v4.32.6
+        if: always()
+        with:
+          sarif_file: govulncheck.sarif
+          category: govulncheck
 
   sentinel:
     name: Sentinel 👁️
