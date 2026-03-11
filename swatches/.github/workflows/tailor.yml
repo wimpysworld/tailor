@@ -16,7 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v6.0.1
+      - uses: actions/checkout@v6
 
       - name: Tailor
         uses: wimpysworld/tailor@v0
@@ -24,7 +24,7 @@ jobs:
           alter: true
 
       - name: Create PR
-        uses: peter-evans/create-pull-request@v8.1.0
+        uses: peter-evans/create-pull-request@v8
         with:
           branch: tailor-alter
           title: "chore: alter tailor swatches"
@@ -35,7 +35,7 @@ jobs:
       contents: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6.0.2
+      - uses: actions/checkout@v6
 
       - name: Check for flake.lock
         id: check
@@ -43,7 +43,7 @@ jobs:
 
       - name: Install Nix
         if: steps.check.outputs.found == 'true'
-        uses: DeterminateSystems/determinate-nix-action@v3.17.0
+        uses: DeterminateSystems/determinate-nix-action@v3
 
       - name: Update flake.lock
         if: steps.check.outputs.found == 'true'
