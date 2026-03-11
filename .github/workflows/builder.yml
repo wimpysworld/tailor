@@ -177,6 +177,7 @@ jobs:
       && needs.sentinel.result == 'success'
       && github.repository_owner == 'wimpysworld'
       && github.event_name != 'release'
+      && github.event_name != 'schedule'
       && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' || github.event_name == 'pull_request')
     runs-on: ubuntu-latest
     permissions:
