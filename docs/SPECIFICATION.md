@@ -215,7 +215,7 @@ tailor fit ./my-project --license=none
 tailor fit ./my-project --description="My awesome project"
 ```
 
-If `<path>` already exists but does not contain `.tailor.yml`, `fit` proceeds without error and creates the configuration. If `<path>` already exists and contains `.tailor.yml`, `fit` exits with an error: "`.tailor.yml` already exists at `<path>`. Edit `.tailor.yml` directly to change the swatch configuration." `fit` creates all intermediate directories in `<path>` as needed.
+If `<path>` already exists but does not contain `.tailor.yml`, `fit` proceeds without error and creates the configuration. If `<path>` already exists and contains `.tailor.yml`, `fit` exits with an error: `.tailor.yml already exists at <path>; edit it directly to change swatch configuration`. `fit` creates all intermediate directories in `<path>` as needed.
 
 Generates:
 - Project directory at `<path>`
@@ -271,18 +271,39 @@ Behaviour:
 
 Output format - repository settings are shown first (if a `repository` section is present), then labels (if a `labels` section is present), then swatch entries.
 
-Repository settings output uses two categories:
+Repository settings output uses the following categories:
 
 ```
-would set:                   repository.has_wiki = false
-would set:                   repository.delete_branch_on_merge = true
-no change:                   repository.allow_squash_merge (already true)
+would set:                                    repository.has_wiki = false
+would set:                                    repository.delete_branch_on_merge = true
+no change:                                    repository.allow_squash_merge (already true)
+would skip (insufficient scope: <detail>):    vulnerability_alerts_enabled
+would skip (insufficient role: <detail>):     private_vulnerability_reporting_enabled
 ```
 
 `would set` - declared value differs from the live repository setting.
 `no change` - declared value matches the live repository setting.
+`would skip (insufficient scope: <detail>)` - field could not be read or applied because the token lacks the required scope. The detail annotation embeds the error message.
+`would skip (insufficient role: <detail>)` - field could not be read or applied because the authenticated user lacks the required repository role (admin). The detail annotation embeds the error message.
 
-Repository settings entries are sorted lexicographically by field name within each category, actionable (`would set`) before informational (`no change`).
+Repository settings entries are sorted lexicographically by field name within each category: `would set` first, then `no change`, then `would skip` variants.
+
+Label output uses the following categories:
+
+```
+would create:                                 label.bug = #d20f39 "Something isn't working"
+would update:                                 label.documentation = #04a5e5 "Documentation improvement"
+no change:                                    label.enhancement (already #1e66f5 "New feature request")
+would skip (insufficient scope: <detail>):    create label "bug"
+would skip (insufficient role: <detail>):     update label "documentation"
+```
+
+`would create` - label does not exist on GitHub and would be created.
+`would update` - label exists on GitHub but colour or description differs from config.
+`no change` - label exists on GitHub and matches config.
+`would skip (insufficient scope: <detail>)` / `would skip (insufficient role: <detail>)` - label operation could not be applied due to token or role constraints.
+
+Label entries are sorted: `would create` first, then `would update`, then `no change`, then `would skip` variants. Within each category, sorted lexicographically by label name.
 
 Swatch output uses the following categories:
 
@@ -299,12 +320,15 @@ skip (never):                              .github/workflows/tailor-automerge.ym
 `would copy` - destination does not exist and the swatch would be written. Applies regardless of whether the swatch is `always` or `first-fit`.
 `would overwrite` - `always` swatch whose embedded content differs from the on-disk file.
 `would deploy (triggered: <field>)` - triggered swatch whose condition is met; the annotation shows which config field activated it. Covers both copy (file absent) and overwrite (file exists, content differs) cases.
-`would remove (triggered: <field>)` - triggered swatch whose condition is not met and the file exists on disk.
+`would remove (triggered: <field>)` - triggered swatch whose condition is not met and the file exists on disk. In `baste` this is a preview; `alter` uses `removed (triggered: <field>)` when the file is actually deleted.
+`removed (triggered: <field>)` - triggered swatch whose condition is not met and the file has been deleted from disk. Appears in `alter` output only, not in `baste`.
 `no change` - `always` or `triggered` swatch whose embedded content matches the on-disk file. `no change` only appears for `always` and active `triggered` swatches; `first-fit` swatches that exist always produce `skipped (first-fit, exists)`, never `no change`. Substituted swatches participate in the normal SHA-256 comparison after token resolution and can produce `no change` when the resolved content matches the on-disk file.
 `skipped (first-fit, exists)` - `first-fit` swatch whose destination already exists; no comparison is performed.
 `skip (never)` - swatch with `alteration: never`; skipped unconditionally.
 
-Output order: actionable items first (`would set`, `would copy`, `would overwrite`, `would deploy`, `would remove`), then informational (`no change`, `skipped (first-fit, exists)`, `skip (never)`). Within each category, entries are sorted lexicographically by path or field name. The category label width is computed dynamically from the longest label for consistent column alignment.
+`baste` and `alter` use the same output format. The categories above apply to both commands; the only category exclusive to `alter` is `removed`.
+
+Output order: actionable items first (`would set`, `would copy`, `would overwrite`, `would deploy`, `would remove`), then informational (`no change`, `skipped (first-fit, exists)`, `skip (never)`), then skip variants (`would skip`). Within each category, entries are sorted lexicographically by path or field name. The category label width is computed dynamically from the longest label in the output, with a minimum of 37 characters to accommodate `would skip (insufficient scope):` labels.
 
 ### `measure`
 
@@ -610,7 +634,7 @@ Licences are not embedded - they are fetched at `alter` time via the GitHub REST
 
 The `.github/workflows/tailor.yml` swatch delivers a GitHub Actions workflow that runs `tailor alter` on a weekly schedule and opens a pull request whenever swatch content has changed. The workflow is placed by `alter` like any other swatch; no manual setup is required beyond including it in the swatch list.
 
-`wimpysworld/tailor-action@v1` is a separate GitHub Actions action maintained alongside tailor that installs the tailor binary into the workflow runner. It is a separate deliverable from the tailor CLI itself.
+`wimpysworld/tailor@v0` is the GitHub Actions action defined in `action.yml` at the root of the tailor repository. It installs the tailor binary into the workflow runner and exposes gated inputs (`fit`, `alter`, `baste`, `measure`, `docket`) that run the corresponding tailor command when set to `true`. The action is delivered as part of the tailor repository, not as a separate repository.
 
 The swatch content:
 
@@ -621,32 +645,60 @@ on:
     - cron: "0 9 * * 1" # Weekly
   workflow_dispatch:
 
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+
 jobs:
   alter:
     runs-on: ubuntu-slim
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6.0.1
 
-      - name: Setup tailor
-        uses: wimpysworld/tailor-action@v1
-
-      - name: Alter swatches
-        run: tailor alter
+      - name: Tailor
+        uses: wimpysworld/tailor@v0
+        with:
+          alter: true
 
       - name: Create PR
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v8.1.0
         with:
           branch: tailor-alter
           title: "chore: alter tailor swatches"
+
+  update-flake-lock:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6.0.2
+
+      - name: Check for flake.lock
+        id: check
+        run: test -f flake.lock && echo "found=true" >> "$GITHUB_OUTPUT" || echo "found=false" >> "$GITHUB_OUTPUT"
+
+      - name: Install Nix
+        if: steps.check.outputs.found == 'true'
+        uses: DeterminateSystems/determinate-nix-action@v3.17.0
+
+      - name: Update flake.lock
+        if: steps.check.outputs.found == 'true'
+        uses: DeterminateSystems/update-flake-lock@v28
+        with:
+          pr-title: "chore: update flake.lock"
 ```
 
 Action behaviour:
-- `tailor alter` writes changes to the working tree; `create-pull-request` opens a PR. The PR body is auto-generated by `peter-evans/create-pull-request` from its diff detection - no `body` or `body-path` is set.
+- The `Tailor` step uses `wimpysworld/tailor@v0` with `alter: true`, which installs the tailor binary and runs `tailor alter`. Changes are written to the working tree; `create-pull-request` opens a PR. The PR body is auto-generated by `peter-evans/create-pull-request` from its diff detection - no `body` or `body-path` is set.
 - Committing and pushing are handled by `peter-evans/create-pull-request`, not by tailor. Tailor only modifies files in the working tree.
-- The action runs in a non-interactive shell. `GH_TOKEN` is set at the job level, providing the authentication token directly to `go-gh` via environment variable. The `gh` binary is not required for token resolution when `GH_TOKEN` is set. `first-fit` swatches (`.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/config.yml`, the licence file) are not overwritten after initial creation. `.tailor.yml` uses `always` mode but only appends missing swatch entries - existing content is never overwritten. `SECURITY.md` is `always` mode and is compared on every run, but it is rewritten only when the resolved content differs (see the substituted-swatch rule in the `alter` behaviour section). Because `{{ADVISORY_URL}}` usually resolves to the same URL for a given repository, this typically results in no diff and `create-pull-request` opens no PR. If a tailor upgrade changes a swatch template, the file will differ and a PR will be opened.
+- The `alter` job declares `permissions: contents: write, issues: write, pull-requests: write, actions: write` at the job level. `GH_TOKEN` is set at the job level, providing the authentication token directly to `go-gh` via environment variable. The `gh` binary is not required for token resolution when `GH_TOKEN` is set. `first-fit` swatches (`.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/config.yml`, the licence file) are not overwritten after initial creation. `.tailor.yml` uses `always` mode but only appends missing swatch entries - existing content is never overwritten. `SECURITY.md` is `always` mode and is compared on every run, but it is rewritten only when the resolved content differs (see the substituted-swatch rule in the `alter` behaviour section). Because `{{ADVISORY_URL}}` usually resolves to the same URL for a given repository, this typically results in no diff and `create-pull-request` opens no PR. If a tailor upgrade changes a swatch template, the file will differ and a PR will be opened.
 - Because `.github/workflows/tailor.yml` is itself an `always` swatch, the action workflow is kept current automatically: if the embedded swatch content changes in a new tailor release, the weekly run will update the workflow file and open a PR.
+- The `update-flake-lock` job runs conditionally: it checks for a `flake.lock` file and, if found, installs Nix via `DeterminateSystems/determinate-nix-action` and updates the lock file via `DeterminateSystems/update-flake-lock`, opening a PR titled `chore: update flake.lock`.
 
 ## Automerge Workflow
 
