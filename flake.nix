@@ -3,10 +3,16 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nix-packages.url = "github:wimpysworld/nix-packages";
+    nix-packages.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
-    { nixpkgs, ... }:
+    {
+      nixpkgs,
+      nix-packages,
+      ...
+    }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -37,23 +43,19 @@
           };
         }
       );
-    }
-    // (
-      if builtins.pathExists ./pkgs/tailor/default.nix then
-        {
-          packages = forAllSystems (
-            system:
-            let
-              pkgs = import nixpkgs { inherit system; };
-              tailor = pkgs.callPackage ./pkgs/tailor/default.nix { };
-            in
-            {
-              tailor = tailor;
-              default = tailor;
-            }
-          );
-        }
-      else
-        { }
-    );
+
+      packages = forAllSystems (
+        system:
+        let
+          tailorPkgs = nix-packages.packages.${system} or { };
+        in
+        if tailorPkgs ? tailor then
+          {
+            tailor = tailorPkgs.tailor;
+            default = tailorPkgs.tailor;
+          }
+        else
+          { }
+      );
+    };
 }

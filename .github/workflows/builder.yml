@@ -254,3 +254,28 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -fa "${major}" -m "Update ${major} tag to ${tag}"
           git push origin "${major}" --force
+
+  update-nix-packages:
+    name: Update nix-packages 📦
+    if: ${{ github.event_name == 'release' && !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Nix
+        uses: DeterminateSystems/determinate-nix-action@v3
+
+      - name: Update flake.lock
+        uses: DeterminateSystems/update-flake-lock@v28
+        with:
+          inputs: nix-packages
+          branch: update_flake_lock_nix-packages
+          commit-msg: "flake.lock: update nix-packages"
+          pr-title: "chore(flake): update nix-packages input"
+          pr-body: |
+            Automated `flake.lock` update after a new Tailor release.
+
+            Updates the `nix-packages` flake input to pick up the latest Nix derivation published by GoReleaser.

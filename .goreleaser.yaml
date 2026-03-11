@@ -114,8 +114,8 @@ nix:
   - name: tailor
     repository:
       owner: wimpysworld
-      name: tailor
-      token: "{{ .Env.GITHUB_TOKEN }}"
+      name: nix-packages
+      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
     path: pkgs/tailor/default.nix
     description: "Ready-to-wear project templates for GitHub repositories."
     homepage: https://github.com/wimpysworld/tailor
