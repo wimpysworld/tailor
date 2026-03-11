@@ -23,7 +23,7 @@ runs:
           major="${BASH_REMATCH[1]}"
           v=$(gh api "repos/${ACTION_REPO}/releases" --paginate --jq \
             "[.[] | select(.prerelease == false) | .tag_name | select(startswith(\"v${major}.\"))] | first")
-          if [[ -z "${v}" ]]; then
+          if [[ -z "${v}" || "${v}" == "null" ]]; then
             echo "::error::No stable release found for major version v${major}"
             exit 1
           fi
