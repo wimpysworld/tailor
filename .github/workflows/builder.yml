@@ -18,7 +18,7 @@ concurrency:
 
 jobs:
   lint-code:
-    name: Code Linter 🧹
+    name: Lint Code 🧹
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -39,7 +39,7 @@ jobs:
       - uses: golangci/golangci-lint-action@v9
 
   lint-actions:
-    name: Workflow Linter 📋
+    name: Lint Action ⚙️
     runs-on: ubuntu-slim
     permissions:
       contents: read
@@ -87,6 +87,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-go@v6
@@ -94,6 +95,12 @@ jobs:
           go-version-file: go.mod
       - name: Test
         run: go test ./...
+      - name: Build tailor
+        run: go build -o tailor ./cmd/tailor
+      - name: Baste
+        run: ./tailor baste
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   security:
     name: Security 🔒
