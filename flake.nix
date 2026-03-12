@@ -26,20 +26,24 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          tailorPkgs = nix-packages.packages.${system} or { };
         in
         {
           default = pkgs.mkShell {
-            packages = with pkgs; [
-              actionlint
-              cosign
-              gh
-              go
-              gocyclo
-              golangci-lint
-              goreleaser
-              ineffassign
-              just
-            ];
+            packages =
+              with pkgs;
+              [
+                actionlint
+                cosign
+                gh
+                go
+                gocyclo
+                golangci-lint
+                goreleaser
+                ineffassign
+                just
+              ]
+              ++ (if tailorPkgs ? tailor then [ tailorPkgs.tailor ] else [ ]);
           };
         }
       );
