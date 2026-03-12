@@ -9,6 +9,7 @@ import (
 )
 
 func TestFetchUsernameSuccess(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/user" {
 			http.NotFound(w, r)
@@ -30,6 +31,7 @@ func TestFetchUsernameSuccess(t *testing.T) {
 }
 
 func TestFetchUsernameAPIError(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		fmt.Fprint(w, `{"message": "Bad credentials"}`)
@@ -82,7 +84,7 @@ func TestFetchUsernameGitHubActionsNoOwner(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	t.Setenv("GITHUB_ACTIONS", "true")
-	// GITHUB_REPOSITORY_OWNER is intentionally not set
+	t.Setenv("GITHUB_REPOSITORY_OWNER", "") // intentionally unset
 
 	client := newTestClient(t, server)
 	username, err := FetchUsername(client)

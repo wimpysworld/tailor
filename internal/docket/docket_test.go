@@ -25,6 +25,7 @@ type docketTestOpts struct {
 // httptest server, and returns a *api.RESTClient (nil when token is empty).
 func setupDocketTest(t *testing.T, opts docketTestOpts) *api.RESTClient {
 	t.Helper()
+	t.Setenv("GITHUB_ACTIONS", "") // prevent env-var shortcut in FetchUsername
 	ghfake.FakeAuth(t, opts.token)
 	if opts.repoOwner != "" {
 		ghfake.FakeRepo(t, opts.repoOwner, opts.repoName)
