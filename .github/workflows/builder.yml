@@ -143,15 +143,6 @@ jobs:
           fi
           echo "All jobs passed"
 
-  report-card:
-    name: Report Card 🈴
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-slim
-    permissions: {}
-    steps:
-      - name: Refresh Go Report Card
-        run: curl -X POST -F "repo=github.com/$GITHUB_REPOSITORY" https://goreportcard.com/checks
-
   release:
     name: Release 📦 (${{ matrix.mode }})
     needs: [sentinel]
@@ -252,3 +243,7 @@ jobs:
             Automated `flake.lock` update after a new Tailor release.
 
             Updates the `nix-packages` flake input to pick up the latest Nix derivation published by GoReleaser.
+
+      - name: Update Go Report Card
+        if: steps.guard.outputs.run == 'true' && matrix.mode == 'release' && !contains(github.ref_name, '-')
+        run: curl -X POST -F "repo=github.com/$GITHUB_REPOSITORY" https://goreportcard.com/checks || true
