@@ -3,10 +3,16 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nix-packages.url = "github:wimpysworld/nix-packages";
+    nix-packages.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs =
-    { self, nixpkgs }:
+    {
+      nixpkgs,
+      nix-packages,
+      ...
+    }:
     let
       supportedSystems = [
         "x86_64-linux"
@@ -20,16 +26,18 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          tailorPkgs = nix-packages.packages.${system} or { };
         in
         {
           default = pkgs.mkShell {
-            packages = with pkgs; [
-              actionlint
-              gh
-              jq
-              just
-              yq
-            ];
+            packages =
+              with pkgs;
+              [
+                actionlint
+                gh
+                just
+              ]
+              ++ (if tailorPkgs ? tailor then [ tailorPkgs.tailor ] else [ ]);
           };
         }
       );
