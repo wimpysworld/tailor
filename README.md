@@ -28,11 +28,33 @@ brew install wimpysworld/tap/tailor
 ### Nix
 
 ```bash
-nix run github:wimpysworld/tailor -- --version
-nix profile install github:wimpysworld/tailor
+nix run github:wimpysworld/nix-packages#tailor -- --version
+nix profile install github:wimpysworld/nix-packages#tailor
 ```
 
-Or add the flake as an input in your own configuration. The package is available for `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin`.
+To use tailor in a flake configuration, add `nix-packages` as an input:
+
+```nix
+{
+  inputs = {
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    wimpysworld-nix-packages = {
+      url = "github:wimpysworld/nix-packages";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
+  };
+}
+```
+
+Then reference tailor in your packages:
+
+```nix
+environment.systemPackages = [
+  inputs.wimpysworld-nix-packages.packages.${system}.tailor
+];
+```
+
+Available for `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin`.
 
 ### Docker
 
