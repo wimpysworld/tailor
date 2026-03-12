@@ -245,7 +245,7 @@ func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 		key, _, _ := strings.Cut(tag, ",")
 
 		fv := v.Field(i)
-		if fv.Kind() != reflect.Ptr || fv.IsNil() {
+		if fv.Kind() != reflect.Pointer || fv.IsNil() {
 			continue
 		}
 

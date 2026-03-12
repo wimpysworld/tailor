@@ -76,7 +76,7 @@ func mergeRepoSettingsFrom(cfg *Config, defaults *Config) bool {
 		}
 
 		dfv := dv.Field(i)
-		if dfv.Kind() != reflect.Ptr || dfv.IsNil() {
+		if dfv.Kind() != reflect.Pointer || dfv.IsNil() {
 			continue
 		}
 

@@ -43,7 +43,7 @@ func EvaluateTrigger(path string, repo any) bool {
 // value to want. Pointer fields are dereferenced; a nil pointer never matches.
 func fieldMatchesYAML(repo any, yamlTag string, want any) bool {
 	rv := reflect.ValueOf(repo)
-	if rv.Kind() == reflect.Ptr {
+	if rv.Kind() == reflect.Pointer {
 		rv = rv.Elem()
 	}
 	rt := rv.Type()
@@ -54,7 +54,7 @@ func fieldMatchesYAML(repo any, yamlTag string, want any) bool {
 			continue
 		}
 		fv := rv.Field(i)
-		if fv.Kind() == reflect.Ptr {
+		if fv.Kind() == reflect.Pointer {
 			if fv.IsNil() {
 				return false
 			}

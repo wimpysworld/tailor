@@ -158,7 +158,7 @@ func countMergeableFields(t *testing.T) int {
 		if f.Tag.Get("yaml") == "" || f.Tag.Get("yaml") == ",inline" {
 			continue
 		}
-		if dv.Field(i).Kind() == reflect.Ptr && !dv.Field(i).IsNil() {
+		if dv.Field(i).Kind() == reflect.Pointer && !dv.Field(i).IsNil() {
 			count++
 		}
 	}
@@ -192,7 +192,7 @@ func TestMergeRepoSettingsNilRepository(t *testing.T) {
 			continue
 		}
 		dfv := dv.Field(i)
-		if dfv.Kind() != reflect.Ptr || dfv.IsNil() {
+		if dfv.Kind() != reflect.Pointer || dfv.IsNil() {
 			continue
 		}
 		cfv := cv.Field(i)
@@ -250,7 +250,7 @@ func TestMergeRepoSettingsPartialRepository(t *testing.T) {
 			continue
 		}
 		dfv := dv.Field(i)
-		if dfv.Kind() != reflect.Ptr || dfv.IsNil() {
+		if dfv.Kind() != reflect.Pointer || dfv.IsNil() {
 			continue
 		}
 		cfv := cv.Field(i)
@@ -274,7 +274,7 @@ func TestMergeRepoSettingsFullRepository(t *testing.T) {
 			continue
 		}
 		dfv := dv.Field(i)
-		if dfv.Kind() != reflect.Ptr || dfv.IsNil() {
+		if dfv.Kind() != reflect.Pointer || dfv.IsNil() {
 			continue
 		}
 		newVal := reflect.New(dfv.Elem().Type())
