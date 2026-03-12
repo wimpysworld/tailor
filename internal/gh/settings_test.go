@@ -68,6 +68,9 @@ const (
 )
 
 func TestReadRepoSettings(t *testing.T) {
+	ResetTokenProbe()
+	t.Cleanup(ResetTokenProbe)
+
 	tests := []struct {
 		name        string
 		repoJSON    string
@@ -235,6 +238,9 @@ func TestReadRepoSettings(t *testing.T) {
 }
 
 func TestReadRepoSettingsRepoAPIError(t *testing.T) {
+	ResetTokenProbe()
+	t.Cleanup(ResetTokenProbe)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprint(w, `{"message": "Not Found"}`)
@@ -249,6 +255,9 @@ func TestReadRepoSettingsRepoAPIError(t *testing.T) {
 }
 
 func TestReadRepoSettingsWFPerms403GracefulDegradation(t *testing.T) {
+	ResetTokenProbe()
+	t.Cleanup(ResetTokenProbe)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/repos/testowner/testrepo":
@@ -280,8 +289,14 @@ func TestReadRepoSettingsWFPerms403GracefulDegradation(t *testing.T) {
 }
 
 func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
+	ResetTokenProbe()
+	t.Cleanup(ResetTokenProbe)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
+		case "/user":
+			// Return 200 so IsInstallationToken detects a PAT.
+			fmt.Fprint(w, `{"login": "testuser"}`)
 		case "/repos/testowner/testrepo":
 			fmt.Fprint(w, fullRepoJSON)
 		default:
@@ -314,6 +329,9 @@ func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
 }
 
 func TestReadRepoSettingsNon403StillFails(t *testing.T) {
+	ResetTokenProbe()
+	t.Cleanup(ResetTokenProbe)
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/repos/testowner/testrepo":

@@ -12,16 +12,18 @@ type userResponse struct {
 }
 
 // FetchUsername returns the authenticated user's login via GET /user.
-// In GitHub Actions, it returns GITHUB_REPOSITORY_OWNER without an API call.
+// When running in GitHub Actions with an installation token (detected by
+// probing GET /user for a 403), it falls back to GITHUB_REPOSITORY_OWNER.
 func FetchUsername(client *api.RESTClient) (string, error) {
-	if os.Getenv("GITHUB_ACTIONS") == "true" {
-		if owner := os.Getenv("GITHUB_REPOSITORY_OWNER"); owner != "" {
-			return owner, nil
-		}
-	}
-
 	var resp userResponse
 	if err := client.Get("user", &resp); err != nil {
+		// In GitHub Actions with an installation token, GET /user returns 403.
+		// Fall back to the environment variable.
+		if os.Getenv("GITHUB_ACTIONS") == "true" {
+			if owner := os.Getenv("GITHUB_REPOSITORY_OWNER"); owner != "" {
+				return owner, nil
+			}
+		}
 		return "", err
 	}
 	return resp.Login, nil

@@ -11,6 +11,7 @@ import (
 
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/ghfake"
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/ptr"
@@ -41,12 +42,26 @@ type repoJSON struct {
 }
 
 // settingsServer creates an httptest server that responds to repo settings
-// GET and PATCH requests. patchCalled is incremented when PATCH is received.
+// GET, PATCH, and PUT requests, plus a GET /user endpoint (returning 200 by
+// default to simulate a PAT). patchCalled is incremented when PATCH or PUT
+// is received.
 func settingsServer(repo repoJSON, patchCalled *atomic.Int32) *httptest.Server {
+	return settingsServerWithTokenType(repo, patchCalled, false)
+}
+
+func settingsServerWithTokenType(repo repoJSON, patchCalled *atomic.Int32, installationToken bool) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
 		switch {
+		case r.Method == http.MethodGet && path == "/user":
+			if installationToken {
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
+			} else {
+				fmt.Fprint(w, `{"login":"testuser"}`)
+			}
+
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(repo)
@@ -771,8 +786,10 @@ func TestProcessRepoSettingsReadPath403DoesNotProduceWouldSet(t *testing.T) {
 func TestProcessRepoSettingsInstallationTokenSkipsUnreliableFields(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	// Simulate GitHub Actions environment.
+	// Simulate GitHub Actions environment with an installation token.
 	t.Setenv("GITHUB_ACTIONS", "true")
+	gh.ResetTokenProbe()
+	t.Cleanup(gh.ResetTokenProbe)
 
 	// Live repo returns zero values for the unreliable fields (as the
 	// installation token does in practice). The config declares non-zero
@@ -788,7 +805,7 @@ func TestProcessRepoSettingsInstallationTokenSkipsUnreliableFields(t *testing.T)
 		// Reliable field that genuinely differs.
 		HasWiki: true,
 	}
-	server := settingsServer(live, nil)
+	server := settingsServerWithTokenType(live, nil, true)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -846,6 +863,8 @@ func TestProcessRepoSettingsInstallationTokenNotActiveOutsideCI(t *testing.T) {
 
 	// Ensure GITHUB_ACTIONS is not set.
 	t.Setenv("GITHUB_ACTIONS", "")
+	gh.ResetTokenProbe()
+	t.Cleanup(gh.ResetTokenProbe)
 
 	live := repoJSON{
 		AllowAutoMerge: false,

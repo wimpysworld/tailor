@@ -9,7 +9,6 @@ import (
 )
 
 func TestFetchUsernameSuccess(t *testing.T) {
-	t.Setenv("GITHUB_ACTIONS", "")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/user" {
 			http.NotFound(w, r)
@@ -45,11 +44,11 @@ func TestFetchUsernameAPIError(t *testing.T) {
 	}
 }
 
-func TestFetchUsernameGitHubActions(t *testing.T) {
-	var requestCount atomic.Int64
+func TestFetchUsernameGitHubActionsFallback(t *testing.T) {
+	// Simulate installation token: GET /user returns 403.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		requestCount.Add(1)
-		fmt.Fprint(w, `{"login": "should-not-be-used"}`)
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
 	}))
 	t.Cleanup(server.Close)
 
@@ -65,13 +64,10 @@ func TestFetchUsernameGitHubActions(t *testing.T) {
 	if username != "testowner" {
 		t.Errorf("username = %q, want %q", username, "testowner")
 	}
-
-	if n := requestCount.Load(); n != 0 {
-		t.Errorf("expected zero HTTP requests, got %d", n)
-	}
 }
 
-func TestFetchUsernameGitHubActionsNoOwner(t *testing.T) {
+func TestFetchUsernameGitHubActionsPATUsesAPI(t *testing.T) {
+	// PAT in GitHub Actions: GET /user succeeds.
 	var requestCount atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount.Add(1)
@@ -79,12 +75,12 @@ func TestFetchUsernameGitHubActionsNoOwner(t *testing.T) {
 			http.NotFound(w, r)
 			return
 		}
-		fmt.Fprint(w, `{"login": "apiuser"}`)
+		fmt.Fprint(w, `{"login": "patuser"}`)
 	}))
 	t.Cleanup(server.Close)
 
 	t.Setenv("GITHUB_ACTIONS", "true")
-	t.Setenv("GITHUB_REPOSITORY_OWNER", "") // intentionally unset
+	t.Setenv("GITHUB_REPOSITORY_OWNER", "testowner")
 
 	client := newTestClient(t, server)
 	username, err := FetchUsername(client)
@@ -92,12 +88,30 @@ func TestFetchUsernameGitHubActionsNoOwner(t *testing.T) {
 		t.Fatalf("FetchUsername() error: %v", err)
 	}
 
-	if username != "apiuser" {
-		t.Errorf("username = %q, want %q", username, "apiuser")
+	if username != "patuser" {
+		t.Errorf("username = %q, want %q", username, "patuser")
 	}
 
 	if n := requestCount.Load(); n == 0 {
 		t.Error("expected at least one HTTP request, got zero")
+	}
+}
+
+func TestFetchUsernameGitHubActionsNoOwner(t *testing.T) {
+	// Installation token with no GITHUB_REPOSITORY_OWNER: error propagated.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	t.Setenv("GITHUB_ACTIONS", "true")
+	t.Setenv("GITHUB_REPOSITORY_OWNER", "")
+
+	client := newTestClient(t, server)
+	_, err := FetchUsername(client)
+	if err == nil {
+		t.Fatal("FetchUsername() expected error when GITHUB_REPOSITORY_OWNER is empty, got nil")
 	}
 }
 
@@ -113,7 +127,6 @@ func TestFetchUsernameNotGitHubActions(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	// Ensure GITHUB_ACTIONS is not set
 	t.Setenv("GITHUB_ACTIONS", "")
 
 	client := newTestClient(t, server)

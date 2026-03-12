@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 
@@ -96,11 +95,13 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 		WebCommitSignoffRequired: ptr.Ptr(repo.WebCommitSignoffRequired),
 	}
 
-	// When running in GitHub Actions, the installation token returns zero
+	// When using a GitHub Actions installation token, the API returns zero
 	// values for certain fields. Nil them out and emit a synthetic warning
 	// so the comparison layer skips them instead of producing false diffs.
+	// IsInstallationToken probes GET /user to distinguish installation
+	// tokens from PATs; the result is cached per process.
 	var warnings []error
-	if os.Getenv("GITHUB_ACTIONS") == "true" {
+	if IsInstallationToken(client) {
 		nilUnreliableFields(s)
 		warnings = append(warnings, &ErrInsufficientScope{
 			Operation: InstallationTokenReadOp,
