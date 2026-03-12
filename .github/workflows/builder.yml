@@ -231,7 +231,7 @@ jobs:
           AUR_KEY: ${{ matrix.mode == 'release' && secrets.AUR_KEY || '' }}
 
       - name: Update floating major version tag
-        if: steps.guard.outputs.run == 'true' && matrix.mode == 'release'
+        if: steps.guard.outputs.run == 'true' && matrix.mode == 'release' && !contains(github.ref_name, '-')
         run: |
           tag="${{ github.ref_name }}"
           major="${tag%%.*}"
@@ -241,7 +241,7 @@ jobs:
           git push origin "${major}" --force
 
       - name: Update flake.lock
-        if: steps.guard.outputs.run == 'true' && matrix.mode == 'release'
+        if: steps.guard.outputs.run == 'true' && matrix.mode == 'release' && !contains(github.ref_name, '-')
         uses: DeterminateSystems/update-flake-lock@v28
         with:
           inputs: nix-packages
