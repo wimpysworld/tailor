@@ -1,4 +1,4 @@
-# Refitted by tailor on 2026-03-10
+# Refitted by tailor on 2026-03-12
 license: BlueOak-1.0.0
 
 repository:
@@ -133,3 +133,6 @@ swatches:
 
   - path: .github/workflows/tailor-automerge.yml
     alteration: triggered
+
+  - path: cubic.yaml
+    alteration: first-fit
