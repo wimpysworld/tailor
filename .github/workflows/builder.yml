@@ -243,6 +243,7 @@ jobs:
         uses: DeterminateSystems/update-flake-lock@v28
         with:
           inputs: nix-packages
+          base: main
           branch: update_flake_lock_nix-packages
           commit-msg: "flake.lock: update nix-packages"
           pr-title: "chore(flake): update nix-packages input"
