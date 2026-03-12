@@ -71,7 +71,7 @@ tailor/
 - `--recut` overwrites everything except `LICENSE`; for `.tailor.yml`, recut overrides `first-fit` to `always` (append-only: missing default entries added, existing entries never modified)
 - Token substitution: `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, `{{HOMEPAGE_URL}}`, `{{MERGE_STRATEGY}}`
 - Licences fetched via GitHub REST API (`GET /licenses/{id}`), not embedded
-- Several repository settings use separate API endpoints rather than the main repo PATCH: `private_vulnerability_reporting_enabled`, `vulnerability_alerts_enabled`, `automated_security_fixes_enabled`, `topics`, `default_workflow_permissions`, and `can_approve_pull_request_reviews`; see `internal/gh/settings.go` for implementation
+- Several repository settings use separate API endpoints rather than the main repo PATCH: `topics`, `default_workflow_permissions`, and `can_approve_pull_request_reviews`; see `internal/gh/settings.go` for implementation
 - `labels` is a top-level config section with its own API layer (`internal/gh/labels.go`) and alter layer (`internal/alter/labels.go`), separate from repository settings
 - `validate.go` includes enum validation for `default_workflow_permissions` ("read"|"write"), topic format validation (lowercase alphanumeric start, max 50 chars, lowercase alphanumerics and hyphens only), and label validation (name length, hex colour, description length, duplicate detection)
 - Dry-run output uses dynamically computed label width for `baste` (accommodates trigger annotations) and fixed 16 chars for `measure`
@@ -83,18 +83,6 @@ tailor/
 
 - [Conventional Commits](https://www.conventionalcommits.org/) specification
 - Common prefixes: `feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`
-
-## CI token requirements
-
-`GITHUB_TOKEN` covers all Tailor operations on the workflow's own repository except three settings that require admin role:
-
-- `vulnerability_alerts_enabled`
-- `automated_security_fixes_enabled`
-- `private_vulnerability_reporting_enabled`
-
-`GITHUB_TOKEN` never holds `administration` permission regardless of `permissions:` in the workflow - this is a GitHub platform constraint. When these settings appear in `.tailor.yml`, Tailor skips them with a warning. To manage them from CI, set `GH_TOKEN: ${{ secrets.TAILOR_PAT }}` on the workflow step, where `TAILOR_PAT` is a classic PAT with `repo` scope (or fine-grained with `Administration: write`, `Contents: write`, `Issues: write`, `Metadata: read`, `Actions: write`) stored as a repository secret.
-
-See `docs/TOKENS.md` for the full GitHub API endpoint permission matrix.
 
 ## Security considerations
 

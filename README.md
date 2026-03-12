@@ -204,8 +204,6 @@ repository:
   allow_squash_merge: true
   delete_branch_on_merge: true
   allow_auto_merge: true
-  vulnerability_alerts_enabled: true
-  automated_security_fixes_enabled: true
   default_workflow_permissions: read
   can_approve_pull_request_reviews: false
 
@@ -249,9 +247,6 @@ The `repository` section manages GitHub repository settings declaratively. Field
 | `allow_update_branch` | bool | Allow updating PR branches |
 | `allow_auto_merge` | bool | Allow auto-merge |
 | `web_commit_signoff_required` | bool | Require sign-off on web commits |
-| `private_vulnerability_reporting_enabled` | bool | Enable private vulnerability reporting |
-| `vulnerability_alerts_enabled` | bool | Enable Dependabot vulnerability alerts |
-| `automated_security_fixes_enabled` | bool | Enable Dependabot security update PRs |
 | `topics` | string[] | Repository topics for discoverability |
 | `default_workflow_permissions` | string | `GITHUB_TOKEN` default permissions: `read` or `write` |
 | `can_approve_pull_request_reviews` | bool | Allow workflows to approve PRs |
@@ -316,25 +311,6 @@ jobs:
 ```
 
 The workflow itself is an `always` swatch, so it stays current as tailor releases update the template. The `action.yml` at the repository root installs the binary into the runner.
-
-### Token requirements
-
-`GITHUB_TOKEN` covers all Tailor operations on the workflow's own repository. Three settings require admin role on the repository and cannot be managed via `GITHUB_TOKEN` regardless of how `permissions:` is set in the workflow - this is a GitHub platform constraint:
-
-- `vulnerability_alerts_enabled`
-- `automated_security_fixes_enabled`
-- `private_vulnerability_reporting_enabled`
-
-When these settings appear in `.tailor.yml` and `GITHUB_TOKEN` is used, Tailor logs a warning per skipped setting and continues. The run does not fail.
-
-To manage these settings from CI, create a classic PAT with `repo` scope (or a fine-grained PAT with `Administration: write`), store it as a repository secret, and override `GH_TOKEN` in the workflow step:
-
-```yaml
-- name: Alter swatches
-  env:
-    GH_TOKEN: ${{ secrets.TAILOR_PAT }}
-  run: tailor alter
-```
 
 ### Branch protection
 

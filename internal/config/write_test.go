@@ -32,9 +32,6 @@ repository:
   allow_update_branch: true
   allow_auto_merge: true
   web_commit_signoff_required: false
-  private_vulnerability_reporting_enabled: true
-  vulnerability_alerts_enabled: true
-  automated_security_fixes_enabled: true
   default_workflow_permissions: read
   can_approve_pull_request_reviews: true
 
@@ -197,28 +194,25 @@ func TestWriteOptionalFieldsPresent(t *testing.T) {
 	cfg := &Config{
 		License: "Apache-2.0",
 		Repository: &model.RepositorySettings{
-			Description:                       ptr.Ptr("My project"),
-			Homepage:                          ptr.Ptr("https://example.com"),
-			HasWiki:                           ptr.Ptr(true),
-			HasDiscussions:                    ptr.Ptr(false),
-			HasProjects:                       ptr.Ptr(false),
-			HasIssues:                         ptr.Ptr(true),
-			AllowMergeCommit:                  ptr.Ptr(true),
-			AllowSquashMerge:                  ptr.Ptr(true),
-			AllowRebaseMerge:                  ptr.Ptr(false),
-			SquashMergeCommitTitle:            ptr.Ptr("PR_TITLE"),
-			SquashMergeCommitMessage:          ptr.Ptr("COMMIT_MESSAGES"),
-			MergeCommitTitle:                  ptr.Ptr("PR_TITLE"),
-			MergeCommitMessage:                ptr.Ptr("PR_BODY"),
-			DeleteBranchOnMerge:               ptr.Ptr(true),
-			AllowUpdateBranch:                 ptr.Ptr(true),
-			AllowAutoMerge:                    ptr.Ptr(false),
-			WebCommitSignoffRequired:          ptr.Ptr(true),
-			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-			VulnerabilityAlertsEnabled:        ptr.Ptr(true),
-			AutomatedSecurityFixesEnabled:     ptr.Ptr(false),
-			DefaultWorkflowPermissions:        ptr.Ptr("write"),
-			CanApprovePullRequestReviews:      ptr.Ptr(true),
+			Description:                  ptr.Ptr("My project"),
+			Homepage:                     ptr.Ptr("https://example.com"),
+			HasWiki:                      ptr.Ptr(true),
+			HasDiscussions:               ptr.Ptr(false),
+			HasProjects:                  ptr.Ptr(false),
+			HasIssues:                    ptr.Ptr(true),
+			AllowMergeCommit:             ptr.Ptr(true),
+			AllowSquashMerge:             ptr.Ptr(true),
+			AllowRebaseMerge:             ptr.Ptr(false),
+			SquashMergeCommitTitle:       ptr.Ptr("PR_TITLE"),
+			SquashMergeCommitMessage:     ptr.Ptr("COMMIT_MESSAGES"),
+			MergeCommitTitle:             ptr.Ptr("PR_TITLE"),
+			MergeCommitMessage:           ptr.Ptr("PR_BODY"),
+			DeleteBranchOnMerge:          ptr.Ptr(true),
+			AllowUpdateBranch:            ptr.Ptr(true),
+			AllowAutoMerge:               ptr.Ptr(false),
+			WebCommitSignoffRequired:     ptr.Ptr(true),
+			DefaultWorkflowPermissions:   ptr.Ptr("write"),
+			CanApprovePullRequestReviews: ptr.Ptr(true),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -246,9 +240,6 @@ repository:
   allow_update_branch: true
   allow_auto_merge: false
   web_commit_signoff_required: true
-  private_vulnerability_reporting_enabled: true
-  vulnerability_alerts_enabled: true
-  automated_security_fixes_enabled: false
   default_workflow_permissions: write
   can_approve_pull_request_reviews: true
 
@@ -277,24 +268,21 @@ func TestWriteOptionalFieldsOmitted(t *testing.T) {
 		License: "MIT",
 		Repository: &model.RepositorySettings{
 			// Description, Homepage, MergeCommitTitle, MergeCommitMessage are nil.
-			HasWiki:                           ptr.Ptr(false),
-			HasDiscussions:                    ptr.Ptr(false),
-			HasProjects:                       ptr.Ptr(false),
-			HasIssues:                         ptr.Ptr(true),
-			AllowMergeCommit:                  ptr.Ptr(false),
-			AllowSquashMerge:                  ptr.Ptr(true),
-			AllowRebaseMerge:                  ptr.Ptr(true),
-			SquashMergeCommitTitle:            ptr.Ptr("PR_TITLE"),
-			SquashMergeCommitMessage:          ptr.Ptr("PR_BODY"),
-			DeleteBranchOnMerge:               ptr.Ptr(true),
-			AllowUpdateBranch:                 ptr.Ptr(true),
-			AllowAutoMerge:                    ptr.Ptr(true),
-			WebCommitSignoffRequired:          ptr.Ptr(false),
-			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-			VulnerabilityAlertsEnabled:        ptr.Ptr(true),
-			AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
-			DefaultWorkflowPermissions:        ptr.Ptr("read"),
-			CanApprovePullRequestReviews:      ptr.Ptr(false),
+			HasWiki:                      ptr.Ptr(false),
+			HasDiscussions:               ptr.Ptr(false),
+			HasProjects:                  ptr.Ptr(false),
+			HasIssues:                    ptr.Ptr(true),
+			AllowMergeCommit:             ptr.Ptr(false),
+			AllowSquashMerge:             ptr.Ptr(true),
+			AllowRebaseMerge:             ptr.Ptr(true),
+			SquashMergeCommitTitle:       ptr.Ptr("PR_TITLE"),
+			SquashMergeCommitMessage:     ptr.Ptr("PR_BODY"),
+			DeleteBranchOnMerge:          ptr.Ptr(true),
+			AllowUpdateBranch:            ptr.Ptr(true),
+			AllowAutoMerge:               ptr.Ptr(true),
+			WebCommitSignoffRequired:     ptr.Ptr(false),
+			DefaultWorkflowPermissions:   ptr.Ptr("read"),
+			CanApprovePullRequestReviews: ptr.Ptr(false),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -318,9 +306,6 @@ repository:
   allow_update_branch: true
   allow_auto_merge: true
   web_commit_signoff_required: false
-  private_vulnerability_reporting_enabled: true
-  vulnerability_alerts_enabled: true
-  automated_security_fixes_enabled: true
   default_workflow_permissions: read
   can_approve_pull_request_reviews: false
 

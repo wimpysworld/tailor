@@ -78,7 +78,6 @@ type alterServerConfig struct {
 	owner        string
 	repo         string
 	repoJSON     repoJSON
-	pvrEnabled   bool
 	licenceID    string
 	licenceBody  string
 	labels       []model.LabelEntry // labels returned by GET /repos/{owner}/{repo}/labels
@@ -104,11 +103,6 @@ func WithRepo(owner, repo string) testOption {
 // WithRepoSettings sets the live repo settings returned by GET /repos/{owner}/{repo}.
 func WithRepoSettings(r repoJSON) testOption {
 	return func(c *alterServerConfig) { c.repoJSON = r }
-}
-
-// WithPVR sets the private vulnerability reporting status.
-func WithPVR(enabled bool) testOption {
-	return func(c *alterServerConfig) { c.pvrEnabled = enabled }
 }
 
 // WithLicence sets the licence ID and body for GET /licenses/{id}.
@@ -199,17 +193,6 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(sc.repoJSON)
 
-		case r.Method == http.MethodGet && path == repoPath+"/private-vulnerability-reporting":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintf(w, `{"enabled":%t}`, sc.pvrEnabled)
-
-		case r.Method == http.MethodGet && path == repoPath+"/automated-security-fixes":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":false}`)
-
-		case r.Method == http.MethodGet && path == repoPath+"/vulnerability-alerts":
-			w.WriteHeader(http.StatusNoContent)
-
 		case r.Method == http.MethodGet && path == repoPath+"/actions/permissions/workflow":
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
@@ -233,25 +216,7 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, `{}`)
 
-		case r.Method == http.MethodPut && path == repoPath+"/private-vulnerability-reporting":
-			w.WriteHeader(http.StatusNoContent)
-
-		case r.Method == http.MethodDelete && path == repoPath+"/private-vulnerability-reporting":
-			w.WriteHeader(http.StatusNoContent)
-
 		case r.Method == http.MethodPut && path == repoPath+"/actions/permissions/workflow":
-			w.WriteHeader(http.StatusNoContent)
-
-		case r.Method == http.MethodPut && path == repoPath+"/vulnerability-alerts":
-			w.WriteHeader(http.StatusNoContent)
-
-		case r.Method == http.MethodDelete && path == repoPath+"/vulnerability-alerts":
-			w.WriteHeader(http.StatusNoContent)
-
-		case r.Method == http.MethodPut && path == repoPath+"/automated-security-fixes":
-			w.WriteHeader(http.StatusNoContent)
-
-		case r.Method == http.MethodDelete && path == repoPath+"/automated-security-fixes":
 			w.WriteHeader(http.StatusNoContent)
 
 		case r.Method == http.MethodGet && path == repoPath+"/labels":
@@ -1892,15 +1857,6 @@ func allDefaultRepoSettingsYAML(t *testing.T) string {
 	if r.WebCommitSignoffRequired != nil {
 		fmt.Fprintf(&sb, "  web_commit_signoff_required: %t\n", *r.WebCommitSignoffRequired)
 	}
-	if r.PrivateVulnerabilityReportEnabled != nil {
-		fmt.Fprintf(&sb, "  private_vulnerability_reporting_enabled: %t\n", *r.PrivateVulnerabilityReportEnabled)
-	}
-	if r.VulnerabilityAlertsEnabled != nil {
-		fmt.Fprintf(&sb, "  vulnerability_alerts_enabled: %t\n", *r.VulnerabilityAlertsEnabled)
-	}
-	if r.AutomatedSecurityFixesEnabled != nil {
-		fmt.Fprintf(&sb, "  automated_security_fixes_enabled: %t\n", *r.AutomatedSecurityFixesEnabled)
-	}
 	if r.DefaultWorkflowPermissions != nil {
 		fmt.Fprintf(&sb, "  default_workflow_permissions: %s\n", *r.DefaultWorkflowPermissions)
 	}
@@ -2215,15 +2171,6 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 		}
 		if defaults.Repository.WebCommitSignoffRequired != nil {
 			fmt.Fprintf(&sb, "  web_commit_signoff_required: %t\n", *defaults.Repository.WebCommitSignoffRequired)
-		}
-		if defaults.Repository.PrivateVulnerabilityReportEnabled != nil {
-			fmt.Fprintf(&sb, "  private_vulnerability_reporting_enabled: %t\n", *defaults.Repository.PrivateVulnerabilityReportEnabled)
-		}
-		if defaults.Repository.VulnerabilityAlertsEnabled != nil {
-			fmt.Fprintf(&sb, "  vulnerability_alerts_enabled: %t\n", *defaults.Repository.VulnerabilityAlertsEnabled)
-		}
-		if defaults.Repository.AutomatedSecurityFixesEnabled != nil {
-			fmt.Fprintf(&sb, "  automated_security_fixes_enabled: %t\n", *defaults.Repository.AutomatedSecurityFixesEnabled)
 		}
 		if defaults.Repository.DefaultWorkflowPermissions != nil {
 			fmt.Fprintf(&sb, "  default_workflow_permissions: %s\n", *defaults.Repository.DefaultWorkflowPermissions)

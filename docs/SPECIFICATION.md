@@ -80,9 +80,6 @@ Supported repository settings:
 | `allow_update_branch` | bool | Allow updating PR branches |
 | `allow_auto_merge` | bool | Allow auto-merge |
 | `web_commit_signoff_required` | bool | Require sign-off on web commits |
-| `private_vulnerability_reporting_enabled` | bool | Allow users to privately report potential security vulnerabilities |
-| `vulnerability_alerts_enabled` | bool | Enable Dependabot vulnerability alerts |
-| `automated_security_fixes_enabled` | bool | Enable Dependabot automated security fix PRs |
 | `topics` | string array | Repository topics for discoverability (replace-all semantics) |
 | `default_workflow_permissions` | string | Default GITHUB_TOKEN permissions (`read` or `write`) |
 | `can_approve_pull_request_reviews` | bool | Allow GitHub Actions to approve pull requests |
@@ -91,15 +88,8 @@ Several fields use separate API endpoints rather than the repository PATCH call.
 
 | Field | Read | Write |
 |---|---|---|
-| `private_vulnerability_reporting_enabled` | `GET /repos/{owner}/{repo}/private-vulnerability-reporting` | `PUT`/`DELETE /repos/{owner}/{repo}/private-vulnerability-reporting` |
-| `vulnerability_alerts_enabled` | `GET /repos/{owner}/{repo}/vulnerability-alerts` (204=enabled, 404=disabled) | `PUT`/`DELETE /repos/{owner}/{repo}/vulnerability-alerts` |
-| `automated_security_fixes_enabled` | `GET /repos/{owner}/{repo}/automated-security-fixes` (JSON `{"enabled": bool}`) | `PUT`/`DELETE /repos/{owner}/{repo}/automated-security-fixes` |
 | `topics` | Read from `GET /repos/{owner}/{repo}` response (no extra call) | `PUT /repos/{owner}/{repo}/topics` with `{"names": [...]}` |
 | `default_workflow_permissions`, `can_approve_pull_request_reviews` | `GET /repos/{owner}/{repo}/actions/permissions/workflow` | `PUT /repos/{owner}/{repo}/actions/permissions/workflow` (both fields atomically) |
-
-**Admin role required**: `vulnerability_alerts_enabled`, `automated_security_fixes_enabled`, and `private_vulnerability_reporting_enabled` require the caller to hold admin role (or security manager role for PVR) on the repository. `GITHUB_TOKEN` never holds `administration` permission regardless of `permissions:` in the workflow - this is a GitHub platform constraint. When `GITHUB_TOKEN` is used and these fields appear in `.tailor.yml`, Tailor skips them with a warning and continues. To manage them from CI, supply a PAT via `GH_TOKEN: ${{ secrets.TAILOR_PAT }}` - see README.md for the workaround.
-
-**Ordering constraint**: `automated_security_fixes_enabled` requires `vulnerability_alerts_enabled` to be active. When enabling both, alerts are enabled first, then security fixes. When disabling both, security fixes are disabled first, then alerts. If `automated_security_fixes_enabled: true` is declared but alerts are disabled on GitHub, a warning is emitted.
 
 **Topics**: The PUT endpoint replaces the entire topics list. The config declares the complete desired set; omitted topics are removed on apply. Topics are project-specific and not included in the default config template. Topic names must start with a lowercase letter or number, contain only lowercase alphanumerics and hyphens, and be 50 characters or fewer. The `topics` field uses `*[]string` semantics: nil (absent) means skip, empty list means clear all topics.
 
@@ -199,7 +189,7 @@ A `license` key is included in `.tailor.yml` by default (`license: BlueOak-1.0.0
 
 **Repository settings resolution at `fit` time**: `fit` detects repository context by querying GitHub remotes in `<path>`. If a GitHub remote exists, the project has repository context. If no remote is found, no repository context exists. Repository context detection reads git remotes (via `go-gh`), so `git` must be present when a GitHub remote exists - which is always the case in practice, since the remote implies a git repository.
 
-When repository context exists, `fit` queries the live repository configuration via `GET /repos/{owner}/{repo}` and the separate endpoints for private vulnerability reporting, vulnerability alerts, automated security fixes, and Actions workflow permissions to populate the `repository` section with the project's current settings. This ensures that enabling tailor on an existing project does not inadvertently change features that are already configured (e.g. disabling wiki or discussions that are currently enabled). The `--description` flag takes precedence over the value from GitHub. `description` and `homepage` are omitted if empty. When no repository context exists (e.g. a brand-new project with no remote), the built-in defaults from the embedded swatch are used, with `description` and `homepage` normalised to nil by `DefaultConfig` so they are omitted from the generated config.
+When repository context exists, `fit` queries the live repository configuration via `GET /repos/{owner}/{repo}` and the separate endpoint for Actions workflow permissions to populate the `repository` section with the project's current settings. This ensures that enabling tailor on an existing project does not inadvertently change features that are already configured (e.g. disabling wiki or discussions that are currently enabled). The `--description` flag takes precedence over the value from GitHub. `description` and `homepage` are omitted if empty. When no repository context exists (e.g. a brand-new project with no remote), the built-in defaults from the embedded swatch are used, with `description` and `homepage` normalised to nil by `DefaultConfig` so they are omitted from the generated config.
 
 ```bash
 # Default licence (BlueOak-1.0.0)
@@ -277,16 +267,12 @@ Repository settings output uses the following categories:
 would set:                                    repository.has_wiki = false
 would set:                                    repository.delete_branch_on_merge = true
 no change:                                    repository.allow_squash_merge (already true)
-would skip (insufficient scope: <detail>):    vulnerability_alerts_enabled
-would skip (insufficient role: <detail>):     private_vulnerability_reporting_enabled
 ```
 
 `would set` - declared value differs from the live repository setting.
 `no change` - declared value matches the live repository setting.
-`would skip (insufficient scope: <detail>)` - field could not be read or applied because the token lacks the required scope. The detail annotation embeds the error message.
-`would skip (insufficient role: <detail>)` - field could not be read or applied because the authenticated user lacks the required repository role (admin). The detail annotation embeds the error message.
 
-Repository settings entries are sorted lexicographically by field name within each category: `would set` first, then `no change`, then `would skip` variants.
+Repository settings entries are sorted lexicographically by field name within each category: `would set` first, then `no change`.
 
 Label output uses the following categories:
 
@@ -328,7 +314,7 @@ skip (never):                              .github/workflows/tailor-automerge.ym
 
 `baste` and `alter` use the same output format. The categories above apply to both commands; the only category exclusive to `alter` is `removed`.
 
-Output order: actionable items first (`would set`, `would copy`, `would overwrite`, `would deploy`, `would remove`), then informational (`no change`, `skipped (first-fit, exists)`, `skip (never)`), then skip variants (`would skip`). Within each category, entries are sorted lexicographically by path or field name. The category label width is computed dynamically from the longest label in the output, with a minimum of 37 characters to accommodate `would skip (insufficient scope):` labels.
+Output order: actionable items first (`would set`, `would copy`, `would overwrite`, `would deploy`, `would remove`), then informational (`no change`, `skipped (first-fit, exists)`, `skip (never)`). Within each category, entries are sorted lexicographically by path or field name. The category label width is computed dynamically from the longest label in the output, with a minimum of 37 characters to accommodate `would skip (insufficient scope):` labels.
 
 ### `measure`
 
@@ -477,9 +463,6 @@ repository:
   allow_update_branch: true
   allow_auto_merge: true
   web_commit_signoff_required: false
-  private_vulnerability_reporting_enabled: true
-  vulnerability_alerts_enabled: true
-  automated_security_fixes_enabled: true
   default_workflow_permissions: read
   can_approve_pull_request_reviews: false
 
@@ -749,4 +732,4 @@ measure:
 5. **No project registry**: Tailor has no awareness of its consumers. Projects pull from tailor, tailor does not track projects.
 6. **Authentication via `go-gh`**: All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions. Token resolution follows the `go-gh` precedence order: `GH_TOKEN` environment variable, `GITHUB_TOKEN` environment variable, `gh` config file, `gh` keyring (via the `gh` binary). When `GH_TOKEN` or `GITHUB_TOKEN` is set, the `gh` binary is not required. The `gh` binary is needed only for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access when no environment variable is set. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If no valid token can be resolved, `fit`, `alter`, and `baste` exit immediately with an error.
 7. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
-8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `.tailor.yml`, plus separate API calls for fields with dedicated endpoints (private vulnerability reporting, vulnerability alerts, automated security fixes, topics, Actions workflow permissions). Field names map directly to the GitHub REST API without translation. Current settings are read via `GET /repos/{owner}/{repo}` and the relevant separate endpoints for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client. The `alter` execution order is: repository settings, then labels, then licence, then swatches.
+8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `.tailor.yml`, plus separate API calls for fields with dedicated endpoints (topics, Actions workflow permissions). Field names map directly to the GitHub REST API without translation. Current settings are read via `GET /repos/{owner}/{repo}` and the relevant separate endpoints for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client. The `alter` execution order is: repository settings, then labels, then licence, then swatches.

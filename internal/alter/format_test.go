@@ -245,15 +245,15 @@ func TestFormatOutputSkipCategories(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},
 		{Field: "has_issues", Category: RepoNoChange, Value: "true"},
-		{Field: "enable private vulnerability reporting", Category: WouldSkipRole, Value: "insufficient role"},
+		{Field: "set workflow permissions", Category: WouldSkipRole, Value: "insufficient role"},
 		{Field: "patch repo settings", Category: WouldSkipScope, Value: "insufficient scope"},
 	}
 
 	got := FormatOutput(repos, nil, nil)
 	want := "would set:                           repository.has_wiki = false\n" +
 		"no change:                           repository.has_issues (already true)\n" +
-		"would skip (insufficient role):      enable private vulnerability reporting\n" +
-		"would skip (insufficient scope):     patch repo settings\n"
+		"would skip (insufficient scope):     patch repo settings\n" +
+		"would skip (insufficient role):      set workflow permissions\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip categories:\ngot:\n%s\nwant:\n%s", got, want)
@@ -262,7 +262,7 @@ func TestFormatOutputSkipCategories(t *testing.T) {
 
 func TestFormatOutputSkipSorting(t *testing.T) {
 	repos := []RepoSettingResult{
-		{Field: "enable private vulnerability reporting", Category: WouldSkipRole, Value: "role error"},
+		{Field: "set workflow permissions", Category: WouldSkipRole, Value: "role error"},
 		{Field: "has_wiki", Category: RepoNoChange, Value: "false"},
 		{Field: "description", Category: WouldSet, Value: "My project"},
 		{Field: "patch repo settings", Category: WouldSkipScope, Value: "scope error"},
@@ -272,8 +272,8 @@ func TestFormatOutputSkipSorting(t *testing.T) {
 	// Order: WouldSet (0), RepoNoChange (1), WouldSkipScope (2), WouldSkipRole (2) - alpha within same order.
 	want := "would set:                           repository.description = My project\n" +
 		"no change:                           repository.has_wiki (already false)\n" +
-		"would skip (insufficient role):      enable private vulnerability reporting\n" +
-		"would skip (insufficient scope):     patch repo settings\n"
+		"would skip (insufficient scope):     patch repo settings\n" +
+		"would skip (insufficient role):      set workflow permissions\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip sorting:\ngot:\n%s\nwant:\n%s", got, want)
@@ -346,12 +346,12 @@ func TestFormatOutputAnnotationMixedWithRepo(t *testing.T) {
 
 func TestFormatOutputSkipAnnotationScope(t *testing.T) {
 	repos := []RepoSettingResult{
-		{Field: "vulnerability_alerts_enabled", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Field: "default_workflow_permissions", Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
 
 	got := FormatOutput(repos, nil, nil)
 	// "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 space = 63 width.
-	want := "would skip (insufficient scope: token missing required scope): vulnerability_alerts_enabled\n"
+	want := "would skip (insufficient scope: token missing required scope): default_workflow_permissions\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip annotation scope:\ngot:\n%s\nwant:\n%s", got, want)
@@ -360,12 +360,12 @@ func TestFormatOutputSkipAnnotationScope(t *testing.T) {
 
 func TestFormatOutputSkipAnnotationRole(t *testing.T) {
 	repos := []RepoSettingResult{
-		{Field: "vulnerability_alerts_enabled", Category: WouldSkipRole, Annotation: "admin required"},
+		{Field: "default_workflow_permissions", Category: WouldSkipRole, Annotation: "admin required"},
 	}
 
 	got := FormatOutput(repos, nil, nil)
 	// "would skip (insufficient role: admin required):" = 48 chars + 1 space = 49 width.
-	want := "would skip (insufficient role: admin required): vulnerability_alerts_enabled\n"
+	want := "would skip (insufficient role: admin required): default_workflow_permissions\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip annotation role:\ngot:\n%s\nwant:\n%s", got, want)
@@ -376,16 +376,16 @@ func TestFormatOutputSkipAnnotationMixed(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},
 		{Field: "has_issues", Category: RepoNoChange, Value: "true"},
-		{Field: "vulnerability_alerts_enabled", Category: WouldSkipScope, Annotation: "token missing required scope"},
-		{Field: "private_vulnerability_reporting_enabled", Category: WouldSkipRole, Annotation: "admin required"},
+		{Field: "default_workflow_permissions", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Field: "can_approve_pull_request_reviews", Category: WouldSkipRole, Annotation: "admin required"},
 	}
 
 	got := FormatOutput(repos, nil, nil)
 	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 = 63.
 	want := "would set:                                                     repository.has_wiki = false\n" +
 		"no change:                                                     repository.has_issues (already true)\n" +
-		"would skip (insufficient role: admin required):                private_vulnerability_reporting_enabled\n" +
-		"would skip (insufficient scope: token missing required scope): vulnerability_alerts_enabled\n"
+		"would skip (insufficient role: admin required):                can_approve_pull_request_reviews\n" +
+		"would skip (insufficient scope: token missing required scope): default_workflow_permissions\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip annotation mixed:\ngot:\n%s\nwant:\n%s", got, want)

@@ -30,7 +30,6 @@ repository:
   allow_update_branch: true
   allow_auto_merge: true
   web_commit_signoff_required: false
-  private_vulnerability_reporting_enabled: true
 
 swatches:
   - path: .github/workflows/tailor.yml
@@ -113,7 +112,6 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	testutil.AssertBoolPtr(t, r.AllowUpdateBranch, false, true, "allow_update_branch")
 	testutil.AssertBoolPtr(t, r.AllowAutoMerge, false, true, "allow_auto_merge")
 	testutil.AssertBoolPtr(t, r.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
-	testutil.AssertBoolPtr(t, r.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
 
 	if len(cfg.Swatches) != 17 {
 		t.Fatalf("Swatches count = %d, want 17", len(cfg.Swatches))
@@ -236,8 +234,6 @@ func TestOptionalRepositoryFieldsOmitted(t *testing.T) {
 func TestNewRepositoryFieldsParsing(t *testing.T) {
 	input := `license: MIT
 repository:
-  vulnerability_alerts_enabled: true
-  automated_security_fixes_enabled: false
   topics:
     - go
     - cli-tool
@@ -251,8 +247,6 @@ swatches: []
 	}
 
 	r := cfg.Repository
-	testutil.AssertBoolPtr(t, r.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
-	testutil.AssertBoolPtr(t, r.AutomatedSecurityFixesEnabled, false, false, "automated_security_fixes_enabled")
 	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
 	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, false, false, "can_approve_pull_request_reviews")
 
@@ -277,8 +271,6 @@ swatches: []
 	}
 
 	r := cfg.Repository
-	testutil.AssertBoolPtr(t, r.VulnerabilityAlertsEnabled, true, false, "vulnerability_alerts_enabled")
-	testutil.AssertBoolPtr(t, r.AutomatedSecurityFixesEnabled, true, false, "automated_security_fixes_enabled")
 	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, true, "", "default_workflow_permissions")
 	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, true, false, "can_approve_pull_request_reviews")
 
@@ -312,11 +304,9 @@ func TestNewFieldsRoundTrip(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Repository: &model.RepositorySettings{
-			VulnerabilityAlertsEnabled:    ptr.Ptr(true),
-			AutomatedSecurityFixesEnabled: ptr.Ptr(false),
-			Topics:                        &topics,
-			DefaultWorkflowPermissions:    ptr.Ptr("write"),
-			CanApprovePullRequestReviews:  ptr.Ptr(true),
+			Topics:                       &topics,
+			DefaultWorkflowPermissions:   ptr.Ptr("write"),
+			CanApprovePullRequestReviews: ptr.Ptr(true),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -334,8 +324,6 @@ func TestNewFieldsRoundTrip(t *testing.T) {
 	}
 
 	r := roundTripped.Repository
-	testutil.AssertBoolPtr(t, r.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
-	testutil.AssertBoolPtr(t, r.AutomatedSecurityFixesEnabled, false, false, "automated_security_fixes_enabled")
 	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, false, "write", "default_workflow_permissions")
 	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, false, true, "can_approve_pull_request_reviews")
 
@@ -366,8 +354,6 @@ func TestNewFieldsOmittedInMarshal(t *testing.T) {
 
 	s := string(out)
 	for _, field := range []string{
-		"vulnerability_alerts_enabled",
-		"automated_security_fixes_enabled",
 		"topics",
 		"default_workflow_permissions",
 		"can_approve_pull_request_reviews",

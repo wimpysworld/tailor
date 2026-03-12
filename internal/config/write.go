@@ -126,15 +126,6 @@ repository:
 {{- if set .Repository.WebCommitSignoffRequired }}
   web_commit_signoff_required: {{ derefBool .Repository.WebCommitSignoffRequired }}
 {{- end }}
-{{- if set .Repository.PrivateVulnerabilityReportEnabled }}
-  private_vulnerability_reporting_enabled: {{ derefBool .Repository.PrivateVulnerabilityReportEnabled }}
-{{- end }}
-{{- if set .Repository.VulnerabilityAlertsEnabled }}
-  vulnerability_alerts_enabled: {{ derefBool .Repository.VulnerabilityAlertsEnabled }}
-{{- end }}
-{{- if set .Repository.AutomatedSecurityFixesEnabled }}
-  automated_security_fixes_enabled: {{ derefBool .Repository.AutomatedSecurityFixesEnabled }}
-{{- end }}
 {{- if set .Repository.DefaultWorkflowPermissions }}
   default_workflow_permissions: {{ deref .Repository.DefaultWorkflowPermissions }}
 {{- end }}

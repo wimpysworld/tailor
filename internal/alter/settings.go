@@ -55,15 +55,6 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 	// field names so the corresponding WouldSet entries can be suppressed.
 	skipResults, skippedFields := readWarningsToResults(warnings, cfg.Repository)
 
-	// Warn when the config wants automated security fixes but alerts are
-	// currently disabled on GitHub - the API will reject the enable call.
-	if cfg.Repository.AutomatedSecurityFixesEnabled != nil &&
-		*cfg.Repository.AutomatedSecurityFixesEnabled &&
-		live.VulnerabilityAlertsEnabled != nil &&
-		!*live.VulnerabilityAlertsEnabled {
-		fmt.Fprintln(os.Stderr, "warning: automated_security_fixes_enabled is true but vulnerability alerts are disabled on GitHub; enable vulnerability_alerts_enabled first")
-	}
-
 	results := compareSettings(cfg.Repository, live)
 
 	// Remove false-positive WouldSet entries for fields whose live value is
@@ -174,10 +165,7 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 // ErrInsufficientScope/ErrInsufficientRole) to the config field names
 // (YAML tags) they affect. Workflow permissions covers two fields.
 var readWarningOperationFields = map[string][]string{
-	"fetch vulnerability alerts":            {"vulnerability_alerts_enabled"},
-	"fetch automated security fixes":        {"automated_security_fixes_enabled"},
-	"fetch private vulnerability reporting": {"private_vulnerability_reporting_enabled"},
-	"fetch workflow permissions":            {"default_workflow_permissions", "can_approve_pull_request_reviews"},
+	"fetch workflow permissions": {"default_workflow_permissions", "can_approve_pull_request_reviews"},
 }
 
 // readWarningsToResults converts read-path access-error warnings into

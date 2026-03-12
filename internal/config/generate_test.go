@@ -52,9 +52,6 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	testutil.AssertBoolPtr(t, got.Repository.AllowUpdateBranch, false, true, "allow_update_branch")
 	testutil.AssertBoolPtr(t, got.Repository.AllowAutoMerge, false, true, "allow_auto_merge")
 	testutil.AssertBoolPtr(t, got.Repository.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
-	testutil.AssertBoolPtr(t, got.Repository.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
-	testutil.AssertBoolPtr(t, got.Repository.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
-	testutil.AssertBoolPtr(t, got.Repository.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
 	testutil.AssertStringPtr(t, got.Repository.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
 	testutil.AssertBoolPtr(t, got.Repository.CanApprovePullRequestReviews, false, true, "can_approve_pull_request_reviews")
 

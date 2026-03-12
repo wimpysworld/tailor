@@ -40,7 +40,7 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 		t.Errorf("swatch count = %d, want 17", count)
 	}
 
-	// Verify the 14 default repo settings are present.
+	// Verify the 13 default repo settings are present.
 	wantSettings := []string{
 		"has_wiki:",
 		"has_discussions:",
@@ -55,7 +55,6 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 		"allow_update_branch:",
 		"allow_auto_merge:",
 		"web_commit_signoff_required:",
-		"private_vulnerability_reporting_enabled:",
 	}
 	for _, s := range wantSettings {
 		if !strings.Contains(content, s) {

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -43,7 +42,7 @@ type repoJSON struct {
 
 // settingsServer creates an httptest server that responds to repo settings
 // GET and PATCH requests. patchCalled is incremented when PATCH is received.
-func settingsServer(repo repoJSON, pvrEnabled bool, patchCalled *atomic.Int32) *httptest.Server {
+func settingsServer(repo repoJSON, patchCalled *atomic.Int32) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
@@ -51,17 +50,6 @@ func settingsServer(repo repoJSON, pvrEnabled bool, patchCalled *atomic.Int32) *
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(repo)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprintf(w, `{"enabled":%t}`, pvrEnabled)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":false}`)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/vulnerability-alerts":
-			w.WriteHeader(http.StatusNoContent)
 
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
 			w.Header().Set("Content-Type", "application/json")
@@ -74,18 +62,6 @@ func settingsServer(repo repoJSON, pvrEnabled bool, patchCalled *atomic.Int32) *
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, `{}`)
-
-		case r.Method == http.MethodPut && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
-			if patchCalled != nil {
-				patchCalled.Add(1)
-			}
-			w.WriteHeader(http.StatusNoContent)
-
-		case r.Method == http.MethodDelete && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
-			if patchCalled != nil {
-				patchCalled.Add(1)
-			}
-			w.WriteHeader(http.StatusNoContent)
 
 		case r.Method == http.MethodPut && path == "/repos/testowner/testrepo/actions/permissions/workflow":
 			if patchCalled != nil {
@@ -151,7 +127,7 @@ func TestProcessRepoSettingsWouldSetWhenDiffer(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{HasWiki: true, HasIssues: true}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -183,7 +159,7 @@ func TestProcessRepoSettingsNoChangeWhenMatch(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{HasWiki: false, HasIssues: true}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -216,7 +192,7 @@ func TestProcessRepoSettingsApplyCallsAPI(t *testing.T) {
 
 	var patchCalled atomic.Int32
 	live := repoJSON{HasWiki: true}
-	server := settingsServer(live, false, &patchCalled)
+	server := settingsServer(live, &patchCalled)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -240,7 +216,7 @@ func TestProcessRepoSettingsRecutCallsAPI(t *testing.T) {
 
 	var patchCalled atomic.Int32
 	live := repoJSON{HasWiki: true}
-	server := settingsServer(live, false, &patchCalled)
+	server := settingsServer(live, &patchCalled)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -264,7 +240,7 @@ func TestProcessRepoSettingsDryRunDoesNotCallAPI(t *testing.T) {
 
 	var patchCalled atomic.Int32
 	live := repoJSON{HasWiki: true}
-	server := settingsServer(live, false, &patchCalled)
+	server := settingsServer(live, &patchCalled)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -288,7 +264,7 @@ func TestProcessRepoSettingsNoApplyWhenAllMatch(t *testing.T) {
 
 	var patchCalled atomic.Int32
 	live := repoJSON{HasWiki: false, HasIssues: true}
-	server := settingsServer(live, false, &patchCalled)
+	server := settingsServer(live, &patchCalled)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -336,7 +312,7 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 		Description:         "My project",
 		DeleteBranchOnMerge: false,
 	}
-	server := settingsServer(live, true, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -373,7 +349,7 @@ func TestProcessRepoSettingsStringFieldValues(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{Description: "old", Homepage: "https://old.example.com"}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -414,166 +390,11 @@ func TestProcessRepoSettingsStringFieldValues(t *testing.T) {
 	}
 }
 
-func TestProcessRepoSettingsPrivateVulnerabilityReporting(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	live := repoJSON{}
-	server := settingsServer(live, false, nil)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "private_vulnerability_reporting_enabled" {
-		t.Errorf("field = %q, want %q", results[0].Field, "private_vulnerability_reporting_enabled")
-	}
-	if results[0].Category != alter.WouldSet {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
-	}
-	if results[0].Value != "true" {
-		t.Errorf("value = %q, want %q", results[0].Value, "true")
-	}
-}
-
-func TestProcessRepoSettingsVulnerabilityAlertsNoChange(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	live := repoJSON{}
-	// settingsServer returns 204 for vulnerability-alerts GET, meaning enabled=true
-	server := settingsServer(live, false, nil)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			VulnerabilityAlertsEnabled: ptr.Ptr(true),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "vulnerability_alerts_enabled" {
-		t.Errorf("field = %q, want %q", results[0].Field, "vulnerability_alerts_enabled")
-	}
-	if results[0].Category != alter.RepoNoChange {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
-	}
-	if results[0].Value != "true" {
-		t.Errorf("value = %q, want %q", results[0].Value, "true")
-	}
-}
-
-func TestProcessRepoSettingsVulnerabilityAlertsWouldSet(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	live := repoJSON{}
-	// settingsServer returns 204 for vulnerability-alerts GET, meaning enabled=true
-	server := settingsServer(live, false, nil)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			VulnerabilityAlertsEnabled: ptr.Ptr(false),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "vulnerability_alerts_enabled" {
-		t.Errorf("field = %q, want %q", results[0].Field, "vulnerability_alerts_enabled")
-	}
-	if results[0].Category != alter.WouldSet {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
-	}
-}
-
-func TestProcessRepoSettingsAutomatedSecurityFixesNoChange(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	live := repoJSON{}
-	// settingsServer returns {"enabled":false} for automated-security-fixes GET
-	server := settingsServer(live, false, nil)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			AutomatedSecurityFixesEnabled: ptr.Ptr(false),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "automated_security_fixes_enabled" {
-		t.Errorf("field = %q, want %q", results[0].Field, "automated_security_fixes_enabled")
-	}
-	if results[0].Category != alter.RepoNoChange {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
-	}
-}
-
-func TestProcessRepoSettingsAutomatedSecurityFixesWouldSet(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	live := repoJSON{}
-	// settingsServer returns {"enabled":false} for automated-security-fixes GET
-	server := settingsServer(live, false, nil)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			AutomatedSecurityFixesEnabled: ptr.Ptr(true),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "automated_security_fixes_enabled" {
-		t.Errorf("field = %q, want %q", results[0].Field, "automated_security_fixes_enabled")
-	}
-	if results[0].Category != alter.WouldSet {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
-	}
-}
-
 func TestProcessRepoSettingsTopicsNoChange(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{Topics: []string{"go", "cli"}}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -606,7 +427,7 @@ func TestProcessRepoSettingsTopicsWouldSet(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	live := repoJSON{Topics: []string{"go", "cli"}}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -640,7 +461,7 @@ func TestProcessRepoSettingsTopicsEmptyVsNil(t *testing.T) {
 
 	// Live has no topics (nil from JSON unmarshalling)
 	live := repoJSON{}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -676,7 +497,7 @@ func TestProcessRepoSettingsTopicsEmptyMatchesEmpty(t *testing.T) {
 
 	// Live has empty topics from JSON
 	live := repoJSON{Topics: []string{}}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -704,7 +525,7 @@ func TestProcessRepoSettingsDefaultWorkflowPermissionsNoChange(t *testing.T) {
 
 	live := repoJSON{}
 	// settingsServer returns {"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -737,7 +558,7 @@ func TestProcessRepoSettingsDefaultWorkflowPermissionsWouldSet(t *testing.T) {
 
 	live := repoJSON{}
 	// settingsServer returns {"default_workflow_permissions":"read",...}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -770,7 +591,7 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsNoChange(t *testing.T) {
 
 	live := repoJSON{}
 	// settingsServer returns {"can_approve_pull_request_reviews":false}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -795,92 +616,7 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsNoChange(t *testing.T) {
 	}
 }
 
-func TestProcessRepoSettingsPVR403ProducesSkipResult(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	// Server that returns 403 on PVR PUT (apply path), simulating insufficient role.
-	live := repoJSON{HasWiki: true}
-	var patchCalled atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-
-		switch {
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(live)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":false}`)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":false}`)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/vulnerability-alerts":
-			w.WriteHeader(http.StatusNoContent)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
-
-		case r.Method == http.MethodPatch && path == "/repos/testowner/testrepo":
-			patchCalled.Add(1)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			fmt.Fprint(w, `{}`)
-
-		case r.Method == http.MethodPut && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
-			// Return 403 to simulate insufficient role.
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			fmt.Fprint(w, `{"message":"Resource not accessible by personal access token"}`)
-
-		default:
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec
-		}
-	}))
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			HasWiki:                           ptr.Ptr(false),
-			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.Apply, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// Should have: has_wiki (WouldSet), pvr (WouldSet from compare), plus a skip result from apply.
-	var skipCount int
-	for _, r := range results {
-		if r.Category == alter.WouldSkipRole || r.Category == alter.WouldSkipScope {
-			skipCount++
-		}
-	}
-	if skipCount == 0 {
-		t.Error("expected at least one WouldSkipRole or WouldSkipScope result, got none")
-	}
-
-	// Verify the skip is for PVR.
-	var foundPVRSkip bool
-	for _, r := range results {
-		if (r.Category == alter.WouldSkipRole || r.Category == alter.WouldSkipScope) &&
-			r.Field == "enable private vulnerability reporting" {
-			foundPVRSkip = true
-		}
-	}
-	if !foundPVRSkip {
-		t.Errorf("expected skip result for PVR, got results: %v", results)
-	}
-}
-
-func TestProcessRepoSettingsPVR403ScopeProducesSkipScope(t *testing.T) {
+func TestProcessRepoSettingsPatch403ScopeProducesSkipScope(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
 	// Server that returns 403 on PATCH (simulating insufficient scope on the main settings call).
@@ -892,17 +628,6 @@ func TestProcessRepoSettingsPVR403ScopeProducesSkipScope(t *testing.T) {
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(live)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":false}`)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":false}`)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/vulnerability-alerts":
-			w.WriteHeader(http.StatusNoContent)
 
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
 			w.Header().Set("Content-Type", "application/json")
@@ -946,9 +671,9 @@ func TestProcessRepoSettingsPVR403ScopeProducesSkipScope(t *testing.T) {
 	}
 }
 
-// forbiddenReadServer returns a test server where specific GET endpoints
-// return 403 to simulate insufficient role on the read path.
-func forbiddenReadServer(forbidPVR, forbidASF, forbidVA, forbidWF bool) *httptest.Server {
+// forbiddenReadServer returns a test server where the workflow permissions
+// GET endpoint returns 403 to simulate insufficient scope on the read path.
+func forbiddenReadServer(forbidWF bool) *httptest.Server {
 	repo := repoJSON{}
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -957,35 +682,6 @@ func forbiddenReadServer(forbidPVR, forbidASF, forbidVA, forbidWF bool) *httptes
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(repo)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
-			if forbidPVR {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusForbidden)
-				fmt.Fprint(w, `{"message":"Resource not accessible by personal access token"}`)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":false}`)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
-			if forbidASF {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusForbidden)
-				fmt.Fprint(w, `{"message":"Resource not accessible by personal access token"}`)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":false}`)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/vulnerability-alerts":
-			if forbidVA {
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusForbidden)
-				fmt.Fprint(w, `{"message":"Resource not accessible by personal access token"}`)
-				return
-			}
-			w.WriteHeader(http.StatusNoContent)
 
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
 			if forbidWF {
@@ -1006,94 +702,10 @@ func forbiddenReadServer(forbidPVR, forbidASF, forbidVA, forbidWF bool) *httptes
 	}))
 }
 
-func TestProcessRepoSettingsReadPath403PVRProducesSkipRole(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	server := forbiddenReadServer(true, false, false, false)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "private_vulnerability_reporting_enabled" {
-		t.Errorf("field = %q, want %q", results[0].Field, "private_vulnerability_reporting_enabled")
-	}
-	if results[0].Category != alter.WouldSkipRole {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSkipRole)
-	}
-}
-
-func TestProcessRepoSettingsReadPath403ASFProducesSkipRole(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	server := forbiddenReadServer(false, true, false, false)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			AutomatedSecurityFixesEnabled: ptr.Ptr(true),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "automated_security_fixes_enabled" {
-		t.Errorf("field = %q, want %q", results[0].Field, "automated_security_fixes_enabled")
-	}
-	if results[0].Category != alter.WouldSkipRole {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSkipRole)
-	}
-}
-
-func TestProcessRepoSettingsReadPath403VAProducesSkipRole(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	server := forbiddenReadServer(false, false, true, false)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			VulnerabilityAlertsEnabled: ptr.Ptr(true),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "vulnerability_alerts_enabled" {
-		t.Errorf("field = %q, want %q", results[0].Field, "vulnerability_alerts_enabled")
-	}
-	if results[0].Category != alter.WouldSkipRole {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSkipRole)
-	}
-}
-
 func TestProcessRepoSettingsReadPath403WorkflowProducesSkipScope(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	server := forbiddenReadServer(false, false, false, true)
+	server := forbiddenReadServer(true)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -1121,18 +733,15 @@ func TestProcessRepoSettingsReadPath403WorkflowProducesSkipScope(t *testing.T) {
 func TestProcessRepoSettingsReadPath403DoesNotProduceWouldSet(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	// All four sub-calls return 403.
-	server := forbiddenReadServer(true, true, true, true)
+	// Workflow permissions sub-call returns 403.
+	server := forbiddenReadServer(true)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-			AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
-			VulnerabilityAlertsEnabled:        ptr.Ptr(true),
-			DefaultWorkflowPermissions:        ptr.Ptr("write"),
-			CanApprovePullRequestReviews:      ptr.Ptr(true),
+			DefaultWorkflowPermissions:   ptr.Ptr("write"),
+			CanApprovePullRequestReviews: ptr.Ptr(true),
 		},
 	}
 
@@ -1147,15 +756,15 @@ func TestProcessRepoSettingsReadPath403DoesNotProduceWouldSet(t *testing.T) {
 		}
 	}
 
-	// All five fields should have skip results.
+	// Both fields should have skip results.
 	skipCount := 0
 	for _, r := range results {
 		if r.Category == alter.WouldSkipRole || r.Category == alter.WouldSkipScope {
 			skipCount++
 		}
 	}
-	if skipCount != 5 {
-		t.Errorf("got %d skip results, want 5", skipCount)
+	if skipCount != 2 {
+		t.Errorf("got %d skip results, want 2", skipCount)
 	}
 }
 
@@ -1164,7 +773,7 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
 
 	live := repoJSON{}
 	// settingsServer returns {"can_approve_pull_request_reviews":false}
-	server := settingsServer(live, false, nil)
+	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
@@ -1186,61 +795,5 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
 	}
 	if results[0].Category != alter.WouldSet {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
-	}
-}
-
-func TestProcessRepoSettingsWarnsASFWithAlertsDisabled(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	// Server where vulnerability-alerts returns 404 (disabled).
-	live := repoJSON{}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-
-		switch {
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(live)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":false}`)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":false}`)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/vulnerability-alerts":
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprint(w, `{"message":"Not Found"}`)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
-
-		default:
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec
-		}
-	}))
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			AutomatedSecurityFixesEnabled: ptr.Ptr(true),
-		},
-	}
-
-	stderr := captureStderr(t, func() {
-		_, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-	})
-
-	want := "automated_security_fixes_enabled is true but vulnerability alerts are disabled"
-	if !strings.Contains(stderr, want) {
-		t.Errorf("stderr = %q, want substring %q", stderr, want)
 	}
 }
