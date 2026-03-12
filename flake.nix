@@ -36,7 +36,7 @@
                 actionlint
                 cosign
                 gh
-                go
+                go_1_26
                 gocyclo
                 golangci-lint
                 goreleaser

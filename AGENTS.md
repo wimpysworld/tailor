@@ -8,7 +8,7 @@ The authoritative specification is `docs/SPECIFICATION.md`. All implementation d
 
 ## Tech stack
 
-- **Language**: Go (1.25+)
+- **Language**: Go (1.26+)
 - **CLI parser**: [Kong](https://github.com/alecthomas/kong)
 - **GitHub auth**: `GH_TOKEN`/`GITHUB_TOKEN` env var, or `gh` (GitHub CLI) for keyring-based token access
 - **Swatch embedding**: Go `embed` directive (`swatches/` directory)
