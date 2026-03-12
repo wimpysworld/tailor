@@ -153,34 +153,6 @@ func TestErrInsufficientRole_ErrorsAs(t *testing.T) {
 	}
 }
 
-// --- Task 1.3: admin-role registry tests ---
-
-func TestRequiredRole_AdminOperations(t *testing.T) {
-	tests := []struct {
-		operation string
-		wantRole  string
-	}{
-		{"enable vulnerability alerts", "admin"},
-		{"disable vulnerability alerts", "admin"},
-		{"enable automated security fixes", "admin"},
-		{"disable automated security fixes", "admin"},
-		{"enable private vulnerability reporting", "admin or security manager"},
-		{"disable private vulnerability reporting", "admin or security manager"},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.operation, func(t *testing.T) {
-			role, ok := requiredRole(tt.operation)
-			if !ok {
-				t.Fatalf("requiredRole(%q) returned ok=false, want true", tt.operation)
-			}
-			if role != tt.wantRole {
-				t.Errorf("requiredRole(%q) = %q, want %q", tt.operation, role, tt.wantRole)
-			}
-		})
-	}
-}
-
 func TestRequiredRole_NonAdminOperation(t *testing.T) {
 	_, ok := requiredRole("update repository settings")
 	if ok {
@@ -255,60 +227,6 @@ func TestClassifyHTTPError_403ScopeError(t *testing.T) {
 	}
 }
 
-func TestClassifyHTTPError_403RoleError_VA(t *testing.T) {
-	headers := http.Header{}
-	headers.Set("X-OAuth-Scopes", "repo")
-	headers.Set("X-Accepted-OAuth-Scopes", "repo")
-	httpErr := newHTTPError(http.StatusForbidden, "Must have admin rights to Repository.", headers)
-
-	got := classifyHTTPError(httpErr, "enable vulnerability alerts")
-
-	var roleErr *ErrInsufficientRole
-	if !errors.As(got, &roleErr) {
-		t.Fatalf("expected *ErrInsufficientRole, got %T: %v", got, got)
-	}
-	if roleErr.StatusCode != http.StatusForbidden {
-		t.Errorf("StatusCode = %d, want %d", roleErr.StatusCode, http.StatusForbidden)
-	}
-	if roleErr.Operation != "enable vulnerability alerts" {
-		t.Errorf("Operation = %q, want %q", roleErr.Operation, "enable vulnerability alerts")
-	}
-	if roleErr.RequiredRole != "admin" {
-		t.Errorf("RequiredRole = %q, want %q", roleErr.RequiredRole, "admin")
-	}
-	if roleErr.Message != "Must have admin rights to Repository." {
-		t.Errorf("Message = %q, want %q", roleErr.Message, "Must have admin rights to Repository.")
-	}
-}
-
-func TestClassifyHTTPError_403RoleError_PVR(t *testing.T) {
-	httpErr := newHTTPError(http.StatusForbidden, "Resource not accessible by integration", http.Header{})
-
-	got := classifyHTTPError(httpErr, "enable private vulnerability reporting")
-
-	var roleErr *ErrInsufficientRole
-	if !errors.As(got, &roleErr) {
-		t.Fatalf("expected *ErrInsufficientRole, got %T: %v", got, got)
-	}
-	if roleErr.RequiredRole != "admin or security manager" {
-		t.Errorf("RequiredRole = %q, want %q", roleErr.RequiredRole, "admin or security manager")
-	}
-}
-
-func TestClassifyHTTPError_403RoleError_ASF(t *testing.T) {
-	httpErr := newHTTPError(http.StatusForbidden, "Resource not accessible by integration", http.Header{})
-
-	got := classifyHTTPError(httpErr, "disable automated security fixes")
-
-	var roleErr *ErrInsufficientRole
-	if !errors.As(got, &roleErr) {
-		t.Fatalf("expected *ErrInsufficientRole, got %T: %v", got, got)
-	}
-	if roleErr.RequiredRole != "admin" {
-		t.Errorf("RequiredRole = %q, want %q", roleErr.RequiredRole, "admin")
-	}
-}
-
 func TestClassifyHTTPError_404ClassifiedAsScopeError(t *testing.T) {
 	httpErr := newHTTPError(http.StatusNotFound, "Not Found", http.Header{})
 
@@ -320,20 +238,6 @@ func TestClassifyHTTPError_404ClassifiedAsScopeError(t *testing.T) {
 	}
 	if scopeErr.StatusCode != http.StatusNotFound {
 		t.Errorf("StatusCode = %d, want %d", scopeErr.StatusCode, http.StatusNotFound)
-	}
-}
-
-func TestClassifyHTTPError_404AdminRoleOperation(t *testing.T) {
-	httpErr := newHTTPError(http.StatusNotFound, "Not Found", http.Header{})
-
-	got := classifyHTTPError(httpErr, "enable vulnerability alerts")
-
-	var roleErr *ErrInsufficientRole
-	if !errors.As(got, &roleErr) {
-		t.Fatalf("expected *ErrInsufficientRole for 404 on admin-role op, got %T: %v", got, got)
-	}
-	if roleErr.StatusCode != http.StatusNotFound {
-		t.Errorf("StatusCode = %d, want %d", roleErr.StatusCode, http.StatusNotFound)
 	}
 }
 

@@ -49,17 +49,7 @@ func (e *ErrInsufficientRole) Error() string {
 // adminRoleOperations maps operation names to their required repository roles.
 // Operations in this set return 403 when the caller lacks the required role,
 // regardless of token scope.
-var adminRoleOperations = map[string]string{
-	"enable vulnerability alerts":             "admin",
-	"disable vulnerability alerts":            "admin",
-	"fetch vulnerability alerts":              "admin",
-	"enable automated security fixes":         "admin",
-	"disable automated security fixes":        "admin",
-	"fetch automated security fixes":          "admin",
-	"enable private vulnerability reporting":  "admin or security manager",
-	"disable private vulnerability reporting": "admin or security manager",
-	"fetch private vulnerability reporting":   "admin or security manager",
-}
+var adminRoleOperations = map[string]string{}
 
 // requiredRole returns the required role for an operation and whether the
 // operation is in the admin-role registry.
