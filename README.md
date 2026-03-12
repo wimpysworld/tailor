@@ -102,6 +102,39 @@ The `wimpysworld/tailor` action installs the tailor binary and optionally runs o
 | `measure` | Run `tailor measure` to check community health files and configuration alignment. | `false` |
 | `docket` | Run `tailor docket` to display authentication state and repository context. | `false` |
 
+### Token requirements
+
+`GITHUB_TOKEN` is sufficient for most tailor operations in CI. Two fields are the exception: `default_workflow_permissions` and `can_approve_pull_request_reviews` call the `PUT /repos/{owner}/{repo}/actions/permissions/workflow` endpoint, which requires repository administration access. No `permissions:` block grants `GITHUB_TOKEN` this scope - it is a GitHub platform constraint.
+
+When `GITHUB_TOKEN` is used, tailor skips those fields and reports:
+
+```
+would skip (insufficient scope: token missing required scope): default_workflow_permissions
+would skip (insufficient scope: token missing required scope): can_approve_pull_request_reviews
+```
+
+To manage these fields from CI, provide a PAT with the necessary access.
+
+#### Personal repositories
+
+Create one of the following:
+
+- **Classic PAT** at <https://github.com/settings/tokens> - enable the `repo` scope
+- **Fine-grained PAT** at <https://github.com/settings/personal-access-tokens/new> - set "Repository permissions > Administration" to "Read and write"
+
+#### Organisation repositories
+
+Use the same PAT creation steps above. The PAT must belong to a user with admin access to the repository. If the organisation enforces SSO, authorise the PAT for the org after creation via the token's "Configure SSO" link.
+
+#### Storing and using the PAT
+
+Add the PAT as a repository secret via **Settings > Secrets and variables > Actions**, then pass it as `GH_TOKEN` in the workflow:
+
+```yaml
+env:
+  GH_TOKEN: ${{ secrets.TAILOR_TOKEN }}
+```
+
 ### Supported platforms
 
 Linux (amd64, arm64) and macOS (amd64, arm64).

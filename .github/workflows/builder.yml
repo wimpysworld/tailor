@@ -100,7 +100,7 @@ jobs:
       - name: Baste
         run: ./tailor baste
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.TAILOR_TOKEN }}
 
   security:
     name: Security 🔒

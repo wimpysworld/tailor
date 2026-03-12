@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 
@@ -11,6 +12,26 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/ptr"
 )
+
+// installationTokenUnreliableFields lists repo response fields that GitHub
+// Actions installation tokens (GITHUB_TOKEN / secrets.GITHUB_TOKEN) return as
+// zero values (false / empty string) regardless of the actual repository
+// configuration. Comparing these against the user's config produces false
+// positives ("would set" when the repo is already correct).
+//
+// The operation name is used as the key in readWarningOperationFields
+// (internal/alter/settings.go) to suppress WouldSet entries for these fields.
+const InstallationTokenReadOp = "read repo settings (installation token)" //nolint:gosec // not a credential
+
+var installationTokenUnreliableFields = map[string]bool{
+	"allow_auto_merge":            true,
+	"allow_rebase_merge":          true,
+	"allow_squash_merge":          true,
+	"allow_update_branch":         true,
+	"delete_branch_on_merge":      true,
+	"squash_merge_commit_message": true,
+	"squash_merge_commit_title":   true,
+}
 
 // repoResponse holds the subset of GitHub repository fields we read.
 type repoResponse struct {
@@ -75,10 +96,17 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 		WebCommitSignoffRequired: ptr.Ptr(repo.WebCommitSignoffRequired),
 	}
 
-	// Each sub-call below uses classifyHTTPError to detect 403 responses.
-	// On scope/role errors the corresponding field stays nil (unknown),
-	// and the classified error is appended to warnings for the caller.
+	// When running in GitHub Actions, the installation token returns zero
+	// values for certain fields. Nil them out and emit a synthetic warning
+	// so the comparison layer skips them instead of producing false diffs.
 	var warnings []error
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		nilUnreliableFields(s)
+		warnings = append(warnings, &ErrInsufficientScope{
+			Operation: InstallationTokenReadOp,
+			Message:   "installation token returns unreliable values for merge/branch settings",
+		})
+	}
 
 	var wfPerms workflowPermissionsResponse
 	if err := client.Get(fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name), &wfPerms); err != nil {
@@ -268,4 +296,23 @@ func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 	}
 
 	return p
+}
+
+// nilUnreliableFields sets pointer fields in s to nil when their YAML tag
+// matches installationTokenUnreliableFields. This prevents false-positive
+// diffs when the API returns zero values instead of the actual configuration.
+func nilUnreliableFields(s *model.RepositorySettings) {
+	rv := reflect.ValueOf(s).Elem()
+	rt := rv.Type()
+	for i := range rt.NumField() {
+		f := rt.Field(i)
+		tag := f.Tag.Get("yaml")
+		if tag == "" || tag == ",inline" {
+			continue
+		}
+		key, _, _ := strings.Cut(tag, ",")
+		if installationTokenUnreliableFields[key] {
+			rv.Field(i).Set(reflect.Zero(f.Type))
+		}
+	}
 }

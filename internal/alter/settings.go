@@ -164,8 +164,19 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 // readWarningOperationFields maps read-path operation names (from
 // ErrInsufficientScope/ErrInsufficientRole) to the config field names
 // (YAML tags) they affect. Workflow permissions covers two fields.
+// The installation token entry covers fields that return zero values
+// in GitHub Actions.
 var readWarningOperationFields = map[string][]string{
 	"fetch workflow permissions": {"default_workflow_permissions", "can_approve_pull_request_reviews"},
+	gh.InstallationTokenReadOp: {
+		"allow_auto_merge",
+		"allow_rebase_merge",
+		"allow_squash_merge",
+		"allow_update_branch",
+		"delete_branch_on_merge",
+		"squash_merge_commit_message",
+		"squash_merge_commit_title",
+	},
 }
 
 // readWarningsToResults converts read-path access-error warnings into
