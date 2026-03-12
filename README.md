@@ -176,6 +176,7 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 | `flake.nix` | `first-fit` |
 | `.gitignore` | `first-fit` |
 | `.envrc` | `first-fit` |
+| `cubic.yaml` | `first-fit` |
 | `.tailor.yml` | `always` |
 | `.github/workflows/tailor-automerge.yml` | `triggered` |
 

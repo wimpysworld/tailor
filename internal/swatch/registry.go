@@ -44,6 +44,7 @@ var registry = []Swatch{
 	{Path: "CONTRIBUTING.md", DefaultAlteration: Always, Category: Health},
 	{Path: "SUPPORT.md", DefaultAlteration: Always, Category: Health},
 	{Path: "flake.nix", DefaultAlteration: FirstFit, Category: Development},
+	{Path: "cubic.yaml", DefaultAlteration: FirstFit, Category: Development},
 	{Path: "justfile", DefaultAlteration: FirstFit, Category: Development},
 	{Path: ".github/FUNDING.yml", DefaultAlteration: FirstFit, Category: Health},
 	{Path: ".github/dependabot.yml", DefaultAlteration: FirstFit, Category: Health},

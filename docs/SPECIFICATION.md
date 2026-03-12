@@ -43,6 +43,7 @@ The `fit`, `alter`, and `baste` commands verify that a valid authentication toke
 | `SUPPORT.md` | `SUPPORT.md` |
 | `flake.nix` | `flake.nix` |
 | `justfile` | `justfile` |
+| `cubic.yaml` | `cubic.yaml` |
 | `.github/FUNDING.yml` | `.github/FUNDING.yml` |
 | `.github/dependabot.yml` | `.github/dependabot.yml` |
 | `.github/ISSUE_TEMPLATE/bug_report.yml` | `.github/ISSUE_TEMPLATE/bug_report.yml` |
@@ -122,6 +123,7 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 | `.github/workflows/tailor-automerge.yml` | `triggered` |
 | `.github/dependabot.yml` | `first-fit` |
 | `justfile` | `first-fit` |
+| `cubic.yaml` | `first-fit` |
 | `flake.nix` | `first-fit` |
 | `.tailor.yml` | `always` |
 
@@ -145,6 +147,7 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 - `.envrc`
 - `flake.nix`
 - `justfile`
+- `cubic.yaml`
 - `.github/workflows/tailor.yml`
 - `.github/workflows/tailor-automerge.yml`
 - `.tailor.yml`
@@ -179,6 +182,7 @@ The default swatch set embedded in the binary is:
 - `flake.nix`
 - `.gitignore`
 - `.envrc`
+- `cubic.yaml`
 - `.tailor.yml`
 
 A `license` key is included in `.tailor.yml` by default (`license: BlueOak-1.0.0`). Use `--license=<id>` to select a different licence or `--license=none` to opt out entirely.
@@ -561,6 +565,9 @@ swatches:
   - path: .envrc
     alteration: first-fit
 
+  - path: cubic.yaml
+    alteration: first-fit
+
   - path: .github/workflows/tailor-automerge.yml
     alteration: triggered
 
@@ -589,6 +596,7 @@ Swatches are embedded in the tailor binary at build time from `swatches/`:
 swatches/
 ├── .envrc
 ├── .gitignore
+├── cubic.yaml
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
 ├── SECURITY.md

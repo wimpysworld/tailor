@@ -130,6 +130,9 @@ swatches:
   - path: .envrc
     alteration: first-fit
 
+  - path: cubic.yaml
+    alteration: first-fit
+
   - path: .tailor.yml
     alteration: always
 

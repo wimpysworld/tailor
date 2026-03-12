@@ -36,8 +36,8 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 	}
 
 	// Verify 17 swatches are present (count "- path:" occurrences).
-	if count := strings.Count(content, "- path:"); count != 17 {
-		t.Errorf("swatch count = %d, want 17", count)
+	if count := strings.Count(content, "- path:"); count != 18 {
+		t.Errorf("swatch count = %d, want 18", count)
 	}
 
 	// Verify the 13 default repo settings are present.

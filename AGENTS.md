@@ -21,7 +21,7 @@ tailor/
 ├── .github/workflows/  # CI workflows
 ├── cmd/tailor/         # CLI entrypoint
 ├── internal/           # Internal packages (config, swatch, gh wrappers)
-├── swatches/           # Embedded template files (17 swatches)
+├── swatches/           # Embedded template files (18 swatches)
 ├── docs/               # Specification
 └── AGENTS.md
 ```
@@ -47,7 +47,7 @@ tailor/
 - Four alteration modes: `always`, `first-fit`, `triggered`, `never`
 - `never` beats `triggered` - a user can suppress a triggered swatch by setting `alteration: never`
 - Triggered swatches use a lookup table in `internal/swatch/trigger.go` mapping source paths to config field conditions
-- `EvaluateTrigger(source string, repo any)` uses reflection to match yaml tags on `RepositorySettings`; `repo` is `any` (not `*config.RepositorySettings`) to avoid a circular import
+- Adding a new plain swatch requires: the file in `swatches/`, a registry entry (registry.go), an entry in `swatches/.tailor.yml`, updated count assertions in `registry_test.go` and any golden-string test fixtures, plus updates to `docs/SPECIFICATION.md` and `README.md`
 - Adding a new triggered swatch requires: an entry in `triggerConditions` (trigger.go), a registry entry (registry.go), and inclusion in `swatches/.tailor.yml`
 
 ## Testing
@@ -63,6 +63,7 @@ tailor/
 ## Key implementation details
 
 - Swatches are embedded at build time via `//go:embed swatches/*`
+- `EvaluateTrigger(source string, repo any)` uses reflection to match yaml tags on `RepositorySettings`; `repo` is `any` (not `*config.RepositorySettings`) to avoid a circular import
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
 - `alter` execution order: repository settings, then labels, then licence, then swatches
