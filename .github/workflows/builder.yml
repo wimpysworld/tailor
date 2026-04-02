@@ -127,7 +127,7 @@ jobs:
           output-file: govulncheck.sarif
 
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4.32.6
+        uses: github/codeql-action/upload-sarif@v4.35.1
         if: always()
         with:
           sarif_file: govulncheck.sarif
@@ -200,7 +200,7 @@ jobs:
 
       - name: Log in to GHCR
         if: steps.guard.outputs.run == 'true'
-        uses: nick-fields/retry@v3
+        uses: nick-fields/retry@v4
         with:
           timeout_seconds: 30
           max_attempts: 3
@@ -211,11 +211,11 @@ jobs:
 
       - name: Install Nix
         if: steps.guard.outputs.run == 'true'
-        uses: DeterminateSystems/nix-installer-action@v21
+        uses: DeterminateSystems/nix-installer-action@v22
 
       - name: Install cosign
         if: steps.guard.outputs.run == 'true' && matrix.cosign
-        uses: sigstore/cosign-installer@v4.1.0
+        uses: sigstore/cosign-installer@v4.1.1
 
       - name: Run GoReleaser
         if: steps.guard.outputs.run == 'true'
