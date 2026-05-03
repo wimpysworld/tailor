@@ -297,6 +297,26 @@ func TestFormatOutputAnnotations(t *testing.T) {
 	}
 }
 
+func TestFormatOutputAnnotationsWidenedColumnAlignment(t *testing.T) {
+	annotatedLabel := "would deploy (triggered: custom condition):"
+	path := "nested/path/with-a-long-name/custom.yml"
+	swatches := []SwatchResult{
+		{Path: path, Category: WouldDeploy, Annotation: "triggered: custom condition"},
+		{Path: "LICENSE", Category: NoChange},
+	}
+
+	got := FormatOutput(nil, nil, swatches)
+	width := len(annotatedLabel) + 1
+	want := fmt.Sprintf("%-*s%s\n%-*s%s\n",
+		width, annotatedLabel, path,
+		width, "no change:", "LICENSE",
+	)
+
+	if got != want {
+		t.Errorf("FormatOutput widened annotation alignment:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestFormatOutputAnnotationWouldRemove(t *testing.T) {
 	swatches := []SwatchResult{
 		{Path: "custom.yml", Category: WouldRemove, Annotation: "custom condition"},
