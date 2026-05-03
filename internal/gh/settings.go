@@ -170,8 +170,7 @@ func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 		}
 
 		if nonPatchFields[key] {
-			switch key {
-			case "topics":
+			if key == "topics" {
 				s := fv.Elem().Interface().([]string)
 				p.Topics = &s
 			}
