@@ -57,72 +57,55 @@ const fullRepoJSON = `{
 	"merge_commit_message": "PR_BODY",
 	"delete_branch_on_merge": true,
 	"allow_update_branch": true,
-	"allow_auto_merge": true,
 	"web_commit_signoff_required": false,
 	"topics": ["go", "cli-tool"]
 }`
 
-const (
-	wfPermsReadJSON  = `{"default_workflow_permissions": "read", "can_approve_pull_request_reviews": false}`
-	wfPermsWriteJSON = `{"default_workflow_permissions": "write", "can_approve_pull_request_reviews": true}`
-)
-
 func TestReadRepoSettings(t *testing.T) {
-	ResetTokenProbe()
-	t.Cleanup(ResetTokenProbe)
-
 	tests := []struct {
-		name        string
-		repoJSON    string
-		wfPermsJSON string
+		name     string
+		repoJSON string
 		// expected field checks
-		wantDesc       string
-		wantDescNil    bool
-		wantHome       string
-		wantHomeNil    bool
-		wantWiki       bool
-		wantDisc       bool
-		wantProj       bool
-		wantIssues     bool
-		wantMerge      bool
-		wantSquash     bool
-		wantRebase     bool
-		wantSqTitle    string
-		wantSqMsg      string
-		wantMcTitle    string
-		wantMcMsg      string
-		wantDelete     bool
-		wantUpdate     bool
-		wantAuto       bool
-		wantSignoff    bool
-		wantTopics     []string
-		wantWfPerms    string
-		wantCanApprove bool
+		wantDesc    string
+		wantDescNil bool
+		wantHome    string
+		wantHomeNil bool
+		wantWiki    bool
+		wantDisc    bool
+		wantProj    bool
+		wantIssues  bool
+		wantMerge   bool
+		wantSquash  bool
+		wantRebase  bool
+		wantSqTitle string
+		wantSqMsg   string
+		wantMcTitle string
+		wantMcMsg   string
+		wantDelete  bool
+		wantUpdate  bool
+		wantSignoff bool
+		wantTopics  []string
 	}{
 		{
-			name:           "all fields populated",
-			repoJSON:       fullRepoJSON,
-			wfPermsJSON:    wfPermsWriteJSON,
-			wantDesc:       "A tailor for your repos",
-			wantHome:       "https://tailor.dev",
-			wantWiki:       false,
-			wantDisc:       true,
-			wantProj:       false,
-			wantIssues:     true,
-			wantMerge:      false,
-			wantSquash:     true,
-			wantRebase:     true,
-			wantSqTitle:    "PR_TITLE",
-			wantSqMsg:      "PR_BODY",
-			wantMcTitle:    "PR_TITLE",
-			wantMcMsg:      "PR_BODY",
-			wantDelete:     true,
-			wantUpdate:     true,
-			wantAuto:       true,
-			wantSignoff:    false,
-			wantTopics:     []string{"go", "cli-tool"},
-			wantWfPerms:    "write",
-			wantCanApprove: true,
+			name:        "all fields populated",
+			repoJSON:    fullRepoJSON,
+			wantDesc:    "A tailor for your repos",
+			wantHome:    "https://tailor.dev",
+			wantWiki:    false,
+			wantDisc:    true,
+			wantProj:    false,
+			wantIssues:  true,
+			wantMerge:   false,
+			wantSquash:  true,
+			wantRebase:  true,
+			wantSqTitle: "PR_TITLE",
+			wantSqMsg:   "PR_BODY",
+			wantMcTitle: "PR_TITLE",
+			wantMcMsg:   "PR_BODY",
+			wantDelete:  true,
+			wantUpdate:  true,
+			wantSignoff: false,
+			wantTopics:  []string{"go", "cli-tool"},
 		},
 		{
 			name: "empty description and homepage pass through",
@@ -142,30 +125,25 @@ func TestReadRepoSettings(t *testing.T) {
 				"merge_commit_message": "PR_TITLE",
 				"delete_branch_on_merge": false,
 				"allow_update_branch": false,
-				"allow_auto_merge": false,
 				"web_commit_signoff_required": true
 			}`,
-			wfPermsJSON:    wfPermsReadJSON,
-			wantDesc:       "",
-			wantHome:       "",
-			wantWiki:       true,
-			wantDisc:       false,
-			wantProj:       true,
-			wantIssues:     false,
-			wantMerge:      true,
-			wantSquash:     false,
-			wantRebase:     false,
-			wantSqTitle:    "COMMIT_OR_PR_TITLE",
-			wantSqMsg:      "COMMIT_MESSAGES",
-			wantMcTitle:    "MERGE_MESSAGE",
-			wantMcMsg:      "PR_TITLE",
-			wantDelete:     false,
-			wantUpdate:     false,
-			wantAuto:       false,
-			wantSignoff:    true,
-			wantTopics:     nil,
-			wantWfPerms:    "read",
-			wantCanApprove: false,
+			wantDesc:    "",
+			wantHome:    "",
+			wantWiki:    true,
+			wantDisc:    false,
+			wantProj:    true,
+			wantIssues:  false,
+			wantMerge:   true,
+			wantSquash:  false,
+			wantRebase:  false,
+			wantSqTitle: "COMMIT_OR_PR_TITLE",
+			wantSqMsg:   "COMMIT_MESSAGES",
+			wantMcTitle: "MERGE_MESSAGE",
+			wantMcMsg:   "PR_TITLE",
+			wantDelete:  false,
+			wantUpdate:  false,
+			wantSignoff: true,
+			wantTopics:  nil,
 		},
 	}
 
@@ -175,8 +153,6 @@ func TestReadRepoSettings(t *testing.T) {
 				switch r.URL.Path {
 				case "/repos/testowner/testrepo":
 					fmt.Fprint(w, tt.repoJSON)
-				case "/repos/testowner/testrepo/actions/permissions/workflow":
-					fmt.Fprint(w, tt.wfPermsJSON)
 				default:
 					http.NotFound(w, r)
 				}
@@ -203,12 +179,9 @@ func TestReadRepoSettings(t *testing.T) {
 			testutil.AssertBoolPtr(t, settings.AllowRebaseMerge, false, tt.wantRebase, "allow_rebase_merge")
 			testutil.AssertBoolPtr(t, settings.DeleteBranchOnMerge, false, tt.wantDelete, "delete_branch_on_merge")
 			testutil.AssertBoolPtr(t, settings.AllowUpdateBranch, false, tt.wantUpdate, "allow_update_branch")
-			testutil.AssertBoolPtr(t, settings.AllowAutoMerge, false, tt.wantAuto, "allow_auto_merge")
 			testutil.AssertBoolPtr(t, settings.WebCommitSignoffRequired, false, tt.wantSignoff, "web_commit_signoff_required")
-			testutil.AssertBoolPtr(t, settings.CanApprovePullRequestReviews, false, tt.wantCanApprove, "can_approve_pull_request_reviews")
 
 			// string fields (always non-nil)
-			testutil.AssertStringPtr(t, settings.DefaultWorkflowPermissions, false, tt.wantWfPerms, "default_workflow_permissions")
 			testutil.AssertStringPtr(t, settings.SquashMergeCommitTitle, false, tt.wantSqTitle, "squash_merge_commit_title")
 			testutil.AssertStringPtr(t, settings.SquashMergeCommitMessage, false, tt.wantSqMsg, "squash_merge_commit_message")
 			testutil.AssertStringPtr(t, settings.MergeCommitTitle, false, tt.wantMcTitle, "merge_commit_title")
@@ -238,9 +211,6 @@ func TestReadRepoSettings(t *testing.T) {
 }
 
 func TestReadRepoSettingsRepoAPIError(t *testing.T) {
-	ResetTokenProbe()
-	t.Cleanup(ResetTokenProbe)
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprint(w, `{"message": "Not Found"}`)
@@ -251,104 +221,6 @@ func TestReadRepoSettingsRepoAPIError(t *testing.T) {
 	_, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err == nil {
 		t.Fatal("ReadRepoSettings() expected error, got nil")
-	}
-}
-
-func TestReadRepoSettingsWFPerms403GracefulDegradation(t *testing.T) {
-	ResetTokenProbe()
-	t.Cleanup(ResetTokenProbe)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/repos/testowner/testrepo":
-			fmt.Fprint(w, fullRepoJSON)
-		case "/repos/testowner/testrepo/actions/permissions/workflow":
-			w.WriteHeader(http.StatusForbidden)
-			fmt.Fprint(w, `{"message": "Forbidden"}`)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	client := newTestClient(t, server)
-	settings, _, err := ReadRepoSettings(client, "testowner", "testrepo")
-	if err != nil {
-		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
-	}
-
-	// Workflow permissions should be nil (inaccessible).
-	if settings.DefaultWorkflowPermissions != nil {
-		t.Errorf("DefaultWorkflowPermissions = %v, want nil", *settings.DefaultWorkflowPermissions)
-	}
-	if settings.CanApprovePullRequestReviews != nil {
-		t.Errorf("CanApprovePullRequestReviews = %v, want nil", *settings.CanApprovePullRequestReviews)
-	}
-	// Other fields should be populated.
-	testutil.AssertStringPtr(t, settings.Description, false, "A tailor for your repos", "description")
-}
-
-func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
-	ResetTokenProbe()
-	t.Cleanup(ResetTokenProbe)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/user":
-			// Return 200 so IsInstallationToken detects a PAT.
-			fmt.Fprint(w, `{"login": "testuser"}`)
-		case "/repos/testowner/testrepo":
-			fmt.Fprint(w, fullRepoJSON)
-		default:
-			w.WriteHeader(http.StatusForbidden)
-			fmt.Fprint(w, `{"message": "Forbidden"}`)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	client := newTestClient(t, server)
-	settings, warnings, err := ReadRepoSettings(client, "testowner", "testrepo")
-	if err != nil {
-		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
-	}
-
-	// All sub-call fields should be nil.
-	if settings.DefaultWorkflowPermissions != nil {
-		t.Errorf("DefaultWorkflowPermissions = %v, want nil", *settings.DefaultWorkflowPermissions)
-	}
-	if settings.CanApprovePullRequestReviews != nil {
-		t.Errorf("CanApprovePullRequestReviews = %v, want nil", *settings.CanApprovePullRequestReviews)
-	}
-	// One warning: workflow permissions.
-	if len(warnings) != 1 {
-		t.Errorf("expected 1 warning, got %d", len(warnings))
-	}
-	// Core repo fields should still be populated.
-	testutil.AssertStringPtr(t, settings.Description, false, "A tailor for your repos", "description")
-	testutil.AssertBoolPtr(t, settings.HasWiki, false, false, "has_wiki")
-}
-
-func TestReadRepoSettingsNon403StillFails(t *testing.T) {
-	ResetTokenProbe()
-	t.Cleanup(ResetTokenProbe)
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/repos/testowner/testrepo":
-			fmt.Fprint(w, fullRepoJSON)
-		case "/repos/testowner/testrepo/actions/permissions/workflow":
-			w.WriteHeader(http.StatusInternalServerError)
-			fmt.Fprint(w, `{"message": "Internal Server Error"}`)
-		default:
-			http.NotFound(w, r)
-		}
-	}))
-	t.Cleanup(server.Close)
-
-	client := newTestClient(t, server)
-	_, _, err := ReadRepoSettings(client, "testowner", "testrepo")
-	if err == nil {
-		t.Fatal("ReadRepoSettings() expected error for 500, got nil")
 	}
 }
 
@@ -368,9 +240,8 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		Description:    ptr.Ptr("new desc"),
-		HasWiki:        ptr.Ptr(true),
-		AllowAutoMerge: ptr.Ptr(false),
+		Description: ptr.Ptr("new desc"),
+		HasWiki:     ptr.Ptr(true),
 	}
 
 	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -392,20 +263,14 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 	if gotBody["has_wiki"] != true {
 		t.Errorf("has_wiki = %v, want true", gotBody["has_wiki"])
 	}
-	if gotBody["allow_auto_merge"] != false {
-		t.Errorf("allow_auto_merge = %v, want false", gotBody["allow_auto_merge"])
-	}
-
 	// Verify nil fields excluded.
 	if _, ok := gotBody["homepage"]; ok {
 		t.Error("homepage should not be in PATCH body when nil")
 	}
 
-	// Verify all three non-PATCH fields excluded from body.
+	// Verify topics are excluded from the PATCH body.
 	for _, key := range []string{
 		"topics",
-		"default_workflow_permissions",
-		"can_approve_pull_request_reviews",
 	} {
 		if _, ok := gotBody[key]; ok {
 			t.Errorf("%s should not be in PATCH body", key)
@@ -413,14 +278,12 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 	}
 }
 
-func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
+func TestBuildSettingsPayloadExtractsTopics(t *testing.T) {
 	topics := []string{"go", "cli"}
 	settings := &model.RepositorySettings{
-		Description:                  ptr.Ptr("desc"),
-		HasWiki:                      ptr.Ptr(true),
-		Topics:                       &topics,
-		DefaultWorkflowPermissions:   ptr.Ptr("read"),
-		CanApprovePullRequestReviews: ptr.Ptr(true),
+		Description: ptr.Ptr("desc"),
+		HasWiki:     ptr.Ptr(true),
+		Topics:      &topics,
 	}
 
 	p := buildSettingsPayload(settings)
@@ -436,8 +299,6 @@ func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
 	// Non-PATCH fields must not appear in the body.
 	for _, key := range []string{
 		"topics",
-		"default_workflow_permissions",
-		"can_approve_pull_request_reviews",
 	} {
 		if _, ok := p.Body[key]; ok {
 			t.Errorf("%s should not be in PATCH body", key)
@@ -451,12 +312,6 @@ func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
 	if len(*p.Topics) != 2 || (*p.Topics)[0] != "go" || (*p.Topics)[1] != "cli" {
 		t.Errorf("Topics = %v, want [go cli]", *p.Topics)
 	}
-	if p.DefaultWorkflowPermissions == nil || *p.DefaultWorkflowPermissions != "read" {
-		t.Errorf("DefaultWorkflowPermissions = %v, want ptr(read)", p.DefaultWorkflowPermissions)
-	}
-	if p.CanApprovePullRequestReviews == nil || *p.CanApprovePullRequestReviews != true {
-		t.Errorf("CanApprovePullRequestReviews = %v, want ptr(true)", p.CanApprovePullRequestReviews)
-	}
 }
 
 func TestBuildSettingsPayloadNilFieldsStayNil(t *testing.T) {
@@ -469,13 +324,6 @@ func TestBuildSettingsPayloadNilFieldsStayNil(t *testing.T) {
 	if p.Topics != nil {
 		t.Errorf("Topics = %v, want nil", p.Topics)
 	}
-	if p.DefaultWorkflowPermissions != nil {
-		t.Errorf("DefaultWorkflowPermissions = %v, want nil", p.DefaultWorkflowPermissions)
-	}
-	if p.CanApprovePullRequestReviews != nil {
-		t.Errorf("CanApprovePullRequestReviews = %v, want nil", p.CanApprovePullRequestReviews)
-	}
-
 	if _, ok := p.Body["has_wiki"]; !ok {
 		t.Error("has_wiki missing from PATCH body")
 	}
@@ -539,164 +387,6 @@ func TestApplyRepoSettingsPatch403Skipped(t *testing.T) {
 	}
 	if result.Skipped[0].Operation != "patch repo settings" {
 		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, "patch repo settings")
-	}
-}
-
-func TestApplyRepoSettingsWorkflowPermsBothFields(t *testing.T) {
-	var gotMethod string
-	var gotPath string
-	var gotBody map[string]any
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotMethod = r.Method
-		gotPath = r.URL.Path
-		body, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(body, &gotBody)
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	t.Cleanup(server.Close)
-
-	client := newTestClient(t, server)
-	settings := &model.RepositorySettings{
-		DefaultWorkflowPermissions:   ptr.Ptr("read"),
-		CanApprovePullRequestReviews: ptr.Ptr(false),
-	}
-
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
-	if err != nil {
-		t.Fatalf("ApplyRepoSettings() error: %v", err)
-	}
-
-	if gotMethod != http.MethodPut {
-		t.Errorf("method = %s, want PUT", gotMethod)
-	}
-	if gotPath != "/repos/testowner/testrepo/actions/permissions/workflow" {
-		t.Errorf("path = %s, want /repos/testowner/testrepo/actions/permissions/workflow", gotPath)
-	}
-	if gotBody["default_workflow_permissions"] != "read" {
-		t.Errorf("default_workflow_permissions = %v, want %q", gotBody["default_workflow_permissions"], "read")
-	}
-	if gotBody["can_approve_pull_request_reviews"] != false {
-		t.Errorf("can_approve_pull_request_reviews = %v, want false", gotBody["can_approve_pull_request_reviews"])
-	}
-}
-
-func TestApplyRepoSettingsWorkflowPermsPartialFetchesCurrent(t *testing.T) {
-	var methods []string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		methods = append(methods, r.Method)
-		if r.Method == http.MethodGet {
-			fmt.Fprint(w, `{"default_workflow_permissions": "write", "can_approve_pull_request_reviews": true}`)
-			return
-		}
-		// Verify the PUT body contains both fields.
-		body, _ := io.ReadAll(r.Body)
-		var gotBody map[string]any
-		_ = json.Unmarshal(body, &gotBody)
-		if gotBody["default_workflow_permissions"] != "read" {
-			t.Errorf("default_workflow_permissions = %v, want %q", gotBody["default_workflow_permissions"], "read")
-		}
-		if gotBody["can_approve_pull_request_reviews"] != true {
-			t.Errorf("can_approve_pull_request_reviews = %v, want true (from current)", gotBody["can_approve_pull_request_reviews"])
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	t.Cleanup(server.Close)
-
-	client := newTestClient(t, server)
-	settings := &model.RepositorySettings{
-		DefaultWorkflowPermissions: ptr.Ptr("read"),
-	}
-
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
-	if err != nil {
-		t.Fatalf("ApplyRepoSettings() error: %v", err)
-	}
-
-	if len(methods) != 2 {
-		t.Fatalf("expected 2 API calls (GET + PUT), got %d: %v", len(methods), methods)
-	}
-	if methods[0] != http.MethodGet {
-		t.Errorf("first call method = %s, want GET", methods[0])
-	}
-	if methods[1] != http.MethodPut {
-		t.Errorf("second call method = %s, want PUT", methods[1])
-	}
-}
-
-func TestApplyRepoSettingsWorkflowPermsSkippedWhenBothNil(t *testing.T) {
-	var methods []string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		methods = append(methods, r.Method)
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	t.Cleanup(server.Close)
-
-	client := newTestClient(t, server)
-	settings := &model.RepositorySettings{
-		HasWiki: ptr.Ptr(true),
-	}
-
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
-	if err != nil {
-		t.Fatalf("ApplyRepoSettings() error: %v", err)
-	}
-
-	// Only PATCH for has_wiki, no workflow permissions call.
-	if len(methods) != 1 {
-		t.Fatalf("expected 1 API call, got %d: %v", len(methods), methods)
-	}
-	if methods[0] != http.MethodPatch {
-		t.Errorf("method = %s, want PATCH", methods[0])
-	}
-}
-
-func TestApplyRepoSettingsWorkflowPermsGetError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			w.WriteHeader(http.StatusForbidden)
-			fmt.Fprint(w, `{"message": "Forbidden"}`)
-			return
-		}
-		w.WriteHeader(http.StatusNoContent)
-	}))
-	t.Cleanup(server.Close)
-
-	client := newTestClient(t, server)
-	settings := &model.RepositorySettings{
-		CanApprovePullRequestReviews: ptr.Ptr(true),
-	}
-
-	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
-	if err != nil {
-		t.Fatalf("ApplyRepoSettings() unexpected hard error: %v", err)
-	}
-	if len(result.Skipped) != 1 {
-		t.Fatalf("expected 1 skipped operation, got %d", len(result.Skipped))
-	}
-	if result.Skipped[0].Operation != "set workflow permissions" {
-		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, "set workflow permissions")
-	}
-}
-
-func TestApplyRepoSettingsWorkflowPermsPutError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, `{"message": "Internal Server Error"}`)
-	}))
-	t.Cleanup(server.Close)
-
-	client := newTestClient(t, server)
-	settings := &model.RepositorySettings{
-		DefaultWorkflowPermissions:   ptr.Ptr("read"),
-		CanApprovePullRequestReviews: ptr.Ptr(false),
-	}
-
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
-	if err == nil {
-		t.Fatal("ApplyRepoSettings() expected error from PUT workflow permissions, got nil")
 	}
 }
 

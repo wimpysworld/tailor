@@ -44,31 +44,6 @@ func (tc *TokenContext) HomepageURL() string {
 	return fmt.Sprintf("https://github.com/%s/%s", tc.Owner, tc.Name)
 }
 
-// MergeStrategy returns the highest-preference enabled method
-// (squash > rebase > merge), defaulting to --squash.
-func (tc *TokenContext) MergeStrategy() string {
-	if tc.Repository == nil {
-		return "--squash"
-	}
-
-	type method struct {
-		enabled *bool
-		flag    string
-	}
-	methods := []method{
-		{tc.Repository.AllowSquashMerge, "--squash"},
-		{tc.Repository.AllowRebaseMerge, "--rebase"},
-		{tc.Repository.AllowMergeCommit, "--merge"},
-	}
-
-	for _, m := range methods {
-		if m.enabled != nil && *m.enabled {
-			return m.flag
-		}
-	}
-	return "--squash"
-}
-
 // Substitute replaces tokens in content based on the swatch path.
 func (tc *TokenContext) Substitute(content []byte, path string) []byte {
 	switch path {
@@ -80,8 +55,6 @@ func (tc *TokenContext) Substitute(content []byte, path string) []byte {
 		return bytes.ReplaceAll(content, []byte("{{SUPPORT_URL}}"), []byte(tc.SupportURL()))
 	case ".tailor.yml":
 		return bytes.ReplaceAll(content, []byte("{{HOMEPAGE_URL}}"), []byte(tc.HomepageURL()))
-	case ".github/workflows/tailor-automerge.yml":
-		return bytes.ReplaceAll(content, []byte("{{MERGE_STRATEGY}}"), []byte(tc.MergeStrategy()))
 	default:
 		return content
 	}

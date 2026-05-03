@@ -185,7 +185,7 @@ func processTriggered(cfg *config.Config, entry config.SwatchEntry, content []by
 }
 
 // triggerAnnotation returns the formatted trigger context string for a swatch
-// path, e.g. "triggered: allow_auto_merge". Returns empty if no trigger exists.
+// path. Returns empty if no trigger exists.
 func triggerAnnotation(path string) string {
 	tc, ok := swatch.LookupTrigger(path)
 	if !ok {

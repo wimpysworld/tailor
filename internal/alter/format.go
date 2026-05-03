@@ -80,7 +80,7 @@ func labelResultLabel(r LabelResult) string {
 }
 
 // swatchLabel returns the formatted label for a swatch result, including any
-// trigger annotation. For example: "would deploy (triggered: allow_auto_merge):".
+// annotation. For example: "would deploy (custom condition):".
 func swatchLabel(r SwatchResult) string {
 	if r.Annotation != "" {
 		return string(r.Category) + " (" + r.Annotation + "):"

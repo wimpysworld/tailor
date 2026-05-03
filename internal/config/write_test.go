@@ -30,10 +30,7 @@ repository:
   squash_merge_commit_message: PR_BODY
   delete_branch_on_merge: true
   allow_update_branch: true
-  allow_auto_merge: true
   web_commit_signoff_required: false
-  default_workflow_permissions: read
-  can_approve_pull_request_reviews: true
 
 labels:
   - name: bug
@@ -85,9 +82,6 @@ labels:
     description: Hacktoberfest contribution
 
 swatches:
-  - path: .github/workflows/tailor.yml
-    alteration: always
-
   - path: .github/dependabot.yml
     alteration: first-fit
 
@@ -135,9 +129,6 @@ swatches:
 
   - path: .tailor.yml
     alteration: always
-
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: triggered
 `
 
 func TestWriteDefaultConfigMatchesSpec(t *testing.T) {
@@ -197,25 +188,22 @@ func TestWriteOptionalFieldsPresent(t *testing.T) {
 	cfg := &Config{
 		License: "Apache-2.0",
 		Repository: &model.RepositorySettings{
-			Description:                  ptr.Ptr("My project"),
-			Homepage:                     ptr.Ptr("https://example.com"),
-			HasWiki:                      ptr.Ptr(true),
-			HasDiscussions:               ptr.Ptr(false),
-			HasProjects:                  ptr.Ptr(false),
-			HasIssues:                    ptr.Ptr(true),
-			AllowMergeCommit:             ptr.Ptr(true),
-			AllowSquashMerge:             ptr.Ptr(true),
-			AllowRebaseMerge:             ptr.Ptr(false),
-			SquashMergeCommitTitle:       ptr.Ptr("PR_TITLE"),
-			SquashMergeCommitMessage:     ptr.Ptr("COMMIT_MESSAGES"),
-			MergeCommitTitle:             ptr.Ptr("PR_TITLE"),
-			MergeCommitMessage:           ptr.Ptr("PR_BODY"),
-			DeleteBranchOnMerge:          ptr.Ptr(true),
-			AllowUpdateBranch:            ptr.Ptr(true),
-			AllowAutoMerge:               ptr.Ptr(false),
-			WebCommitSignoffRequired:     ptr.Ptr(true),
-			DefaultWorkflowPermissions:   ptr.Ptr("write"),
-			CanApprovePullRequestReviews: ptr.Ptr(true),
+			Description:              ptr.Ptr("My project"),
+			Homepage:                 ptr.Ptr("https://example.com"),
+			HasWiki:                  ptr.Ptr(true),
+			HasDiscussions:           ptr.Ptr(false),
+			HasProjects:              ptr.Ptr(false),
+			HasIssues:                ptr.Ptr(true),
+			AllowMergeCommit:         ptr.Ptr(true),
+			AllowSquashMerge:         ptr.Ptr(true),
+			AllowRebaseMerge:         ptr.Ptr(false),
+			SquashMergeCommitTitle:   ptr.Ptr("PR_TITLE"),
+			SquashMergeCommitMessage: ptr.Ptr("COMMIT_MESSAGES"),
+			MergeCommitTitle:         ptr.Ptr("PR_TITLE"),
+			MergeCommitMessage:       ptr.Ptr("PR_BODY"),
+			DeleteBranchOnMerge:      ptr.Ptr(true),
+			AllowUpdateBranch:        ptr.Ptr(true),
+			WebCommitSignoffRequired: ptr.Ptr(true),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -241,10 +229,7 @@ repository:
   merge_commit_message: PR_BODY
   delete_branch_on_merge: true
   allow_update_branch: true
-  allow_auto_merge: false
   web_commit_signoff_required: true
-  default_workflow_permissions: write
-  can_approve_pull_request_reviews: true
 
 swatches:
   - path: justfile
@@ -271,21 +256,18 @@ func TestWriteOptionalFieldsOmitted(t *testing.T) {
 		License: "MIT",
 		Repository: &model.RepositorySettings{
 			// Description, Homepage, MergeCommitTitle, MergeCommitMessage are nil.
-			HasWiki:                      ptr.Ptr(false),
-			HasDiscussions:               ptr.Ptr(false),
-			HasProjects:                  ptr.Ptr(false),
-			HasIssues:                    ptr.Ptr(true),
-			AllowMergeCommit:             ptr.Ptr(false),
-			AllowSquashMerge:             ptr.Ptr(true),
-			AllowRebaseMerge:             ptr.Ptr(true),
-			SquashMergeCommitTitle:       ptr.Ptr("PR_TITLE"),
-			SquashMergeCommitMessage:     ptr.Ptr("PR_BODY"),
-			DeleteBranchOnMerge:          ptr.Ptr(true),
-			AllowUpdateBranch:            ptr.Ptr(true),
-			AllowAutoMerge:               ptr.Ptr(true),
-			WebCommitSignoffRequired:     ptr.Ptr(false),
-			DefaultWorkflowPermissions:   ptr.Ptr("read"),
-			CanApprovePullRequestReviews: ptr.Ptr(false),
+			HasWiki:                  ptr.Ptr(false),
+			HasDiscussions:           ptr.Ptr(false),
+			HasProjects:              ptr.Ptr(false),
+			HasIssues:                ptr.Ptr(true),
+			AllowMergeCommit:         ptr.Ptr(false),
+			AllowSquashMerge:         ptr.Ptr(true),
+			AllowRebaseMerge:         ptr.Ptr(true),
+			SquashMergeCommitTitle:   ptr.Ptr("PR_TITLE"),
+			SquashMergeCommitMessage: ptr.Ptr("PR_BODY"),
+			DeleteBranchOnMerge:      ptr.Ptr(true),
+			AllowUpdateBranch:        ptr.Ptr(true),
+			WebCommitSignoffRequired: ptr.Ptr(false),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -307,10 +289,7 @@ repository:
   squash_merge_commit_message: PR_BODY
   delete_branch_on_merge: true
   allow_update_branch: true
-  allow_auto_merge: true
   web_commit_signoff_required: false
-  default_workflow_permissions: read
-  can_approve_pull_request_reviews: false
 
 swatches:
   - path: justfile

@@ -11,7 +11,6 @@ import (
 
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
-	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/ghfake"
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/ptr"
@@ -36,7 +35,6 @@ type repoJSON struct {
 	MergeCommitMessage       string   `json:"merge_commit_message"`
 	DeleteBranchOnMerge      bool     `json:"delete_branch_on_merge"`
 	AllowUpdateBranch        bool     `json:"allow_update_branch"`
-	AllowAutoMerge           bool     `json:"allow_auto_merge"`
 	WebCommitSignoffRequired bool     `json:"web_commit_signoff_required"`
 	Topics                   []string `json:"topics"`
 }
@@ -49,26 +47,17 @@ func settingsServer(repo repoJSON, patchCalled *atomic.Int32) *httptest.Server {
 	return settingsServerWithTokenType(repo, patchCalled, false)
 }
 
-func settingsServerWithTokenType(repo repoJSON, patchCalled *atomic.Int32, installationToken bool) *httptest.Server {
+func settingsServerWithTokenType(repo repoJSON, patchCalled *atomic.Int32, _ bool) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
 		switch {
 		case r.Method == http.MethodGet && path == "/user":
-			if installationToken {
-				w.WriteHeader(http.StatusForbidden)
-				fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
-			} else {
-				fmt.Fprint(w, `{"login":"testuser"}`)
-			}
+			fmt.Fprint(w, `{"login":"testuser"}`)
 
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(repo)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
 
 		case r.Method == http.MethodPatch && path == "/repos/testowner/testrepo":
 			if patchCalled != nil {
@@ -77,12 +66,6 @@ func settingsServerWithTokenType(repo repoJSON, patchCalled *atomic.Int32, insta
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, `{}`)
-
-		case r.Method == http.MethodPut && path == "/repos/testowner/testrepo/actions/permissions/workflow":
-			if patchCalled != nil {
-				patchCalled.Add(1)
-			}
-			w.WriteHeader(http.StatusNoContent)
 
 		default:
 			w.WriteHeader(http.StatusNotFound)
@@ -535,102 +518,6 @@ func TestProcessRepoSettingsTopicsEmptyMatchesEmpty(t *testing.T) {
 	}
 }
 
-func TestProcessRepoSettingsDefaultWorkflowPermissionsNoChange(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	live := repoJSON{}
-	// settingsServer returns {"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}
-	server := settingsServer(live, nil)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			DefaultWorkflowPermissions: ptr.Ptr("read"),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "default_workflow_permissions" {
-		t.Errorf("field = %q, want %q", results[0].Field, "default_workflow_permissions")
-	}
-	if results[0].Category != alter.RepoNoChange {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
-	}
-	if results[0].Value != "read" {
-		t.Errorf("value = %q, want %q", results[0].Value, "read")
-	}
-}
-
-func TestProcessRepoSettingsDefaultWorkflowPermissionsWouldSet(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	live := repoJSON{}
-	// settingsServer returns {"default_workflow_permissions":"read",...}
-	server := settingsServer(live, nil)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			DefaultWorkflowPermissions: ptr.Ptr("write"),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "default_workflow_permissions" {
-		t.Errorf("field = %q, want %q", results[0].Field, "default_workflow_permissions")
-	}
-	if results[0].Category != alter.WouldSet {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
-	}
-	if results[0].Value != "write" {
-		t.Errorf("value = %q, want %q", results[0].Value, "write")
-	}
-}
-
-func TestProcessRepoSettingsCanApprovePullRequestReviewsNoChange(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	live := repoJSON{}
-	// settingsServer returns {"can_approve_pull_request_reviews":false}
-	server := settingsServer(live, nil)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			CanApprovePullRequestReviews: ptr.Ptr(false),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "can_approve_pull_request_reviews" {
-		t.Errorf("field = %q, want %q", results[0].Field, "can_approve_pull_request_reviews")
-	}
-	if results[0].Category != alter.RepoNoChange {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
-	}
-}
-
 func TestProcessRepoSettingsPatch403ScopeProducesSkipScope(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
@@ -643,10 +530,6 @@ func TestProcessRepoSettingsPatch403ScopeProducesSkipScope(t *testing.T) {
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(live)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
 
 		case r.Method == http.MethodPatch && path == "/repos/testowner/testrepo":
 			// Return 403 to simulate insufficient scope on PATCH.
@@ -683,245 +566,5 @@ func TestProcessRepoSettingsPatch403ScopeProducesSkipScope(t *testing.T) {
 	}
 	if !foundScopeSkip {
 		t.Errorf("expected WouldSkipScope result for patch repo settings, got results: %v", results)
-	}
-}
-
-// forbiddenReadServer returns a test server where the workflow permissions
-// GET endpoint returns 403 to simulate insufficient scope on the read path.
-func forbiddenReadServer(forbidWF bool) *httptest.Server {
-	repo := repoJSON{}
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path
-
-		switch {
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo":
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(repo)
-
-		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
-			if forbidWF {
-				w.Header().Set("Content-Type", "application/json")
-				w.Header().Set("X-OAuth-Scopes", "public_repo")
-				w.Header().Set("X-Accepted-OAuth-Scopes", "repo")
-				w.WriteHeader(http.StatusForbidden)
-				fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
-
-		default:
-			w.WriteHeader(http.StatusNotFound)
-			fmt.Fprintf(w, `{"message":"Not Found: %s %s"}`, r.Method, path) //nolint:gosec
-		}
-	}))
-}
-
-func TestProcessRepoSettingsReadPath403WorkflowProducesSkipScope(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	server := forbiddenReadServer(true)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			DefaultWorkflowPermissions: ptr.Ptr("write"),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "default_workflow_permissions" {
-		t.Errorf("field = %q, want %q", results[0].Field, "default_workflow_permissions")
-	}
-	if results[0].Category != alter.WouldSkipScope {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSkipScope)
-	}
-}
-
-func TestProcessRepoSettingsReadPath403DoesNotProduceWouldSet(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	// Workflow permissions sub-call returns 403.
-	server := forbiddenReadServer(true)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			DefaultWorkflowPermissions:   ptr.Ptr("write"),
-			CanApprovePullRequestReviews: ptr.Ptr(true),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	for _, r := range results {
-		if r.Category == alter.WouldSet {
-			t.Errorf("unexpected WouldSet for field %q; should be a skip category", r.Field)
-		}
-	}
-
-	// Both fields should have skip results.
-	skipCount := 0
-	for _, r := range results {
-		if r.Category == alter.WouldSkipRole || r.Category == alter.WouldSkipScope {
-			skipCount++
-		}
-	}
-	if skipCount != 2 {
-		t.Errorf("got %d skip results, want 2", skipCount)
-	}
-}
-
-func TestProcessRepoSettingsInstallationTokenSkipsUnreliableFields(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	// Simulate GitHub Actions environment with an installation token.
-	t.Setenv("GITHUB_ACTIONS", "true")
-	gh.ResetTokenProbe()
-	t.Cleanup(gh.ResetTokenProbe)
-
-	// Live repo returns zero values for the unreliable fields (as the
-	// installation token does in practice). The config declares non-zero
-	// values. Without the fix these would all be WouldSet.
-	live := repoJSON{
-		AllowAutoMerge:           false,
-		AllowRebaseMerge:         false,
-		AllowSquashMerge:         false,
-		AllowUpdateBranch:        false,
-		DeleteBranchOnMerge:      false,
-		SquashMergeCommitTitle:   "",
-		SquashMergeCommitMessage: "",
-		// Reliable field that genuinely differs.
-		HasWiki: true,
-	}
-	server := settingsServerWithTokenType(live, nil, true)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			AllowAutoMerge:           ptr.Ptr(true),
-			AllowRebaseMerge:         ptr.Ptr(false),
-			AllowSquashMerge:         ptr.Ptr(true),
-			AllowUpdateBranch:        ptr.Ptr(true),
-			DeleteBranchOnMerge:      ptr.Ptr(true),
-			SquashMergeCommitTitle:   ptr.Ptr("PR_TITLE"),
-			SquashMergeCommitMessage: ptr.Ptr("COMMIT_MESSAGES"),
-			HasWiki:                  ptr.Ptr(false), // reliable field, differs
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	unreliableFields := map[string]bool{
-		"allow_auto_merge":            true,
-		"allow_rebase_merge":          true,
-		"allow_squash_merge":          true,
-		"allow_update_branch":         true,
-		"delete_branch_on_merge":      true,
-		"squash_merge_commit_title":   true,
-		"squash_merge_commit_message": true,
-	}
-
-	for _, r := range results {
-		if unreliableFields[r.Field] {
-			if r.Category != alter.WouldSkipScope {
-				t.Errorf("field %q: category = %q, want %q", r.Field, r.Category, alter.WouldSkipScope)
-			}
-		}
-		if r.Field == "has_wiki" {
-			if r.Category != alter.WouldSet {
-				t.Errorf("has_wiki: category = %q, want %q", r.Category, alter.WouldSet)
-			}
-		}
-	}
-
-	// Verify no WouldSet for unreliable fields.
-	for _, r := range results {
-		if unreliableFields[r.Field] && r.Category == alter.WouldSet {
-			t.Errorf("field %q should not be WouldSet under installation token", r.Field)
-		}
-	}
-}
-
-func TestProcessRepoSettingsInstallationTokenNotActiveOutsideCI(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	// Ensure GITHUB_ACTIONS is not set.
-	t.Setenv("GITHUB_ACTIONS", "")
-	gh.ResetTokenProbe()
-	t.Cleanup(gh.ResetTokenProbe)
-
-	live := repoJSON{
-		AllowAutoMerge: false,
-		HasWiki:        true,
-	}
-	server := settingsServer(live, nil)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			AllowAutoMerge: ptr.Ptr(true),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "allow_auto_merge" {
-		t.Errorf("field = %q, want %q", results[0].Field, "allow_auto_merge")
-	}
-	// Outside CI, the field should produce WouldSet as before.
-	if results[0].Category != alter.WouldSet {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
-	}
-}
-
-func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
-	ghfake.FakeRepo(t, "testowner", "testrepo")
-
-	live := repoJSON{}
-	// settingsServer returns {"can_approve_pull_request_reviews":false}
-	server := settingsServer(live, nil)
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
-
-	cfg := &config.Config{
-		Repository: &model.RepositorySettings{
-			CanApprovePullRequestReviews: ptr.Ptr(true),
-		},
-	}
-
-	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 1 {
-		t.Fatalf("got %d results, want 1", len(results))
-	}
-	if results[0].Field != "can_approve_pull_request_reviews" {
-		t.Errorf("field = %q, want %q", results[0].Field, "can_approve_pull_request_reviews")
-	}
-	if results[0].Category != alter.WouldSet {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
 	}
 }

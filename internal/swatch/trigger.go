@@ -13,9 +13,7 @@ type TriggerCondition struct {
 }
 
 // triggerConditions maps swatch paths to their trigger conditions.
-var triggerConditions = map[string]TriggerCondition{
-	".github/workflows/tailor-automerge.yml": {ConfigField: "allow_auto_merge", Value: true},
-}
+var triggerConditions = map[string]TriggerCondition{}
 
 // LookupTrigger returns the trigger condition for the given swatch path and
 // true if one exists, or a zero value and false otherwise.

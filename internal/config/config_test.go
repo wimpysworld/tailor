@@ -28,13 +28,9 @@ repository:
   squash_merge_commit_message: PR_BODY
   delete_branch_on_merge: true
   allow_update_branch: true
-  allow_auto_merge: true
   web_commit_signoff_required: false
 
 swatches:
-  - path: .github/workflows/tailor.yml
-    alteration: always
-
   - path: .github/dependabot.yml
     alteration: first-fit
 
@@ -79,9 +75,6 @@ swatches:
 
   - path: .tailor.yml
     alteration: always
-
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: triggered
 `
 
 func TestUnmarshalSpecYAML(t *testing.T) {
@@ -110,27 +103,26 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	testutil.AssertStringPtr(t, r.SquashMergeCommitMessage, false, "PR_BODY", "squash_merge_commit_message")
 	testutil.AssertBoolPtr(t, r.DeleteBranchOnMerge, false, true, "delete_branch_on_merge")
 	testutil.AssertBoolPtr(t, r.AllowUpdateBranch, false, true, "allow_update_branch")
-	testutil.AssertBoolPtr(t, r.AllowAutoMerge, false, true, "allow_auto_merge")
 	testutil.AssertBoolPtr(t, r.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
 
-	if len(cfg.Swatches) != 17 {
-		t.Fatalf("Swatches count = %d, want 17", len(cfg.Swatches))
+	if len(cfg.Swatches) != 15 {
+		t.Fatalf("Swatches count = %d, want 15", len(cfg.Swatches))
 	}
 
 	// Spot-check the first and last swatch entries.
 	first := cfg.Swatches[0]
-	if first.Path != ".github/workflows/tailor.yml" {
+	if first.Path != ".github/dependabot.yml" {
 		t.Errorf("first swatch Path = %q", first.Path)
 	}
-	if first.Alteration != swatch.Always {
+	if first.Alteration != swatch.FirstFit {
 		t.Errorf("first swatch Alteration = %q", first.Alteration)
 	}
 
-	last := cfg.Swatches[16]
-	if last.Path != ".github/workflows/tailor-automerge.yml" {
+	last := cfg.Swatches[len(cfg.Swatches)-1]
+	if last.Path != ".tailor.yml" {
 		t.Errorf("last swatch Path = %q", last.Path)
 	}
-	if last.Alteration != swatch.Triggered {
+	if last.Alteration != swatch.Always {
 		t.Errorf("last swatch Alteration = %q", last.Alteration)
 	}
 }
@@ -231,14 +223,12 @@ func TestOptionalRepositoryFieldsOmitted(t *testing.T) {
 	}
 }
 
-func TestNewRepositoryFieldsParsing(t *testing.T) {
+func TestTopicsParsing(t *testing.T) {
 	input := `license: MIT
 repository:
   topics:
     - go
     - cli-tool
-  default_workflow_permissions: read
-  can_approve_pull_request_reviews: false
 swatches: []
 `
 	var cfg Config
@@ -247,8 +237,6 @@ swatches: []
 	}
 
 	r := cfg.Repository
-	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
-	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, false, false, "can_approve_pull_request_reviews")
 
 	if r.Topics == nil {
 		t.Fatal("Topics is nil, want non-nil")
@@ -259,7 +247,7 @@ swatches: []
 	}
 }
 
-func TestNewFieldsOmittedWhenNil(t *testing.T) {
+func TestTopicsOmittedWhenNil(t *testing.T) {
 	input := `license: MIT
 repository:
   has_wiki: false
@@ -271,8 +259,6 @@ swatches: []
 	}
 
 	r := cfg.Repository
-	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, true, "", "default_workflow_permissions")
-	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, true, false, "can_approve_pull_request_reviews")
 
 	if r.Topics != nil {
 		t.Errorf("Topics = %v, want nil when omitted", *r.Topics)
@@ -299,14 +285,12 @@ swatches: []
 	}
 }
 
-func TestNewFieldsRoundTrip(t *testing.T) {
+func TestTopicsRoundTrip(t *testing.T) {
 	topics := []string{"go", "cli-tool"}
 	cfg := Config{
 		License: "MIT",
 		Repository: &model.RepositorySettings{
-			Topics:                       &topics,
-			DefaultWorkflowPermissions:   ptr.Ptr("write"),
-			CanApprovePullRequestReviews: ptr.Ptr(true),
+			Topics: &topics,
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -324,8 +308,6 @@ func TestNewFieldsRoundTrip(t *testing.T) {
 	}
 
 	r := roundTripped.Repository
-	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, false, "write", "default_workflow_permissions")
-	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, false, true, "can_approve_pull_request_reviews")
 
 	if r.Topics == nil {
 		t.Fatal("round-tripped Topics is nil")
@@ -336,7 +318,7 @@ func TestNewFieldsRoundTrip(t *testing.T) {
 	}
 }
 
-func TestNewFieldsOmittedInMarshal(t *testing.T) {
+func TestTopicsOmittedInMarshal(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Repository: &model.RepositorySettings{
@@ -355,8 +337,6 @@ func TestNewFieldsOmittedInMarshal(t *testing.T) {
 	s := string(out)
 	for _, field := range []string{
 		"topics",
-		"default_workflow_permissions",
-		"can_approve_pull_request_reviews",
 	} {
 		if strings.Contains(s, field) {
 			t.Errorf("%s should be omitted when nil", field)

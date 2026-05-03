@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Tailor is a Go CLI tool for managing project templates (swatches) across GitHub repositories. It fits new projects with community health files, dev tooling, and repository settings, then keeps them current via automated alterations.
+Tailor is a Go CLI tool for managing project templates (swatches) across GitHub repositories. It fits new projects with community health files, dev tooling, labels, and repository settings from the local terminal.
 
 The authoritative specification is `docs/SPECIFICATION.md`. All implementation decisions must align with it.
 
@@ -18,10 +18,10 @@ The authoritative specification is `docs/SPECIFICATION.md`. All implementation d
 
 ```
 tailor/
-├── .github/workflows/  # CI workflows
+├── .github/workflows/  # release/build workflows
 ├── cmd/tailor/         # CLI entrypoint
 ├── internal/           # Internal packages (config, swatch, gh wrappers)
-├── swatches/           # Embedded template files (18 swatches)
+├── swatches/           # Embedded template files (16 swatches)
 ├── docs/               # Specification
 └── AGENTS.md
 ```
@@ -44,11 +44,8 @@ tailor/
 - Use `fmt.Errorf` with `%w` for error wrapping
 - Swatch-to-path mappings and default alteration modes are hardcoded in source, not configurable
 - Field names in the `repository` config section match GitHub REST API names exactly (snake_case)
-- Four alteration modes: `always`, `first-fit`, `triggered`, `never`
-- `never` beats `triggered` - a user can suppress a triggered swatch by setting `alteration: never`
-- Triggered swatches use a lookup table in `internal/swatch/trigger.go` mapping source paths to config field conditions
+- Three supported alteration modes in built-in defaults: `always`, `first-fit`, `never`
 - Adding a new plain swatch requires: the file in `swatches/`, a registry entry (registry.go), an entry in `swatches/.tailor.yml`, updated count assertions in `registry_test.go` and any golden-string test fixtures, plus updates to `docs/SPECIFICATION.md` and `README.md`
-- Adding a new triggered swatch requires: an entry in `triggerConditions` (trigger.go), a registry entry (registry.go), and inclusion in `swatches/.tailor.yml`
 
 ## Testing
 
@@ -63,22 +60,19 @@ tailor/
 ## Key implementation details
 
 - Swatches are embedded at build time via `//go:embed swatches/*`
-- `EvaluateTrigger(source string, repo any)` uses reflection to match yaml tags on `RepositorySettings`; `repo` is `any` (not `*config.RepositorySettings`) to avoid a circular import
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
+- Tailor is a local CLI, not a GitHub Action; it does not ship or maintain GitHub workflow swatches
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
-- GitHub Actions installation tokens (`secrets.GITHUB_TOKEN`) cannot call user-scoped endpoints (e.g. `GET /user`); features hitting such endpoints must check `GITHUB_ACTIONS=true` and fall back to Actions env vars (e.g. `GITHUB_REPOSITORY_OWNER` for the owner name) - see `internal/gh/user.go` for the pattern
 - `alter` execution order: repository settings, then labels, then licence, then swatches
-- SHA-256 comparison for `always` and `triggered` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor.yml`, `.github/workflows/tailor-automerge.yml`) compare the resolved content hash against the on-disk file
-- `triggered` swatches deploy when their condition is met (overwrite like `always`), remove the file when the condition becomes false, and skip when the file is absent and condition is false
+- SHA-256 comparison for `always` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor.yml`) compare the resolved content hash against the on-disk file
 - `--recut` overwrites everything except `LICENSE`; for `.tailor.yml`, recut overrides `first-fit` to `always` (append-only: missing default entries added, existing entries never modified)
-- Token substitution: `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, `{{HOMEPAGE_URL}}`, `{{MERGE_STRATEGY}}`
+- Token substitution: `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, `{{HOMEPAGE_URL}}`
 - Licences fetched via GitHub REST API (`GET /licenses/{id}`), not embedded
-- Several repository settings use separate API endpoints rather than the main repo PATCH: `topics`, `default_workflow_permissions`, and `can_approve_pull_request_reviews`; see `internal/gh/settings.go` for implementation
+- Repository topics use a separate API endpoint rather than the main repo PATCH; see `internal/gh/settings.go` for implementation
 - `labels` is a top-level config section with its own API layer (`internal/gh/labels.go`) and alter layer (`internal/alter/labels.go`), separate from repository settings
-- `validate.go` includes enum validation for `default_workflow_permissions` ("read"|"write"), topic format validation (lowercase alphanumeric start, max 50 chars, lowercase alphanumerics and hyphens only), and label validation (name length, hex colour, description length, duplicate detection)
-- Dry-run output uses dynamically computed label width for `baste` (accommodates trigger annotations) and fixed 16 chars for `measure`
+- `validate.go` includes topic format validation (lowercase alphanumeric start, max 50 chars, lowercase alphanumerics and hyphens only) and label validation (name length, hex colour, description length, duplicate detection)
+- Dry-run output uses dynamically computed label width for `baste` and fixed 16 chars for `measure`
 - `measure` output order: `missing`, `warning`, `present`, then config-diff categories (`not-configured`, `config-only`, `mode-differs`)
-- Triggered swatch output includes annotation, e.g. `would deploy (triggered: allow_auto_merge):`
 - Branch protection (classic rules and rulesets) is out of scope
 
 ## Commit guidelines

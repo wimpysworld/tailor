@@ -67,19 +67,6 @@ func ValidateRepoSettings(cfg *Config) error {
 	return nil
 }
 
-// ValidateWorkflowPermissions checks that default_workflow_permissions, if set,
-// is either "read" or "write".
-func ValidateWorkflowPermissions(cfg *Config) error {
-	if cfg.Repository == nil || cfg.Repository.DefaultWorkflowPermissions == nil {
-		return nil
-	}
-	v := *cfg.Repository.DefaultWorkflowPermissions
-	if v != "read" && v != "write" {
-		return fmt.Errorf("invalid default_workflow_permissions %q; must be %q or %q", v, "read", "write")
-	}
-	return nil
-}
-
 // ValidateTopics checks that every topic, if set, starts with a lowercase
 // letter or number, contains only lowercase alphanumerics and hyphens, and
 // does not exceed 50 characters.

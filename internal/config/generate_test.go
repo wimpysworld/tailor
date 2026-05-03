@@ -50,10 +50,7 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	testutil.AssertStringPtr(t, got.Repository.SquashMergeCommitMessage, false, "PR_BODY", "squash_merge_commit_message")
 	testutil.AssertBoolPtr(t, got.Repository.DeleteBranchOnMerge, false, true, "delete_branch_on_merge")
 	testutil.AssertBoolPtr(t, got.Repository.AllowUpdateBranch, false, true, "allow_update_branch")
-	testutil.AssertBoolPtr(t, got.Repository.AllowAutoMerge, false, true, "allow_auto_merge")
 	testutil.AssertBoolPtr(t, got.Repository.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
-	testutil.AssertStringPtr(t, got.Repository.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
-	testutil.AssertBoolPtr(t, got.Repository.CanApprovePullRequestReviews, false, true, "can_approve_pull_request_reviews")
 
 	// Labels should match the embedded defaults.
 	if len(got.Labels) != 12 {
@@ -113,8 +110,8 @@ func TestDefaultConfigSwatchCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultConfig() error: %v", err)
 	}
-	if len(cfg.Swatches) != 18 {
-		t.Errorf("Swatches count = %d, want 18", len(cfg.Swatches))
+	if len(cfg.Swatches) != 16 {
+		t.Errorf("Swatches count = %d, want 16", len(cfg.Swatches))
 	}
 }
 
@@ -125,27 +122,19 @@ func TestDefaultConfigSwatchOrder(t *testing.T) {
 	}
 
 	first := cfg.Swatches[0]
-	if first.Path != ".github/workflows/tailor.yml" {
-		t.Errorf("first swatch Path = %q, want %q", first.Path, ".github/workflows/tailor.yml")
+	if first.Path != ".github/dependabot.yml" {
+		t.Errorf("first swatch Path = %q, want %q", first.Path, ".github/dependabot.yml")
 	}
-	if first.Alteration != swatch.Always {
-		t.Errorf("first swatch Alteration = %q, want %q", first.Alteration, swatch.Always)
-	}
-
-	second := cfg.Swatches[1]
-	if second.Path != ".github/dependabot.yml" {
-		t.Errorf("second swatch Path = %q, want %q", second.Path, ".github/dependabot.yml")
-	}
-	if second.Alteration != swatch.FirstFit {
-		t.Errorf("second swatch Alteration = %q, want %q", second.Alteration, swatch.FirstFit)
+	if first.Alteration != swatch.FirstFit {
+		t.Errorf("first swatch Alteration = %q, want %q", first.Alteration, swatch.FirstFit)
 	}
 
 	last := cfg.Swatches[len(cfg.Swatches)-1]
-	if last.Path != ".github/workflows/tailor-automerge.yml" {
-		t.Errorf("last swatch Path = %q, want %q", last.Path, ".github/workflows/tailor-automerge.yml")
+	if last.Path != ".tailor.yml" {
+		t.Errorf("last swatch Path = %q, want %q", last.Path, ".tailor.yml")
 	}
-	if last.Alteration != swatch.Triggered {
-		t.Errorf("last swatch Alteration = %q, want %q", last.Alteration, swatch.Triggered)
+	if last.Alteration != swatch.Always {
+		t.Errorf("last swatch Alteration = %q, want %q", last.Alteration, swatch.Always)
 	}
 }
 

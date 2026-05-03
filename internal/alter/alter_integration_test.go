@@ -143,7 +143,6 @@ func WithPatchError(statusCode int) testOption {
 // returns an alterTestContext ready for use with alter.Run.
 func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterTestContext {
 	t.Helper()
-	t.Setenv("GITHUB_ACTIONS", "") // prevent env-var shortcut in FetchUsername
 
 	sc := &alterServerConfig{
 		username:    "testuser",
@@ -194,10 +193,6 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(sc.repoJSON)
 
-		case r.Method == http.MethodGet && path == repoPath+"/actions/permissions/workflow":
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
-
 		case r.Method == http.MethodGet && strings.HasPrefix(path, "/licenses/"):
 			if sc.licenceError != 0 {
 				w.WriteHeader(sc.licenceError)
@@ -216,9 +211,6 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			fmt.Fprint(w, `{}`)
-
-		case r.Method == http.MethodPut && path == repoPath+"/actions/permissions/workflow":
-			w.WriteHeader(http.StatusNoContent)
 
 		case r.Method == http.MethodGet && path == repoPath+"/labels":
 			w.Header().Set("Content-Type", "application/json")
@@ -1645,145 +1637,6 @@ swatches:
 }
 
 // ---------------------------------------------------------------------------
-// Phase 4.1 - Triggered swatch integration tests
-// ---------------------------------------------------------------------------
-
-// TestAlterRunTriggeredAutoMergeTrue verifies that a triggered swatch is
-// deployed when the trigger condition is met (allow_auto_merge: true).
-func TestAlterRunTriggeredAutoMergeTrue(t *testing.T) {
-	configYAML := `license: none
-repository:
-  allow_auto_merge: true
-swatches:
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: triggered
-`
-	tc := setupAlterTest(t, configYAML,
-		WithRepoSettings(repoJSON{AllowAutoMerge: true}),
-	)
-	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
-
-	cfg := loadTestConfig(t, tc.Dir)
-
-	// DryRun: output should indicate the swatch would be deployed.
-	dryOutput := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-	requireContains(t, dryOutput, "would deploy")
-	requireContains(t, dryOutput, "tailor-automerge.yml")
-	requireContains(t, dryOutput, "triggered: allow_auto_merge")
-
-	// File must not exist after dry-run.
-	automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
-	if _, err := os.Stat(automergeFile); err == nil {
-		t.Error("dry run wrote tailor-automerge.yml to disk")
-	}
-
-	// Apply: file should be written.
-	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
-
-	data, err := os.ReadFile(automergeFile)
-	if err != nil {
-		t.Fatalf("tailor-automerge.yml not written after apply: %v", err)
-	}
-	raw, err := swatch.Content(".github/workflows/tailor-automerge.yml")
-	if err != nil {
-		t.Fatalf("swatch.Content: %v", err)
-	}
-	// The embedded swatch contains {{MERGE_STRATEGY}} which is substituted
-	// at alter time. With no explicit merge settings, it defaults to --squash.
-	want := bytes.ReplaceAll(raw, []byte("{{MERGE_STRATEGY}}"), []byte("--squash"))
-	if string(data) != string(want) {
-		t.Error("tailor-automerge.yml content does not match substituted swatch")
-	}
-}
-
-// TestAlterRunTriggeredAutoMergeFalse verifies that a triggered swatch is not
-// deployed when the trigger condition is not met (allow_auto_merge: false),
-// and that a pre-existing file is removed.
-func TestAlterRunTriggeredAutoMergeFalse(t *testing.T) {
-	configYAML := `license: none
-repository:
-  allow_auto_merge: false
-swatches:
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: triggered
-`
-	tc := setupAlterTest(t, configYAML,
-		WithRepoSettings(repoJSON{AllowAutoMerge: false}),
-	)
-	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
-
-	cfg := loadTestConfig(t, tc.Dir)
-
-	// Subtest: file absent, trigger not met - should be ignored.
-	t.Run("absent_ignored", func(t *testing.T) {
-		output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-		requireNotContains(t, output, "would copy")
-		requireNotContains(t, output, "would overwrite")
-		requireNotContains(t, output, "would deploy")
-		// The swatch should not appear in actionable output.
-		// It may appear as "skip (never)" or be silently ignored.
-		requireNotContains(t, output, "would remove")
-	})
-
-	// Subtest: file present, trigger not met - should be removed.
-	t.Run("present_removed", func(t *testing.T) {
-		automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
-		writeOnDisk(t, tc.Dir, ".github/workflows/tailor-automerge.yml", []byte("old automerge content"))
-
-		// DryRun should report "would remove".
-		dryOutput := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-		requireContains(t, dryOutput, "would remove")
-		requireContains(t, dryOutput, "tailor-automerge.yml")
-
-		// File must still exist after dry-run.
-		if _, err := os.Stat(automergeFile); err != nil {
-			t.Errorf("dry run removed tailor-automerge.yml from disk: %v", err)
-		}
-
-		// Apply should remove the file.
-		_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
-
-		if _, err := os.Stat(automergeFile); err == nil {
-			t.Error("tailor-automerge.yml still exists after apply with trigger not met")
-		}
-	})
-}
-
-// TestAlterRunNeverSuppressesTriggered verifies that setting alteration to
-// "never" suppresses a triggered swatch even when the trigger condition is met.
-func TestAlterRunNeverSuppressesTriggered(t *testing.T) {
-	configYAML := `license: none
-repository:
-  allow_auto_merge: true
-swatches:
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: never
-`
-	tc := setupAlterTest(t, configYAML,
-		WithRepoSettings(repoJSON{AllowAutoMerge: true}),
-	)
-	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
-
-	cfg := loadTestConfig(t, tc.Dir)
-
-	// DryRun: output should show "skip (never)", not any deploy/copy action.
-	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-	requireContains(t, output, "skip (never):")
-	requireContains(t, output, "tailor-automerge.yml")
-	requireNotContains(t, output, "would copy")
-	requireNotContains(t, output, "would overwrite")
-	requireNotContains(t, output, "would deploy")
-
-	// Apply: file should not be written.
-	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
-
-	automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
-	if _, err := os.Stat(automergeFile); err == nil {
-		t.Error("tailor-automerge.yml was deployed despite alteration: never")
-	}
-}
-
-// ---------------------------------------------------------------------------
 // Phase 5.2 - Config merge integration tests
 // ---------------------------------------------------------------------------
 
@@ -1852,17 +1705,8 @@ func allDefaultRepoSettingsYAML(t *testing.T) string {
 	if r.AllowUpdateBranch != nil {
 		fmt.Fprintf(&sb, "  allow_update_branch: %t\n", *r.AllowUpdateBranch)
 	}
-	if r.AllowAutoMerge != nil {
-		fmt.Fprintf(&sb, "  allow_auto_merge: %t\n", *r.AllowAutoMerge)
-	}
 	if r.WebCommitSignoffRequired != nil {
 		fmt.Fprintf(&sb, "  web_commit_signoff_required: %t\n", *r.WebCommitSignoffRequired)
-	}
-	if r.DefaultWorkflowPermissions != nil {
-		fmt.Fprintf(&sb, "  default_workflow_permissions: %s\n", *r.DefaultWorkflowPermissions)
-	}
-	if r.CanApprovePullRequestReviews != nil {
-		fmt.Fprintf(&sb, "  can_approve_pull_request_reviews: %t\n", *r.CanApprovePullRequestReviews)
 	}
 	return sb.String()
 }
@@ -2093,8 +1937,6 @@ swatches:
 		"has_issues:",
 		"allow_squash_merge:",
 		"delete_branch_on_merge:",
-		"allow_auto_merge:",
-		"default_workflow_permissions:",
 	} {
 		if !strings.Contains(content, field) {
 			t.Errorf("merged config missing default repo setting %q", field)
@@ -2167,17 +2009,8 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 		if defaults.Repository.AllowUpdateBranch != nil {
 			fmt.Fprintf(&sb, "  allow_update_branch: %t\n", *defaults.Repository.AllowUpdateBranch)
 		}
-		if defaults.Repository.AllowAutoMerge != nil {
-			fmt.Fprintf(&sb, "  allow_auto_merge: %t\n", *defaults.Repository.AllowAutoMerge)
-		}
 		if defaults.Repository.WebCommitSignoffRequired != nil {
 			fmt.Fprintf(&sb, "  web_commit_signoff_required: %t\n", *defaults.Repository.WebCommitSignoffRequired)
-		}
-		if defaults.Repository.DefaultWorkflowPermissions != nil {
-			fmt.Fprintf(&sb, "  default_workflow_permissions: %s\n", *defaults.Repository.DefaultWorkflowPermissions)
-		}
-		if defaults.Repository.CanApprovePullRequestReviews != nil {
-			fmt.Fprintf(&sb, "  can_approve_pull_request_reviews: %t\n", *defaults.Repository.CanApprovePullRequestReviews)
 		}
 	}
 

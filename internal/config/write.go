@@ -120,17 +120,8 @@ repository:
 {{- if set .Repository.AllowUpdateBranch }}
   allow_update_branch: {{ derefBool .Repository.AllowUpdateBranch }}
 {{- end }}
-{{- if set .Repository.AllowAutoMerge }}
-  allow_auto_merge: {{ derefBool .Repository.AllowAutoMerge }}
-{{- end }}
 {{- if set .Repository.WebCommitSignoffRequired }}
   web_commit_signoff_required: {{ derefBool .Repository.WebCommitSignoffRequired }}
-{{- end }}
-{{- if set .Repository.DefaultWorkflowPermissions }}
-  default_workflow_permissions: {{ deref .Repository.DefaultWorkflowPermissions }}
-{{- end }}
-{{- if set .Repository.CanApprovePullRequestReviews }}
-  can_approve_pull_request_reviews: {{ derefBool .Repository.CanApprovePullRequestReviews }}
 {{- end }}
 {{- if set .Repository.Topics }}
   topics:{{ if eq (len (derefSlice .Repository.Topics)) 0 }} []{{ else }}

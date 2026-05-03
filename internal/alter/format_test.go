@@ -245,7 +245,7 @@ func TestFormatOutputSkipCategories(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},
 		{Field: "has_issues", Category: RepoNoChange, Value: "true"},
-		{Field: "set workflow permissions", Category: WouldSkipRole, Value: "insufficient role"},
+		{Field: "restricted setting", Category: WouldSkipRole, Value: "insufficient role"},
 		{Field: "patch repo settings", Category: WouldSkipScope, Value: "insufficient scope"},
 	}
 
@@ -253,7 +253,7 @@ func TestFormatOutputSkipCategories(t *testing.T) {
 	want := "would set:                           repository.has_wiki = false\n" +
 		"no change:                           repository.has_issues (already true)\n" +
 		"would skip (insufficient scope):     patch repo settings\n" +
-		"would skip (insufficient role):      set workflow permissions\n"
+		"would skip (insufficient role):      restricted setting\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip categories:\ngot:\n%s\nwant:\n%s", got, want)
@@ -262,7 +262,7 @@ func TestFormatOutputSkipCategories(t *testing.T) {
 
 func TestFormatOutputSkipSorting(t *testing.T) {
 	repos := []RepoSettingResult{
-		{Field: "set workflow permissions", Category: WouldSkipRole, Value: "role error"},
+		{Field: "restricted setting", Category: WouldSkipRole, Value: "role error"},
 		{Field: "has_wiki", Category: RepoNoChange, Value: "false"},
 		{Field: "description", Category: WouldSet, Value: "My project"},
 		{Field: "patch repo settings", Category: WouldSkipScope, Value: "scope error"},
@@ -273,7 +273,7 @@ func TestFormatOutputSkipSorting(t *testing.T) {
 	want := "would set:                           repository.description = My project\n" +
 		"no change:                           repository.has_wiki (already false)\n" +
 		"would skip (insufficient scope):     patch repo settings\n" +
-		"would skip (insufficient role):      set workflow permissions\n"
+		"would skip (insufficient role):      restricted setting\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip sorting:\ngot:\n%s\nwant:\n%s", got, want)
@@ -282,15 +282,15 @@ func TestFormatOutputSkipSorting(t *testing.T) {
 
 func TestFormatOutputAnnotations(t *testing.T) {
 	swatches := []SwatchResult{
-		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldDeploy, Annotation: "triggered: allow_auto_merge"},
+		{Path: "custom.yml", Category: WouldDeploy, Annotation: "custom condition"},
 		{Path: "LICENSE", Category: NoChange},
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	// Annotated label "would deploy (triggered: allow_auto_merge):" is 43 chars,
+	// Annotated label "would deploy (custom condition):" is 43 chars,
 	// plus 1 space = 44 column width.
-	want := "would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
-		"no change:                                  LICENSE\n"
+	want := "would deploy (custom condition):     custom.yml\n" +
+		"no change:                           LICENSE\n"
 
 	if got != want {
 		t.Errorf("FormatOutput annotations:\ngot:\n%s\nwant:\n%s", got, want)
@@ -299,11 +299,11 @@ func TestFormatOutputAnnotations(t *testing.T) {
 
 func TestFormatOutputAnnotationWouldRemove(t *testing.T) {
 	swatches := []SwatchResult{
-		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldRemove, Annotation: "triggered: allow_auto_merge"},
+		{Path: "custom.yml", Category: WouldRemove, Annotation: "custom condition"},
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	want := "would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
+	want := "would remove (custom condition):     custom.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput annotation would remove:\ngot:\n%s\nwant:\n%s", got, want)
@@ -312,14 +312,14 @@ func TestFormatOutputAnnotationWouldRemove(t *testing.T) {
 
 func TestFormatOutputAnnotationSkippedNever(t *testing.T) {
 	swatches := []SwatchResult{
-		{Path: ".github/workflows/tailor-automerge.yml", Category: SkippedNever, Annotation: "triggered: allow_auto_merge"},
+		{Path: "custom.yml", Category: SkippedNever, Annotation: "custom condition"},
 		{Path: "CONTRIBUTING.md", Category: WouldCopy},
 	}
 
 	got := FormatOutput(nil, nil, swatches)
-	// "skip (never) (triggered: allow_auto_merge):" = 43 chars + 1 space = 44 width
-	want := "would copy:                                 CONTRIBUTING.md\n" +
-		"skip (never) (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
+	// "skip (never) (custom condition):" = 43 chars + 1 space = 44 width
+	want := "would copy:                          CONTRIBUTING.md\n" +
+		"skip (never) (custom condition):     custom.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput annotation ignored:\ngot:\n%s\nwant:\n%s", got, want)
@@ -328,16 +328,16 @@ func TestFormatOutputAnnotationSkippedNever(t *testing.T) {
 
 func TestFormatOutputAnnotationMixedWithRepo(t *testing.T) {
 	repos := []RepoSettingResult{
-		{Field: "allow_auto_merge", Category: WouldSet, Value: "true"},
+		{Field: "has_wiki", Category: WouldSet, Value: "true"},
 	}
 	swatches := []SwatchResult{
-		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldDeploy, Annotation: "triggered: allow_auto_merge"},
+		{Path: "custom.yml", Category: WouldDeploy, Annotation: "custom condition"},
 	}
 
 	got := FormatOutput(repos, nil, swatches)
 	// Column width widens to 44 to fit the annotated swatch label.
-	want := "would set:                                  repository.allow_auto_merge = true\n" +
-		"would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
+	want := "would set:                           repository.has_wiki = true\n" +
+		"would deploy (custom condition):     custom.yml\n"
 
 	if got != want {
 		t.Errorf("FormatOutput annotation mixed with repo:\ngot:\n%s\nwant:\n%s", got, want)
@@ -346,12 +346,12 @@ func TestFormatOutputAnnotationMixedWithRepo(t *testing.T) {
 
 func TestFormatOutputSkipAnnotationScope(t *testing.T) {
 	repos := []RepoSettingResult{
-		{Field: "default_workflow_permissions", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Field: "restricted_setting", Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
 
 	got := FormatOutput(repos, nil, nil)
 	// "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 space = 63 width.
-	want := "would skip (insufficient scope: token missing required scope): default_workflow_permissions\n"
+	want := "would skip (insufficient scope: token missing required scope): restricted_setting\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip annotation scope:\ngot:\n%s\nwant:\n%s", got, want)
@@ -360,12 +360,12 @@ func TestFormatOutputSkipAnnotationScope(t *testing.T) {
 
 func TestFormatOutputSkipAnnotationRole(t *testing.T) {
 	repos := []RepoSettingResult{
-		{Field: "default_workflow_permissions", Category: WouldSkipRole, Annotation: "admin required"},
+		{Field: "restricted_setting", Category: WouldSkipRole, Annotation: "admin required"},
 	}
 
 	got := FormatOutput(repos, nil, nil)
 	// "would skip (insufficient role: admin required):" = 48 chars + 1 space = 49 width.
-	want := "would skip (insufficient role: admin required): default_workflow_permissions\n"
+	want := "would skip (insufficient role: admin required): restricted_setting\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip annotation role:\ngot:\n%s\nwant:\n%s", got, want)
@@ -376,16 +376,16 @@ func TestFormatOutputSkipAnnotationMixed(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},
 		{Field: "has_issues", Category: RepoNoChange, Value: "true"},
-		{Field: "default_workflow_permissions", Category: WouldSkipScope, Annotation: "token missing required scope"},
-		{Field: "can_approve_pull_request_reviews", Category: WouldSkipRole, Annotation: "admin required"},
+		{Field: "restricted_setting", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Field: "other_restricted_setting", Category: WouldSkipRole, Annotation: "admin required"},
 	}
 
 	got := FormatOutput(repos, nil, nil)
 	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 = 63.
 	want := "would set:                                                     repository.has_wiki = false\n" +
 		"no change:                                                     repository.has_issues (already true)\n" +
-		"would skip (insufficient role: admin required):                can_approve_pull_request_reviews\n" +
-		"would skip (insufficient scope: token missing required scope): default_workflow_permissions\n"
+		"would skip (insufficient role: admin required):                other_restricted_setting\n" +
+		"would skip (insufficient scope: token missing required scope): restricted_setting\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip annotation mixed:\ngot:\n%s\nwant:\n%s", got, want)

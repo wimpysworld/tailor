@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/alter"
-	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
 func TestHasRepoContext(t *testing.T) {
@@ -111,111 +109,6 @@ func TestSubstituteTailorConfigYmlWithoutRepoContext(t *testing.T) {
 	got := tc.Substitute(input, ".tailor.yml")
 	if !bytes.Equal(got, input) {
 		t.Errorf("expected no substitution, got %q", got)
-	}
-}
-
-func TestMergeStrategy(t *testing.T) {
-	tests := []struct {
-		name string
-		repo *model.RepositorySettings
-		want string
-	}{
-		{
-			name: "nil repository defaults to squash",
-			repo: nil,
-			want: "--squash",
-		},
-		{
-			name: "no methods explicitly set defaults to squash",
-			repo: &model.RepositorySettings{},
-			want: "--squash",
-		},
-		{
-			name: "only squash enabled",
-			repo: &model.RepositorySettings{
-				AllowSquashMerge: ptr.Ptr(true),
-				AllowRebaseMerge: ptr.Ptr(false),
-				AllowMergeCommit: ptr.Ptr(false),
-			},
-			want: "--squash",
-		},
-		{
-			name: "only rebase enabled",
-			repo: &model.RepositorySettings{
-				AllowSquashMerge: ptr.Ptr(false),
-				AllowRebaseMerge: ptr.Ptr(true),
-				AllowMergeCommit: ptr.Ptr(false),
-			},
-			want: "--rebase",
-		},
-		{
-			name: "only merge enabled",
-			repo: &model.RepositorySettings{
-				AllowSquashMerge: ptr.Ptr(false),
-				AllowRebaseMerge: ptr.Ptr(false),
-				AllowMergeCommit: ptr.Ptr(true),
-			},
-			want: "--merge",
-		},
-		{
-			name: "squash and rebase enabled prefers squash",
-			repo: &model.RepositorySettings{
-				AllowSquashMerge: ptr.Ptr(true),
-				AllowRebaseMerge: ptr.Ptr(true),
-				AllowMergeCommit: ptr.Ptr(false),
-			},
-			want: "--squash",
-		},
-		{
-			name: "rebase and merge enabled prefers rebase",
-			repo: &model.RepositorySettings{
-				AllowSquashMerge: ptr.Ptr(false),
-				AllowRebaseMerge: ptr.Ptr(true),
-				AllowMergeCommit: ptr.Ptr(true),
-			},
-			want: "--rebase",
-		},
-		{
-			name: "all enabled prefers squash",
-			repo: &model.RepositorySettings{
-				AllowSquashMerge: ptr.Ptr(true),
-				AllowRebaseMerge: ptr.Ptr(true),
-				AllowMergeCommit: ptr.Ptr(true),
-			},
-			want: "--squash",
-		},
-		{
-			name: "all explicitly disabled defaults to squash",
-			repo: &model.RepositorySettings{
-				AllowSquashMerge: ptr.Ptr(false),
-				AllowRebaseMerge: ptr.Ptr(false),
-				AllowMergeCommit: ptr.Ptr(false),
-			},
-			want: "--squash",
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tc := &alter.TokenContext{Repository: tt.repo}
-			if got := tc.MergeStrategy(); got != tt.want {
-				t.Errorf("MergeStrategy() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestSubstituteAutomergeWorkflow(t *testing.T) {
-	tc := &alter.TokenContext{
-		Repository: &model.RepositorySettings{
-			AllowRebaseMerge: ptr.Ptr(true),
-			AllowSquashMerge: ptr.Ptr(false),
-		},
-	}
-	input := []byte("gh pr merge --auto {{MERGE_STRATEGY}} \"$PR_URL\"")
-	got := tc.Substitute(input, ".github/workflows/tailor-automerge.yml")
-	want := []byte("gh pr merge --auto --rebase \"$PR_URL\"")
-	if !bytes.Equal(got, want) {
-		t.Errorf("got %q, want %q", got, want)
 	}
 }
 

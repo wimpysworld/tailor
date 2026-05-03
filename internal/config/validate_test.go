@@ -122,13 +122,10 @@ swatches: []
 func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 	names := repoSettingNames()
 	expected := []string{
-		"allow_auto_merge",
 		"allow_merge_commit",
 		"allow_rebase_merge",
 		"allow_squash_merge",
 		"allow_update_branch",
-		"can_approve_pull_request_reviews",
-		"default_workflow_permissions",
 		"delete_branch_on_merge",
 		"description",
 		"has_discussions",
@@ -150,45 +147,6 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 		if name != expected[i] {
 			t.Errorf("repoSettingNames()[%d] = %q, want %q", i, name, expected[i])
 		}
-	}
-}
-
-func TestValidateWorkflowPermissionsAcceptsRead(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("read")}}
-	if err := ValidateWorkflowPermissions(cfg); err != nil {
-		t.Fatalf("ValidateWorkflowPermissions(read): %v", err)
-	}
-}
-
-func TestValidateWorkflowPermissionsAcceptsWrite(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("write")}}
-	if err := ValidateWorkflowPermissions(cfg); err != nil {
-		t.Fatalf("ValidateWorkflowPermissions(write): %v", err)
-	}
-}
-
-func TestValidateWorkflowPermissionsAcceptsNil(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{}}
-	if err := ValidateWorkflowPermissions(cfg); err != nil {
-		t.Fatalf("ValidateWorkflowPermissions(nil): %v", err)
-	}
-}
-
-func TestValidateWorkflowPermissionsAcceptsNilRepository(t *testing.T) {
-	cfg := &Config{}
-	if err := ValidateWorkflowPermissions(cfg); err != nil {
-		t.Fatalf("ValidateWorkflowPermissions(nil repo): %v", err)
-	}
-}
-
-func TestValidateWorkflowPermissionsRejectsInvalid(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("admin")}}
-	err := ValidateWorkflowPermissions(cfg)
-	if err == nil {
-		t.Fatal("ValidateWorkflowPermissions(admin) expected error, got nil")
-	}
-	if !strings.Contains(err.Error(), `"admin"`) {
-		t.Errorf("error = %q, want it to mention the invalid value", err)
 	}
 }
 

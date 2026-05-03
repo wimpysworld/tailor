@@ -36,8 +36,8 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 	}
 
 	// Verify 17 swatches are present (count "- path:" occurrences).
-	if count := strings.Count(content, "- path:"); count != 18 {
-		t.Errorf("swatch count = %d, want 18", count)
+	if count := strings.Count(content, "- path:"); count != 16 {
+		t.Errorf("swatch count = %d, want 16", count)
 	}
 
 	// Verify the 13 default repo settings are present.
@@ -53,7 +53,6 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 		"squash_merge_commit_message:",
 		"delete_branch_on_merge:",
 		"allow_update_branch:",
-		"allow_auto_merge:",
 		"web_commit_signoff_required:",
 	}
 	for _, s := range wantSettings {

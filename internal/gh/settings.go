@@ -12,26 +12,6 @@ import (
 	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
-// installationTokenUnreliableFields lists repo response fields that GitHub
-// Actions installation tokens (GITHUB_TOKEN / secrets.GITHUB_TOKEN) return as
-// zero values (false / empty string) regardless of the actual repository
-// configuration. Comparing these against the user's config produces false
-// positives ("would set" when the repo is already correct).
-//
-// The operation name is used as the key in readWarningOperationFields
-// (internal/alter/settings.go) to suppress WouldSet entries for these fields.
-const InstallationTokenReadOp = "read repo settings (installation token)" //nolint:gosec // not a credential
-
-var installationTokenUnreliableFields = map[string]bool{
-	"allow_auto_merge":            true,
-	"allow_rebase_merge":          true,
-	"allow_squash_merge":          true,
-	"allow_update_branch":         true,
-	"delete_branch_on_merge":      true,
-	"squash_merge_commit_message": true,
-	"squash_merge_commit_title":   true,
-}
-
 // repoResponse holds the subset of GitHub repository fields we read.
 type repoResponse struct {
 	Description              string   `json:"description"`
@@ -49,20 +29,13 @@ type repoResponse struct {
 	MergeCommitMessage       string   `json:"merge_commit_message"`
 	DeleteBranchOnMerge      bool     `json:"delete_branch_on_merge"`
 	AllowUpdateBranch        bool     `json:"allow_update_branch"`
-	AllowAutoMerge           bool     `json:"allow_auto_merge"`
 	WebCommitSignoffRequired bool     `json:"web_commit_signoff_required"`
 	Topics                   []string `json:"topics"`
 }
 
-// workflowPermissionsResponse holds the Actions workflow permission settings.
-type workflowPermissionsResponse struct {
-	DefaultWorkflowPermissions   string `json:"default_workflow_permissions"`
-	CanApprovePullRequestReviews bool   `json:"can_approve_pull_request_reviews"`
-}
-
 // ReadRepoSettings fetches repository settings from the GitHub API and returns
 // them as a model.RepositorySettings. It makes separate API calls for the
-// standard repository fields and Actions workflow permissions.
+// standard repository fields.
 //
 // The returned warnings slice contains classified access errors
 // (ErrInsufficientScope, ErrInsufficientRole) for sub-calls that returned 403.
@@ -90,37 +63,11 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 		MergeCommitMessage:       ptr.Ptr(repo.MergeCommitMessage),
 		DeleteBranchOnMerge:      ptr.Ptr(repo.DeleteBranchOnMerge),
 		AllowUpdateBranch:        ptr.Ptr(repo.AllowUpdateBranch),
-		AllowAutoMerge:           ptr.Ptr(repo.AllowAutoMerge),
 		Topics:                   &repo.Topics,
 		WebCommitSignoffRequired: ptr.Ptr(repo.WebCommitSignoffRequired),
 	}
 
-	// When using a GitHub Actions installation token, the API returns zero
-	// values for certain fields. Nil them out and emit a synthetic warning
-	// so the comparison layer skips them instead of producing false diffs.
-	// IsInstallationToken probes GET /user to distinguish installation
-	// tokens from PATs; the result is cached per process.
 	var warnings []error
-	if IsInstallationToken(client) {
-		nilUnreliableFields(s)
-		warnings = append(warnings, &ErrInsufficientScope{
-			Operation: InstallationTokenReadOp,
-			Message:   "installation token returns unreliable values for merge/branch settings",
-		})
-	}
-
-	var wfPerms workflowPermissionsResponse
-	if err := client.Get(fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name), &wfPerms); err != nil {
-		classified := classifyHTTPError(err, "fetch workflow permissions")
-		if isAccessError(classified) {
-			warnings = append(warnings, classified)
-		} else {
-			return nil, nil, fmt.Errorf("fetching workflow permissions: %w", err)
-		}
-	} else {
-		s.DefaultWorkflowPermissions = ptr.Ptr(wfPerms.DefaultWorkflowPermissions)
-		s.CanApprovePullRequestReviews = ptr.Ptr(wfPerms.CanApprovePullRequestReviews)
-	}
 
 	return s, warnings, nil
 }
@@ -139,9 +86,9 @@ type ApplyResult struct {
 }
 
 // ApplyRepoSettings sends a PATCH /repos/{owner}/{repo} with the declared
-// settings. It also handles fields that require separate API endpoints:
-// topics and Actions workflow permissions. Access errors (insufficient scope
-// or role) are collected in the returned ApplyResult rather than aborting.
+// settings. It also handles topics, which require a separate API endpoint.
+// Access errors (insufficient scope or role) are collected in the returned
+// ApplyResult rather than aborting.
 // Hard errors still return as the error value.
 func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *model.RepositorySettings) (*ApplyResult, error) {
 	p := buildSettingsPayload(settings)
@@ -158,17 +105,6 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *mod
 				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "patch repo settings", Err: classified})
 			} else {
 				return nil, fmt.Errorf("patching repo settings: %w", err)
-			}
-		}
-	}
-
-	if p.DefaultWorkflowPermissions != nil || p.CanApprovePullRequestReviews != nil {
-		if err := applyWorkflowPermissions(client, owner, name, p); err != nil {
-			classified := classifyHTTPError(err, "set workflow permissions")
-			if isAccessError(classified) {
-				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "set workflow permissions", Err: classified})
-			} else {
-				return nil, err
 			}
 		}
 	}
@@ -194,45 +130,6 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *mod
 	return result, nil
 }
 
-// applyWorkflowPermissions sends a PUT to the Actions workflow permissions
-// endpoint. The endpoint replaces both fields atomically, so when only one
-// field is declared in the config, the other is fetched from the current
-// repository state.
-func applyWorkflowPermissions(client *api.RESTClient, owner, name string, p settingsPayload) error {
-	wfpPath := fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name)
-
-	perms := p.DefaultWorkflowPermissions
-	approve := p.CanApprovePullRequestReviews
-
-	// When one field is missing, read the current value from the API so the
-	// PUT body is always complete.
-	if perms == nil || approve == nil {
-		var current workflowPermissionsResponse
-		if err := client.Get(wfpPath, &current); err != nil {
-			return fmt.Errorf("fetching current workflow permissions: %w", err)
-		}
-		if perms == nil {
-			perms = &current.DefaultWorkflowPermissions
-		}
-		if approve == nil {
-			approve = &current.CanApprovePullRequestReviews
-		}
-	}
-
-	wfpBody := map[string]any{
-		"default_workflow_permissions":     *perms,
-		"can_approve_pull_request_reviews": *approve,
-	}
-	payload, err := json.Marshal(wfpBody)
-	if err != nil {
-		return fmt.Errorf("marshalling workflow permissions: %w", err)
-	}
-	if err := client.Put(wfpPath, bytes.NewReader(payload), nil); err != nil {
-		return fmt.Errorf("setting workflow permissions: %w", err)
-	}
-	return nil
-}
-
 // settingsPayload holds the separated output of buildSettingsPayload. Fields
 // that require their own API endpoints are extracted from the PATCH body.
 type settingsPayload struct {
@@ -240,18 +137,12 @@ type settingsPayload struct {
 	Body map[string]any
 	// Topics is non-nil when the field is declared.
 	Topics *[]string
-	// DefaultWorkflowPermissions is non-nil when the field is declared.
-	DefaultWorkflowPermissions *string
-	// CanApprovePullRequestReviews is non-nil when the field is declared.
-	CanApprovePullRequestReviews *bool
 }
 
 // nonPatchFields lists yaml keys that must not appear in the PATCH body
 // because they are managed by separate API endpoints.
 var nonPatchFields = map[string]bool{
-	"topics":                           true,
-	"default_workflow_permissions":     true,
-	"can_approve_pull_request_reviews": true,
+	"topics": true,
 }
 
 // buildSettingsPayload uses reflection to build a map of non-nil fields from
@@ -283,12 +174,6 @@ func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 			case "topics":
 				s := fv.Elem().Interface().([]string)
 				p.Topics = &s
-			case "default_workflow_permissions":
-				s := fv.Elem().String()
-				p.DefaultWorkflowPermissions = &s
-			case "can_approve_pull_request_reviews":
-				b := fv.Elem().Bool()
-				p.CanApprovePullRequestReviews = &b
 			}
 			continue
 		}
@@ -297,23 +182,4 @@ func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 	}
 
 	return p
-}
-
-// nilUnreliableFields sets pointer fields in s to nil when their YAML tag
-// matches installationTokenUnreliableFields. This prevents false-positive
-// diffs when the API returns zero values instead of the actual configuration.
-func nilUnreliableFields(s *model.RepositorySettings) {
-	rv := reflect.ValueOf(s).Elem()
-	rt := rv.Type()
-	for i := range rt.NumField() {
-		f := rt.Field(i)
-		tag := f.Tag.Get("yaml")
-		if tag == "" || tag == ",inline" {
-			continue
-		}
-		key, _, _ := strings.Cut(tag, ",")
-		if installationTokenUnreliableFields[key] {
-			rv.Field(i).Set(reflect.Zero(f.Type))
-		}
-	}
 }
