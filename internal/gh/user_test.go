@@ -9,6 +9,9 @@ import (
 )
 
 func TestFetchUsernameSuccess(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "")
+	t.Setenv("GITHUB_ACTOR", "")
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/user" {
 			http.NotFound(w, r)
