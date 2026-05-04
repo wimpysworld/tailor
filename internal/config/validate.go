@@ -14,7 +14,17 @@ import (
 var (
 	topicRegexp    = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 	labelHexRegexp = regexp.MustCompile(`^[0-9a-fA-F]{6}$`)
+	legacySwatches = map[string]bool{
+		".github/workflows/tailor.yml":           true,
+		".github/workflows/tailor-automerge.yml": true,
+	}
 )
+
+// IsLegacySwatchPath reports whether path is a removed hosted-automation swatch
+// kept only for backwards-compatible config parsing.
+func IsLegacySwatchPath(path string) bool {
+	return legacySwatches[path]
+}
 
 // ValidatePaths checks that every swatch path in cfg matches a known embedded
 // swatch. Returns an error listing the unrecognised path and all valid paths.
@@ -25,7 +35,7 @@ func ValidatePaths(cfg *Config) error {
 		known[name] = true
 	}
 	for _, s := range cfg.Swatches {
-		if !known[s.Path] {
+		if !known[s.Path] && !IsLegacySwatchPath(s.Path) {
 			return fmt.Errorf("unrecognised swatch path %q in config; valid paths: %s",
 				s.Path, strings.Join(valid, ", "))
 		}

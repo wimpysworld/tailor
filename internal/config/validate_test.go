@@ -48,6 +48,18 @@ func TestValidatePathsAcceptsEmptySwatches(t *testing.T) {
 	}
 }
 
+func TestValidatePathsAcceptsLegacyWorkflowSwatches(t *testing.T) {
+	cfg := &Config{
+		Swatches: []SwatchEntry{
+			{Path: ".github/workflows/tailor.yml", Alteration: swatch.Always},
+			{Path: ".github/workflows/tailor-automerge.yml", Alteration: swatch.Triggered},
+		},
+	}
+	if err := ValidatePaths(cfg); err != nil {
+		t.Fatalf("ValidatePaths() rejected legacy workflow swatches: %v", err)
+	}
+}
+
 func TestValidateDuplicatePathsAcceptsUnique(t *testing.T) {
 	cfg := &Config{
 		Swatches: []SwatchEntry{

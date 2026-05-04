@@ -270,6 +270,8 @@ Behaviour:
 
 **Unrecognised repository setting**: if `.tailor.yml` contains a field in the `repository` section that is not in the supported settings list, `alter` exits with an error identifying the unrecognised field and listing all valid repository setting field names.
 
+**Legacy GitHub automation swatches in older `.tailor.yml` files**: the removed hosted-automation paths `.github/workflows/tailor.yml` and `.github/workflows/tailor-automerge.yml` are still accepted for backwards compatibility, but `alter` and `baste` treat them as skipped legacy entries and never recreate those workflows.
+
 ## Configuration
 
 Default `.tailor.yml` with `--license=BlueOak-1.0.0`:
@@ -380,9 +382,10 @@ swatches/
 1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content and the on-disk target file.
 2. **Interpolation**: `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, and `.tailor.yml` support token substitution.
 3. **No hosted automation**: Tailor does not ship GitHub Action metadata, GitHub workflow swatches, CI self-update workflows, or automerge workflows.
-4. **No versioning**: no swatch versions, always uses swatches from the current Tailor binary.
-5. **No global state**: all state is per-project in `.tailor.yml`.
-6. **No project registry**: Tailor has no awareness of its consumers.
-7. **Authentication via `go-gh`**: token resolution follows the `go-gh` precedence order.
-8. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
-9. **Repository settings via API**: repository settings are applied via GitHub REST APIs. The execution order is repository settings, labels, licence, swatches.
+4. **Legacy config compatibility**: older `.tailor.yml` files that still list the removed `tailor.yml` or `tailor-automerge.yml` workflow swatches remain parseable, but those entries are ignored rather than applied.
+5. **No versioning**: no swatch versions, always uses swatches from the current Tailor binary.
+6. **No global state**: all state is per-project in `.tailor.yml`.
+7. **No project registry**: Tailor has no awareness of its consumers.
+8. **Authentication via `go-gh`**: token resolution follows the `go-gh` precedence order.
+9. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
+10. **Repository settings via API**: repository settings are applied via GitHub REST APIs. The execution order is repository settings, labels, licence, swatches.

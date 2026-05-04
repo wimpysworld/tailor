@@ -210,6 +210,33 @@ func TestConfigYmlSkippedInProcessSwatches(t *testing.T) {
 	}
 }
 
+func TestLegacyWorkflowSwatchesAreSkippedForCompatibility(t *testing.T) {
+	dir := t.TempDir()
+	cfg := newConfig(
+		entry(".github/workflows/tailor.yml", swatch.Always),
+		entry(".github/workflows/tailor-automerge.yml", swatch.Triggered),
+	)
+
+	results, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("got %d results, want 2", len(results))
+	}
+	for i, path := range []string{".github/workflows/tailor.yml", ".github/workflows/tailor-automerge.yml"} {
+		if results[i].Path != path {
+			t.Fatalf("results[%d].Path = %q, want %q", i, results[i].Path, path)
+		}
+		if results[i].Category != alter.SkippedNever {
+			t.Fatalf("results[%d].Category = %q, want %q", i, results[i].Category, alter.SkippedNever)
+		}
+		if _, err := os.Stat(filepath.Join(dir, path)); !os.IsNotExist(err) {
+			t.Fatalf("legacy workflow swatch %q should not be written, stat err = %v", path, err)
+		}
+	}
+}
+
 func TestWouldCopyWhenAbsentRegardlessOfMode(t *testing.T) {
 	modes := []struct {
 		name string

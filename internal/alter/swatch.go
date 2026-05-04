@@ -49,6 +49,11 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 			continue
 		}
 
+		if config.IsLegacySwatchPath(entry.Path) {
+			results = append(results, SwatchResult{Path: entry.Path, Category: SkippedNever})
+			continue
+		}
+
 		content, err := swatch.Content(entry.Path)
 		if err != nil {
 			return nil, fmt.Errorf("reading swatch %q: %w", entry.Path, err)
