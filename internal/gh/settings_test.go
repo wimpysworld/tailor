@@ -271,6 +271,9 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 	// Verify topics are excluded from the PATCH body.
 	for _, key := range []string{
 		"topics",
+		"allow_auto_merge",
+		"default_workflow_permissions",
+		"can_approve_pull_request_reviews",
 	} {
 		if _, ok := gotBody[key]; ok {
 			t.Errorf("%s should not be in PATCH body", key)
@@ -281,9 +284,12 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 func TestBuildSettingsPayloadExtractsTopics(t *testing.T) {
 	topics := []string{"go", "cli"}
 	settings := &model.RepositorySettings{
-		Description: ptr.Ptr("desc"),
-		HasWiki:     ptr.Ptr(true),
-		Topics:      &topics,
+		Description:                  ptr.Ptr("desc"),
+		HasWiki:                      ptr.Ptr(true),
+		Topics:                       &topics,
+		AllowAutoMerge:               ptr.Ptr(true),
+		DefaultWorkflowPermissions:   ptr.Ptr("read"),
+		CanApprovePullRequestReviews: ptr.Ptr(false),
 	}
 
 	p := buildSettingsPayload(settings)
@@ -299,6 +305,9 @@ func TestBuildSettingsPayloadExtractsTopics(t *testing.T) {
 	// Non-PATCH fields must not appear in the body.
 	for _, key := range []string{
 		"topics",
+		"allow_auto_merge",
+		"default_workflow_permissions",
+		"can_approve_pull_request_reviews",
 	} {
 		if _, ok := p.Body[key]; ok {
 			t.Errorf("%s should not be in PATCH body", key)

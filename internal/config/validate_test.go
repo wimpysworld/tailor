@@ -79,9 +79,12 @@ func TestValidateDuplicatePathsRejectsDuplicate(t *testing.T) {
 func TestValidateRepoSettingsAcceptsValidConfig(t *testing.T) {
 	cfg := &Config{
 		Repository: &model.RepositorySettings{
-			HasWiki:   ptr.Ptr(false),
-			HasIssues: ptr.Ptr(true),
-			Homepage:  ptr.Ptr("https://example.com"),
+			HasWiki:                      ptr.Ptr(false),
+			HasIssues:                    ptr.Ptr(true),
+			Homepage:                     ptr.Ptr("https://example.com"),
+			AllowAutoMerge:               ptr.Ptr(false),
+			DefaultWorkflowPermissions:   ptr.Ptr("read"),
+			CanApprovePullRequestReviews: ptr.Ptr(false),
 		},
 	}
 	if err := ValidateRepoSettings(cfg); err != nil {
@@ -122,10 +125,13 @@ swatches: []
 func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 	names := repoSettingNames()
 	expected := []string{
+		"allow_auto_merge",
 		"allow_merge_commit",
 		"allow_rebase_merge",
 		"allow_squash_merge",
 		"allow_update_branch",
+		"can_approve_pull_request_reviews",
+		"default_workflow_permissions",
 		"delete_branch_on_merge",
 		"description",
 		"has_discussions",

@@ -139,10 +139,15 @@ type settingsPayload struct {
 	Topics *[]string
 }
 
-// nonPatchFields lists yaml keys that must not appear in the PATCH body
-// because they are managed by separate API endpoints.
+// nonPatchFields lists yaml keys that must not appear in the PATCH body.
+// topics still use a separate endpoint. The workflow-related keys stay here as
+// legacy config-only compatibility fields so older configs keep parsing without
+// re-enabling the removed GitHub automation behaviour.
 var nonPatchFields = map[string]bool{
-	"topics": true,
+	"topics":                           true,
+	"allow_auto_merge":                 true,
+	"default_workflow_permissions":     true,
+	"can_approve_pull_request_reviews": true,
 }
 
 // buildSettingsPayload uses reflection to build a map of non-nil fields from

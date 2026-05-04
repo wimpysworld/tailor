@@ -30,6 +30,8 @@ func TestFetchUsernameSuccess(t *testing.T) {
 }
 
 func TestFetchUsernameAPIError(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "")
+	t.Setenv("GITHUB_ACTOR", "")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		fmt.Fprint(w, `{"message": "Bad credentials"}`)
@@ -74,6 +76,8 @@ func TestFetchUsernameUsesGitHubActorInActions(t *testing.T) {
 }
 
 func TestFetchUsernameNotGitHubActions(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "")
+	t.Setenv("GITHUB_ACTOR", "")
 	var requestCount atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount.Add(1)

@@ -143,6 +143,8 @@ func WithPatchError(statusCode int) testOption {
 // returns an alterTestContext ready for use with alter.Run.
 func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterTestContext {
 	t.Helper()
+	t.Setenv("GITHUB_ACTIONS", "") // prevent env-var shortcut in FetchUsername
+	t.Setenv("GITHUB_ACTOR", "")
 
 	sc := &alterServerConfig{
 		username:    "testuser",
