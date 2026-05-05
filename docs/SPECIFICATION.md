@@ -606,7 +606,7 @@ swatches/
 ├── flake.nix
 ├── justfile
 ├── .github/
-│   ├── dependabot.yml
+│   ├── dependabot.yml  # includes GitHub Actions and Nix ecosystem updates
 │   ├── FUNDING.yml
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug_report.yml
@@ -619,7 +619,7 @@ swatches/
 └── .tailor.yml
 ```
 
-`.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted automatically. `SECURITY.md` has `{{ADVISORY_URL}}` substituted automatically; if no GitHub repository context exists at `alter` time, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` substituted automatically; resolution follows the same mechanism as `{{ADVISORY_URL}}`, constructing `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. `.tailor.yml` has `{{HOMEPAGE_URL}}` substituted automatically, constructing `https://github.com/<owner>/<name>` from the repository context; if no repository context exists, the token is left unsubstituted. `.github/dependabot.yml` covers the `github-actions` package ecosystem for automated dependency updates of GitHub Actions. `.github/workflows/tailor-automerge.yml` is a triggered swatch that auto-merges Dependabot pull requests; it is deployed only when `allow_auto_merge: true` is set in the `repository` section. `.github/workflows/tailor-automerge.yml` has `{{MERGE_STRATEGY}}` substituted automatically. `{{MERGE_STRATEGY}}` resolves to `--squash`, `--rebase`, or `--merge` based on the repository merge settings in `.tailor.yml`. Preference order: squash > rebase > merge. If no merge method is explicitly enabled, defaults to `--squash`.
+`.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted automatically. `SECURITY.md` has `{{ADVISORY_URL}}` substituted automatically; if no GitHub repository context exists at `alter` time, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` substituted automatically; resolution follows the same mechanism as `{{ADVISORY_URL}}`, constructing `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. `.tailor.yml` has `{{HOMEPAGE_URL}}` substituted automatically, constructing `https://github.com/<owner>/<name>` from the repository context; if no repository context exists, the token is left unsubstituted. `.github/dependabot.yml` covers the `github-actions`, `gomod`, and `nix` package ecosystems for automated dependency updates. `.github/workflows/tailor-automerge.yml` is a triggered swatch that auto-merges Dependabot pull requests; it is deployed only when `allow_auto_merge: true` is set in the `repository` section. `.github/workflows/tailor-automerge.yml` has `{{MERGE_STRATEGY}}` substituted automatically. `{{MERGE_STRATEGY}}` resolves to `--squash`, `--rebase`, or `--merge` based on the repository merge settings in `.tailor.yml`. Preference order: squash > rebase > merge. If no merge method is explicitly enabled, defaults to `--squash`.
 
 Licences are not embedded - they are fetched at `alter` time via the GitHub REST API (`GET /licenses/{id}`) and written verbatim to `LICENSE`.
 
@@ -663,27 +663,6 @@ jobs:
           branch: tailor-alter
           title: "chore: alter tailor swatches"
 
-  update-flake-lock:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
-    steps:
-      - uses: actions/checkout@v6.0.2
-
-      - name: Check for flake.lock
-        id: check
-        run: test -f flake.lock && echo "found=true" >> "$GITHUB_OUTPUT" || echo "found=false" >> "$GITHUB_OUTPUT"
-
-      - name: Install Nix
-        if: steps.check.outputs.found == 'true'
-        uses: DeterminateSystems/determinate-nix-action@v3.17.0
-
-      - name: Update flake.lock
-        if: steps.check.outputs.found == 'true'
-        uses: DeterminateSystems/update-flake-lock@v28
-        with:
-          pr-title: "chore: update flake.lock"
 ```
 
 Action behaviour:
@@ -691,7 +670,6 @@ Action behaviour:
 - Committing and pushing are handled by `peter-evans/create-pull-request`, not by tailor. Tailor only modifies files in the working tree.
 - The workflow declares `permissions: contents: write, issues: write, pull-requests: write, actions: write` at the top level. `GH_TOKEN` is set at the `alter` job level, providing the authentication token directly to `go-gh` via environment variable. The `gh` binary is not required for token resolution when `GH_TOKEN` is set. `first-fit` swatches (`.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/config.yml`, the licence file) are not overwritten after initial creation. `.tailor.yml` uses `always` mode but only appends missing swatch entries - existing content is never overwritten. `SECURITY.md` is `always` mode and is compared on every run, but it is rewritten only when the resolved content differs (see the substituted-swatch rule in the `alter` behaviour section). Because `{{ADVISORY_URL}}` usually resolves to the same URL for a given repository, this typically results in no diff and `create-pull-request` opens no PR. If a tailor upgrade changes a swatch template, the file will differ and a PR will be opened.
 - Because `.github/workflows/tailor.yml` is itself an `always` swatch, the action workflow is kept current automatically: if the embedded swatch content changes in a new tailor release, the weekly run will update the workflow file and open a PR.
-- The `update-flake-lock` job runs conditionally: it checks for a `flake.lock` file and, if found, installs Nix via `DeterminateSystems/determinate-nix-action` and updates the lock file via `DeterminateSystems/update-flake-lock`, opening a PR titled `chore: update flake.lock`.
 
 ## Automerge Workflow
 
@@ -704,7 +682,7 @@ The `.github/workflows/tailor-automerge.yml` swatch delivers a GitHub Actions wo
 | Ecosystem | Patch | Minor | Major |
 |-----------|-------|-------|-------|
 | GitHub Actions | Auto-merge | Auto-merge | Auto-merge |
-| All others | Auto-merge | Auto-merge | Skip |
+| All others, including Nix | Auto-merge | Auto-merge | Skip |
 
 GitHub Actions use major version tags (v1, v2, v3) as their release convention, so Dependabot reports nearly every action update as a major version bump. All action updates are auto-merged regardless of semver level. Major bumps in other ecosystems (Go modules, npm, pip) follow semantic versioning where major indicates breaking changes; these are left for manual review.
 

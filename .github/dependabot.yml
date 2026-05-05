@@ -22,3 +22,8 @@ updates:
     commit-message:
       prefix: "deps"
       include: "scope"
+
+  - package-ecosystem: "nix"
+    directory: "/"
+    schedule:
+      interval: "weekly"
