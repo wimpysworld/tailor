@@ -238,20 +238,6 @@ jobs:
           git tag -fa "${major}" -m "Update ${major} tag to ${tag}"
           git push origin "${major}" --force
 
-      - name: Update flake.lock
-        if: steps.guard.outputs.run == 'true' && matrix.mode == 'release' && !contains(github.ref_name, '-')
-        uses: DeterminateSystems/update-flake-lock@v28
-        with:
-          inputs: nix-packages
-          base: main
-          branch: update_flake_lock_nix-packages
-          commit-msg: "flake.lock: update nix-packages"
-          pr-title: "chore(flake): update nix-packages input"
-          pr-body: |
-            Automated `flake.lock` update after a new Tailor release.
-
-            Updates the `nix-packages` flake input to pick up the latest Nix derivation published by GoReleaser.
-
       - name: Update Go Report Card
         if: steps.guard.outputs.run == 'true' && matrix.mode == 'release' && !contains(github.ref_name, '-')
         run: curl -X POST -F "repo=github.com/$GITHUB_REPOSITORY" https://goreportcard.com/checks || true
