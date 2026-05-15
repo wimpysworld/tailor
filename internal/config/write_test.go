@@ -30,7 +30,7 @@ repository:
   squash_merge_commit_message: PR_BODY
   delete_branch_on_merge: true
   allow_update_branch: true
-  allow_auto_merge: true
+  allow_auto_merge: false
   web_commit_signoff_required: false
   default_workflow_permissions: read
   can_approve_pull_request_reviews: true
@@ -137,7 +137,7 @@ swatches:
     alteration: always
 
   - path: .github/workflows/tailor-automerge.yml
-    alteration: triggered
+    alteration: never
 `
 
 func TestWriteDefaultConfigMatchesSpec(t *testing.T) {

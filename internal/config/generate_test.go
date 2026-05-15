@@ -50,7 +50,7 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	testutil.AssertStringPtr(t, got.Repository.SquashMergeCommitMessage, false, "PR_BODY", "squash_merge_commit_message")
 	testutil.AssertBoolPtr(t, got.Repository.DeleteBranchOnMerge, false, true, "delete_branch_on_merge")
 	testutil.AssertBoolPtr(t, got.Repository.AllowUpdateBranch, false, true, "allow_update_branch")
-	testutil.AssertBoolPtr(t, got.Repository.AllowAutoMerge, false, true, "allow_auto_merge")
+	testutil.AssertBoolPtr(t, got.Repository.AllowAutoMerge, false, false, "allow_auto_merge")
 	testutil.AssertBoolPtr(t, got.Repository.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
 	testutil.AssertStringPtr(t, got.Repository.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
 	testutil.AssertBoolPtr(t, got.Repository.CanApprovePullRequestReviews, false, true, "can_approve_pull_request_reviews")
@@ -144,8 +144,8 @@ func TestDefaultConfigSwatchOrder(t *testing.T) {
 	if last.Path != ".github/workflows/tailor-automerge.yml" {
 		t.Errorf("last swatch Path = %q, want %q", last.Path, ".github/workflows/tailor-automerge.yml")
 	}
-	if last.Alteration != swatch.Triggered {
-		t.Errorf("last swatch Alteration = %q, want %q", last.Alteration, swatch.Triggered)
+	if last.Alteration != swatch.Never {
+		t.Errorf("last swatch Alteration = %q, want %q", last.Alteration, swatch.Never)
 	}
 }
 

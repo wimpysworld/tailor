@@ -19,8 +19,8 @@ func TestAllSwatchesHaveRequiredFields(t *testing.T) {
 			if s.Path == "" {
 				t.Error("Path is empty")
 			}
-			if s.DefaultAlteration != swatch.Always && s.DefaultAlteration != swatch.FirstFit && s.DefaultAlteration != swatch.Triggered {
-				t.Errorf("DefaultAlteration is %q, want %q, %q, or %q", s.DefaultAlteration, swatch.Always, swatch.FirstFit, swatch.Triggered)
+			if s.DefaultAlteration != swatch.Always && s.DefaultAlteration != swatch.FirstFit && s.DefaultAlteration != swatch.Triggered && s.DefaultAlteration != swatch.Never {
+				t.Errorf("DefaultAlteration is %q, want %q, %q, %q, or %q", s.DefaultAlteration, swatch.Always, swatch.FirstFit, swatch.Triggered, swatch.Never)
 			}
 			if s.Category != swatch.Health && s.Category != swatch.Development {
 				t.Errorf("Category is %q, want %q or %q", s.Category, swatch.Health, swatch.Development)
@@ -51,7 +51,7 @@ func TestSwatchAttributes(t *testing.T) {
 		{".github/ISSUE_TEMPLATE/config.yml", swatch.FirstFit, swatch.Health},
 		{".github/pull_request_template.md", swatch.Always, swatch.Health},
 		{".github/workflows/tailor.yml", swatch.Always, swatch.Development},
-		{".github/workflows/tailor-automerge.yml", swatch.Triggered, swatch.Development},
+		{".github/workflows/tailor-automerge.yml", swatch.Never, swatch.Development},
 		{".tailor.yml", swatch.Always, swatch.Development},
 	}
 
