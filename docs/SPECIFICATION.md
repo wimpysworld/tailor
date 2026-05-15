@@ -120,7 +120,7 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 | `.github/ISSUE_TEMPLATE/config.yml` | `first-fit` |
 | `.github/pull_request_template.md` | `always` |
 | `.github/workflows/tailor.yml` | `always` |
-| `.github/workflows/tailor-automerge.yml` | `triggered` |
+| `.github/workflows/tailor-automerge.yml` | `never` |
 | `.github/dependabot.yml` | `first-fit` |
 | `justfile` | `first-fit` |
 | `cubic.yaml` | `first-fit` |
@@ -467,7 +467,7 @@ repository:
   squash_merge_commit_message: PR_BODY
   delete_branch_on_merge: true
   allow_update_branch: true
-  allow_auto_merge: true
+  allow_auto_merge: false
   web_commit_signoff_required: false
   default_workflow_permissions: read
   can_approve_pull_request_reviews: false
@@ -571,7 +571,7 @@ swatches:
     alteration: first-fit
 
   - path: .github/workflows/tailor-automerge.yml
-    alteration: triggered
+    alteration: never
 
   - path: .tailor.yml
     alteration: always
@@ -673,7 +673,7 @@ Action behaviour:
 
 ## Automerge Workflow
 
-The `.github/workflows/tailor-automerge.yml` swatch delivers a GitHub Actions workflow that auto-merges Dependabot pull requests. It is a `triggered` swatch, deployed only when `allow_auto_merge: true` is set in the `repository` section of `.tailor.yml`. The file is namespaced with a `tailor-` prefix to avoid collisions with user-managed automerge workflows.
+The `.github/workflows/tailor-automerge.yml` swatch delivers a GitHub Actions workflow that auto-merges Dependabot pull requests. It is included in the default configuration with `alteration: never`, so new projects do not enable automerge by default. Users who want Tailor-managed automerge can set the entry to `triggered`; it then deploys only when `allow_auto_merge: true` is set in the `repository` section of `.tailor.yml`. The file is namespaced with a `tailor-` prefix to avoid collisions with user-managed automerge workflows.
 
 **Prerequisite**: Auto-merge requires branch protection with at least one required status check on the default branch. Without this, `gh pr merge --auto` merges immediately with no CI gate. See [GitHub's documentation on managing a branch protection rule](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/managing-a-branch-protection-rule) for guidance.
 
@@ -690,7 +690,7 @@ The workflow uses `gh pr merge --auto {{MERGE_STRATEGY}}` where `{{MERGE_STRATEG
 
 **Manual catch-up**: The workflow supports `workflow_dispatch` for repositories with pre-existing open Dependabot PRs. When triggered manually, a separate `automerge-existing` job lists all open Dependabot PRs and enables auto-merge on each. The manual job does not apply per-ecosystem filtering; required status checks still gate every merge.
 
-**Opt-out**: Users who have `allow_auto_merge: true` but use their own automerge solution can set `alteration: never` on the automerge swatch entry in `.tailor.yml` to suppress deployment while keeping the entry visible.
+**Opt-in / opt-out**: The default entry is `alteration: never`. Users can opt in by changing it to `triggered`, and users who later want to suppress deployment can change it back to `never` while keeping the entry visible.
 
 ## Justfile Integration
 

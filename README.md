@@ -211,7 +211,7 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 | `.envrc` | `first-fit` |
 | `cubic.yaml` | `first-fit` |
 | `.tailor.yml` | `always` |
-| `.github/workflows/tailor-automerge.yml` | `triggered` |
+| `.github/workflows/tailor-automerge.yml` | `never` |
 
 ### Alteration modes
 
@@ -237,7 +237,7 @@ repository:
   has_discussions: false
   allow_squash_merge: true
   delete_branch_on_merge: true
-  allow_auto_merge: true
+  allow_auto_merge: false
   default_workflow_permissions: read
   can_approve_pull_request_reviews: false
 
@@ -352,7 +352,7 @@ Branch protection rules and rulesets require `Administration: write`, which `GIT
 
 ### Automerge
 
-The `.github/workflows/tailor-automerge.yml` swatch auto-approves and merges Dependabot pull requests. It deploys automatically when `allow_auto_merge: true` is set in repository settings and removes itself when the setting is false.
+The `.github/workflows/tailor-automerge.yml` swatch auto-approves and merges Dependabot pull requests. It is disabled by default with `alteration: never`. To use Tailor-managed automerge, change that entry to `triggered`; it then deploys automatically when `allow_auto_merge: true` is set in repository settings and removes itself when the setting is false.
 
 | Ecosystem | Patch | Minor | Major |
 |-----------|-------|-------|-------|

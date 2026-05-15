@@ -28,7 +28,7 @@ repository:
   squash_merge_commit_message: PR_BODY
   delete_branch_on_merge: true
   allow_update_branch: true
-  allow_auto_merge: true
+  allow_auto_merge: false
   web_commit_signoff_required: false
 
 swatches:
@@ -81,7 +81,7 @@ swatches:
     alteration: always
 
   - path: .github/workflows/tailor-automerge.yml
-    alteration: triggered
+    alteration: never
 `
 
 func TestUnmarshalSpecYAML(t *testing.T) {
@@ -110,7 +110,7 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	testutil.AssertStringPtr(t, r.SquashMergeCommitMessage, false, "PR_BODY", "squash_merge_commit_message")
 	testutil.AssertBoolPtr(t, r.DeleteBranchOnMerge, false, true, "delete_branch_on_merge")
 	testutil.AssertBoolPtr(t, r.AllowUpdateBranch, false, true, "allow_update_branch")
-	testutil.AssertBoolPtr(t, r.AllowAutoMerge, false, true, "allow_auto_merge")
+	testutil.AssertBoolPtr(t, r.AllowAutoMerge, false, false, "allow_auto_merge")
 	testutil.AssertBoolPtr(t, r.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
 
 	if len(cfg.Swatches) != 17 {
@@ -130,7 +130,7 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	if last.Path != ".github/workflows/tailor-automerge.yml" {
 		t.Errorf("last swatch Path = %q", last.Path)
 	}
-	if last.Alteration != swatch.Triggered {
+	if last.Alteration != swatch.Never {
 		t.Errorf("last swatch Alteration = %q", last.Alteration)
 	}
 }
