@@ -389,7 +389,7 @@ func TestFormatOutputLabelSkipAnnotations(t *testing.T) {
 }
 
 func TestFormatOutputSkipAnnotationColumnWidth(t *testing.T) {
-	// Verify annotated skip labels widen the column correctly.
+	// Annotated skip labels widen the column correctly.
 	repos := []RepoSettingResult{
 		{Field: "vuln", Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}

@@ -527,7 +527,7 @@ func partialLabelsServer(current []model.LabelEntry) *httptest.Server {
 func TestProcessLabelsPartialApplicationWithSkipped(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	// No current labels: both will be created. First POST returns 403.
+	// With no current labels, both desired labels need create requests. The first POST returns 403.
 	current := []model.LabelEntry{}
 	server := partialLabelsServer(current)
 	t.Cleanup(server.Close)
@@ -613,7 +613,7 @@ func TestProcessLabelsSkipDoesNotAbort(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// The PATCH for beta should still have been called despite alpha's 403.
+	// Beta is still patched despite alpha's 403.
 	if patchCalled.Load() == 0 {
 		t.Error("expected PATCH call for beta, but none received")
 	}

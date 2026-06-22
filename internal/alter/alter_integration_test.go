@@ -158,26 +158,23 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 
 	dir := t.TempDir()
 
-	// Write config file.
 	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte(configYAML), 0o644); err != nil {
 		t.Fatalf("writing .tailor.yml: %v", err)
 	}
 
 	ctx := &alterTestContext{Dir: dir}
 
-	// Build mock server.
 	repoPath := fmt.Sprintf("/repos/%s/%s", sc.owner, sc.repo)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
-		// Read body for mutating requests.
+		// Capture mutating request bodies for later assertions.
 		var body string
 		if r.Body != nil && (r.Method == http.MethodPatch || r.Method == http.MethodPut || r.Method == http.MethodPost) {
 			data, _ := io.ReadAll(r.Body)
 			body = string(data)
 		}
 
-		// Record all calls.
 		ctx.recordCall(r.Method, path, body)
 
 		switch {
@@ -243,7 +240,6 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 	ctx.Server = server
 	ctx.Client = testutil.NewTestClient(t, server)
 
-	// Stub repo context.
 	if sc.noRepo {
 		ghfake.FakeNoRepo(t)
 	} else {
@@ -365,9 +361,8 @@ func requireNotContains(t *testing.T, output, substr string) {
 	}
 }
 
-// TestAlterRunDryRunSmokeTest verifies the integration test infrastructure works
-// by running alter.Run in DryRun mode with a single swatch entry. It checks that
-// the expected output is produced and no files are written.
+// TestAlterRunDryRunSmokeTest verifies the integration test infrastructure with
+// a single swatch entry. Dry-run reports expected output and writes no files.
 func TestAlterRunDryRunSmokeTest(t *testing.T) {
 	configYAML := `license: mit
 swatches:
@@ -377,7 +372,6 @@ swatches:
 	tc := setupAlterTest(t, configYAML)
 	cfg := loadTestConfig(t, tc.Dir)
 
-	// Capture stdout.
 	oldStdout := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
@@ -395,7 +389,7 @@ swatches:
 	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
-	// Verify output contains expected "would copy" lines.
+	// Dry-run output reports the swatch and licence copies.
 	if !strings.Contains(output, "would copy:") {
 		t.Errorf("expected output to contain 'would copy:', got:\n%s", output)
 	}
@@ -406,7 +400,7 @@ swatches:
 		t.Errorf("expected output to contain 'LICENSE', got:\n%s", output)
 	}
 
-	// Verify no swatch files were written.
+	// Dry-run leaves the filesystem unchanged.
 	if _, err := os.Stat(filepath.Join(tc.Dir, ".gitignore")); err == nil {
 		t.Error("dry run wrote .gitignore to disk")
 	}
@@ -414,7 +408,7 @@ swatches:
 		t.Error("dry run wrote LICENSE to disk")
 	}
 
-	// Verify no mutating API calls were made.
+	// Dry-run must not make mutating API calls.
 	if mc := tc.MutatingCalls(); len(mc) != 0 {
 		t.Errorf("dry run made %d mutating API calls: %v", len(mc), mc)
 	}
@@ -463,7 +457,7 @@ swatches:
 		t.Errorf("expected output to contain 'repository.has_wiki', got:\n%s", output)
 	}
 
-	// Verify no mutating API calls.
+	// Dry-run must not make mutating API calls.
 	if mc := tc.MutatingCalls(); len(mc) != 0 {
 		t.Errorf("dry run made %d mutating API calls: %v", len(mc), mc)
 	}
@@ -480,7 +474,6 @@ swatches:
 	tc := setupAlterTest(t, configYAML)
 	cfg := loadTestConfig(t, tc.Dir)
 
-	// Suppress stdout.
 	oldStdout := os.Stdout
 	_, w, _ := os.Pipe()
 	os.Stdout = w
@@ -494,7 +487,6 @@ swatches:
 		t.Fatalf("alter.Run() error: %v", err)
 	}
 
-	// Verify .gitignore was written.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, ".gitignore"))
 	if err != nil {
 		t.Fatalf(".gitignore not written: %v", err)
@@ -507,7 +499,6 @@ swatches:
 		t.Error(".gitignore content does not match embedded swatch")
 	}
 
-	// Verify LICENSE was written.
 	if _, err := os.Stat(filepath.Join(tc.Dir, "LICENSE")); err != nil {
 		t.Fatalf("LICENSE not written: %v", err)
 	}
@@ -535,19 +526,19 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 
-	// All swatches absent: "would copy" for each.
+	// Missing swatches and licence are all reported as copies.
 	requireContains(t, output, "would copy:")
 	requireContains(t, output, ".gitignore")
 	requireContains(t, output, "CODE_OF_CONDUCT.md")
 	requireContains(t, output, "SECURITY.md")
 	requireContains(t, output, "LICENSE")
 
-	// Repo settings that differ: "would set".
+	// Repo settings that differ are reported as settings changes.
 	requireContains(t, output, "would set:")
 	requireContains(t, output, "repository.has_wiki")
 	requireContains(t, output, "repository.delete_branch_on_merge")
 
-	// No mutating API calls.
+	// Dry-run must not make mutating API calls.
 	if mc := tc.MutatingCalls(); len(mc) != 0 {
 		t.Errorf("dry run made %d mutating API calls: %v", len(mc), mc)
 	}
@@ -573,12 +564,12 @@ swatches:
 		WithRepoSettings(repoJSON{HasWiki: false}),
 	)
 
-	// Pre-write all swatch files with matching embedded content.
+	// Existing files use matching embedded content.
 	for _, src := range []string{".gitignore", "CODE_OF_CONDUCT.md", "SECURITY.md"} {
 		content := mustContent(t, src)
 		writeOnDisk(t, tc.Dir, src, content)
 	}
-	// Pre-write licence.
+	// Existing licence exercises first-fit licence behaviour.
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing licence"))
 
 	cfg := loadTestConfig(t, tc.Dir)
@@ -592,7 +583,8 @@ swatches:
 	requireContains(t, output, "no change:")
 	requireContains(t, output, "CODE_OF_CONDUCT.md")
 
-	// Substituted always SECURITY.md: always "would overwrite" regardless of content match.
+	// SECURITY.md contains unresolved template content on disk, so resolved
+	// substituted content reports "would overwrite".
 	requireContains(t, output, "would overwrite:")
 	requireContains(t, output, "SECURITY.md")
 
@@ -605,7 +597,7 @@ swatches:
 	// No "would copy" should appear since all files exist.
 	requireNotContains(t, output, "would copy:")
 
-	// No mutating API calls.
+	// Dry-run must not make mutating API calls.
 	if mc := tc.MutatingCalls(); len(mc) != 0 {
 		t.Errorf("dry run made %d mutating API calls: %v", len(mc), mc)
 	}
@@ -625,8 +617,8 @@ swatches:
 `
 	tc := setupAlterTest(t, configYAML)
 
-	// Pre-write .gitignore (first-fit, will be skipped) and CODE_OF_CONDUCT.md
-	// with matching content (always, will be no change).
+	// Existing .gitignore exercises first-fit skip. Matching
+	// CODE_OF_CONDUCT.md content exercises always/no-change.
 	writeOnDisk(t, tc.Dir, ".gitignore", mustContent(t, ".gitignore"))
 	writeOnDisk(t, tc.Dir, "CODE_OF_CONDUCT.md", mustContent(t, "CODE_OF_CONDUCT.md"))
 	// CONTRIBUTING.md absent: will be "would copy".
@@ -635,17 +627,17 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 
-	// .gitignore present + first-fit = skipped.
+	// Existing first-fit swatches are skipped.
 	requireContains(t, output, "skipped (first-fit, exists):")
 
-	// CODE_OF_CONDUCT.md present + always + content matches = no change.
+	// Existing always swatches with matching content report no change.
 	requireContains(t, output, "no change:")
 
-	// CONTRIBUTING.md absent = would copy.
+	// Missing swatches report copies.
 	requireContains(t, output, "would copy:")
 	requireContains(t, output, "CONTRIBUTING.md")
 
-	// LICENSE absent = would copy.
+	// Missing licences share the same copy status.
 	requireContains(t, output, "LICENSE")
 }
 
@@ -659,9 +651,9 @@ swatches:
 `
 	tc := setupAlterTest(t, configYAML)
 
-	// Pre-write CODE_OF_CONDUCT.md with different content.
+	// Existing stale content reports an overwrite.
 	writeOnDisk(t, tc.Dir, "CODE_OF_CONDUCT.md", []byte("outdated conduct document"))
-	// Pre-write LICENSE to suppress warning.
+	// Existing licence suppresses the missing-licence warning.
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
@@ -670,7 +662,7 @@ swatches:
 	requireContains(t, output, "would overwrite:")
 	requireContains(t, output, "CODE_OF_CONDUCT.md")
 
-	// Verify the file was NOT modified (dry-run).
+	// Dry-run does not change the stale file.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, "CODE_OF_CONDUCT.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -693,7 +685,7 @@ swatches:
 
 	// Write SECURITY.md with the exact embedded content (before substitution).
 	writeOnDisk(t, tc.Dir, "SECURITY.md", mustContent(t, "SECURITY.md"))
-	// Pre-write LICENSE to suppress warning.
+	// Existing licence suppresses the missing-licence warning.
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
@@ -710,8 +702,8 @@ swatches:
 	}
 }
 
-// TestAlterRunDryRunNoFilesWritten verifies that after a comprehensive dry-run,
-// no new files are created and no existing files are modified.
+// TestAlterRunDryRunNoFilesWritten verifies that a comprehensive dry-run
+// creates no new files and modifies no existing files.
 func TestAlterRunDryRunNoFilesWritten(t *testing.T) {
 	configYAML := `license: mit
 repository:
@@ -730,11 +722,11 @@ swatches:
 		WithRepoSettings(repoJSON{HasWiki: true}),
 	)
 
-	// Pre-write one file with known content to verify it is not modified.
+	// Existing known content proves dry-run does not modify files.
 	existingContent := []byte("original content")
 	writeOnDisk(t, tc.Dir, "CODE_OF_CONDUCT.md", existingContent)
 
-	// Record filesystem state before dry-run.
+	// Capture filesystem state before dry-run.
 	dirEntries := func() map[string]int64 {
 		entries := make(map[string]int64)
 		_ = filepath.Walk(tc.Dir, func(path string, info os.FileInfo, _ error) error {
@@ -754,14 +746,14 @@ swatches:
 
 	after := dirEntries()
 
-	// Check no new files were created.
+	// Dry-run creates no new files.
 	for path := range after {
 		if _, existed := before[path]; !existed {
 			t.Errorf("dry run created new file: %s", path)
 		}
 	}
 
-	// Verify CODE_OF_CONDUCT.md was not modified.
+	// Dry-run preserves existing file content.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, "CODE_OF_CONDUCT.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -770,14 +762,14 @@ swatches:
 		t.Error("dry run modified CODE_OF_CONDUCT.md")
 	}
 
-	// Verify no swatch files that were absent were written.
+	// Absent swatches remain absent after dry-run.
 	for _, absent := range []string{".gitignore", "SECURITY.md", "CONTRIBUTING.md", "LICENSE"} {
 		if _, err := os.Stat(filepath.Join(tc.Dir, absent)); err == nil {
 			t.Errorf("dry run wrote %s to disk", absent)
 		}
 	}
 
-	// No mutating API calls.
+	// Dry-run must not make mutating API calls.
 	if mc := tc.MutatingCalls(); len(mc) != 0 {
 		t.Errorf("dry run made %d mutating API calls: %v", len(mc), mc)
 	}
@@ -961,7 +953,7 @@ swatches:
 		t.Errorf("expected LICENSE to exist after apply: %v", err)
 	}
 
-	// Repo settings PATCH must have been called.
+	// Apply sends the repo settings PATCH.
 	found := false
 	for _, call := range tc.MutatingCalls() {
 		if call.Method == http.MethodPatch && strings.Contains(call.Path, "/repos/") {
@@ -974,8 +966,8 @@ swatches:
 	}
 }
 
-// TestAlterRunApplyFileContentMatchesEmbedded verifies that non-substituted
-// swatch files written during apply match the embedded swatch content exactly.
+// TestAlterRunApplyFileContentMatchesEmbedded verifies that apply writes
+// non-substituted swatches with the exact embedded content.
 func TestAlterRunApplyFileContentMatchesEmbedded(t *testing.T) {
 	configYAML := `license: none
 swatches:
@@ -989,7 +981,7 @@ swatches:
     alteration: always
 `
 	tc := setupAlterTest(t, configYAML)
-	// Pre-write LICENSE to suppress warning.
+	// Existing licence suppresses the missing-licence warning.
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
@@ -1007,8 +999,8 @@ swatches:
 	}
 }
 
-// TestAlterRunApplyFundingYmlSubstituted verifies that FUNDING.yml written
-// during apply contains the mock username, not the raw {{GITHUB_USERNAME}} token.
+// TestAlterRunApplyFundingYmlSubstituted verifies that apply writes FUNDING.yml
+// with the mock username, not the raw {{GITHUB_USERNAME}} token.
 func TestAlterRunApplyFundingYmlSubstituted(t *testing.T) {
 	configYAML := `license: none
 swatches:
@@ -1035,8 +1027,8 @@ swatches:
 	}
 }
 
-// TestAlterRunApplySecurityMdSubstituted verifies that SECURITY.md written
-// during apply contains the constructed advisory URL, not the raw {{ADVISORY_URL}} token.
+// TestAlterRunApplySecurityMdSubstituted verifies that apply writes SECURITY.md
+// with the constructed advisory URL, not the raw {{ADVISORY_URL}} token.
 func TestAlterRunApplySecurityMdSubstituted(t *testing.T) {
 	configYAML := `license: none
 swatches:
@@ -1087,7 +1079,7 @@ swatches:
 		t.Error("expected file, got directory")
 	}
 
-	// Verify parent directories exist.
+	// Parent directories are created with the nested swatch.
 	dirPath := filepath.Join(tc.Dir, ".github/ISSUE_TEMPLATE")
 	info, err = os.Stat(dirPath)
 	if err != nil {
@@ -1113,14 +1105,14 @@ swatches:
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	// Pre-write first-fit files with custom content.
+	// Existing first-fit files keep their custom content in apply mode.
 	writeOnDisk(t, tc.Dir, ".gitignore", []byte("my custom gitignore"))
 	writeOnDisk(t, tc.Dir, ".github/FUNDING.yml", []byte("my custom funding"))
 
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	// First-fit files must retain their original content.
+	// First-fit files retain their original content.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, ".gitignore"))
 	if err != nil {
 		t.Fatal(err)
@@ -1137,14 +1129,14 @@ swatches:
 		t.Errorf("FUNDING.yml was overwritten; got %q", string(data))
 	}
 
-	// Always swatch (CODE_OF_CONDUCT.md) should have been written.
+	// Missing always swatches are written in apply mode.
 	if _, err := os.Stat(filepath.Join(tc.Dir, "CODE_OF_CONDUCT.md")); err != nil {
 		t.Errorf("CODE_OF_CONDUCT.md should have been written: %v", err)
 	}
 }
 
-// TestAlterRunApplyAlwaysSwatchNoWriteOnMD5Match verifies that a non-substituted
-// "always" swatch whose content already matches the embedded swatch is left alone.
+// Non-substituted always swatches use SHA-256 content comparison and are left
+// alone when content matches the embedded swatch.
 func TestAlterRunApplyAlwaysSwatchNoWriteOnMD5Match(t *testing.T) {
 	configYAML := `license: none
 swatches:
@@ -1154,11 +1146,11 @@ swatches:
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	// Pre-write CODE_OF_CONDUCT.md with exact embedded content.
+	// Existing content matches the embedded swatch exactly.
 	original := mustContent(t, "CODE_OF_CONDUCT.md")
 	writeOnDisk(t, tc.Dir, "CODE_OF_CONDUCT.md", original)
 
-	// Record modification time before apply.
+	// Capture modification time before apply.
 	infoBefore, err := os.Stat(filepath.Join(tc.Dir, "CODE_OF_CONDUCT.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -1168,7 +1160,7 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	// Content must remain identical.
+	// Matching content is preserved.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, "CODE_OF_CONDUCT.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -1177,7 +1169,7 @@ swatches:
 		t.Error("CODE_OF_CONDUCT.md content changed despite MD5 match")
 	}
 
-	// Modification time should not have changed (file was not re-written).
+	// Matching content is not rewritten.
 	infoAfter, err := os.Stat(filepath.Join(tc.Dir, "CODE_OF_CONDUCT.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -1199,7 +1191,7 @@ swatches:
 		WithLicence("mit", "Fresh MIT text"),
 	)
 
-	// Pre-write LICENSE with custom content.
+	// Existing custom licence is exempt from apply.
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("My Custom Licence"))
 
 	cfg := loadTestConfig(t, tc.Dir)
@@ -1234,7 +1226,7 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	// Find the PATCH call.
+	// The PATCH call carries the declared repository settings.
 	var patchCall *apiCall
 	for _, call := range tc.MutatingCalls() {
 		if call.Method == http.MethodPatch && strings.Contains(call.Path, "/repos/testowner/testrepo") {
@@ -1246,7 +1238,6 @@ swatches:
 		t.Fatal("no PATCH call to repos/{owner}/{repo} found")
 	}
 
-	// Verify the body contains expected settings.
 	var body map[string]any
 	if err := json.Unmarshal([]byte(patchCall.Body), &body); err != nil {
 		t.Fatalf("failed to parse PATCH body as JSON: %v", err)
@@ -1263,10 +1254,6 @@ swatches:
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Phase 6.4 - Recut integration tests
-// ---------------------------------------------------------------------------
-
 // TestAlterRunRecutOverwritesFirstFitSwatches verifies that recut
 // overwrites pre-existing first-fit swatch files with embedded content.
 func TestAlterRunRecutOverwritesFirstFitSwatches(t *testing.T) {
@@ -1280,14 +1267,14 @@ swatches:
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	// Pre-write first-fit files with custom content.
+	// Existing first-fit files are overwritten by recut.
 	writeOnDisk(t, tc.Dir, ".gitignore", []byte("custom gitignore"))
 	writeOnDisk(t, tc.Dir, "CODE_OF_CONDUCT.md", []byte("custom conduct"))
 
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Recut, tc.Client)
 
-	// Both files must now contain embedded swatch content, not custom content.
+	// Both files contain embedded swatch content, not custom content.
 	for _, src := range []string{".gitignore", "CODE_OF_CONDUCT.md"} {
 		got, err := os.ReadFile(filepath.Join(tc.Dir, src))
 		if err != nil {
@@ -1365,7 +1352,7 @@ swatches:
 	)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	// Pre-write FUNDING.yml with stale content.
+	// Existing stale funding content is replaced with freshly resolved content.
 	writeOnDisk(t, tc.Dir, ".github/FUNDING.yml", []byte("github: staleuser"))
 
 	cfg := loadTestConfig(t, tc.Dir)
@@ -1385,10 +1372,6 @@ swatches:
 		t.Error("FUNDING.yml contains raw {{GITHUB_USERNAME}} token")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Phase 6.5 - Error path integration tests
-// ---------------------------------------------------------------------------
 
 // TestAlterRunErrorUnrecognisedSwatchSource verifies that a config with an
 // unknown swatch source produces an error mentioning valid sources.
@@ -1490,7 +1473,7 @@ swatches:
 }
 
 // TestAlterRunErrorGetUserFailure verifies that a 401 from GET /user
-// propagates as an error. No files should be written and no PATCH calls made.
+// propagates as an error. No files are written and no PATCH calls are made.
 func TestAlterRunErrorGetUserFailure(t *testing.T) {
 	configYAML := `license: none
 swatches:
@@ -1509,19 +1492,19 @@ swatches:
 		t.Errorf("error = %q, want substring containing 'username' or 'user'", err)
 	}
 
-	// No swatch files should have been written.
+	// No swatch files are written.
 	if _, statErr := os.Stat(filepath.Join(tc.Dir, ".gitignore")); statErr == nil {
 		t.Error(".gitignore was written despite GET /user failure")
 	}
 
-	// No mutating API calls.
+	// No mutating API calls are made.
 	if mc := tc.MutatingCalls(); len(mc) != 0 {
 		t.Errorf("expected no mutating calls, got %d: %v", len(mc), mc)
 	}
 }
 
 // TestAlterRunErrorPatchFailure verifies that a 500 from PATCH on repo
-// settings propagates as an error. No swatch files should be written because
+// settings propagates as an error. No swatch files are written because
 // repo settings are processed before swatches.
 func TestAlterRunErrorPatchFailure(t *testing.T) {
 	configYAML := `license: none
@@ -1544,7 +1527,7 @@ swatches:
 		t.Fatal("expected error from PATCH failure")
 	}
 
-	// No swatch files should have been written (repo settings fail first).
+	// No swatch files are written because repo settings fail first.
 	if _, statErr := os.Stat(filepath.Join(tc.Dir, ".gitignore")); statErr == nil {
 		t.Error(".gitignore was written despite PATCH failure")
 	}
@@ -1569,7 +1552,7 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	// Swatch files should be written despite the PATCH 403.
+	// Swatch files are written despite the PATCH 403.
 	if _, statErr := os.Stat(filepath.Join(tc.Dir, ".gitignore")); statErr != nil {
 		t.Error(".gitignore was not written despite graceful PATCH degradation")
 	}
@@ -1595,12 +1578,12 @@ swatches:
 		t.Fatalf("alter.Run() returned unexpected error: %v", err)
 	}
 
-	// Stderr should contain the repo context warning.
+	// Stderr contains the repo context warning.
 	if !strings.Contains(stderr, "No GitHub repository context found") {
 		t.Errorf("expected stderr warning about no repo context, got: %q", stderr)
 	}
 
-	// Swatches should still be processed: .gitignore written.
+	// Swatches still run, so .gitignore is written.
 	if _, statErr := os.Stat(filepath.Join(tc.Dir, ".gitignore")); statErr != nil {
 		t.Errorf(".gitignore should have been written despite no repo context: %v", statErr)
 	}
@@ -1644,10 +1627,6 @@ swatches:
 	}
 }
 
-// ---------------------------------------------------------------------------
-// Phase 4.1 - Triggered swatch integration tests
-// ---------------------------------------------------------------------------
-
 // TestAlterRunTriggeredAutoMergeTrue verifies that a triggered swatch is
 // deployed when the trigger condition is met (allow_auto_merge: true).
 func TestAlterRunTriggeredAutoMergeTrue(t *testing.T) {
@@ -1677,7 +1656,7 @@ swatches:
 		t.Error("dry run wrote tailor-automerge.yml to disk")
 	}
 
-	// Apply: file should be written.
+	// Apply writes the triggered swatch.
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
 	data, err := os.ReadFile(automergeFile)
@@ -1714,7 +1693,7 @@ swatches:
 
 	cfg := loadTestConfig(t, tc.Dir)
 
-	// Subtest: file absent, trigger not met - should be ignored.
+	// Absent file plus unmet trigger yields no action.
 	t.Run("absent_ignored", func(t *testing.T) {
 		output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 		requireNotContains(t, output, "would copy")
@@ -1725,22 +1704,21 @@ swatches:
 		requireNotContains(t, output, "would remove")
 	})
 
-	// Subtest: file present, trigger not met - should be removed.
+	// Existing file plus unmet trigger reports removal.
 	t.Run("present_removed", func(t *testing.T) {
 		automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
 		writeOnDisk(t, tc.Dir, ".github/workflows/tailor-automerge.yml", []byte("old automerge content"))
 
-		// DryRun should report "would remove".
+		// Dry-run reports removal without deleting the file.
 		dryOutput := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 		requireContains(t, dryOutput, "would remove")
 		requireContains(t, dryOutput, "tailor-automerge.yml")
 
-		// File must still exist after dry-run.
 		if _, err := os.Stat(automergeFile); err != nil {
 			t.Errorf("dry run removed tailor-automerge.yml from disk: %v", err)
 		}
 
-		// Apply should remove the file.
+		// Apply removes the stale triggered file.
 		_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
 		if _, err := os.Stat(automergeFile); err == nil {
@@ -1766,7 +1744,7 @@ swatches:
 
 	cfg := loadTestConfig(t, tc.Dir)
 
-	// DryRun: output should show "skip (never)", not any deploy/copy action.
+	// Dry-run reports the explicit never suppression.
 	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 	requireContains(t, output, "skip (never):")
 	requireContains(t, output, "tailor-automerge.yml")
@@ -1774,7 +1752,7 @@ swatches:
 	requireNotContains(t, output, "would overwrite")
 	requireNotContains(t, output, "would deploy")
 
-	// Apply: file should not be written.
+	// Apply honours the explicit never suppression.
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
 	automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
@@ -1782,10 +1760,6 @@ swatches:
 		t.Error("tailor-automerge.yml was deployed despite alteration: never")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Phase 5.2 - Config merge integration tests
-// ---------------------------------------------------------------------------
 
 // allNonConfigSwatchesYAML returns a YAML swatches block containing every
 // registered swatch except .tailor.yml, using each swatch's default
@@ -1906,15 +1880,14 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	// The two missing swatch files must have been created on disk because
-	// MergeDefaultSwatches appended them to cfg.Swatches before processing.
+	// MergeDefaultSwatches appends the missing entries before swatch processing.
 	for _, dest := range []string{"SUPPORT.md", "justfile"} {
 		if _, err := os.Stat(filepath.Join(tc.Dir, dest)); err != nil {
 			t.Errorf("expected %s to exist after apply (merged swatch): %v", dest, err)
 		}
 	}
 
-	// The config file on disk must exist (swatch processing writes it).
+	// Swatch processing writes the config file.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("config.yml not found after apply: %v", err)
@@ -1987,7 +1960,7 @@ func TestConfigMergeFirstFitApplySkips(t *testing.T) {
 		t.Error("config.yml was rewritten despite first-fit alteration in Apply mode")
 	}
 
-	// SUPPORT.md should NOT appear in the config (merge was skipped).
+	// First-fit config mode skips the merge, so SUPPORT.md remains absent.
 	if strings.Contains(string(afterData), "SUPPORT.md") {
 		t.Error("config.yml contains SUPPORT.md despite first-fit skipping merge")
 	}
@@ -1997,7 +1970,7 @@ func TestConfigMergeFirstFitApplySkips(t *testing.T) {
 // first-fit config.yml overrides to always semantics, appending missing
 // entries. The merged swatch files must appear on disk after processing.
 func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
-	// Config with first-fit for config.yml, missing most swatches.
+	// A first-fit config swatch is promoted to merge behaviour during recut.
 	configYAML := "license: none\nswatches:\n" +
 		"  - path: .tailor.yml\n    alteration: first-fit\n" +
 		"  - path: .gitignore\n    alteration: first-fit\n"
@@ -2008,16 +1981,14 @@ func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Recut, tc.Client)
 
-	// The missing swatch files must have been created on disk because
-	// recut overrides first-fit to trigger the merge, and ProcessSwatches
-	// then processes all merged entries.
+	// Recut merges defaults, then processes the newly merged swatches.
 	for _, dest := range []string{"SUPPORT.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md"} {
 		if _, err := os.Stat(filepath.Join(tc.Dir, dest)); err != nil {
 			t.Errorf("expected %s to exist after recut (merged swatch): %v", dest, err)
 		}
 	}
 
-	// config.yml must exist on disk (recut overwrites it via swatch processing).
+	// Recut writes config.yml via swatch processing.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("config.yml not found after recut: %v", err)
@@ -2030,7 +2001,7 @@ func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 // TestConfigMergeDryRunNoRewrite verifies that DryRun mode with missing
 // entries does not rewrite the config file on disk.
 func TestConfigMergeDryRunNoRewrite(t *testing.T) {
-	// Config missing most swatches, config.yml set to always.
+	// Dry-run can detect missing entries without rewriting config.yml.
 	configYAML := "license: none\nswatches:\n" +
 		"  - path: .tailor.yml\n    alteration: always\n" +
 		"  - path: .gitignore\n    alteration: first-fit\n"
@@ -2055,10 +2026,6 @@ func TestConfigMergeDryRunNoRewrite(t *testing.T) {
 		t.Error("config.yml was rewritten during dry-run despite ShouldWrite() being false")
 	}
 }
-
-// ---------------------------------------------------------------------------
-// Phase 2 - Merge integration tests (repo settings + labels)
-// ---------------------------------------------------------------------------
 
 // TestAlterRunMergeRepoSettingsAndLabels verifies that a config missing repo
 // settings fields and the labels section receives defaults during the merge
@@ -2088,7 +2055,7 @@ swatches:
 	}
 	content := string(data)
 
-	// Verify repo settings fields were merged from defaults.
+	// Repo settings fields are merged from defaults.
 	for _, field := range []string{
 		"has_issues:",
 		"allow_squash_merge:",
@@ -2101,12 +2068,12 @@ swatches:
 		}
 	}
 
-	// Verify has_wiki was preserved (not overwritten by default).
+	// Existing has_wiki value is preserved instead of replaced by defaults.
 	if !strings.Contains(content, "has_wiki: false") {
 		t.Errorf("has_wiki was overwritten; expected 'has_wiki: false' to be preserved")
 	}
 
-	// Verify labels were merged from defaults.
+	// Missing labels are merged from defaults.
 	if !strings.Contains(content, "labels:") {
 		t.Error("merged config missing labels section")
 	}
@@ -2120,19 +2087,18 @@ swatches:
 // TestAlterRunMergeCompleteConfigNotRewritten verifies that a config already
 // containing all default repo settings and labels is not rewritten.
 func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
-	// Build a complete config by loading the embedded default.
+	// Embedded defaults provide the complete config fixture.
 	defaults, err := config.DefaultConfig("none")
 	if err != nil {
 		t.Fatalf("loading default config: %v", err)
 	}
 
-	// Generate YAML for a complete config that includes all repo settings
-	// and labels. Use the embedded defaults as the source of truth.
+	// The generated YAML includes all repo settings and labels from the
+	// embedded defaults.
 	var sb strings.Builder
 	sb.WriteString("license: none\n\nrepository:\n")
 
-	// Write all default repo settings (except description, homepage, topics
-	// which are nil/skipped).
+	// Description, homepage, and topics are nil in the embedded defaults.
 	if defaults.Repository != nil {
 		if defaults.Repository.HasWiki != nil {
 			fmt.Fprintf(&sb, "  has_wiki: %t\n", *defaults.Repository.HasWiki)
@@ -2200,7 +2166,7 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	// Record original config content.
+	// Capture original config content.
 	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading original config: %v", err)
@@ -2249,19 +2215,19 @@ swatches:
 		t.Fatalf("reading config after merge: %v", err)
 	}
 
-	// Config should be rewritten because repo settings were merged.
+	// Merging repo settings rewrites the config.
 	if bytes.Equal(originalData, afterData) {
 		t.Error("config was not rewritten despite missing repo settings fields")
 	}
 
 	content := string(afterData)
 
-	// Verify merged repo settings are present.
+	// Merged repo settings are present.
 	if !strings.Contains(content, "has_issues:") {
 		t.Error("merged config missing default repo setting has_issues")
 	}
 
-	// Verify labels were NOT replaced (already had entries).
+	// Existing labels are preserved.
 	if !strings.Contains(content, "custom-label") {
 		t.Error("existing custom label was lost during merge")
 	}

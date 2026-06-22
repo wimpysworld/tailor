@@ -290,9 +290,8 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 		t.Errorf("output order and padding:\ngot:\n%s\nwant:\n%s", got, want)
 	}
 
-	// Verify 16-char label padding explicitly by checking that column 16
-	// (0-indexed) of every non-empty, non-advisory line is the first
-	// character of the destination path.
+	// Column 16 (0-indexed) is the first destination-path character for
+	// every non-empty, non-advisory line.
 	lines := strings.FieldsFunc(got, func(r rune) bool { return r == '\n' })
 	for _, line := range lines {
 		if len(line) < 17 {

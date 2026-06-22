@@ -116,7 +116,7 @@ func TestCheckConfigDiffAllCategories(t *testing.T) {
 		t.Fatalf("results count = %d, want 3", len(results))
 	}
 
-	// Verify ordering: not-configured, config-only, mode-differs.
+	// Output order is not-configured, config-only, mode-differs.
 	if results[0].Category != NotConfigured || results[0].Path != "a.yml" {
 		t.Errorf("results[0] = {%s, %s}, want {not-configured, a.yml}", results[0].Category, results[0].Path)
 	}

@@ -69,7 +69,7 @@ func TestFormatOutputWithConfig(t *testing.T) {
 }
 
 func TestFormatOutputPaddingWidth(t *testing.T) {
-	// Verify every category label produces exactly 16 characters before the destination.
+	// Every category label produces exactly 16 characters before the destination.
 	tests := []struct {
 		label string
 		width int

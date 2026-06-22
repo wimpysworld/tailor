@@ -14,7 +14,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
-// labelResponse holds the subset of GitHub label fields we read.
+// labelResponse holds the subset of GitHub label fields read from the API.
 type labelResponse struct {
 	Name        string `json:"name"`
 	Color       string `json:"color"`

@@ -33,9 +33,8 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		return err
 	}
 
-	// Merge missing default swatch entries into the config when the
-	// config swatch is set to always, or when it is first-fit and the
-	// caller requested a recut.
+	// Keep the local config aligned with built-in defaults only when the
+	// config swatch mode allows tailor to rewrite it.
 	if shouldMerge(cfg, mode) {
 		added, repoMerged, labelsMerged := config.MergeDefaults(cfg)
 		if (len(added) > 0 || repoMerged || labelsMerged) && mode.ShouldWrite() {
@@ -74,25 +73,21 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		Repository:     cfg.Repository,
 	}
 
-	// Repository settings processing.
 	repoResults, err := ProcessRepoSettings(cfg, mode, client, owner, name, hasRepo)
 	if err != nil {
 		return err
 	}
 
-	// Labels processing.
 	labelResults, err := ProcessLabels(cfg, mode, client, owner, name, hasRepo)
 	if err != nil {
 		return err
 	}
 
-	// Licence processing.
 	licenceResult, err := ProcessLicence(cfg, dir, mode, client)
 	if err != nil {
 		return err
 	}
 
-	// Swatch processing.
 	swatchResults, err := ProcessSwatches(cfg, dir, mode, &tokens)
 	if err != nil {
 		return err

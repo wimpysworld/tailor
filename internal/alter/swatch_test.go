@@ -94,7 +94,7 @@ func TestFirstFitCopyWhenAbsent(t *testing.T) {
 	if results[0].Category != alter.WouldCopy {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldCopy)
 	}
-	// Dry run: file should not exist.
+	// Dry-run reports the copy without creating the file.
 	if _, err := os.Stat(filepath.Join(dir, ".gitignore")); err == nil {
 		t.Error("dry run wrote file to disk")
 	}
@@ -111,7 +111,7 @@ func TestFirstFitApplyWritesFile(t *testing.T) {
 	if results[0].Category != alter.WouldCopy {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldCopy)
 	}
-	// Apply: file should exist.
+	// Apply writes the missing file.
 	data, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
 	if err != nil {
 		t.Fatalf("file not written: %v", err)
@@ -153,7 +153,7 @@ func TestAlwaysWouldOverwriteWhenMD5Differs(t *testing.T) {
 
 func TestAlwaysSubstitutedSourceNoChangeWhenHashMatches(t *testing.T) {
 	dir := t.TempDir()
-	// Write identical resolved content; hash comparison now applies to substituted sources too.
+	// Identical resolved content exercises the substituted-source hash comparison.
 	content := mustContent(t, "SECURITY.md")
 	writeOnDisk(t, dir, "SECURITY.md", content)
 
@@ -169,7 +169,7 @@ func TestAlwaysSubstitutedSourceNoChangeWhenHashMatches(t *testing.T) {
 
 func TestAlwaysSubstitutedSourceOverwritesWhenDifferent(t *testing.T) {
 	dir := t.TempDir()
-	// On-disk content differs from resolved swatch content; expect overwrite.
+	// Different on-disk content reports an overwrite.
 	writeOnDisk(t, dir, "SECURITY.md", []byte("stale on-disk content"))
 
 	cfg := newConfig(entry("SECURITY.md", swatch.Always))
@@ -194,7 +194,6 @@ func TestRecutOverwritesExisting(t *testing.T) {
 	if results[0].Category != alter.WouldOverwrite {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
 	}
-	// Verify file was actually overwritten.
 	data, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
 	if err != nil {
 		t.Fatalf("file not found: %v", err)
@@ -447,7 +446,7 @@ func TestRecutTriggeredConditionFalseSkips(t *testing.T) {
 	if results[0].Category != alter.Removed {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.Removed)
 	}
-	// File should be removed.
+	// Apply removes the stale triggered file.
 	if _, err := os.Stat(filepath.Join(dir, triggeredSource)); err == nil {
 		t.Error("recut with false trigger did not remove file")
 	}

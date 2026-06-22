@@ -850,7 +850,7 @@ func TestProcessRepoSettingsInstallationTokenSkipsUnreliableFields(t *testing.T)
 		}
 	}
 
-	// Verify no WouldSet for unreliable fields.
+	// Unreliable fields from installation tokens do not produce WouldSet.
 	for _, r := range results {
 		if unreliableFields[r.Field] && r.Category == alter.WouldSet {
 			t.Errorf("field %q should not be WouldSet under installation token", r.Field)

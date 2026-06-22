@@ -257,7 +257,7 @@ func TestApplyLabelsCaseInsensitiveMatch(t *testing.T) {
 
 func TestApplyLabelsCaseInsensitiveSkip(t *testing.T) {
 	// When names match case-insensitively AND case-sensitively, and colour and
-	// description also match, no API call should be made.
+	// Matching description and case-insensitive colour require no API call.
 	requestCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++

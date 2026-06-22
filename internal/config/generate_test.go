@@ -30,7 +30,7 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 		t.Fatalf("DefaultConfig() error: %v", err)
 	}
 
-	// License should be the value we passed, not the embedded one.
+	// DefaultConfig uses the requested licence value, not the embedded one.
 	if got.License != "BlueOak-1.0.0" {
 		t.Errorf("License = %q, want %q", got.License, "BlueOak-1.0.0")
 	}

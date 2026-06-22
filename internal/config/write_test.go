@@ -422,7 +422,7 @@ func TestWriteTopicsOmittedWhenNil(t *testing.T) {
 		License: "MIT",
 		Repository: &model.RepositorySettings{
 			HasWiki: ptr.Ptr(false),
-			// Topics is nil - should be omitted from output.
+			// Nil topics are omitted from output.
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},

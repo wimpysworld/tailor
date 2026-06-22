@@ -99,7 +99,7 @@ func TestProcessLicenceSkippedWhenPresent(t *testing.T) {
 		t.Errorf("category = %q, want %q", result.Category, alter.SkippedFirstFit)
 	}
 
-	// Verify file was not modified.
+	// Dry-run leaves the file unchanged.
 	data, err := os.ReadFile(filepath.Join(dir, "LICENSE"))
 	if err != nil {
 		t.Fatal(err)

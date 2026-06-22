@@ -38,7 +38,8 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 		return &SwatchResult{Path: licenceDestination, Category: SkippedFirstFit}, nil
 	}
 
-	// LICENSE absent: fetch and (conditionally) write.
+	// Fetch only when writing, so dry-run can report without calling the
+	// licence body endpoint.
 	if mode.ShouldWrite() {
 		body, err := gh.FetchLicence(client, cfg.License)
 		if err != nil {

@@ -111,12 +111,12 @@ func TestCheckHealthMixedPresence(t *testing.T) {
 func TestCheckHealthSortOrder(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create just LICENSE so we get a mix of missing, warning, and present.
+	// A lone LICENSE produces a mix of missing, warning, and present results.
 	testutil.CreateFile(t, dir, "LICENSE")
 
 	results := CheckHealth(dir)
 
-	// Verify group order: all missing, then all warning, then all present.
+	// Group order is all missing, then all warning, then all present.
 	statusOrder := map[HealthStatus]int{Missing: 0, Warning: 1, Present: 2}
 	maxSeen := 0
 	for _, r := range results {

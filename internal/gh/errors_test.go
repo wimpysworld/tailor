@@ -90,8 +90,6 @@ func TestErrInsufficientScope_ErrorsAs(t *testing.T) {
 	}
 }
 
-// --- Task 1.2: classifyHTTPError tests ---
-
 func newHTTPError(statusCode int, message string, headers http.Header) *api.HTTPError {
 	return &api.HTTPError{
 		StatusCode: statusCode,

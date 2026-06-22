@@ -30,7 +30,7 @@ var installationTokenUnreliableFields = map[string]bool{
 	"squash_merge_commit_title":   true,
 }
 
-// repoResponse holds the subset of GitHub repository fields we read.
+// repoResponse holds the subset of GitHub repository fields read from the API.
 type repoResponse struct {
 	Description              string   `json:"description"`
 	Homepage                 string   `json:"homepage"`

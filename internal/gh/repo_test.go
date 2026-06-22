@@ -78,7 +78,7 @@ func TestRepoContextAt(t *testing.T) {
 		t.Errorf("RepoContextAt() name = %q, want %q", name, "testrepo")
 	}
 
-	// Verify working directory is restored.
+	// RepoContextAt restores the caller's working directory.
 	cwd, _ := os.Getwd()
 	if cwd == dir {
 		t.Error("RepoContextAt() did not restore working directory")

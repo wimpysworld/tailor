@@ -385,7 +385,7 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 		t.Errorf("path = %s, want /repos/testowner/testrepo", gotPath)
 	}
 
-	// Verify non-nil fields present with correct values.
+	// Non-nil fields appear with their declared values.
 	if gotBody["description"] != "new desc" {
 		t.Errorf("description = %v, want %q", gotBody["description"], "new desc")
 	}
@@ -396,12 +396,12 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 		t.Errorf("allow_auto_merge = %v, want false", gotBody["allow_auto_merge"])
 	}
 
-	// Verify nil fields excluded.
+	// Nil fields are excluded.
 	if _, ok := gotBody["homepage"]; ok {
 		t.Error("homepage should not be in PATCH body when nil")
 	}
 
-	// Verify all three non-PATCH fields excluded from body.
+	// Fields managed by separate endpoints are excluded from the PATCH body.
 	for _, key := range []string{
 		"topics",
 		"default_workflow_permissions",
@@ -444,7 +444,7 @@ func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
 		}
 	}
 
-	// Verify extracted fields.
+	// Non-PATCH fields are extracted into their endpoint-specific payloads.
 	if p.Topics == nil {
 		t.Fatal("Topics is nil, want non-nil")
 	}
@@ -590,7 +590,7 @@ func TestApplyRepoSettingsWorkflowPermsPartialFetchesCurrent(t *testing.T) {
 			fmt.Fprint(w, `{"default_workflow_permissions": "write", "can_approve_pull_request_reviews": true}`)
 			return
 		}
-		// Verify the PUT body contains both fields.
+		// The PUT body contains both workflow-permission fields.
 		body, _ := io.ReadAll(r.Body)
 		var gotBody map[string]any
 		_ = json.Unmarshal(body, &gotBody)
@@ -831,8 +831,6 @@ func TestApplyRepoSettingsTopicsError(t *testing.T) {
 		t.Fatal("ApplyRepoSettings() expected error from topics PUT, got nil")
 	}
 }
-
-// --- Task 2.2: partial application tests ---
 
 func TestApplyRepoSettingsPartialTopics403(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

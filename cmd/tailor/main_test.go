@@ -30,17 +30,17 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 	}
 	content := string(data)
 
-	// Verify license.
+	// Licence uses the requested default.
 	if !strings.Contains(content, "license: BlueOak-1.0.0") {
 		t.Error("config missing 'license: BlueOak-1.0.0'")
 	}
 
-	// Verify 17 swatches are present (count "- path:" occurrences).
+	// The default config includes all registered swatches.
 	if count := strings.Count(content, "- path:"); count != 18 {
 		t.Errorf("swatch count = %d, want 18", count)
 	}
 
-	// Verify the 13 default repo settings are present.
+	// The default config includes the default repo settings.
 	wantSettings := []string{
 		"has_wiki:",
 		"has_discussions:",
@@ -328,7 +328,7 @@ func TestFitAuthFailure(t *testing.T) {
 		t.Errorf("error = %q, want substring %q", err.Error(), wantMsg)
 	}
 
-	// Directory should not have been created.
+	// Auth failure stops before project directory creation.
 	if _, statErr := os.Stat(dir); statErr == nil {
 		t.Error("directory was created despite auth failure")
 	}

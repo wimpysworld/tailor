@@ -74,7 +74,7 @@ func classifyHTTPError(err error, operation string) error {
 
 	// api.HTTPError (go-gh v2.13.0) does not expose the documentation_url
 	// field from the JSON error body. DocumentURL is left empty until
-	// upstream adds support or we parse the response body ourselves.
+	// upstream adds support or response-body parsing supplies it here.
 
 	return &ErrInsufficientScope{
 		StatusCode: httpErr.StatusCode,

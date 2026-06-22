@@ -59,7 +59,7 @@ func TestMergeSubset(t *testing.T) {
 		t.Fatalf("expected %d total swatches, got %d", len(expected), len(cfg.Swatches))
 	}
 
-	// Verify each added entry has the correct alteration mode from the registry.
+	// Added entries use their registry alteration modes.
 	addedByPath := make(map[string]SwatchEntry, len(added))
 	for _, e := range added {
 		addedByPath[e.Path] = e
@@ -120,7 +120,7 @@ func TestMergeEmptyConfig(t *testing.T) {
 		t.Fatalf("expected %d total swatches, got %d", len(expected), len(cfg.Swatches))
 	}
 
-	// Verify no config swatch entry was added.
+	// The config swatch is not merged into cfg.Swatches.
 	for _, e := range cfg.Swatches {
 		if e.Path == ConfigSwatchPath {
 			t.Fatal("config swatch should not be added by merge")
@@ -248,7 +248,7 @@ func TestMergeRepoSettingsPartialRepository(t *testing.T) {
 		t.Errorf("SquashMergeCommitTitle changed: got %q, want %q", *cfg.Repository.SquashMergeCommitTitle, customTitle)
 	}
 
-	// Nil fields should now be filled from defaults.
+	// Nil fields receive values from defaults.
 	def := defaultRepoDefaults(t)
 	dv := reflect.ValueOf(def).Elem()
 	cv := reflect.ValueOf(cfg.Repository).Elem()

@@ -169,7 +169,7 @@ var readWarningOperationFields = map[string][]string{
 
 // readWarningsToResults converts read-path access-error warnings into
 // RepoSettingResult entries with the appropriate skip category. Only fields
-// that the user declared in their config produce results - undeclared fields
+// that the user declared in their config produce results. Undeclared fields
 // are silently ignored. It also returns a set of field names that should be
 // suppressed from compareSettings output (because their nil live value is due
 // to a 403, not a real diff).
