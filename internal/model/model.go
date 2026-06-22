@@ -1,6 +1,7 @@
 package model
 
 import (
+	"reflect"
 	"strings"
 )
 
@@ -48,4 +49,48 @@ type RepositorySettings struct {
 	// Extra captures any YAML keys not mapped to struct fields above.
 	// ValidateRepoSettings uses this to reject unrecognised settings.
 	Extra map[string]interface{} `yaml:",inline"`
+}
+
+// RepositorySettingField describes one supported repository setting.
+type RepositorySettingField struct {
+	YAMLKey string
+	GoName  string
+	Index   int
+	Value   reflect.Value
+	Set     bool
+}
+
+// RepositorySettingFields returns supported repository settings in struct order.
+// Extra is excluded because it stores unknown YAML keys.
+func RepositorySettingFields(settings *RepositorySettings) []RepositorySettingField {
+	t := reflect.TypeOf(RepositorySettings{})
+	var v reflect.Value
+	if settings != nil {
+		v = reflect.ValueOf(settings).Elem()
+	}
+
+	fields := make([]RepositorySettingField, 0, t.NumField())
+	for i := range t.NumField() {
+		sf := t.Field(i)
+		tag := sf.Tag.Get("yaml")
+		if tag == "" || tag == ",inline" {
+			continue
+		}
+		key, _, _ := strings.Cut(tag, ",")
+		if key == "" {
+			continue
+		}
+
+		field := RepositorySettingField{
+			YAMLKey: key,
+			GoName:  sf.Name,
+			Index:   i,
+		}
+		if v.IsValid() {
+			field.Value = v.Field(i)
+			field.Set = field.Value.Kind() == reflect.Pointer && !field.Value.IsNil()
+		}
+		fields = append(fields, field)
+	}
+	return fields
 }

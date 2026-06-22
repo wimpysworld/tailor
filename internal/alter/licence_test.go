@@ -276,3 +276,30 @@ func TestProcessLicenceNilResultWhenNone(t *testing.T) {
 		})
 	}
 }
+
+func TestProcessLicenceSymlinkEscapeRejectsWrite(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "LICENSE")
+	if err := os.WriteFile(outside, []byte("outside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	symlinkOrSkip(t, outside, filepath.Join(dir, "LICENSE"))
+
+	server := licenceServer("new licence")
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{License: "mit"}
+	_, err := alter.ProcessLicence(cfg, dir, alter.Apply, client)
+	if err == nil {
+		t.Fatal("expected symlink escape write error, got nil")
+	}
+
+	data, err := os.ReadFile(outside)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "outside" {
+		t.Fatalf("outside LICENSE changed to %q", string(data))
+	}
+}

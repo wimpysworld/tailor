@@ -3,11 +3,9 @@ package alter
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
-	"github.com/wimpysworld/tailor/internal/fsutil"
 	"github.com/wimpysworld/tailor/internal/gh"
 )
 
@@ -17,8 +15,16 @@ const licenceDestination = "LICENSE"
 // Returns a SwatchResult (reusing the same type for consistent formatting)
 // and an error.
 func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) (*SwatchResult, error) {
-	dest := filepath.Join(dir, licenceDestination)
-	exists := fsutil.FileExists(dest)
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("opening project root %q: %w", dir, err)
+	}
+	defer root.Close()
+
+	exists, err := rootFileExists(root, licenceDestination)
+	if err != nil {
+		return nil, fmt.Errorf("checking licence %q: %w", licenceDestination, err)
+	}
 
 	if cfg.License == "" || cfg.License == "none" {
 		if !exists {
@@ -38,7 +44,7 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 		if err != nil {
 			return nil, err
 		}
-		if err := writeFile(dest, []byte(body)); err != nil {
+		if err := writeFile(root, licenceDestination, []byte(body)); err != nil {
 			return nil, err
 		}
 	}

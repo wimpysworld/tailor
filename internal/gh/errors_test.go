@@ -41,21 +41,6 @@ func TestErrInsufficientScope_ErrorEmptyScopes(t *testing.T) {
 	}
 }
 
-func TestErrInsufficientRole_Error(t *testing.T) {
-	err := &ErrInsufficientRole{
-		StatusCode:   403,
-		Message:      "Must have admin rights to Repository.",
-		DocumentURL:  "https://docs.github.com/rest/repos/repos#update-a-repository",
-		Operation:    "enable vulnerability alerts",
-		RequiredRole: "admin",
-	}
-
-	want := "enable vulnerability alerts: insufficient role (need: admin): Must have admin rights to Repository. (see https://docs.github.com/rest/repos/repos#update-a-repository)"
-	if got := err.Error(); got != want {
-		t.Errorf("Error() =\n  %q\nwant:\n  %q", got, want)
-	}
-}
-
 func TestErrInsufficientScope_ErrorWithoutDocURL(t *testing.T) {
 	err := &ErrInsufficientScope{
 		StatusCode: 403,
@@ -71,37 +56,11 @@ func TestErrInsufficientScope_ErrorWithoutDocURL(t *testing.T) {
 	}
 }
 
-func TestErrInsufficientRole_ErrorWithoutDocURL(t *testing.T) {
-	err := &ErrInsufficientRole{
-		StatusCode:   403,
-		Message:      "Must have admin rights to Repository.",
-		Operation:    "enable vulnerability alerts",
-		RequiredRole: "admin",
-	}
-
-	want := "enable vulnerability alerts: insufficient role (need: admin): Must have admin rights to Repository."
-	if got := err.Error(); got != want {
-		t.Errorf("Error() =\n  %q\nwant:\n  %q", got, want)
-	}
-}
-
 func TestErrInsufficientScope_SatisfiesErrorInterface(t *testing.T) {
 	var err error = &ErrInsufficientScope{
 		StatusCode: 403,
 		Operation:  "test",
 		Message:    "test message",
-	}
-	if err.Error() == "" {
-		t.Error("expected non-empty error string")
-	}
-}
-
-func TestErrInsufficientRole_SatisfiesErrorInterface(t *testing.T) {
-	var err error = &ErrInsufficientRole{
-		StatusCode:   403,
-		Operation:    "test",
-		RequiredRole: "admin",
-		Message:      "test message",
 	}
 	if err.Error() == "" {
 		t.Error("expected non-empty error string")
@@ -128,35 +87,6 @@ func TestErrInsufficientScope_ErrorsAs(t *testing.T) {
 	}
 	if target.StatusCode != http.StatusForbidden {
 		t.Errorf("StatusCode = %d, want %d", target.StatusCode, http.StatusForbidden)
-	}
-}
-
-func TestErrInsufficientRole_ErrorsAs(t *testing.T) {
-	original := &ErrInsufficientRole{
-		StatusCode:   403,
-		Message:      "Must have admin rights to Repository.",
-		Operation:    "enable vulnerability alerts",
-		RequiredRole: "admin",
-	}
-
-	wrapped := fmt.Errorf("applying settings: %w", original)
-
-	var target *ErrInsufficientRole
-	if !errors.As(wrapped, &target) {
-		t.Fatal("errors.As failed to unwrap ErrInsufficientRole")
-	}
-	if target.Operation != "enable vulnerability alerts" {
-		t.Errorf("Operation = %q, want %q", target.Operation, "enable vulnerability alerts")
-	}
-	if target.RequiredRole != "admin" {
-		t.Errorf("RequiredRole = %q, want %q", target.RequiredRole, "admin")
-	}
-}
-
-func TestRequiredRole_NonAdminOperation(t *testing.T) {
-	_, ok := requiredRole("update repository settings")
-	if ok {
-		t.Error("requiredRole(\"update repository settings\") returned ok=true, want false")
 	}
 }
 

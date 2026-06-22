@@ -24,6 +24,5 @@
 | Code | Meaning |
 |---|---|
 | 401 | Invalid or expired token |
-| 403 | Insufficient scope or insufficient role |
+| 403 | Insufficient scope or permission |
 | 404 | Returned instead of 403 for private resources to avoid leaking existence |
-

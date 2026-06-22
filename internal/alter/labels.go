@@ -19,7 +19,6 @@ const (
 	WouldUpdate    LabelCategory = "would update"
 	LabelNoChange  LabelCategory = "no change"
 	LabelSkipScope LabelCategory = "would skip (insufficient scope)"
-	LabelSkipRole  LabelCategory = "would skip (insufficient role)"
 )
 
 // LabelResult records the label name, category, and display value for one
@@ -63,7 +62,7 @@ func ProcessLabels(cfg *config.Config, mode ApplyMode, client *api.RESTClient, o
 }
 
 // labelSkippedToResults converts gh.ApplyResult skipped operations into
-// LabelResult entries with LabelSkipScope or LabelSkipRole categories.
+// LabelResult entries with LabelSkipScope categories.
 func labelSkippedToResults(ar *gh.ApplyResult) []LabelResult {
 	if ar == nil {
 		return nil

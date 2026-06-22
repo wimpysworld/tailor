@@ -142,23 +142,36 @@ func defaultRepoDefaults(t *testing.T) *model.RepositorySettings {
 	return defaults.Repository
 }
 
+func defaultConfig(t *testing.T) *Config {
+	t.Helper()
+	defaults, err := DefaultConfig("_")
+	if err != nil {
+		t.Fatalf("DefaultConfig: %v", err)
+	}
+	return defaults
+}
+
+func mergeRepoDefaultsForTest(t *testing.T, cfg *Config) bool {
+	t.Helper()
+	return mergeRepoSettingsFrom(cfg, defaultConfig(t))
+}
+
+func mergeLabelsDefaultsForTest(t *testing.T, cfg *Config) bool {
+	t.Helper()
+	return mergeLabelsFrom(cfg, defaultConfig(t))
+}
+
 // countMergeableFields returns the number of pointer fields in the default
 // RepositorySettings that are non-nil and not in repoSettingsSkipFields.
 func countMergeableFields(t *testing.T) int {
 	t.Helper()
 	def := defaultRepoDefaults(t)
-	dv := reflect.ValueOf(def).Elem()
-	dt := dv.Type()
 	count := 0
-	for i := range dt.NumField() {
-		f := dt.Field(i)
-		if _, skip := repoSettingsSkipFields[f.Name]; skip {
+	for _, field := range model.RepositorySettingFields(def) {
+		if _, skip := repoSettingsSkipFields[field.GoName]; skip {
 			continue
 		}
-		if f.Tag.Get("yaml") == "" || f.Tag.Get("yaml") == ",inline" {
-			continue
-		}
-		if dv.Field(i).Kind() == reflect.Pointer && !dv.Field(i).IsNil() {
+		if field.Set {
 			count++
 		}
 	}
@@ -168,7 +181,7 @@ func countMergeableFields(t *testing.T) int {
 func TestMergeRepoSettingsNilRepository(t *testing.T) {
 	cfg := &Config{}
 
-	changed := MergeDefaultRepoSettings(cfg)
+	changed := mergeRepoDefaultsForTest(t, cfg)
 
 	if !changed {
 		t.Fatal("expected changed=true for nil Repository")
@@ -221,7 +234,7 @@ func TestMergeRepoSettingsPartialRepository(t *testing.T) {
 		},
 	}
 
-	changed := MergeDefaultRepoSettings(cfg)
+	changed := mergeRepoDefaultsForTest(t, cfg)
 
 	if !changed {
 		t.Fatal("expected changed=true for partial Repository")
@@ -284,7 +297,7 @@ func TestMergeRepoSettingsFullRepository(t *testing.T) {
 
 	cfg := &Config{Repository: full}
 
-	changed := MergeDefaultRepoSettings(cfg)
+	changed := mergeRepoDefaultsForTest(t, cfg)
 
 	if changed {
 		t.Fatal("expected changed=false for full Repository")
@@ -304,7 +317,7 @@ func defaultLabelDefaults(t *testing.T) []model.LabelEntry {
 func TestMergeLabelsNilLabels(t *testing.T) {
 	cfg := &Config{}
 
-	changed := MergeDefaultLabels(cfg)
+	changed := mergeLabelsDefaultsForTest(t, cfg)
 
 	if !changed {
 		t.Fatal("expected changed=true for nil Labels")
@@ -322,7 +335,7 @@ func TestMergeLabelsNilLabels(t *testing.T) {
 func TestMergeLabelsEmptySlice(t *testing.T) {
 	cfg := &Config{Labels: []model.LabelEntry{}}
 
-	changed := MergeDefaultLabels(cfg)
+	changed := mergeLabelsDefaultsForTest(t, cfg)
 
 	if !changed {
 		t.Fatal("expected changed=true for empty Labels slice")
@@ -343,7 +356,7 @@ func TestMergeLabelsNonEmpty(t *testing.T) {
 	}
 	cfg := &Config{Labels: custom}
 
-	changed := MergeDefaultLabels(cfg)
+	changed := mergeLabelsDefaultsForTest(t, cfg)
 
 	if changed {
 		t.Fatal("expected changed=false for non-empty Labels")
@@ -369,7 +382,7 @@ func TestMergeRepoSettingsSkipsDescriptionHomepageTopics(t *testing.T) {
 		Repository: &model.RepositorySettings{},
 	}
 
-	MergeDefaultRepoSettings(cfg)
+	mergeRepoDefaultsForTest(t, cfg)
 
 	if cfg.Repository.Description != nil {
 		t.Error("Description should remain nil after merge")

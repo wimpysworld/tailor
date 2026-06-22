@@ -3,13 +3,12 @@ package alter
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/wimpysworld/tailor/internal/config"
-	"github.com/wimpysworld/tailor/internal/fsutil"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -43,6 +42,11 @@ const configPath = config.ConfigSwatchPath
 // When mode is Apply or Recut, it writes files to disk.
 func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *TokenContext) ([]SwatchResult, error) {
 	results := make([]SwatchResult, 0, len(cfg.Swatches))
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("opening project root %q: %w", dir, err)
+	}
+	defer root.Close()
 
 	for _, entry := range cfg.Swatches {
 		if entry.Path == configPath {
@@ -55,13 +59,8 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 		}
 
 		content = tokens.Substitute(content, entry.Path)
-		dest := filepath.Join(dir, entry.Path)
 
-		if !isInsideDir(dir, dest) {
-			return nil, fmt.Errorf("swatch %q: path escapes project root", entry.Path)
-		}
-
-		result, err := processSwatch(cfg, entry, content, dest, mode)
+		result, err := processSwatch(cfg, root, entry, content, mode)
 		if err != nil {
 			return nil, err
 		}
@@ -74,21 +73,24 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 // processSwatch determines the category for a single swatch and writes
 // the file when the mode permits. Token substitution occurs upstream in
 // ProcessSwatches before this function is called.
-func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, mode ApplyMode) (SwatchResult, error) {
+func processSwatch(cfg *config.Config, root *os.Root, entry config.SwatchEntry, content []byte, mode ApplyMode) (SwatchResult, error) {
 	// Never mode skips unconditionally, regardless of apply mode or file existence.
 	if entry.Alteration == swatch.Never {
 		return SwatchResult{Path: entry.Path, Category: SkippedNever}, nil
 	}
 
-	exists := fsutil.FileExists(dest)
+	exists, err := rootFileExists(root, entry.Path)
+	if err != nil {
+		return SwatchResult{}, fmt.Errorf("checking swatch %q: %w", entry.Path, err)
+	}
 
 	if mode == Recut {
 		// Triggered swatches are never overwritten by --recut when the
 		// trigger condition is false.
 		if entry.Alteration == swatch.Triggered && !swatch.EvaluateTrigger(entry.Path, cfg.Repository) {
-			return processTriggered(cfg, entry, content, dest, exists, Apply)
+			return processTriggered(cfg, root, entry, content, exists, Apply)
 		}
-		result, err := processRecut(entry, content, dest, exists)
+		result, err := processRecut(root, entry, content, exists)
 		if err != nil {
 			return result, err
 		}
@@ -105,41 +107,41 @@ func processSwatch(cfg *config.Config, entry config.SwatchEntry, content []byte,
 
 	switch entry.Alteration {
 	case swatch.FirstFit:
-		return processFirstFit(entry, content, dest, exists, mode)
+		return processFirstFit(root, entry, content, exists, mode)
 	case swatch.Always:
-		return processAlways(entry, content, dest, exists, mode)
+		return processAlways(root, entry, content, exists, mode)
 	case swatch.Triggered:
-		return processTriggered(cfg, entry, content, dest, exists, mode)
+		return processTriggered(cfg, root, entry, content, exists, mode)
 	default:
 		return SwatchResult{}, fmt.Errorf("unknown alteration mode %q for swatch %q", entry.Alteration, entry.Path)
 	}
 }
 
-func processFirstFit(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
+func processFirstFit(root *os.Root, entry config.SwatchEntry, content []byte, exists bool, mode ApplyMode) (SwatchResult, error) {
 	if exists {
 		return SwatchResult{Path: entry.Path, Category: SkippedFirstFit}, nil
 	}
 	if mode.ShouldWrite() {
-		if err := writeFile(dest, content); err != nil {
+		if err := writeFile(root, entry.Path, content); err != nil {
 			return SwatchResult{}, err
 		}
 	}
 	return SwatchResult{Path: entry.Path, Category: WouldCopy}, nil
 }
 
-func processAlways(entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
+func processAlways(root *os.Root, entry config.SwatchEntry, content []byte, exists bool, mode ApplyMode) (SwatchResult, error) {
 	if !exists {
 		if mode.ShouldWrite() {
-			if err := writeFile(dest, content); err != nil {
+			if err := writeFile(root, entry.Path, content); err != nil {
 				return SwatchResult{}, err
 			}
 		}
 		return SwatchResult{Path: entry.Path, Category: WouldCopy}, nil
 	}
 
-	onDisk, err := contentHashFile(dest)
+	onDisk, err := contentHashFile(root, entry.Path)
 	if err != nil {
-		return SwatchResult{}, fmt.Errorf("hashing on-disk file %q: %w", dest, err)
+		return SwatchResult{}, fmt.Errorf("hashing on-disk file %q: %w", entry.Path, err)
 	}
 
 	if contentHash(content) == onDisk {
@@ -147,18 +149,18 @@ func processAlways(entry config.SwatchEntry, content []byte, dest string, exists
 	}
 
 	if mode.ShouldWrite() {
-		if err := writeFile(dest, content); err != nil {
+		if err := writeFile(root, entry.Path, content); err != nil {
 			return SwatchResult{}, err
 		}
 	}
 	return SwatchResult{Path: entry.Path, Category: WouldOverwrite}, nil
 }
 
-func processTriggered(cfg *config.Config, entry config.SwatchEntry, content []byte, dest string, exists bool, mode ApplyMode) (SwatchResult, error) {
+func processTriggered(cfg *config.Config, root *os.Root, entry config.SwatchEntry, content []byte, exists bool, mode ApplyMode) (SwatchResult, error) {
 	annotation := triggerAnnotation(entry.Path)
 
 	if swatch.EvaluateTrigger(entry.Path, cfg.Repository) {
-		result, err := processAlways(entry, content, dest, exists, mode)
+		result, err := processAlways(root, entry, content, exists, mode)
 		if err != nil {
 			return result, err
 		}
@@ -173,8 +175,8 @@ func processTriggered(cfg *config.Config, entry config.SwatchEntry, content []by
 
 	if exists {
 		if mode.ShouldWrite() {
-			if err := os.Remove(dest); err != nil {
-				return SwatchResult{}, fmt.Errorf("removing file %q: %w", dest, err)
+			if err := root.Remove(entry.Path); err != nil {
+				return SwatchResult{}, fmt.Errorf("removing file %q: %w", entry.Path, err)
 			}
 			return SwatchResult{Path: entry.Path, Category: Removed, Annotation: annotation}, nil
 		}
@@ -194,23 +196,33 @@ func triggerAnnotation(path string) string {
 	return "triggered: " + tc.ConfigField
 }
 
-func processRecut(entry config.SwatchEntry, content []byte, dest string, exists bool) (SwatchResult, error) {
+func processRecut(root *os.Root, entry config.SwatchEntry, content []byte, exists bool) (SwatchResult, error) {
 	category := WouldOverwrite
 	if !exists {
 		category = WouldCopy
 	}
-	if err := writeFile(dest, content); err != nil {
+	if err := writeFile(root, entry.Path, content); err != nil {
 		return SwatchResult{}, err
 	}
 	return SwatchResult{Path: entry.Path, Category: category}, nil
 }
 
-// writeFile creates parent directories and writes data to path.
-func writeFile(path string, data []byte) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+func rootFileExists(root *os.Root, path string) (bool, error) {
+	if _, err := root.Stat(path); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// writeFile creates parent directories and writes data to a root-relative path.
+func writeFile(root *os.Root, path string, data []byte) error {
+	if err := root.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("creating directories for %q: %w", path, err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := root.WriteFile(path, data, 0o644); err != nil {
 		return fmt.Errorf("writing file %q: %w", path, err)
 	}
 	return nil
@@ -222,19 +234,11 @@ func contentHash(data []byte) string {
 	return hex.EncodeToString(h[:])
 }
 
-// contentHashFile returns the hex-encoded SHA-256 digest of the file at path.
-func contentHashFile(path string) (string, error) {
-	data, err := os.ReadFile(path)
+// contentHashFile returns the hex-encoded SHA-256 digest of the root-relative file at path.
+func contentHashFile(root *os.Root, path string) (string, error) {
+	data, err := root.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
 	return contentHash(data), nil
-}
-
-// isInsideDir reports whether path is inside dir after cleaning. Prevents path
-// traversal via ".." components in swatch destinations.
-func isInsideDir(dir, path string) bool {
-	absDir := filepath.Clean(dir) + string(filepath.Separator)
-	absPath := filepath.Clean(path)
-	return strings.HasPrefix(absPath, absDir)
 }

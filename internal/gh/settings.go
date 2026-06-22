@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"reflect"
-	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
@@ -65,7 +63,7 @@ type workflowPermissionsResponse struct {
 // standard repository fields and Actions workflow permissions.
 //
 // The returned warnings slice contains classified access errors
-// (ErrInsufficientScope, ErrInsufficientRole) for sub-calls that returned 403.
+// (ErrInsufficientScope) for sub-calls that returned 403.
 // The corresponding fields in the returned settings are left nil. Callers can
 // log these warnings or ignore them.
 func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.RepositorySettings, []error, error) {
@@ -126,10 +124,10 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 }
 
 // SkippedOperation records a sub-operation that was skipped due to
-// insufficient token scope or repository role.
+// insufficient token scope.
 type SkippedOperation struct {
 	Operation string // e.g. "set workflow permissions"
-	Err       error  // *ErrInsufficientScope or *ErrInsufficientRole
+	Err       error  // *ErrInsufficientScope
 }
 
 // ApplyResult collects the outcome of ApplyRepoSettings. Skipped lists
@@ -140,8 +138,8 @@ type ApplyResult struct {
 
 // ApplyRepoSettings sends a PATCH /repos/{owner}/{repo} with the declared
 // settings. It also handles fields that require separate API endpoints:
-// topics and Actions workflow permissions. Access errors (insufficient scope
-// or role) are collected in the returned ApplyResult rather than aborting.
+// topics and Actions workflow permissions. Access errors (insufficient scope)
+// are collected in the returned ApplyResult rather than aborting.
 // Hard errors still return as the error value.
 func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *model.RepositorySettings) (*ApplyResult, error) {
 	p := buildSettingsPayload(settings)
@@ -261,25 +259,14 @@ var nonPatchFields = map[string]bool{
 func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 	p := settingsPayload{Body: make(map[string]any)}
 
-	v := reflect.ValueOf(settings).Elem()
-	t := v.Type()
-
-	for i := range t.NumField() {
-		field := t.Field(i)
-		tag := field.Tag.Get("yaml")
-		if tag == "" || tag == ",inline" {
-			continue
-		}
-		// Strip ",omitempty" suffix to get the bare key.
-		key, _, _ := strings.Cut(tag, ",")
-
-		fv := v.Field(i)
-		if fv.Kind() != reflect.Pointer || fv.IsNil() {
+	for _, field := range model.RepositorySettingFields(settings) {
+		if !field.Set {
 			continue
 		}
 
-		if nonPatchFields[key] {
-			switch key {
+		fv := field.Value
+		if nonPatchFields[field.YAMLKey] {
+			switch field.YAMLKey {
 			case "topics":
 				s := fv.Elem().Interface().([]string)
 				p.Topics = &s
@@ -293,7 +280,7 @@ func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 			continue
 		}
 
-		p.Body[key] = fv.Elem().Interface()
+		p.Body[field.YAMLKey] = fv.Elem().Interface()
 	}
 
 	return p
@@ -303,17 +290,9 @@ func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 // matches installationTokenUnreliableFields. This prevents false-positive
 // diffs when the API returns zero values instead of the actual configuration.
 func nilUnreliableFields(s *model.RepositorySettings) {
-	rv := reflect.ValueOf(s).Elem()
-	rt := rv.Type()
-	for i := range rt.NumField() {
-		f := rt.Field(i)
-		tag := f.Tag.Get("yaml")
-		if tag == "" || tag == ",inline" {
-			continue
-		}
-		key, _, _ := strings.Cut(tag, ",")
-		if installationTokenUnreliableFields[key] {
-			rv.Field(i).Set(reflect.Zero(f.Type))
+	for _, field := range model.RepositorySettingFields(s) {
+		if installationTokenUnreliableFields[field.YAMLKey] {
+			field.Value.SetZero()
 		}
 	}
 }

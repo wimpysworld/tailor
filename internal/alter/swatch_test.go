@@ -59,6 +59,13 @@ func writeOnDisk(t *testing.T, dir, rel string, data []byte) {
 	}
 }
 
+func symlinkOrSkip(t *testing.T, oldname, newname string) {
+	t.Helper()
+	if err := os.Symlink(oldname, newname); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+}
+
 func TestFirstFitSkipWhenExists(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, ".gitignore", []byte("existing"))
@@ -498,5 +505,49 @@ func TestNestedDestinationCreatesDirectories(t *testing.T) {
 	path := filepath.Join(dir, ".github/ISSUE_TEMPLATE/bug_report.yml")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("nested file not created: %v", err)
+	}
+}
+
+func TestSwatchSymlinkParentEscapeRejectsWrite(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	writeOnDisk(t, outside, "ISSUE_TEMPLATE/bug_report.yml", []byte("outside"))
+	symlinkOrSkip(t, outside, filepath.Join(dir, ".github"))
+
+	cfg := newConfig(entry(".github/ISSUE_TEMPLATE/bug_report.yml", swatch.Always))
+	_, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
+	if err == nil {
+		t.Fatal("expected symlink escape write error, got nil")
+	}
+
+	data, err := os.ReadFile(filepath.Join(outside, "ISSUE_TEMPLATE/bug_report.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "outside" {
+		t.Fatalf("outside file changed to %q", string(data))
+	}
+}
+
+func TestTriggeredSymlinkParentEscapeRejectsRemove(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	writeOnDisk(t, outside, "workflows/tailor-automerge.yml", []byte("outside"))
+	symlinkOrSkip(t, outside, filepath.Join(dir, ".github"))
+
+	cfg := newConfig(entry(triggeredSource, swatch.Triggered))
+	cfg.Repository = &model.RepositorySettings{AllowAutoMerge: ptr.Ptr(false)}
+
+	_, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
+	if err == nil {
+		t.Fatal("expected symlink escape removal error, got nil")
+	}
+
+	data, err := os.ReadFile(filepath.Join(outside, "workflows/tailor-automerge.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "outside" {
+		t.Fatalf("outside file changed to %q", string(data))
 	}
 }

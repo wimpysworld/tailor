@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -136,17 +135,10 @@ func ValidateLabels(cfg *Config) error {
 // repoSettingNames returns the sorted list of recognised yaml tag names from
 // RepositorySettings, excluding the inline Extra field.
 func repoSettingNames() []string {
-	t := reflect.TypeOf(model.RepositorySettings{})
-	var names []string
-	for i := range t.NumField() {
-		tag := t.Field(i).Tag.Get("yaml")
-		if tag == "" || tag == ",inline" {
-			continue
-		}
-		name, _, _ := strings.Cut(tag, ",")
-		if name != "" {
-			names = append(names, name)
-		}
+	fields := model.RepositorySettingFields(nil)
+	names := make([]string, 0, len(fields))
+	for _, field := range fields {
+		names = append(names, field.YAMLKey)
 	}
 	slices.Sort(names)
 	return names

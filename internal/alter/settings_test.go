@@ -774,7 +774,7 @@ func TestProcessRepoSettingsReadPath403DoesNotProduceWouldSet(t *testing.T) {
 	// Both fields should have skip results.
 	skipCount := 0
 	for _, r := range results {
-		if r.Category == alter.WouldSkipRole || r.Category == alter.WouldSkipScope {
+		if r.Category == alter.WouldSkipScope {
 			skipCount++
 		}
 	}

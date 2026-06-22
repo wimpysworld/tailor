@@ -31,7 +31,7 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 			fmt.Fprintf(&b, "%-*srepository.%s = %s\n", width, label, r.Field, r.Value)
 		case RepoNoChange:
 			fmt.Fprintf(&b, "%-*srepository.%s (already %s)\n", width, label, r.Field, r.Value)
-		case WouldSkipScope, WouldSkipRole:
+		case WouldSkipScope:
 			fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Field)
 		}
 	}
@@ -43,7 +43,7 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 			fmt.Fprintf(&b, "%-*slabel.%s = %s\n", width, label, r.Name, r.Value)
 		case LabelNoChange:
 			fmt.Fprintf(&b, "%-*slabel.%s (already %s)\n", width, label, r.Name, r.Value)
-		case LabelSkipScope, LabelSkipRole:
+		case LabelSkipScope:
 			fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Name)
 		}
 	}
@@ -69,13 +69,13 @@ func formatAnnotatedLabel(category, annotation string, isSkip bool) string {
 
 // repoLabel returns the formatted label for a repo setting result.
 func repoLabel(r RepoSettingResult) string {
-	isSkip := r.Category == WouldSkipScope || r.Category == WouldSkipRole
+	isSkip := r.Category == WouldSkipScope
 	return formatAnnotatedLabel(string(r.Category), r.Annotation, isSkip)
 }
 
 // labelResultLabel returns the formatted label for a label result.
 func labelResultLabel(r LabelResult) string {
-	isSkip := r.Category == LabelSkipScope || r.Category == LabelSkipRole
+	isSkip := r.Category == LabelSkipScope
 	return formatAnnotatedLabel(string(r.Category), r.Annotation, isSkip)
 }
 
@@ -135,7 +135,7 @@ func repoOrder(c RepoSettingCategory) int {
 		return 0
 	case RepoNoChange:
 		return 1
-	case WouldSkipScope, WouldSkipRole:
+	case WouldSkipScope:
 		return 2
 	default:
 		return 3
@@ -186,7 +186,7 @@ func labelOrder(c LabelCategory) int {
 		return 1
 	case LabelNoChange:
 		return 2
-	case LabelSkipScope, LabelSkipRole:
+	case LabelSkipScope:
 		return 3
 	default:
 		return 4

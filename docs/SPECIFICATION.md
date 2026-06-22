@@ -285,13 +285,12 @@ would create:                                 label.bug = #d20f39 "Something isn
 would update:                                 label.documentation = #04a5e5 "Documentation improvement"
 no change:                                    label.enhancement (already #1e66f5 "New feature request")
 would skip (insufficient scope: <detail>):    create label "bug"
-would skip (insufficient role: <detail>):     update label "documentation"
 ```
 
 `would create` - label does not exist on GitHub and would be created.
 `would update` - label exists on GitHub but colour or description differs from config.
 `no change` - label exists on GitHub and matches config.
-`would skip (insufficient scope: <detail>)` / `would skip (insufficient role: <detail>)` - operation could not be applied due to token or role constraints. For labels, this occurs when the token lacks sufficient scope or the user lacks admin role. For repository settings, this occurs when the token lacks administration scope - notably `default_workflow_permissions` and `can_approve_pull_request_reviews` require a PAT (classic `repo` scope or fine-grained with Administration permission); `GITHUB_TOKEN` is always skipped for these two fields.
+`would skip (insufficient scope: <detail>)` - operation could not be applied because the token lacks the required scope or permission. For repository settings, this occurs when the token lacks administration scope - notably `default_workflow_permissions` and `can_approve_pull_request_reviews` require a PAT (classic `repo` scope or fine-grained with Administration permission); `GITHUB_TOKEN` is always skipped for these two fields.
 
 Label entries are sorted: `would create` first, then `would update`, then `no change`, then `would skip` variants. Within each category, sorted lexicographically by label name.
 

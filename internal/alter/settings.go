@@ -21,7 +21,6 @@ const (
 	WouldSet       RepoSettingCategory = "would set"
 	RepoNoChange   RepoSettingCategory = "no change"
 	WouldSkipScope RepoSettingCategory = "would skip (insufficient scope)"
-	WouldSkipRole  RepoSettingCategory = "would skip (insufficient role)"
 )
 
 // RepoSettingResult records the field name, category, and display value for one
@@ -84,7 +83,7 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 }
 
 // skippedToResults converts gh.ApplyResult skipped operations into
-// RepoSettingResult entries with WouldSkipScope or WouldSkipRole categories.
+// RepoSettingResult entries with WouldSkipScope categories.
 func skippedToResults(ar *gh.ApplyResult) []RepoSettingResult {
 	if ar == nil {
 		return nil
@@ -105,31 +104,21 @@ func skippedToResults(ar *gh.ApplyResult) []RepoSettingResult {
 // compareSettings iterates non-nil pointer fields in declared and compares
 // each against the corresponding field in live. Returns a result per declared field.
 func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResult {
-	dv := reflect.ValueOf(declared).Elem()
-	lv := reflect.ValueOf(live).Elem()
-	dt := dv.Type()
-
 	var results []RepoSettingResult
 
-	for i := range dt.NumField() {
-		field := dt.Field(i)
-		tag := field.Tag.Get("yaml")
-		if tag == "" || tag == ",inline" {
-			continue
-		}
-		key, _, _ := strings.Cut(tag, ",")
-
-		dfv := dv.Field(i)
-		if dfv.Kind() != reflect.Pointer || dfv.IsNil() {
+	liveFields := model.RepositorySettingFields(live)
+	for _, field := range model.RepositorySettingFields(declared) {
+		if !field.Set {
 			continue
 		}
 
+		dfv := field.Value
 		declaredVal := dfv.Elem().Interface()
 
 		var displayVal string
 		var equal bool
 
-		lfv := lv.Field(i)
+		lfv := liveFields[field.Index].Value
 
 		if dfv.Elem().Kind() == reflect.Slice {
 			dSlice := dfv.Elem().Interface().([]string)
@@ -145,13 +134,13 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 
 		if equal {
 			results = append(results, RepoSettingResult{
-				Field:    key,
+				Field:    field.YAMLKey,
 				Category: RepoNoChange,
 				Value:    displayVal,
 			})
 		} else {
 			results = append(results, RepoSettingResult{
-				Field:    key,
+				Field:    field.YAMLKey,
 				Category: WouldSet,
 				Value:    displayVal,
 			})
@@ -161,11 +150,10 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 	return results
 }
 
-// readWarningOperationFields maps read-path operation names (from
-// ErrInsufficientScope/ErrInsufficientRole) to the config field names
-// (YAML tags) they affect. Workflow permissions covers two fields.
-// The installation token entry covers fields that return zero values
-// in GitHub Actions.
+// readWarningOperationFields maps read-path operation names from
+// ErrInsufficientScope to the config field names they affect. Workflow
+// permissions covers two fields. The installation token entry covers fields
+// that return zero values in GitHub Actions.
 var readWarningOperationFields = map[string][]string{
 	"fetch workflow permissions": {"default_workflow_permissions", "can_approve_pull_request_reviews"},
 	gh.InstallationTokenReadOp: {
@@ -228,19 +216,10 @@ func declaredFieldNames(s *model.RepositorySettings) map[string]bool {
 	if s == nil {
 		return nil
 	}
-	rv := reflect.ValueOf(s).Elem()
-	rt := rv.Type()
 	names := make(map[string]bool)
-	for i := range rt.NumField() {
-		f := rt.Field(i)
-		tag := f.Tag.Get("yaml")
-		if tag == "" || tag == ",inline" {
-			continue
-		}
-		key, _, _ := strings.Cut(tag, ",")
-		fv := rv.Field(i)
-		if fv.Kind() == reflect.Pointer && !fv.IsNil() {
-			names[key] = true
+	for _, field := range model.RepositorySettingFields(s) {
+		if field.Set {
+			names[field.YAMLKey] = true
 		}
 	}
 	return names
@@ -251,10 +230,6 @@ func warningOperation(err error) string {
 	var scopeErr *gh.ErrInsufficientScope
 	if errors.As(err, &scopeErr) {
 		return scopeErr.Operation
-	}
-	var roleErr *gh.ErrInsufficientRole
-	if errors.As(err, &roleErr) {
-		return roleErr.Operation
 	}
 	return ""
 }

@@ -33,21 +33,8 @@ func MergeDefaults(cfg *Config) (swatchesAdded []SwatchEntry, repoMerged bool, l
 	return swatchesAdded, repoMerged, labelsMerged
 }
 
-// MergeDefaultRepoSettings fills nil pointer fields in cfg.Repository from the
-// embedded default configuration. It skips Description, Homepage, and Topics.
-// If cfg.Repository is nil, it allocates a new RepositorySettings. Returns true
-// when at least one field was added.
-func MergeDefaultRepoSettings(cfg *Config) bool {
-	defaults, err := DefaultConfig("_")
-	if err != nil || defaults.Repository == nil {
-		return false
-	}
-	return mergeRepoSettingsFrom(cfg, defaults)
-}
-
 // mergeRepoSettingsFrom fills nil pointer fields in cfg.Repository from the
-// provided defaults. Shared implementation for MergeDefaultRepoSettings and
-// MergeDefaults.
+// provided defaults.
 func mergeRepoSettingsFrom(cfg *Config, defaults *Config) bool {
 	if defaults.Repository == nil {
 		return false
@@ -57,30 +44,20 @@ func mergeRepoSettingsFrom(cfg *Config, defaults *Config) bool {
 		cfg.Repository = &model.RepositorySettings{}
 	}
 
-	dv := reflect.ValueOf(defaults.Repository).Elem()
 	cv := reflect.ValueOf(cfg.Repository).Elem()
-	dt := dv.Type()
 
 	changed := false
 
-	for i := range dt.NumField() {
-		field := dt.Field(i)
-
-		if repoSettingsSkipFields[field.Name] {
+	for _, field := range model.RepositorySettingFields(defaults.Repository) {
+		if repoSettingsSkipFields[field.GoName] {
+			continue
+		}
+		if !field.Set {
 			continue
 		}
 
-		// Only process pointer fields; skip the Extra inline map.
-		if field.Tag.Get("yaml") == "" || field.Tag.Get("yaml") == ",inline" {
-			continue
-		}
-
-		dfv := dv.Field(i)
-		if dfv.Kind() != reflect.Pointer || dfv.IsNil() {
-			continue
-		}
-
-		cfv := cv.Field(i)
+		dfv := field.Value
+		cfv := cv.Field(field.Index)
 		if !cfv.IsNil() {
 			continue
 		}
@@ -95,21 +72,8 @@ func mergeRepoSettingsFrom(cfg *Config, defaults *Config) bool {
 	return changed
 }
 
-// MergeDefaultLabels populates cfg.Labels from the embedded default
-// configuration when the slice is empty. Both present-but-empty (labels: [])
-// and absent (no labels key) result in len==0 after YAML unmarshalling, so
-// both cases receive the default labels. If cfg.Labels already contains
-// entries, the function leaves them unchanged and returns false.
-func MergeDefaultLabels(cfg *Config) bool {
-	defaults, err := DefaultConfig("_")
-	if err != nil || len(defaults.Labels) == 0 {
-		return false
-	}
-	return mergeLabelsFrom(cfg, defaults)
-}
-
 // mergeLabelsFrom populates cfg.Labels from the provided defaults when the
-// slice is empty. Shared implementation for MergeDefaultLabels and MergeDefaults.
+// slice is empty.
 func mergeLabelsFrom(cfg *Config, defaults *Config) bool {
 	if len(cfg.Labels) > 0 {
 		return false
