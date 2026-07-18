@@ -2,11 +2,9 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/wimpysworld/tailor)](https://goreportcard.com/report/github.com/wimpysworld/tailor)
 
-Ready-to-wear project templates for GitHub repositories. Tailor fits projects with community health files, security policy, dev tooling, and repository settings that meet GitHub's community standards, then keeps them current with automated alterations. It also ships a Dependabot automerge workflow so patch and minor updates land without manual intervention.
+Ready-to-wear project templates for GitHub repositories. Tailor is a CLI that fits projects with community health files, security policy, dev tooling, and repository settings that meet GitHub's community standards. It also ships an optional Dependabot automerge workflow so patch and minor updates land without manual intervention.
 
 If you manage multiple projects across different GitHub organisations and find that configurations keep drifting out of sync, Tailor fixes that. It is opinionated by design - built for solo devs and small teams who want consistent, well-maintained repositories without the overhead.
-
-This README covers both the CLI and the [GitHub Action](#github-action).
 
 ## Install
 
@@ -79,69 +77,21 @@ Releases include `.deb`, `.rpm`, `.apk`, and Arch Linux packages. Download the a
 
 Tailor needs a GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN` for CI, or run `gh auth login` locally.
 
-## GitHub Action
+## GitHub Actions
 
-The `wimpysworld/tailor` action installs the tailor binary and optionally runs one or more commands. Pin to a major version tag to receive non-breaking updates automatically.
+Tailor does not publish a GitHub Action. Workflows can install a pinned CLI release and invoke the binary directly:
 
 ```yaml
-- uses: wimpysworld/tailor@v0
+- uses: actions/setup-go@v6
   with:
-    alter: true
+    go-version: "1.26.x"
+- run: go install github.com/wimpysworld/tailor/cmd/tailor@v0.3.0
+- run: tailor baste
   env:
     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
 
-### Inputs
-
-| Input | Description | Default |
-|-------|-------------|---------|
-| `version` | Tailor version to install (e.g. `0.2.0`). Defaults to the version matching the action release. | latest for the pinned major |
-| `fit` | Run `tailor fit` to bootstrap a new project. Requires `GH_TOKEN` in the job env. | `false` |
-| `alter` | Run `tailor alter` to apply swatches and repository settings. Requires `GH_TOKEN` in the job env. | `false` |
-| `baste` | Run `tailor baste` to preview what alter would change. Requires `GH_TOKEN` in the job env. | `false` |
-| `measure` | Run `tailor measure` to check community health files and configuration alignment. | `false` |
-| `docket` | Run `tailor docket` to display authentication state and repository context. | `false` |
-
-### Token requirements
-
-`GITHUB_TOKEN` is sufficient for most tailor operations in CI. Two fields are the exception: `default_workflow_permissions` and `can_approve_pull_request_reviews` call the `PUT /repos/{owner}/{repo}/actions/permissions/workflow` endpoint, which requires repository administration access. No `permissions:` block grants `GITHUB_TOKEN` this scope - it is a GitHub platform constraint.
-
-When `GITHUB_TOKEN` is used, tailor skips those fields and reports:
-
-```
-would skip (insufficient scope: token missing required scope): default_workflow_permissions
-would skip (insufficient scope: token missing required scope): can_approve_pull_request_reviews
-```
-
-To manage these fields from CI, provide a PAT with the necessary access.
-
-#### Personal repositories
-
-Create one of the following:
-
-- **Classic PAT** at <https://github.com/settings/tokens> - enable the `repo` scope
-- **Fine-grained PAT** at <https://github.com/settings/personal-access-tokens/new> - set "Repository permissions > Administration" to "Read and write"
-
-#### Organisation repositories
-
-Use the same PAT creation steps above. The PAT must belong to a user with admin access to the repository. If the organisation enforces SSO, authorise the PAT for the org after creation via the token's "Configure SSO" link.
-
-#### Storing and using the PAT
-
-Add the PAT as a repository secret via **Settings > Secrets and variables > Actions**, then pass it as `GH_TOKEN` in the workflow:
-
-```yaml
-env:
-  GH_TOKEN: ${{ secrets.TAILOR_TOKEN }}
-```
-
-### Supported platforms
-
-Linux (amd64, arm64) and macOS (amd64, arm64).
-
-### Version resolution
-
-The `version` input takes precedence when set. Without it, the action resolves the version from its ref: a full tag such as `v0.2.0` pins exactly, while a major tag such as `v0` resolves to the latest stable `v0.x.x` release.
+An Actions installation token works for operations allowed by the job and repository permissions. Tailor probes `GET /user` to identify installation-token behaviour. If that request fails in Actions, username substitution falls back to `GITHUB_REPOSITORY_OWNER`. Some repository settings can be unavailable or return unreliable values with an installation token; Tailor skips affected comparisons or writes and reports access warnings. Use a suitably scoped PAT as `GH_TOKEN` when a workflow must manage settings that its `GITHUB_TOKEN` cannot access. See [CI token requirements](docs/TOKENS.md).
 
 ## Quick Start
 
@@ -194,7 +144,6 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 
 | Swatch | Mode |
 |--------|------|
-| `.github/workflows/tailor.yml` | `always` |
 | `.github/ISSUE_TEMPLATE/bug_report.yml` | `always` |
 | `.github/ISSUE_TEMPLATE/feature_request.yml` | `always` |
 | `.github/pull_request_template.md` | `always` |
@@ -312,39 +261,9 @@ Omit the `labels` section to skip label management.
 
 Tailor places `.github/FUNDING.yml` as a `first-fit` swatch, but the GitHub API does not expose the "Sponsorships" checkbox. After running `alter`, tick **Settings > General > Features > Sponsorships** manually to display the Sponsor button on the repository.
 
-## Automated Maintenance
+## Migrating from the retired Action
 
-The `.github/workflows/tailor.yml` swatch delivers a GitHub Actions workflow that runs `tailor alter` weekly and opens a pull request when swatch content changes.
-
-```yaml
-name: Tailor 🪡
-on:
-  schedule:
-    - cron: "0 9 * * 1"
-  workflow_dispatch:
-
-jobs:
-  alter:
-    runs-on: ubuntu-slim
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup tailor
-        uses: wimpysworld/tailor@v0
-
-      - name: Alter swatches
-        run: tailor alter
-
-      - name: Create PR
-        uses: peter-evans/create-pull-request@v6
-        with:
-          branch: tailor-alter
-          title: "chore: alter tailor swatches"
-```
-
-The workflow itself is an `always` swatch, so it stays current as tailor releases update the template. The `action.yml` at the repository root installs the binary into the runner.
+Tailor no longer publishes the `wimpysworld/tailor` composite Action or the scheduled `.github/workflows/tailor.yml` swatch. Existing projects should remove the `.github/workflows/tailor.yml` entry from `.tailor.yml`, then delete the deployed workflow if it is no longer needed. Any other workflow that used `wimpysworld/tailor@...` must install a pinned CLI release and run `tailor` directly, as shown in [GitHub Actions](#github-actions).
 
 ### Branch protection
 
@@ -407,7 +326,7 @@ tailor baste
      would set: repository.has_wiki = false
     would copy: LICENSE
  would overwrite: SECURITY.md
-     no change: .github/workflows/tailor.yml
+     no change: CODE_OF_CONDUCT.md
 skipped (first-fit, exists): justfile
 would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
 ```

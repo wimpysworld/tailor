@@ -52,7 +52,6 @@ var registry = []Swatch{
 	{Path: ".github/ISSUE_TEMPLATE/feature_request.yml", DefaultAlteration: Always, Category: Health},
 	{Path: ".github/ISSUE_TEMPLATE/config.yml", DefaultAlteration: FirstFit, Category: Health},
 	{Path: ".github/pull_request_template.md", DefaultAlteration: Always, Category: Health},
-	{Path: ".github/workflows/tailor.yml", DefaultAlteration: Always, Category: Development},
 	{Path: ".github/workflows/tailor-automerge.yml", DefaultAlteration: Never, Category: Development},
 	{Path: ".tailor.yml", DefaultAlteration: Always, Category: Development},
 }

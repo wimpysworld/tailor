@@ -32,9 +32,6 @@ repository:
   web_commit_signoff_required: false
 
 swatches:
-  - path: .github/workflows/tailor.yml
-    alteration: always
-
   - path: .github/dependabot.yml
     alteration: first-fit
 
@@ -113,20 +110,20 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	testutil.AssertBoolPtr(t, r.AllowAutoMerge, false, false, "allow_auto_merge")
 	testutil.AssertBoolPtr(t, r.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
 
-	if len(cfg.Swatches) != 17 {
-		t.Fatalf("Swatches count = %d, want 17", len(cfg.Swatches))
+	if len(cfg.Swatches) != 16 {
+		t.Fatalf("Swatches count = %d, want 16", len(cfg.Swatches))
 	}
 
 	// Spot-check the first and last swatch entries.
 	first := cfg.Swatches[0]
-	if first.Path != ".github/workflows/tailor.yml" {
+	if first.Path != ".github/dependabot.yml" {
 		t.Errorf("first swatch Path = %q", first.Path)
 	}
-	if first.Alteration != swatch.Always {
+	if first.Alteration != swatch.FirstFit {
 		t.Errorf("first swatch Alteration = %q", first.Alteration)
 	}
 
-	last := cfg.Swatches[16]
+	last := cfg.Swatches[15]
 	if last.Path != ".github/workflows/tailor-automerge.yml" {
 		t.Errorf("last swatch Path = %q", last.Path)
 	}

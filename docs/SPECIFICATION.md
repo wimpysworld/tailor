@@ -19,17 +19,17 @@ The `fit`, `alter`, and `baste` commands verify that a valid authentication toke
 
 ### New project
 
-`fit` creates the project directory and writes `.tailor.yml` with the full default swatch set in one command, with a `license: BlueOak-1.0.0` default. Use `--license=<id>` to select a different licence or `--license=none` to opt out. Change into `<path>`, then run `alter` to copy the swatch files, including the `.github/workflows/tailor.yml` workflow that handles weekly automated maintenance. The action opens a pull request whenever swatch content changes, keeping files current without manual intervention.
+`fit` creates the project directory and writes `.tailor.yml` with the full default swatch set in one command, with a `license: BlueOak-1.0.0` default. Use `--license=<id>` to select a different licence or `--license=none` to opt out. Change into `<path>`, then run `alter` to copy the swatch files and apply repository settings.
 
 ### Existing project
 
-`measure` checks which community health files are present or missing - run it first to see what a project needs. If no `.tailor.yml` exists, run `tailor fit .` to create one (the directory already exists, so `fit` proceeds without error), or create `.tailor.yml` manually. Edit `.tailor.yml` directly to add or remove swatches or change alteration modes, then run `alter` to bring the project into sync with the current swatches; the `.github/workflows/tailor.yml` swatch handles ongoing maintenance once placed, opening pull requests whenever upstream swatch content changes.
+`measure` checks which community health files are present or missing - run it first to see what a project needs. If no `.tailor.yml` exists, run `tailor fit .` to create one (the directory already exists, so `fit` proceeds without error), or create `.tailor.yml` manually. Edit `.tailor.yml` directly to add or remove swatches or change alteration modes, then run `alter` to bring the project into sync with the current swatches. Re-run the CLI after upgrading Tailor to apply updated `always` swatches.
 
 ## Core Concepts
 
 **Swatches**: Complete, ready-to-use template files stored in `swatches/`. Files are copied verbatim, with five exceptions: `.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted automatically; `SECURITY.md` has `{{ADVISORY_URL}}` substituted automatically; `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` substituted automatically; `.tailor.yml` has `{{HOMEPAGE_URL}}` substituted automatically; `.github/workflows/tailor-automerge.yml` has `{{MERGE_STRATEGY}}` substituted automatically.
 
-**Swatch names**: Swatch references use the full source path relative to `swatches/`, including the file extension where one exists. Extensionless files are referenced as-is. For example, `swatches/.github/workflows/tailor.yml` is referenced as `.github/workflows/tailor.yml`; `swatches/SECURITY.md` as `SECURITY.md`; `swatches/justfile` as `justfile` (no extension).
+**Swatch names**: Swatch references use the full source path relative to `swatches/`, including the file extension where one exists. Extensionless files are referenced as-is. For example, `swatches/.github/workflows/tailor-automerge.yml` is referenced as `.github/workflows/tailor-automerge.yml`; `swatches/SECURITY.md` as `SECURITY.md`; `swatches/justfile` as `justfile` (no extension).
 
 **Swatch Mapping**: Each swatch has a defined source-to-destination mapping:
 
@@ -50,7 +50,6 @@ The `fit`, `alter`, and `baste` commands verify that a valid authentication toke
 | `.github/ISSUE_TEMPLATE/feature_request.yml` | `.github/ISSUE_TEMPLATE/feature_request.yml` |
 | `.github/ISSUE_TEMPLATE/config.yml` | `.github/ISSUE_TEMPLATE/config.yml` |
 | `.github/pull_request_template.md` | `.github/pull_request_template.md` |
-| `.github/workflows/tailor.yml` | `.github/workflows/tailor.yml` |
 | `.github/workflows/tailor-automerge.yml` | `.github/workflows/tailor-automerge.yml` |
 | `.tailor.yml` | `.tailor.yml` |
 
@@ -94,7 +93,7 @@ Several fields use separate API endpoints rather than the repository PATCH call.
 
 **Topics**: The PUT endpoint replaces the entire topics list. The config declares the complete desired set; omitted topics are removed on apply. Topics are project-specific and not included in the default config template. Topic names must start with a lowercase letter or number, contain only lowercase alphanumerics and hyphens, and be 50 characters or fewer. The `topics` field uses `*[]string` semantics: nil (absent) means skip, empty list means clear all topics.
 
-**Actions workflow permissions**: `default_workflow_permissions` accepts `read` or `write`. The PUT endpoint sends both `default_workflow_permissions` and `can_approve_pull_request_reviews` atomically. The tailor defaults (`read` and `false`) follow the principle of least privilege. GitHub defaults vary by context: personal repositories default to restricted `GITHUB_TOKEN` permissions with PR approval disabled, while organisation repositories inherit these settings from organisation-level Actions configuration. Managing these fields from GitHub Actions CI requires a PAT - either a classic PAT with `repo` scope or a fine-grained PAT with the Administration repository permission. `GITHUB_TOKEN` lacks the required scope for the `GET/PUT /repos/{owner}/{repo}/actions/permissions/workflow` endpoint; when tailor runs with `GITHUB_TOKEN`, these two fields are skipped with a `would skip (insufficient scope)` result in `baste` and silently skipped by `alter`. This is graceful degradation, not an error.
+**Actions workflow permissions**: `default_workflow_permissions` accepts `read` or `write`. The PUT endpoint sends both `default_workflow_permissions` and `can_approve_pull_request_reviews` atomically. The tailor defaults (`read` and `false`) follow the principle of least privilege. Access from GitHub Actions depends on the installation token's repository and job permissions. If the API rejects the read or write, Tailor reports `would skip (insufficient scope)` in `baste` and skips the operation in `alter`. Use a suitably scoped PAT when the workflow token cannot access these settings.
 
 Settings deliberately excluded due to risk or org-level scope: `visibility`, `default_branch`, `name`, `archived`, `is_template`, `allow_forking`, `security_and_analysis`. Additional API areas considered and deferred: Actions permissions policy (`enabled`, `allowed_actions`), autolinks, Pages configuration, deployment environments, custom properties (org-level), and Dependabot secrets. Branch protection (both classic rules and rulesets) is explicitly out of scope. It requires `Administration: write` - the same permission level needed to delete a repository - which `GITHUB_TOKEN` cannot hold at all; this is a deliberate GitHub security boundary preventing workflows from weakening the rules that govern their own repository. For Tailor's target audience of solo developers and small teams, branch protection is a one-time UI operation that does not drift over time, so the declarative consistency argument that justifies Tailor does not apply. Supporting it would roughly double the PAT privilege requirements for CI users for a setting they configure once, and `gh` CLI handles the setup in a single command, leaving no gap for Tailor to fill.
 
@@ -119,7 +118,6 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 | `.github/ISSUE_TEMPLATE/feature_request.yml` | `always` |
 | `.github/ISSUE_TEMPLATE/config.yml` | `first-fit` |
 | `.github/pull_request_template.md` | `always` |
-| `.github/workflows/tailor.yml` | `always` |
 | `.github/workflows/tailor-automerge.yml` | `never` |
 | `.github/dependabot.yml` | `first-fit` |
 | `justfile` | `first-fit` |
@@ -148,7 +146,6 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 - `flake.nix`
 - `justfile`
 - `cubic.yaml`
-- `.github/workflows/tailor.yml`
 - `.github/workflows/tailor-automerge.yml`
 - `.tailor.yml`
 
@@ -166,7 +163,6 @@ Creates a new project directory and writes `.tailor.yml` with the full default s
 
 The default swatch set embedded in the binary is:
 
-- `.github/workflows/tailor.yml`
 - `.github/workflows/tailor-automerge.yml`
 - `.github/dependabot.yml`
 - `.github/FUNDING.yml`
@@ -239,7 +235,7 @@ Behaviour:
 - For `triggered` swatches: looks up the trigger condition for the swatch source in the trigger condition table. If the condition is met (e.g. `allow_auto_merge: true` in the `repository` section), behaves like `always` - deploys and overwrites when content differs. If the condition is not met and the file exists on disk, removes it. If the condition is not met and the file does not exist, skips silently. Triggered swatches are never overwritten by `--recut` when the trigger condition is false.
 - For `never` swatches: skips entirely. No file is written, compared, or removed. This mode suppresses any swatch, including triggered swatches whose condition would otherwise be met.
 - For licences: if `.tailor.yml` contains a `license` key with a value other than `none`, and no `LICENSE` file exists on disk, fetches the licence text via the GitHub REST API (`GET /licenses/{id}`) and writes it to `LICENSE`. The text is written verbatim as returned by GitHub - no token substitution is performed. Always treated as `first-fit`; the on-disk `LICENSE` file is never overwritten. If the licence fetch fails (e.g. unrecognised licence identifier), `alter` exits with the API error.
-- For `.github/FUNDING.yml`: substitutes `{{GITHUB_USERNAME}}` before writing. `{{GITHUB_USERNAME}}` is resolved at `alter` time: in GitHub Actions (`GITHUB_ACTIONS=true`), it is taken from `GITHUB_REPOSITORY_OWNER` without an API call; otherwise it is resolved via `GET /user`. The Sponsorships checkbox under Settings > General > Features is not exposed via the GitHub API. After alter places `.github/FUNDING.yml`, enable sponsorships manually in repository settings.
+- For `.github/FUNDING.yml`: substitutes `{{GITHUB_USERNAME}}` before writing. `{{GITHUB_USERNAME}}` is first resolved through `GET /user`. If that request fails while `GITHUB_ACTIONS=true`, Tailor falls back to `GITHUB_REPOSITORY_OWNER`; otherwise it returns the API error. The Sponsorships checkbox under Settings > General > Features is not exposed via the GitHub API. After alter places `.github/FUNDING.yml`, enable sponsorships manually in repository settings.
 - For `SECURITY.md`: substitutes `{{ADVISORY_URL}}` before writing. `{{ADVISORY_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>/security/advisories/new` from the repository context (owner/name). If no GitHub repository context exists (e.g. a brand-new project with no remote), `{{ADVISORY_URL}}` is left unsubstituted in the written file. The unsubstituted token is intentionally detectable by a future `measure` run; `alter` will resolve and substitute it on a subsequent run once the repository has a remote.
 - For `.github/ISSUE_TEMPLATE/config.yml`: substitutes `{{SUPPORT_URL}}` before writing. `{{SUPPORT_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md` from the repository context (owner/name). If no GitHub repository context exists, `{{SUPPORT_URL}}` is left unsubstituted in the written file.
 - For `.tailor.yml`: substitutes `{{HOMEPAGE_URL}}` before writing. `{{HOMEPAGE_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>` from the repository context (owner/name). If no GitHub repository context exists, `{{HOMEPAGE_URL}}` is left unsubstituted in the written file.
@@ -290,7 +286,7 @@ would skip (insufficient scope: <detail>):    create label "bug"
 `would create` - label does not exist on GitHub and would be created.
 `would update` - label exists on GitHub but colour or description differs from config.
 `no change` - label exists on GitHub and matches config.
-`would skip (insufficient scope: <detail>)` - operation could not be applied because the token lacks the required scope or permission. For repository settings, this occurs when the token lacks administration scope - notably `default_workflow_permissions` and `can_approve_pull_request_reviews` require a PAT (classic `repo` scope or fine-grained with Administration permission); `GITHUB_TOKEN` is always skipped for these two fields.
+`would skip (insufficient scope: <detail>)` - operation could not be applied because the token lacks the required scope or permission. In GitHub Actions, available operations depend on the installation token's repository and job permissions. A suitably scoped PAT can be used when the workflow token cannot access a required endpoint.
 
 Label entries are sorted: `would create` first, then `would update`, then `no change`, then `would skip` variants. Within each category, sorted lexicographically by label name.
 
@@ -301,7 +297,7 @@ would copy:                                LICENSE
 would overwrite:                           SECURITY.md
 would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
 would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
-no change:                                 .github/workflows/tailor.yml
+no change:                                 CODE_OF_CONDUCT.md
 skipped (first-fit, exists):               justfile
 skip (never):                              .github/workflows/tailor-automerge.yml
 ```
@@ -405,7 +401,7 @@ auth:           not authenticated
 ```
 
 Behaviour:
-- `user` is resolved via `GET /user` if authenticated (or from `GITHUB_REPOSITORY_OWNER` in GitHub Actions); displays `(none)` if not authenticated.
+- `user` is resolved via `GET /user` if authenticated. If that call fails in GitHub Actions, Tailor falls back to `GITHUB_REPOSITORY_OWNER`; displays `(none)` if not authenticated.
 - `repository` displays the `owner/repo` derived from the GitHub remote in the current directory; displays `(none)` if no GitHub remote exists.
 - `auth` displays `authenticated` or `not authenticated` based on whether a valid token can be resolved for `github.com`.
 - Does not read `.tailor.yml` and does not require it to be present.
@@ -426,7 +422,7 @@ Behaviour:
 
 **Not authenticated**: if no valid authentication token can be resolved for `github.com` (neither `GH_TOKEN`/`GITHUB_TOKEN` environment variable, `gh` config file, nor `gh` keyring), `fit`, `alter`, and `baste` exit with: "tailor requires GitHub authentication. Set the GH_TOKEN or GITHUB_TOKEN environment variable, or run `gh auth login`."
 
-**`{{GITHUB_USERNAME}}` resolution failed**: outside GitHub Actions, `{{GITHUB_USERNAME}}` is resolved via `GET /user`. If this call fails (e.g. rate limits, network issues), `alter` exits with the API error. In GitHub Actions (`GITHUB_ACTIONS=true`), `GITHUB_REPOSITORY_OWNER` is used instead and no API call is made, so this failure path does not apply. Unlike repo-context tokens, `{{GITHUB_USERNAME}}` depends on the authenticated user, not the repository, so it cannot be deferred.
+**`{{GITHUB_USERNAME}}` resolution failed**: `{{GITHUB_USERNAME}}` is resolved via `GET /user`. If this call fails while `GITHUB_ACTIONS=true`, Tailor uses `GITHUB_REPOSITORY_OWNER` when it is set. If no fallback is available, `alter` exits with the API error. Unlike repo-context tokens, `{{GITHUB_USERNAME}}` depends on the authenticated user, not the repository, so it cannot be deferred.
 
 **Repo-context tokens unresolved**: `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, and `{{HOMEPAGE_URL}}` require a GitHub repository context. If the project has no GitHub remote (e.g. a brand-new project not yet pushed), these tokens are left unsubstituted silently. For `always` swatches (e.g. `SECURITY.md`), `alter` will resolve and substitute them on a subsequent run once the repository has a remote. For `first-fit` swatches (e.g. `.github/ISSUE_TEMPLATE/config.yml`), delete the file and re-run `alter`, or use `--recut`.
 
@@ -434,7 +430,7 @@ Behaviour:
 
 **Repository settings API failure**: if any API call to apply repository settings fails (PATCH, PUT, or DELETE), `alter` exits with the API error. Because repository settings are applied first in the execution order, labels, licence, and swatch operations are not attempted. If licence fetch fails after repository settings and labels have been applied, those changes are not reverted.
 
-**Repository settings with insufficient scope**: `default_workflow_permissions` and `can_approve_pull_request_reviews` require administration access that `GITHUB_TOKEN` (a GitHub Actions installation token) does not have. When tailor detects a 403 response from the `GET/PUT /repos/{owner}/{repo}/actions/permissions/workflow` endpoint due to insufficient token scope, it skips these two fields rather than exiting. `baste` reports them as `would skip (insufficient scope: token missing required scope)`. `alter` skips them silently. Other repository settings continue to be applied. To manage these fields from GitHub Actions CI, use a classic PAT with `repo` scope or a fine-grained PAT with the Administration repository permission as the `GH_TOKEN`/`GITHUB_TOKEN` environment variable.
+**Repository settings with insufficient scope**: When GitHub rejects a repository-setting read or write with an access error, Tailor skips the affected fields rather than exiting. `baste` reports `would skip (insufficient scope: token missing required scope)` and `alter` skips the operation. Other repository settings continue to be applied. GitHub Actions installation-token access depends on repository and job permissions. Use a suitably scoped PAT as `GH_TOKEN` when the workflow token cannot access the required endpoint.
 
 **Unrecognised repository setting**: if `.tailor.yml` contains a field in the `repository` section that is not in the supported settings list, `alter` exits with an error identifying the unrecognised field and listing all valid repository setting field names.
 
@@ -521,9 +517,6 @@ labels:
     description: "Hacktoberfest contribution"
 
 swatches:
-  - path: .github/workflows/tailor.yml
-    alteration: always
-
   - path: .github/dependabot.yml
     alteration: first-fit
 
@@ -613,7 +606,6 @@ swatches/
 │   │   └── feature_request.yml
 │   ├── pull_request_template.md
 │   └── workflows/
-│       ├── tailor.yml
 │       └── tailor-automerge.yml
 └── .tailor.yml
 ```
@@ -622,53 +614,11 @@ swatches/
 
 Licences are not embedded - they are fetched at `alter` time via the GitHub REST API (`GET /licenses/{id}`) and written verbatim to `LICENSE`.
 
-## GitHub Action
+## GitHub Actions
 
-The `.github/workflows/tailor.yml` swatch delivers a GitHub Actions workflow that runs `tailor alter` on a weekly schedule and opens a pull request whenever swatch content has changed. The workflow is placed by `alter` like any other swatch; no manual setup is required beyond including it in the swatch list.
+Tailor is distributed as a CLI, not a GitHub Action. A workflow can install a pinned CLI release and invoke `tailor` directly. `GH_TOKEN` or `GITHUB_TOKEN` supplies authentication without requiring the `gh` binary. An Actions installation token remains supported for API operations allowed by its repository and job permissions. Tailor probes `GET /user`; if that request fails in Actions, username substitution falls back to `GITHUB_REPOSITORY_OWNER`.
 
-`wimpysworld/tailor@v0` is the GitHub Actions action defined in `action.yml` at the root of the tailor repository. It installs the tailor binary into the workflow runner and exposes gated inputs (`fit`, `alter`, `baste`, `measure`, `docket`) that run the corresponding tailor command when set to `true`. The action is delivered as part of the tailor repository, not as a separate repository.
-
-The swatch content:
-
-```yaml
-name: Tailor 🪡
-on:
-  schedule:
-    - cron: "0 9 * * 1" # Weekly
-  workflow_dispatch:
-
-permissions:
-  contents: write
-  issues: write
-  pull-requests: write
-  actions: write
-
-jobs:
-  alter:
-    runs-on: ubuntu-slim
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - uses: actions/checkout@v6.0.1
-
-      - name: Tailor
-        uses: wimpysworld/tailor@v0
-        with:
-          alter: true
-
-      - name: Create PR
-        uses: peter-evans/create-pull-request@v8.1.0
-        with:
-          branch: tailor-alter
-          title: "chore: alter tailor swatches"
-
-```
-
-Action behaviour:
-- The `Tailor` step uses `wimpysworld/tailor@v0` with `alter: true`, which installs the tailor binary and runs `tailor alter`. Changes are written to the working tree; `create-pull-request` opens a PR. The PR body is auto-generated by `peter-evans/create-pull-request` from its diff detection - no `body` or `body-path` is set.
-- Committing and pushing are handled by `peter-evans/create-pull-request`, not by tailor. Tailor only modifies files in the working tree.
-- The workflow declares `permissions: contents: write, issues: write, pull-requests: write, actions: write` at the top level. `GH_TOKEN` is set at the `alter` job level, providing the authentication token directly to `go-gh` via environment variable. The `gh` binary is not required for token resolution when `GH_TOKEN` is set. `first-fit` swatches (`.github/FUNDING.yml`, `.github/ISSUE_TEMPLATE/config.yml`, the licence file) are not overwritten after initial creation. `.tailor.yml` uses `always` mode but only appends missing swatch entries - existing content is never overwritten. `SECURITY.md` is `always` mode and is compared on every run, but it is rewritten only when the resolved content differs (see the substituted-swatch rule in the `alter` behaviour section). Because `{{ADVISORY_URL}}` usually resolves to the same URL for a given repository, this typically results in no diff and `create-pull-request` opens no PR. If a tailor upgrade changes a swatch template, the file will differ and a PR will be opened.
-- Because `.github/workflows/tailor.yml` is itself an `always` swatch, the action workflow is kept current automatically: if the embedded swatch content changes in a new tailor release, the weekly run will update the workflow file and open a PR.
+The retired composite Action and scheduled maintenance swatch are not part of the built-in registry. Existing configurations that contain the retired workflow path must remove that entry before `alter`, because unrecognised swatch paths fail validation. Projects may then delete the deployed workflow. Workflows that used the retired Action must install a pinned CLI release and replace Action inputs with direct CLI commands. The independent `.github/workflows/tailor-automerge.yml` swatch remains supported and is described below.
 
 ## Automerge Workflow
 
@@ -713,7 +663,7 @@ measure:
 ## Implementation Notes
 
 1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. SHA-256 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For swatches containing substitution tokens, tokens are resolved before the hash comparison, so the resolved content is compared against the on-disk file. Bypassed with `--recut`.
-2. **Interpolation (FUNDING.yml, SECURITY.md, .tailor.yml, and tailor-automerge.yml)**: Swatches are complete verbatim files with five exceptions. `.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted at `alter` time from `GET /user`. `SECURITY.md` has `{{ADVISORY_URL}}` constructed from the repository context (owner/name); if no repository context exists, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` constructed from the repository context, producing `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`; if no repository context exists, the token is left unsubstituted. `.tailor.yml` has `{{HOMEPAGE_URL}}` constructed from the repository context, producing `https://github.com/<owner>/<name>`; if no repository context exists, the token is left unsubstituted. `.github/workflows/tailor-automerge.yml` has `{{MERGE_STRATEGY}}` resolved to `--squash`, `--rebase`, or `--merge` based on the repository merge settings in `.tailor.yml`; preference order is squash > rebase > merge; defaults to `--squash` if no merge method is explicitly enabled. No per-swatch configuration is required. Licences are fetched via `GET /licenses/{id}` and written verbatim - no token substitution is involved.
+2. **Interpolation (FUNDING.yml, SECURITY.md, .tailor.yml, and tailor-automerge.yml)**: Swatches are complete verbatim files with five exceptions. `.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted at `alter` time from `GET /user`, with `GITHUB_REPOSITORY_OWNER` used as a fallback when that request fails in GitHub Actions. `SECURITY.md` has `{{ADVISORY_URL}}` constructed from the repository context (owner/name); if no GitHub repository context exists, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` constructed from the repository context, producing `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`; if no repository context exists, the token is left unsubstituted. `.tailor.yml` has `{{HOMEPAGE_URL}}` constructed from the repository context, producing `https://github.com/<owner>/<name>`; if no repository context exists, the token is left unsubstituted. `.github/workflows/tailor-automerge.yml` has `{{MERGE_STRATEGY}}` resolved to `--squash`, `--rebase`, or `--merge` based on the repository merge settings in `.tailor.yml`; preference order is squash > rebase > merge; defaults to `--squash` if no merge method is explicitly enabled. No per-swatch configuration is required. Licences are fetched via `GET /licenses/{id}` and written verbatim - no token substitution is involved.
 3. **No versioning**: No swatch versions, always uses swatches from current tailor binary. Upgrading tailor will cause all `always` swatches to be re-evaluated against the new embedded content; files whose swatch content has changed will be overwritten on the next `alter` run.
 4. **No global state**: All state is per-project in `.tailor.yml`
 5. **No project registry**: Tailor has no awareness of its consumers. Projects pull from tailor, tailor does not track projects.

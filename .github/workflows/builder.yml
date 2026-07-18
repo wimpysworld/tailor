@@ -228,16 +228,6 @@ jobs:
           TAP_GITHUB_TOKEN: ${{ matrix.mode == 'release' && secrets.TAP_GITHUB_TOKEN || '' }}
           AUR_KEY: ${{ matrix.mode == 'release' && secrets.AUR_KEY || '' }}
 
-      - name: Update floating major version tag
-        if: steps.guard.outputs.run == 'true' && matrix.mode == 'release' && !contains(github.ref_name, '-')
-        run: |
-          tag="${{ github.ref_name }}"
-          major="${tag%%.*}"
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -fa "${major}" -m "Update ${major} tag to ${tag}"
-          git push origin "${major}" --force
-
       - name: Update Go Report Card
         if: steps.guard.outputs.run == 'true' && matrix.mode == 'release' && !contains(github.ref_name, '-')
         run: curl -X POST -F "repo=github.com/$GITHUB_REPOSITORY" https://goreportcard.com/checks || true

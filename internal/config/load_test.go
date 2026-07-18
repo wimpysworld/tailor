@@ -24,8 +24,8 @@ func TestLoadValidConfig(t *testing.T) {
 	if cfg.Repository == nil {
 		t.Fatal("Repository is nil")
 	}
-	if len(cfg.Swatches) != 17 {
-		t.Errorf("Swatches count = %d, want 17", len(cfg.Swatches))
+	if len(cfg.Swatches) != 16 {
+		t.Errorf("Swatches count = %d, want 16", len(cfg.Swatches))
 	}
 }
 
