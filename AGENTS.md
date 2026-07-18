@@ -2,7 +2,7 @@
 
 ## Project overview
 
-Tailor is a Go CLI tool for managing project templates (swatches) across GitHub repositories. It fits new projects with community health files, dev tooling, and repository settings, then keeps them current via automated alterations.
+Tailor is a Go CLI tool for managing project templates (swatches) across GitHub repositories. It fits new projects with community health files, dev tooling, and repository settings, then updates them through explicit CLI alterations.
 
 The authoritative specification is `docs/SPECIFICATION.md`. All implementation decisions must align with it.
 
@@ -21,7 +21,7 @@ tailor/
 ├── .github/workflows/  # CI workflows
 ├── cmd/tailor/         # CLI entrypoint
 ├── internal/           # Internal packages (config, swatch, gh wrappers)
-├── swatches/           # Embedded template files (18 swatches)
+├── swatches/           # Embedded template files (17 swatches)
 ├── docs/               # Specification
 └── AGENTS.md
 ```
@@ -66,7 +66,7 @@ tailor/
 - `EvaluateTrigger(source string, repo any)` uses reflection to match yaml tags on `RepositorySettings`; `repo` is `any` (not `*config.RepositorySettings`) to avoid a circular import
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
-- GitHub Actions installation tokens (`secrets.GITHUB_TOKEN`) cannot call user-scoped endpoints (e.g. `GET /user`); features hitting such endpoints must check `GITHUB_ACTIONS=true` and fall back to Actions env vars (e.g. `GITHUB_REPOSITORY_OWNER` for the owner name) - see `internal/gh/user.go` for the pattern
+- GitHub Actions installation tokens (`secrets.GITHUB_TOKEN`) cannot call user-scoped endpoints such as `GET /user`; features must attempt the API call, then check `GITHUB_ACTIONS=true` and fall back to Actions env vars such as `GITHUB_REPOSITORY_OWNER` - see `internal/gh/user.go` for the pattern
 - `alter` execution order: repository settings, then labels, then licence, then swatches
 - SHA-256 comparison for `always` and `triggered` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor.yml`, `.github/workflows/tailor-automerge.yml`) compare the resolved content hash against the on-disk file
 - `triggered` swatches deploy when their condition is met (overwrite like `always`), remove the file when the condition becomes false, and skip when the file is absent and condition is false

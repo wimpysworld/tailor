@@ -85,9 +85,6 @@ labels:
     description: Hacktoberfest contribution
 
 swatches:
-  - path: .github/workflows/tailor.yml
-    alteration: always
-
   - path: .github/dependabot.yml
     alteration: first-fit
 
