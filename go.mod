@@ -2,7 +2,7 @@ module github.com/wimpysworld/tailor
 
 go 1.26.1
 
-require github.com/alecthomas/kong v1.16.0
+require github.com/alecthomas/kong v1.16.1
 
 require (
 	github.com/cli/go-gh/v2 v2.13.0
