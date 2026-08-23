@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -38,6 +39,24 @@ func TestValidatePathsRejectsUnknownPath(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "valid paths:") {
 		t.Errorf("error = %q, want it to list valid paths", err)
+	}
+}
+
+func TestValidatePathsRejectsRetiredAutomergeWorkflow(t *testing.T) {
+	const path = ".github/workflows/tailor-automerge.yml"
+	cfg := &Config{
+		Swatches: []SwatchEntry{
+			{Path: path, Alteration: swatch.Always},
+		},
+	}
+
+	err := ValidatePaths(cfg)
+	if err == nil {
+		t.Fatal("ValidatePaths() expected error for retired automerge workflow, got nil")
+	}
+	want := fmt.Sprintf("unrecognised swatch path %q in config; valid paths: %s", path, strings.Join(swatch.Paths(), ", "))
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err, want)
 	}
 }
 

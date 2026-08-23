@@ -3,6 +3,7 @@ package alter_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -143,7 +144,6 @@ func WithPatchError(statusCode int) testOption {
 // returns an alterTestContext ready for use with alter.Run.
 func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterTestContext {
 	t.Helper()
-	t.Setenv("GITHUB_ACTIONS", "") // prevent env-var shortcut in FetchUsername
 
 	sc := &alterServerConfig{
 		username:    "testuser",
@@ -866,7 +866,7 @@ swatches:
 	}
 
 	// Classify each line as actionable or informational.
-	actionableLabels := []string{"would set:", "would copy:", "would overwrite:", "would deploy:"}
+	actionableLabels := []string{"would set:", "would copy:", "would overwrite:"}
 	informationalLabels := []string{"no change:", "skipped (first-fit, exists):"}
 
 	isActionable := func(line string) bool {
@@ -1682,155 +1682,6 @@ swatches:
 	}
 }
 
-// TestAlterRunTriggeredAutoMergeTrue verifies that a triggered swatch is
-// deployed when the trigger condition is met (allow_auto_merge: true).
-func TestAlterRunTriggeredAutoMergeTrue(t *testing.T) {
-	configYAML := `license: none
-repository:
-  allow_auto_merge: true
-swatches:
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: triggered
-`
-	tc := setupAlterTest(t, configYAML,
-		WithRepoSettings(repoJSON{AllowAutoMerge: true}),
-	)
-	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
-
-	cfg := loadTestConfig(t, tc.Dir)
-
-	// DryRun: output should indicate the swatch would be deployed.
-	dryOutput := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-	wantDryOutput := "no change:                                  repository.allow_auto_merge (already true)\n" +
-		"would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
-	if dryOutput != wantDryOutput {
-		t.Errorf("alter.Run() output =\n%s\nwant:\n%s", dryOutput, wantDryOutput)
-	}
-
-	// File must not exist after dry-run.
-	automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
-	if _, err := os.Stat(automergeFile); err == nil {
-		t.Error("dry run wrote tailor-automerge.yml to disk")
-	}
-
-	// Apply writes the triggered swatch.
-	applyOutput := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
-	wantApplyOutput := "no change:                              repository.allow_auto_merge (already true)\n" +
-		"deployed (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
-	if applyOutput != wantApplyOutput {
-		t.Errorf("alter.Run() output =\n%s\nwant:\n%s", applyOutput, wantApplyOutput)
-	}
-
-	data, err := os.ReadFile(automergeFile)
-	if err != nil {
-		t.Fatalf("tailor-automerge.yml not written after apply: %v", err)
-	}
-	raw, err := swatch.Content(".github/workflows/tailor-automerge.yml")
-	if err != nil {
-		t.Fatalf("swatch.Content: %v", err)
-	}
-	// The embedded swatch contains {{MERGE_STRATEGY}} which is substituted
-	// at alter time. With no explicit merge settings, it defaults to --squash.
-	want := bytes.ReplaceAll(raw, []byte("{{MERGE_STRATEGY}}"), []byte("--squash"))
-	if string(data) != string(want) {
-		t.Error("tailor-automerge.yml content does not match substituted swatch")
-	}
-}
-
-// TestAlterRunTriggeredAutoMergeFalse verifies that a triggered swatch is not
-// deployed when the trigger condition is not met (allow_auto_merge: false),
-// and that a pre-existing file is removed.
-func TestAlterRunTriggeredAutoMergeFalse(t *testing.T) {
-	configYAML := `license: none
-repository:
-  allow_auto_merge: false
-swatches:
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: triggered
-`
-	tc := setupAlterTest(t, configYAML,
-		WithRepoSettings(repoJSON{AllowAutoMerge: false}),
-	)
-	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
-
-	cfg := loadTestConfig(t, tc.Dir)
-
-	// Absent file plus unmet trigger yields no action.
-	t.Run("absent_ignored", func(t *testing.T) {
-		output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-		requireNotContains(t, output, "would copy")
-		requireNotContains(t, output, "would overwrite")
-		requireNotContains(t, output, "would deploy")
-		// The swatch should not appear in actionable output.
-		// It may appear as "skip (never)" or be silently ignored.
-		requireNotContains(t, output, "would remove")
-	})
-
-	// Existing file plus unmet trigger reports removal.
-	t.Run("present_removed", func(t *testing.T) {
-		automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
-		writeOnDisk(t, tc.Dir, ".github/workflows/tailor-automerge.yml", []byte("old automerge content"))
-
-		// Dry-run reports removal without deleting the file.
-		dryOutput := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-		wantDryOutput := "no change:                                  repository.allow_auto_merge (already false)\n" +
-			"would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
-		if dryOutput != wantDryOutput {
-			t.Errorf("alter.Run() output =\n%s\nwant:\n%s", dryOutput, wantDryOutput)
-		}
-
-		if _, err := os.Stat(automergeFile); err != nil {
-			t.Errorf("dry run removed tailor-automerge.yml from disk: %v", err)
-		}
-
-		// Apply removes the stale triggered file.
-		applyOutput := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
-		wantApplyOutput := "no change:                             repository.allow_auto_merge (already false)\n" +
-			"removed (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
-		if applyOutput != wantApplyOutput {
-			t.Errorf("alter.Run() output =\n%s\nwant:\n%s", applyOutput, wantApplyOutput)
-		}
-
-		if _, err := os.Stat(automergeFile); err == nil {
-			t.Error("tailor-automerge.yml still exists after apply with trigger not met")
-		}
-	})
-}
-
-// TestAlterRunNeverSuppressesTriggered verifies that setting alteration to
-// "never" suppresses a triggered swatch even when the trigger condition is met.
-func TestAlterRunNeverSuppressesTriggered(t *testing.T) {
-	configYAML := `license: none
-repository:
-  allow_auto_merge: true
-swatches:
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: never
-`
-	tc := setupAlterTest(t, configYAML,
-		WithRepoSettings(repoJSON{AllowAutoMerge: true}),
-	)
-	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
-
-	cfg := loadTestConfig(t, tc.Dir)
-
-	// Dry-run reports the explicit never suppression.
-	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-	requireContains(t, output, "skip (never):")
-	requireContains(t, output, "tailor-automerge.yml")
-	requireNotContains(t, output, "would copy")
-	requireNotContains(t, output, "would overwrite")
-	requireNotContains(t, output, "would deploy")
-
-	// Apply honours the explicit never suppression.
-	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
-
-	automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
-	if _, err := os.Stat(automergeFile); err == nil {
-		t.Error("tailor-automerge.yml was deployed despite alteration: never")
-	}
-}
-
 // allNonConfigSwatchesYAML returns a YAML swatches block containing every
 // registered swatch except .tailor.yml, using each swatch's default
 // alteration mode.
@@ -2303,5 +2154,213 @@ swatches:
 	// Existing labels are preserved.
 	if !strings.Contains(content, "custom-label") {
 		t.Error("existing custom label was lost during merge")
+	}
+}
+
+func TestAlterRunRetiredWorkflowMigrationByMode(t *testing.T) {
+	configYAML := `license: none
+swatches:
+  - path: .github/workflows/tailor.yml
+    alteration: triggered
+  - path: .github/workflows/tailor-automerge.yml
+    alteration: triggered
+`
+	tests := []struct {
+		name       string
+		mode       alter.ApplyMode
+		wantOutput string
+		wantWrite  bool
+	}{
+		{
+			name: "dry run",
+			mode: alter.DryRun,
+			wantOutput: "would update:                        .tailor.yml\n" +
+				"would remove:                        .github/workflows/tailor-automerge.yml\n" +
+				"would remove:                        .github/workflows/tailor.yml\n",
+		},
+		{
+			name:      "apply",
+			mode:      alter.Apply,
+			wantWrite: true,
+			wantOutput: "updated:                             .tailor.yml\n" +
+				"removed:                             .github/workflows/tailor-automerge.yml\n" +
+				"removed:                             .github/workflows/tailor.yml\n",
+		},
+		{
+			name:      "recut",
+			mode:      alter.Recut,
+			wantWrite: true,
+			wantOutput: "updated:                             .tailor.yml\n" +
+				"removed:                             .github/workflows/tailor-automerge.yml\n" +
+				"removed:                             .github/workflows/tailor.yml\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc := setupAlterTest(t, configYAML)
+			writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+			for _, path := range config.RetiredWorkflowPaths() {
+				writeOnDisk(t, tc.Dir, path, []byte("retired workflow"))
+			}
+			beforeConfig, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+			if err != nil {
+				t.Fatalf("reading original config: %v", err)
+			}
+
+			cfg := loadTestConfig(t, tc.Dir)
+			got := captureAlterRun(t, cfg, tc.Dir, tt.mode, tc.Client)
+			if got != tt.wantOutput {
+				t.Errorf("alter.Run() output =\n%s\nwant:\n%s", got, tt.wantOutput)
+			}
+
+			afterConfig, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+			if err != nil {
+				t.Fatalf("reading config after alter: %v", err)
+			}
+			if !tt.wantWrite {
+				if !bytes.Equal(afterConfig, beforeConfig) {
+					t.Error("dry run changed .tailor.yml on disk")
+				}
+			} else {
+				if bytes.Equal(afterConfig, beforeConfig) {
+					t.Error("write mode did not update .tailor.yml")
+				}
+				afterCfg := loadTestConfig(t, tc.Dir)
+				if len(afterCfg.Swatches) != 0 {
+					t.Errorf("written swatches = %v, want no retired entries", afterCfg.Swatches)
+				}
+			}
+
+			for _, path := range config.RetiredWorkflowPaths() {
+				_, err := os.Lstat(filepath.Join(tc.Dir, path))
+				if !tt.wantWrite && err != nil {
+					t.Errorf("dry run removed %s: %v", path, err)
+				}
+				if tt.wantWrite && !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("write mode left %s on disk: %v", path, err)
+				}
+			}
+		})
+	}
+}
+
+func TestAlterRunCoalescesRetiredCleanupWithDefaultMerge(t *testing.T) {
+	configYAML := `license: none
+swatches:
+  - path: justfile
+    alteration: never
+  - path: .github/workflows/tailor.yml
+    alteration: triggered
+  - path: .tailor.yml
+    alteration: always
+  - path: .github/workflows/tailor-automerge.yml
+    alteration: triggered
+  - path: .github/workflows/tailor.yml
+    alteration: always
+`
+	tc := setupAlterTest(t, configYAML)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+	for _, path := range config.RetiredWorkflowPaths() {
+		writeOnDisk(t, tc.Dir, path, []byte("retired workflow"))
+	}
+
+	cfg := loadTestConfig(t, tc.Dir)
+	output := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	if count := strings.Count(output, "updated:                             .tailor.yml\n"); count != 1 {
+		t.Errorf("config update count = %d, want 1\noutput:\n%s", count, output)
+	}
+
+	written := loadTestConfig(t, tc.Dir)
+	if config.RemoveRetiredWorkflowEntries(written) {
+		t.Errorf("written config still contains a retired workflow: %v", written.Swatches)
+	}
+	if len(written.Swatches) < 3 {
+		t.Fatalf("written config has no merged defaults: %v", written.Swatches)
+	}
+	wantPrefix := []config.SwatchEntry{
+		{Path: "justfile", Alteration: swatch.Never},
+		{Path: ".tailor.yml", Alteration: swatch.Always},
+	}
+	if !slices.Equal(written.Swatches[:2], wantPrefix) {
+		t.Errorf("active swatch prefix = %v, want %v", written.Swatches[:2], wantPrefix)
+	}
+	if !slices.ContainsFunc(written.Swatches, func(entry config.SwatchEntry) bool {
+		return entry.Path == "SUPPORT.md"
+	}) {
+		t.Error("written config does not contain a merged SUPPORT.md entry")
+	}
+}
+
+func TestAlterRunInvalidRemainingConfigChangesNoDiskOrStdout(t *testing.T) {
+	configYAML := `license: none
+swatches:
+  - path: .github/workflows/tailor-automerge.yml
+    alteration: triggered
+  - path: unknown-active-swatch.yml
+    alteration: always
+`
+	tc := setupAlterTest(t, configYAML)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+	retiredPath := config.RetiredWorkflowPaths()[0]
+	writeOnDisk(t, tc.Dir, retiredPath, []byte("retired workflow"))
+	beforeConfig, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatalf("reading original config: %v", err)
+	}
+
+	cfg := loadTestConfig(t, tc.Dir)
+	stdout, _, err := captureAlterRunWithStderr(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	if err == nil {
+		t.Fatal("alter.Run() error = nil, want invalid path error")
+	}
+	if !strings.Contains(err.Error(), "unrecognised swatch path") {
+		t.Errorf("error = %q, want unrecognised swatch path", err)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty output", stdout)
+	}
+	afterConfig, readErr := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+	if readErr != nil {
+		t.Fatalf("reading config after failed alter: %v", readErr)
+	}
+	if !bytes.Equal(afterConfig, beforeConfig) {
+		t.Error("failed validation changed .tailor.yml on disk")
+	}
+	if got, readErr := os.ReadFile(filepath.Join(tc.Dir, retiredPath)); readErr != nil || string(got) != "retired workflow" {
+		t.Errorf("failed validation changed retired workflow: content %q, error %v", got, readErr)
+	}
+	if calls := tc.Calls(); len(calls) != 0 {
+		t.Errorf("failed validation made API calls: %v", calls)
+	}
+}
+
+func TestAlterRunRetiredCleanupRetryIsSafe(t *testing.T) {
+	configYAML := `license: none
+swatches:
+  - path: .github/workflows/tailor-automerge.yml
+    alteration: triggered
+  - path: .github/workflows/tailor.yml
+    alteration: triggered
+`
+	tc := setupAlterTest(t, configYAML)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+	remaining := config.RetiredWorkflowPaths()[1]
+	writeOnDisk(t, tc.Dir, remaining, []byte("remaining"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+	first := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	wantFirst := "updated:                             .tailor.yml\n" +
+		"removed:                             .github/workflows/tailor.yml\n"
+	if first != wantFirst {
+		t.Errorf("first alter.Run() output =\n%s\nwant:\n%s", first, wantFirst)
+	}
+
+	second := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	if second != "" {
+		t.Errorf("retry alter.Run() output = %q, want empty output", second)
+	}
+	if _, err := os.Lstat(filepath.Join(tc.Dir, remaining)); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("retired workflow exists after retry: %v", err)
 	}
 }

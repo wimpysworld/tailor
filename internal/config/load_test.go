@@ -1,10 +1,15 @@
 package config
 
 import (
+	"bytes"
+	"fmt"
+	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -53,7 +58,146 @@ func TestLoadMalformedYAML(t *testing.T) {
 	}
 }
 
-func TestLoadTriggeredAlterationMode(t *testing.T) {
+func TestLoadRejectsExternalConfigSymlinkWithoutBlocking(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.yml")
+	if err := os.WriteFile(outside, []byte("license: none\nswatches: []\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, configPath)); err != nil {
+		t.Skipf("Symlink unavailable: %v", err)
+	}
+
+	result := make(chan error, 1)
+	go func() {
+		_, err := Load(dir)
+		result <- err
+	}()
+
+	select {
+	case err := <-result:
+		if err == nil {
+			t.Fatal("Load() error = nil, want external symlink error")
+		}
+		if !strings.HasPrefix(err.Error(), "reading config: ") {
+			t.Errorf("error = %q, want reading config prefix", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Load() blocked while opening an external config symlink")
+	}
+}
+
+func TestLoadRejectsConfigDirectory(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, configPath), 0o755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+
+	_, err := Load(dir)
+	want := "reading config: .tailor.yml is not a regular file"
+	if err == nil || err.Error() != want {
+		t.Fatalf("Load() error = %v, want %q", err, want)
+	}
+}
+
+func TestLoadRejectsConfigSpecialFile(t *testing.T) {
+	dir := t.TempDir()
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", filepath.Join(dir, configPath))
+	if err != nil {
+		t.Skipf("Unix sockets unavailable: %v", err)
+	}
+	t.Cleanup(func() { _ = listener.Close() })
+
+	_, err = Load(dir)
+	if err == nil {
+		t.Fatal("Load() error = nil, want special-file error")
+	}
+	if !strings.HasPrefix(err.Error(), "reading config: ") {
+		t.Errorf("error = %q, want reading config prefix", err)
+	}
+}
+
+func TestLoadRejectsConfigFIFONonBlocking(t *testing.T) {
+	if _, err := exec.LookPath("mkfifo"); err != nil {
+		t.Skipf("mkfifo unavailable: %v", err)
+	}
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, configPath)
+	if err := exec.CommandContext(t.Context(), "mkfifo", path).Run(); err != nil {
+		t.Skipf("FIFO unavailable: %v", err)
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		t.Fatalf("Lstat: %v", err)
+	}
+	if info.Mode()&os.ModeNamedPipe == 0 {
+		t.Skipf("mkfifo created mode %v, want a named pipe", info.Mode())
+	}
+
+	result := make(chan error, 1)
+	go func() {
+		_, err := Load(dir)
+		result <- err
+	}()
+
+	select {
+	case err := <-result:
+		want := "reading config: .tailor.yml is not a regular file"
+		if err == nil || err.Error() != want {
+			t.Fatalf("Load() error = %v, want %q", err, want)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Load() blocked while opening a config FIFO")
+	}
+}
+
+func TestLoadAcceptsRegularConfigFile(t *testing.T) {
+	dir := t.TempDir()
+	testutil.WriteConfig(t, dir, "license: none\nswatches: []\n")
+
+	cfg, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+	if cfg.License != "none" {
+		t.Errorf("License = %q, want %q", cfg.License, "none")
+	}
+}
+
+func TestLoadConfigSizeLimit(t *testing.T) {
+	tests := []struct {
+		name          string
+		size          int
+		wantSizeError bool
+	}{
+		{name: "exactly 1 MiB", size: maxConfigSize},
+		{name: "1 MiB plus one byte", size: maxConfigSize + 1, wantSizeError: true},
+	}
+	wantSizeError := "reading config: .tailor.yml exceeds maximum size of 1 MiB"
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, configPath), bytes.Repeat([]byte{'['}, tt.size), 0o644); err != nil {
+				t.Fatalf("WriteFile: %v", err)
+			}
+
+			_, err := Load(dir)
+			if tt.wantSizeError {
+				if err == nil || err.Error() != wantSizeError {
+					t.Fatalf("Load() error = %v, want %q", err, wantSizeError)
+				}
+				return
+			}
+			if err != nil && err.Error() == wantSizeError {
+				t.Fatalf("Load() rejected the exact 1 MiB boundary: %v", err)
+			}
+		})
+	}
+}
+
+func TestLoadRejectsTriggeredForActivePath(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, `license: BlueOak-1.0.0
 swatches:
@@ -61,12 +205,33 @@ swatches:
     alteration: triggered
 `)
 
-	cfg, err := Load(dir)
-	if err != nil {
-		t.Fatalf("Load() error: %v", err)
+	_, err := Load(dir)
+	if err == nil {
+		t.Fatal("Load() expected error for retired alteration mode, got nil")
 	}
-	if cfg.Swatches[0].Alteration != "triggered" {
-		t.Errorf("Alteration = %q, want %q", cfg.Swatches[0].Alteration, "triggered")
+	if !strings.Contains(err.Error(), `"triggered"`) {
+		t.Errorf("error = %q, want it to mention the retired value", err.Error())
+	}
+}
+
+func TestLoadAcceptsLegacyTriggeredOnlyForRetiredWorkflowPaths(t *testing.T) {
+	for _, path := range RetiredWorkflowPaths() {
+		t.Run(path, func(t *testing.T) {
+			dir := t.TempDir()
+			testutil.WriteConfig(t, dir, fmt.Sprintf(`license: none
+swatches:
+  - path: %s
+    alteration: triggered
+`, path))
+
+			cfg, err := Load(dir)
+			if err != nil {
+				t.Fatalf("Load() error: %v", err)
+			}
+			if len(cfg.Swatches) != 1 || cfg.Swatches[0].Path != path || cfg.Swatches[0].Alteration != "triggered" {
+				t.Errorf("Swatches = %v, want one triggered entry for %q", cfg.Swatches, path)
+			}
+		})
 	}
 }
 

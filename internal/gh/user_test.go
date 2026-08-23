@@ -1,11 +1,13 @@
 package gh
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"sync/atomic"
 	"testing"
+
+	"github.com/cli/go-gh/v2/pkg/api"
 )
 
 func TestFetchUsernameSuccess(t *testing.T) {
@@ -30,7 +32,6 @@ func TestFetchUsernameSuccess(t *testing.T) {
 }
 
 func TestFetchUsernameAPIError(t *testing.T) {
-	t.Setenv("GITHUB_ACTIONS", "")
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		fmt.Fprint(w, `{"message": "Bad credentials"}`)
@@ -44,102 +45,35 @@ func TestFetchUsernameAPIError(t *testing.T) {
 	}
 }
 
-func TestFetchUsernameGitHubActionsFallback(t *testing.T) {
-	// Simulate installation token: GET /user returns 403.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusForbidden)
-		fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
-	}))
-	t.Cleanup(server.Close)
-
+func TestFetchUsernameGitHubActionsDoesNotMaskAPIError(t *testing.T) {
 	t.Setenv("GITHUB_ACTIONS", "true")
-	t.Setenv("GITHUB_REPOSITORY_OWNER", "testowner")
+	t.Setenv("GITHUB_REPOSITORY_OWNER", "actions-owner")
 
-	client := newTestClient(t, server)
-	username, err := FetchUsername(client)
-	if err != nil {
-		t.Fatalf("FetchUsername() error: %v", err)
-	}
-
-	if username != "testowner" {
-		t.Errorf("username = %q, want %q", username, "testowner")
-	}
-}
-
-func TestFetchUsernameGitHubActionsPATUsesAPI(t *testing.T) {
-	// PAT in GitHub Actions: GET /user succeeds.
-	var requestCount atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount.Add(1)
 		if r.URL.Path != "/user" {
 			http.NotFound(w, r)
 			return
 		}
-		fmt.Fprint(w, `{"login": "patuser"}`)
-	}))
-	t.Cleanup(server.Close)
-
-	t.Setenv("GITHUB_ACTIONS", "true")
-	t.Setenv("GITHUB_REPOSITORY_OWNER", "testowner")
-
-	client := newTestClient(t, server)
-	username, err := FetchUsername(client)
-	if err != nil {
-		t.Fatalf("FetchUsername() error: %v", err)
-	}
-
-	if username != "patuser" {
-		t.Errorf("username = %q, want %q", username, "patuser")
-	}
-
-	if n := requestCount.Load(); n == 0 {
-		t.Error("expected at least one HTTP request, got zero")
-	}
-}
-
-func TestFetchUsernameGitHubActionsNoOwner(t *testing.T) {
-	// Installation token with no GITHUB_REPOSITORY_OWNER: error propagated.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusForbidden)
 		fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
 	}))
 	t.Cleanup(server.Close)
 
-	t.Setenv("GITHUB_ACTIONS", "true")
-	t.Setenv("GITHUB_REPOSITORY_OWNER", "")
-
 	client := newTestClient(t, server)
-	_, err := FetchUsername(client)
+	username, err := FetchUsername(client)
 	if err == nil {
-		t.Fatal("FetchUsername() expected error when GITHUB_REPOSITORY_OWNER is empty, got nil")
-	}
-}
-
-func TestFetchUsernameNotGitHubActions(t *testing.T) {
-	var requestCount atomic.Int64
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount.Add(1)
-		if r.URL.Path != "/user" {
-			http.NotFound(w, r)
-			return
-		}
-		fmt.Fprint(w, `{"login": "apiuser"}`)
-	}))
-	t.Cleanup(server.Close)
-
-	t.Setenv("GITHUB_ACTIONS", "")
-
-	client := newTestClient(t, server)
-	username, err := FetchUsername(client)
-	if err != nil {
-		t.Fatalf("FetchUsername() error: %v", err)
+		t.Fatalf("FetchUsername() = %q, nil; want /user API error", username)
 	}
 
-	if username != "apiuser" {
-		t.Errorf("username = %q, want %q", username, "apiuser")
+	var httpErr *api.HTTPError
+	if !errors.As(err, &httpErr) {
+		t.Fatalf("FetchUsername() error = %T, want *api.HTTPError", err)
 	}
-
-	if n := requestCount.Load(); n == 0 {
-		t.Error("expected at least one HTTP request, got zero")
+	if httpErr.StatusCode != http.StatusForbidden {
+		t.Errorf("FetchUsername() error status = %d, want %d", httpErr.StatusCode, http.StatusForbidden)
+	}
+	if httpErr.Message != "Resource not accessible by integration" {
+		t.Errorf("FetchUsername() error message = %q, want %q", httpErr.Message, "Resource not accessible by integration")
 	}
 }

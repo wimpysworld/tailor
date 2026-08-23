@@ -19,21 +19,16 @@ const (
 	WouldUpdateConfig SwatchCategory = "would update"
 	WouldCopy         SwatchCategory = "would copy"
 	WouldOverwrite    SwatchCategory = "would overwrite"
-	WouldDeploy       SwatchCategory = "would deploy"
 	WouldRemove       SwatchCategory = "would remove"
-	Removed           SwatchCategory = "removed"
 	NoChange          SwatchCategory = "no change"
 	SkippedFirstFit   SwatchCategory = "skipped (first-fit, exists)"
 	SkippedNever      SwatchCategory = "skip (never)"
 )
 
 // SwatchResult records the path and categorised outcome for one swatch entry.
-// Annotation carries optional context such as the trigger condition name,
-// appended to the category label in formatted output.
 type SwatchResult struct {
-	Path       string
-	Category   SwatchCategory
-	Annotation string
+	Path     string
+	Category SwatchCategory
 }
 
 // configPath is the path of the config swatch entry.
@@ -61,7 +56,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 
 		content = tokens.Substitute(content, entry.Path)
 
-		result, err := processSwatch(cfg, root, entry, content, mode)
+		result, err := processSwatch(root, entry, content, mode)
 		if err != nil {
 			return nil, err
 		}
@@ -74,7 +69,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 // processSwatch determines the category for a single swatch and writes
 // the file when the mode permits. Token substitution occurs upstream in
 // ProcessSwatches before this function is called.
-func processSwatch(cfg *config.Config, root *os.Root, entry config.SwatchEntry, content []byte, mode ApplyMode) (SwatchResult, error) {
+func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode ApplyMode) (SwatchResult, error) {
 	// Never mode skips unconditionally, regardless of apply mode or file existence.
 	if entry.Alteration == swatch.Never {
 		return SwatchResult{Path: entry.Path, Category: SkippedNever}, nil
@@ -86,24 +81,7 @@ func processSwatch(cfg *config.Config, root *os.Root, entry config.SwatchEntry, 
 	}
 
 	if mode == Recut {
-		// Triggered swatches are never overwritten by --recut when the
-		// trigger condition is false.
-		if entry.Alteration == swatch.Triggered && !swatch.EvaluateTrigger(entry.Path, cfg.Repository) {
-			return processTriggered(cfg, root, entry, content, exists, Apply)
-		}
-		result, err := processRecut(root, entry, content, exists)
-		if err != nil {
-			return result, err
-		}
-		// Triggered swatches use "would deploy" with annotation even
-		// under --recut, per spec.
-		if entry.Alteration == swatch.Triggered {
-			if result.Category == WouldCopy || result.Category == WouldOverwrite {
-				result.Category = WouldDeploy
-			}
-			result.Annotation = triggerAnnotation(entry.Path)
-		}
-		return result, nil
+		return processRecut(root, entry, content, exists)
 	}
 
 	switch entry.Alteration {
@@ -111,8 +89,6 @@ func processSwatch(cfg *config.Config, root *os.Root, entry config.SwatchEntry, 
 		return processFirstFit(root, entry, content, exists, mode)
 	case swatch.Always:
 		return processAlways(root, entry, content, exists, mode)
-	case swatch.Triggered:
-		return processTriggered(cfg, root, entry, content, exists, mode)
 	default:
 		return SwatchResult{}, fmt.Errorf("unknown alteration mode %q for swatch %q", entry.Alteration, entry.Path)
 	}
@@ -155,46 +131,6 @@ func processAlways(root *os.Root, entry config.SwatchEntry, content []byte, exis
 		}
 	}
 	return SwatchResult{Path: entry.Path, Category: WouldOverwrite}, nil
-}
-
-func processTriggered(cfg *config.Config, root *os.Root, entry config.SwatchEntry, content []byte, exists bool, mode ApplyMode) (SwatchResult, error) {
-	annotation := triggerAnnotation(entry.Path)
-
-	if swatch.EvaluateTrigger(entry.Path, cfg.Repository) {
-		result, err := processAlways(root, entry, content, exists, mode)
-		if err != nil {
-			return result, err
-		}
-		// Triggered swatches use "would deploy" instead of "would copy" or
-		// "would overwrite" per spec.
-		if result.Category == WouldCopy || result.Category == WouldOverwrite {
-			result.Category = WouldDeploy
-		}
-		result.Annotation = annotation
-		return result, nil
-	}
-
-	if exists {
-		if mode.ShouldWrite() {
-			if err := root.Remove(entry.Path); err != nil {
-				return SwatchResult{}, fmt.Errorf("removing file %q: %w", entry.Path, err)
-			}
-			return SwatchResult{Path: entry.Path, Category: Removed, Annotation: annotation}, nil
-		}
-		return SwatchResult{Path: entry.Path, Category: WouldRemove, Annotation: annotation}, nil
-	}
-
-	return SwatchResult{Path: entry.Path, Category: SkippedNever, Annotation: annotation}, nil
-}
-
-// triggerAnnotation returns the formatted trigger context string for a swatch
-// path, e.g. "triggered: allow_auto_merge". Returns empty if no trigger exists.
-func triggerAnnotation(path string) string {
-	tc, ok := swatch.LookupTrigger(path)
-	if !ok {
-		return ""
-	}
-	return "triggered: " + tc.ConfigField
 }
 
 func processRecut(root *os.Root, entry config.SwatchEntry, content []byte, exists bool) (SwatchResult, error) {

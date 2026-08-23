@@ -1,8 +1,6 @@
-# Tailor
+# Tailor 👔
 
-[![Go Report Card](https://goreportcard.com/badge/github.com/wimpysworld/tailor)](https://goreportcard.com/report/github.com/wimpysworld/tailor)
-
-Ready-to-wear project templates for GitHub repositories. Tailor is a CLI that fits projects with community health files, security policy, dev tooling, and repository settings that meet GitHub's community standards. It also ships an optional Dependabot automerge workflow so patch and minor updates land without manual intervention.
+Ready-to-wear project templates for GitHub repositories. Tailor is a local terminal CLI that fits projects with community health files, security policy, dev tooling, and repository settings that meet GitHub's community standards.
 
 If you manage multiple projects across different GitHub organisations and find that configurations keep drifting out of sync, Tailor fixes that. It is opinionated by design - built for solo devs and small teams who want consistent, well-maintained repositories without the overhead.
 
@@ -75,23 +73,9 @@ Releases include `.deb`, `.rpm`, `.apk`, and Arch Linux packages. Download the a
 
 ### Authentication
 
-Tailor needs a GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN` for CI, or run `gh auth login` locally.
+Tailor needs a valid GitHub authentication token for `fit`, `alter`, and `baste`. Set `GH_TOKEN` or `GITHUB_TOKEN` to use Tailor without the `gh` binary.
 
-## GitHub Actions
-
-Tailor does not publish a GitHub Action. Workflows can install a pinned CLI release and invoke the binary directly:
-
-```yaml
-- uses: actions/setup-go@v6
-  with:
-    go-version: "1.26.x"
-- run: go install github.com/wimpysworld/tailor/cmd/tailor@v0.3.0
-- run: tailor baste
-  env:
-    GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
-An Actions installation token works for operations allowed by the job and repository permissions. Tailor probes `GET /user` to identify installation-token behaviour. If that request fails in Actions, username substitution falls back to `GITHUB_REPOSITORY_OWNER`. Some repository settings can be unavailable or return unreliable values with an installation token; Tailor skips affected comparisons or writes and reports access warnings. Use a suitably scoped PAT as `GH_TOKEN` when a workflow must manage settings that its `GITHUB_TOKEN` cannot access. See [CI token requirements](docs/TOKENS.md).
+Alternatively, install the [GitHub CLI](https://cli.github.com/) and run `gh auth login`. Tailor can then read the token from the `gh` config file or keyring. The `measure` and `docket` commands do not require authentication.
 
 ## Quick Start
 
@@ -128,19 +112,20 @@ Edit `.tailor.yml` to add swatches or change alteration modes, then run `alter`.
 
 ### Swatches
 
-Swatches are complete template files embedded in the tailor binary. Most are copied verbatim. Five have tokens substituted at `alter` time:
+Swatches are complete template files embedded in the tailor binary. Most are copied verbatim. Four have tokens substituted at `alter` time:
 
 | File | Token | Resolved from |
 |------|-------|---------------|
-| `.github/FUNDING.yml` | `{{GITHUB_USERNAME}}` | `gh api user` |
-| `SECURITY.md` | `{{ADVISORY_URL}}` | `gh repo view` |
-| `.github/ISSUE_TEMPLATE/config.yml` | `{{SUPPORT_URL}}` | `gh repo view` |
-| `.tailor.yml` | `{{HOMEPAGE_URL}}` | `.tailor.yml` |
-| `.github/workflows/tailor-automerge.yml` | `{{MERGE_STRATEGY}}` | Repository merge settings |
+| `.github/FUNDING.yml` | `{{GITHUB_USERNAME}}` | Authenticated user from `GET /user` |
+| `SECURITY.md` | `{{ADVISORY_URL}}` | GitHub repository context |
+| `.github/ISSUE_TEMPLATE/config.yml` | `{{SUPPORT_URL}}` | GitHub repository context |
+| `.tailor.yml` | `{{HOMEPAGE_URL}}` | GitHub repository context |
 
 Licences are not swatches. They are fetched from the GitHub REST API (`GET /licenses/{id}`) at `alter` time and written to `LICENSE`.
 
 ### Default swatch set
+
+Tailor embeds 16 default swatches:
 
 | Swatch | Mode |
 |--------|------|
@@ -160,18 +145,18 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 | `.envrc` | `first-fit` |
 | `cubic.yaml` | `first-fit` |
 | `.tailor.yml` | `always` |
-| `.github/workflows/tailor-automerge.yml` | `never` |
 
 ### Alteration modes
 
 - **`always`** - Overwrites the file whenever the embedded swatch content differs from what is on disk. Local edits are not preserved.
 - **`first-fit`** - Copies the file only if it does not already exist. Never overwrites. Use this for files you intend to customise after initial delivery.
-- **`triggered`** - Deploys the file only when a condition in the repository settings is met. Overwrites when active, removes the file when the condition becomes false.
-- **`never`** - Skips the file entirely. Use this to suppress a triggered swatch you do not want.
+- **`never`** - Skips the file entirely. Use this to keep a swatch visible in the config without managing its destination.
 
 ### Configuration
 
 All state lives in `.tailor.yml` with four sections: `license`, `repository`, `labels`, and `swatches`.
+
+Tailor opens `.tailor.yml` relative to the project root. The config must be a regular file no larger than 1 MiB.
 
 ```yaml
 # Initially fitted by tailor on 2026-03-04
@@ -203,7 +188,7 @@ Each swatch entry has two fields:
 | Field | Description |
 |-------|-------------|
 | `path` | File path relative to the project root (also matches the swatch name in the binary) |
-| `alteration` | `always`, `first-fit`, `triggered`, or `never` |
+| `alteration` | `always`, `first-fit`, or `never` |
 
 Set `alteration: never` to stop tailor managing a file. The entry stays visible in `.tailor.yml` and prevents `alter --recut` from re-adding it.
 
@@ -261,32 +246,22 @@ Omit the `labels` section to skip label management.
 
 Tailor places `.github/FUNDING.yml` as a `first-fit` swatch, but the GitHub API does not expose the "Sponsorships" checkbox. After running `alter`, tick **Settings > General > Features > Sponsorships** manually to display the Sponsor button on the repository.
 
-## Migrating from the retired Action
-
-Tailor no longer publishes the `wimpysworld/tailor` composite Action or the scheduled `.github/workflows/tailor.yml` swatch. Existing projects should remove the `.github/workflows/tailor.yml` entry from `.tailor.yml`, then delete the deployed workflow if it is no longer needed. Any other workflow that used `wimpysworld/tailor@...` must install a pinned CLI release and run `tailor` directly, as shown in [GitHub Actions](#github-actions).
-
 ### Branch protection
 
-Branch protection rules and rulesets require `Administration: write`, which `GITHUB_TOKEN` cannot hold regardless of `permissions:` configuration - this is a GitHub platform constraint. Branch protection is out of scope for Tailor; configure it via the GitHub UI or `gh api`.
+Branch protection rules and rulesets require `Administration: write`. Tailor does not manage them. Configure branch protection through the GitHub UI or `gh api`.
 
-### Automerge
+### Retired workflow cleanup
 
-The `.github/workflows/tailor-automerge.yml` swatch auto-approves and merges Dependabot pull requests. It is disabled by default with `alteration: never`. To use Tailor-managed automerge, change that entry to `triggered`; it then deploys automatically when `allow_auto_merge: true` is set in repository settings and removes itself when the setting is false.
+Run `tailor baste` to preview the upgrade, then run `tailor alter` to apply it. Tailor cleans up both retired workflows automatically:
 
-| Ecosystem | Patch | Minor | Major |
-|-----------|-------|-------|-------|
-| GitHub Actions | Auto-merge | Auto-merge | Auto-merge |
-| All others | Auto-merge | Auto-merge | Skip |
+- `.github/workflows/tailor-automerge.yml`
+- `.github/workflows/tailor.yml`
 
-GitHub Actions use major version tags as their release convention, so Dependabot reports most action updates as major bumps - restricting to patch and minor would skip the majority. All other ecosystems follow semantic versioning where major indicates breaking changes, so those are left for manual review.
+`baste` changes no files. It reports `would update` when `.tailor.yml` contains retired entries and `would remove` for each retired workflow file on disk.
 
-The workflow uses `gh pr merge --auto`, which waits for all branch protection rules to pass before completing.
+`alter` and `alter --recut` write `.tailor.yml` once as `updated` when the config contains retired entries. They then delete each present workflow file as `removed`.
 
-> **Prerequisite:** Auto-merge requires [branch protection](https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-protected-branches/about-protected-branches) with at least one required status check on the default branch. Without this, `gh pr merge --auto` merges immediately with no CI gate.
-
-**Opt-out:** set `alteration: never` on the automerge swatch entry in `.tailor.yml`.
-
-**Manual catch-up:** the workflow supports `workflow_dispatch` for repositories with pre-existing open Dependabot PRs. Triggering it manually enables auto-merge on all open Dependabot PRs regardless of ecosystem.
+Tailor accepts the historical `triggered` mode only for retired entries during this migration. Any other unrecognised swatch path stops validation before Tailor changes any files.
 
 ## Commands
 
@@ -314,7 +289,9 @@ tailor alter --recut    # Overwrite regardless of mode
 
 `--recut` overwrites all files including `first-fit` swatches. `LICENSE` is exempt (fetched content, not an embedded swatch). For `.tailor.yml`, `--recut` appends missing default swatch entries but never modifies existing entries.
 
-After each successful change, `alter` and `alter --recut` report `set`, `created`, `updated`, `copied`, `overwritten`, `deployed`, or `removed`. A default merge into `.tailor.yml` reports `updated`.
+`alter` and `alter --recut` report a completed label after each successful change. Labels are `set`, `created`, `updated`, `removed`, `copied`, and `overwritten`.
+
+A default merge or retired-entry cleanup in `.tailor.yml` reports `updated`. A retired workflow file cleanup reports `removed`.
 
 ### `baste`
 
@@ -331,21 +308,24 @@ tailor baste
 | `would set` | `set` |
 | `would create` | `created` |
 | `would update` | `updated` |
+| `would remove` | `removed` |
 | `would copy` | `copied` |
 | `would overwrite` | `overwritten` |
-| `would deploy` | `deployed` |
-| `would remove` | `removed` |
 
-A default merge into `.tailor.yml` reports `would update` in `baste` and `updated` after a successful write.
+A default merge or retired-entry cleanup in `.tailor.yml` reports `would update` in `baste`. After a successful write, `alter` reports `updated`.
+
+Each present retired workflow file reports `would remove` in `baste` and `removed` after deletion.
 
 ```
-would set:                                  repository.has_wiki = false
-would update:                               .tailor.yml
-would copy:                                 LICENSE
-would overwrite:                            SECURITY.md
-would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
-no change:                                  CODE_OF_CONDUCT.md
-skipped (first-fit, exists):                justfile
+would set:                           repository.has_wiki = false
+would update:                        .tailor.yml
+would remove:                        .github/workflows/tailor-automerge.yml
+would remove:                        .github/workflows/tailor.yml
+would copy:                          LICENSE
+would overwrite:                     SECURITY.md
+no change:                           CODE_OF_CONDUCT.md
+skipped (first-fit, exists):         justfile
+skip (never):                        .github/dependabot.yml
 ```
 
 ### `docket`

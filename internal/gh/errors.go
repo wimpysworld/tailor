@@ -12,7 +12,7 @@ import (
 // ErrInsufficientScope signals the token lacks a required scope.
 type ErrInsufficientScope struct {
 	StatusCode  int
-	HaveScopes  []string // parsed from X-OAuth-Scopes (empty for fine-grained / GITHUB_TOKEN)
+	HaveScopes  []string // parsed from X-OAuth-Scopes (empty for fine-grained tokens)
 	NeedScopes  []string // parsed from X-Accepted-OAuth-Scopes
 	Message     string   // from JSON body
 	DocumentURL string   // from JSON body

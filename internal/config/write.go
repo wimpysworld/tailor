@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"text/template"
 )
@@ -173,8 +172,13 @@ func Write(dir string, cfg *Config, date string, verb string) error {
 		return fmt.Errorf("rendering config template: %w", err)
 	}
 
-	path := filepath.Join(dir, ".tailor.yml")
-	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return fmt.Errorf("opening project root %q: %w", dir, err)
+	}
+	defer root.Close()
+
+	if err := root.WriteFile(configPath, buf.Bytes(), 0o644); err != nil {
 		return fmt.Errorf("writing config: %w", err)
 	}
 

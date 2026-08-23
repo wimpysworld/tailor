@@ -100,6 +100,64 @@ func TestFormatOutputSwatchSorting(t *testing.T) {
 	}
 }
 
+func TestFormatOutputMixedSwatchActionOrder(t *testing.T) {
+	swatches := []SwatchResult{
+		{Path: "existing.md", Category: WouldOverwrite},
+		{Path: "new.md", Category: WouldCopy},
+		{Path: ".github/workflows/tailor.yml", Category: WouldRemove},
+		{Path: ".tailor.yml", Category: WouldUpdateConfig},
+	}
+
+	got := FormatOutput(nil, nil, swatches, DryRun)
+	want := "would update:                        .tailor.yml\n" +
+		"would remove:                        .github/workflows/tailor.yml\n" +
+		"would copy:                          new.md\n" +
+		"would overwrite:                     existing.md\n"
+
+	if got != want {
+		t.Errorf("FormatOutput mixed swatch actions:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputRetiredWorkflowRemovalByMode(t *testing.T) {
+	swatches := []SwatchResult{
+		{Path: ".github/workflows/tailor.yml", Category: WouldRemove},
+		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldRemove},
+	}
+	tests := []struct {
+		name string
+		mode ApplyMode
+		want string
+	}{
+		{
+			name: "dry run",
+			mode: DryRun,
+			want: "would remove:                        .github/workflows/tailor-automerge.yml\n" +
+				"would remove:                        .github/workflows/tailor.yml\n",
+		},
+		{
+			name: "apply",
+			mode: Apply,
+			want: "removed:                             .github/workflows/tailor-automerge.yml\n" +
+				"removed:                             .github/workflows/tailor.yml\n",
+		},
+		{
+			name: "recut",
+			mode: Recut,
+			want: "removed:                             .github/workflows/tailor-automerge.yml\n" +
+				"removed:                             .github/workflows/tailor.yml\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := FormatOutput(nil, nil, swatches, tt.mode); got != tt.want {
+				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatOutputRepoSettingSorting(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: RepoNoChange, Value: "false"},
@@ -123,7 +181,6 @@ func TestFormatOutputColumnAlignment(t *testing.T) {
 	labels := []string{
 		"would copy:",
 		"would overwrite:",
-		"would deploy:",
 		"would remove:",
 		"removed:",
 		"no change:",
@@ -194,52 +251,6 @@ func TestFormatOutputNoTrailingBlankLine(t *testing.T) {
 	}
 }
 
-func TestFormatOutputNewCategories(t *testing.T) {
-	swatches := []SwatchResult{
-		{Path: "removed.yml", Category: Removed},
-		{Path: "ignored.yml", Category: SkippedNever},
-		{Path: "would-remove.yml", Category: WouldRemove},
-		{Path: "copied.md", Category: WouldCopy},
-	}
-
-	got := FormatOutput(nil, nil, swatches, DryRun)
-	want := "would copy:                          copied.md\n" +
-		"would remove:                        would-remove.yml\n" +
-		"would remove:                        removed.yml\n" +
-		"skip (never):                        ignored.yml\n"
-
-	if got != want {
-		t.Errorf("FormatOutput new categories:\ngot:\n%s\nwant:\n%s", got, want)
-	}
-}
-
-func TestFormatOutputNewCategorySorting(t *testing.T) {
-	swatches := []SwatchResult{
-		{Path: "z-ignored.yml", Category: SkippedNever},
-		{Path: "a-removed.yml", Category: Removed},
-		{Path: "b-would-remove.yml", Category: WouldRemove},
-		{Path: "c-skipped.md", Category: SkippedFirstFit},
-		{Path: "d-no-change.md", Category: NoChange},
-		{Path: "e-would-copy.md", Category: WouldCopy},
-		{Path: "f-would-overwrite.md", Category: WouldOverwrite},
-		{Path: "a-would-remove.yml", Category: WouldRemove},
-	}
-
-	got := FormatOutput(nil, nil, swatches, DryRun)
-	want := "would copy:                          e-would-copy.md\n" +
-		"would overwrite:                     f-would-overwrite.md\n" +
-		"would remove:                        a-would-remove.yml\n" +
-		"would remove:                        b-would-remove.yml\n" +
-		"would remove:                        a-removed.yml\n" +
-		"no change:                           d-no-change.md\n" +
-		"skipped (first-fit, exists):         c-skipped.md\n" +
-		"skip (never):                        z-ignored.yml\n"
-
-	if got != want {
-		t.Errorf("FormatOutput new category sorting:\ngot:\n%s\nwant:\n%s", got, want)
-	}
-}
-
 func TestFormatOutputSkipCategories(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},
@@ -271,70 +282,6 @@ func TestFormatOutputSkipSorting(t *testing.T) {
 
 	if got != want {
 		t.Errorf("FormatOutput skip sorting:\ngot:\n%s\nwant:\n%s", got, want)
-	}
-}
-
-func TestFormatOutputAnnotations(t *testing.T) {
-	swatches := []SwatchResult{
-		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldDeploy, Annotation: "triggered: allow_auto_merge"},
-		{Path: "LICENSE", Category: NoChange},
-	}
-
-	got := FormatOutput(nil, nil, swatches, DryRun)
-	// Annotated label "would deploy (triggered: allow_auto_merge):" is 43 chars,
-	// plus 1 space = 44 column width.
-	want := "would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
-		"no change:                                  LICENSE\n"
-
-	if got != want {
-		t.Errorf("FormatOutput annotations:\ngot:\n%s\nwant:\n%s", got, want)
-	}
-}
-
-func TestFormatOutputAnnotationWouldRemove(t *testing.T) {
-	swatches := []SwatchResult{
-		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldRemove, Annotation: "triggered: allow_auto_merge"},
-	}
-
-	got := FormatOutput(nil, nil, swatches, DryRun)
-	want := "would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
-
-	if got != want {
-		t.Errorf("FormatOutput annotation would remove:\ngot:\n%s\nwant:\n%s", got, want)
-	}
-}
-
-func TestFormatOutputAnnotationSkippedNever(t *testing.T) {
-	swatches := []SwatchResult{
-		{Path: ".github/workflows/tailor-automerge.yml", Category: SkippedNever, Annotation: "triggered: allow_auto_merge"},
-		{Path: "CONTRIBUTING.md", Category: WouldCopy},
-	}
-
-	got := FormatOutput(nil, nil, swatches, DryRun)
-	// "skip (never) (triggered: allow_auto_merge):" = 43 chars + 1 space = 44 width
-	want := "would copy:                                 CONTRIBUTING.md\n" +
-		"skip (never) (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
-
-	if got != want {
-		t.Errorf("FormatOutput annotation ignored:\ngot:\n%s\nwant:\n%s", got, want)
-	}
-}
-
-func TestFormatOutputAnnotationMixedWithRepo(t *testing.T) {
-	repos := []RepoSettingResult{
-		{Field: "allow_auto_merge", Category: WouldSet, Value: "true"},
-	}
-	swatches := []SwatchResult{
-		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldDeploy, Annotation: "triggered: allow_auto_merge"},
-	}
-
-	got := FormatOutput(repos, nil, swatches, DryRun)
-	// Column width widens to 44 to fit the annotated swatch label.
-	want := "would set:                                  repository.allow_auto_merge = true\n" +
-		"would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
-
-	if got != want {
-		t.Errorf("FormatOutput annotation mixed with repo:\ngot:\n%s\nwant:\n%s", got, want)
 	}
 }
 
@@ -433,8 +380,6 @@ func TestFormatOutputApplyModes(t *testing.T) {
 		{Path: "LICENSE", Category: WouldCopy},
 		{Path: "CONTRIBUTING.md", Category: WouldOverwrite},
 		{Path: ".tailor.yml", Category: WouldUpdateConfig},
-		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldDeploy, Annotation: "triggered: allow_auto_merge"},
-		{Path: ".github/workflows/tailor-automerge-old.yml", Category: Removed, Annotation: "triggered: allow_auto_merge"},
 	}
 
 	tests := []struct {
@@ -445,38 +390,32 @@ func TestFormatOutputApplyModes(t *testing.T) {
 		{
 			name: "dry run",
 			mode: DryRun,
-			want: "would set:                                  repository.has_wiki = false\n" +
-				"would create:                               label.bug = #d73a4a \"A problem\"\n" +
-				"would update:                               label.docs = #0075ca\n" +
-				"would update:                               .tailor.yml\n" +
-				"would copy:                                 LICENSE\n" +
-				"would overwrite:                            CONTRIBUTING.md\n" +
-				"would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
-				"would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge-old.yml\n",
+			want: "would set:                           repository.has_wiki = false\n" +
+				"would create:                        label.bug = #d73a4a \"A problem\"\n" +
+				"would update:                        label.docs = #0075ca\n" +
+				"would update:                        .tailor.yml\n" +
+				"would copy:                          LICENSE\n" +
+				"would overwrite:                     CONTRIBUTING.md\n",
 		},
 		{
 			name: "apply",
 			mode: Apply,
-			want: "set:                                    repository.has_wiki = false\n" +
-				"created:                                label.bug = #d73a4a \"A problem\"\n" +
-				"updated:                                label.docs = #0075ca\n" +
-				"updated:                                .tailor.yml\n" +
-				"copied:                                 LICENSE\n" +
-				"overwritten:                            CONTRIBUTING.md\n" +
-				"deployed (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
-				"removed (triggered: allow_auto_merge):  .github/workflows/tailor-automerge-old.yml\n",
+			want: "set:                                 repository.has_wiki = false\n" +
+				"created:                             label.bug = #d73a4a \"A problem\"\n" +
+				"updated:                             label.docs = #0075ca\n" +
+				"updated:                             .tailor.yml\n" +
+				"copied:                              LICENSE\n" +
+				"overwritten:                         CONTRIBUTING.md\n",
 		},
 		{
 			name: "recut",
 			mode: Recut,
-			want: "set:                                    repository.has_wiki = false\n" +
-				"created:                                label.bug = #d73a4a \"A problem\"\n" +
-				"updated:                                label.docs = #0075ca\n" +
-				"updated:                                .tailor.yml\n" +
-				"copied:                                 LICENSE\n" +
-				"overwritten:                            CONTRIBUTING.md\n" +
-				"deployed (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
-				"removed (triggered: allow_auto_merge):  .github/workflows/tailor-automerge-old.yml\n",
+			want: "set:                                 repository.has_wiki = false\n" +
+				"created:                             label.bug = #d73a4a \"A problem\"\n" +
+				"updated:                             label.docs = #0075ca\n" +
+				"updated:                             .tailor.yml\n" +
+				"copied:                              LICENSE\n" +
+				"overwritten:                         CONTRIBUTING.md\n",
 		},
 	}
 

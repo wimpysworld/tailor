@@ -132,9 +132,6 @@ swatches:
 
   - path: .tailor.yml
     alteration: always
-
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: never
 `
 
 func TestWriteDefaultConfigMatchesSpec(t *testing.T) {
@@ -187,6 +184,43 @@ func TestWriteCreatesFile(t *testing.T) {
 	}
 	if info.IsDir() {
 		t.Error(".tailor.yml is a directory, want file")
+	}
+}
+
+func TestWriteRejectsConfigSymlinkOutsideProjectRoot(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "outside.yml")
+	wantOutside := []byte("outside must stay unchanged\n")
+	if err := os.WriteFile(outside, wantOutside, 0o644); err != nil {
+		t.Fatalf("WriteFile(%q): %v", outside, err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, ".tailor.yml")); err != nil {
+		t.Skipf("symlink unavailable: %v", err)
+	}
+
+	cfg := &Config{
+		License: "MIT",
+		Swatches: []SwatchEntry{
+			{Path: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+	if err := Write(dir, cfg, "2026-08-23", "Refitted"); err == nil {
+		t.Fatal("Write() error = nil, want root-confinement error")
+	}
+
+	gotOutside, err := os.ReadFile(outside)
+	if err != nil {
+		t.Fatalf("ReadFile(%q): %v", outside, err)
+	}
+	if string(gotOutside) != string(wantOutside) {
+		t.Errorf("outside config = %q, want %q", gotOutside, wantOutside)
+	}
+	info, err := os.Lstat(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatalf("Lstat(.tailor.yml): %v", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Errorf(".tailor.yml mode = %v, want symlink", info.Mode())
 	}
 }
 

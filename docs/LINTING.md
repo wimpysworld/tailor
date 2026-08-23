@@ -106,36 +106,19 @@ The dependency review step runs only on `pull_request` events (`if: github.event
 
 ### CI job: `lint-actions`
 
-The `lint-actions` job runs on every push and pull request event using `devops-actions/actionlint@v0.1.11`, a versioned wrapper around the `rhysd/actionlint` binary. It uses an `ubuntu-slim` runner and requires only a checkout, with no Go toolchain dependency.
+The `lint-actions` job runs for every Builder workflow event on an `ubuntu-slim` runner. It checks out the repository, installs `actionlint` with `freerangebytes/setup-actionlint@v0.1.1`, then runs `actionlint -color` directly. The job does not need a Go toolchain.
 
-`sentinel` depends on `lint-actions` alongside `lint-code`, `coverage`, `build-test`, and `security`. Failure blocks merge through the same sentinel gating pattern as every other required check.
+`sentinel` depends on `lint-actions` alongside `lint-code`, `coverage`, `test`, and `security`. A failure blocks the `sentinel` job.
 
-### PR annotations
+### Problem matcher and permissions
 
-On pull request events, `devops-actions/actionlint` posts inline review comments on the Files Changed tab via the GitHub API, pinning each error to the exact line that introduced it. This is more contributor-visible than check-run annotations in the Checks tab, which require navigating away from the diff.
+Before `actionlint` runs, the job registers [`.github/actionlint-matcher.json`](../.github/actionlint-matcher.json). The problem matcher converts `actionlint` output into workflow annotations with the file, line, column, message, and rule code.
 
-### `pull-requests: write` permission
-
-The job declares `pull-requests: write` at job scope to enable the inline annotation API calls. The action uses this permission solely to post comments; it has no write path to repository content or PR metadata (it cannot merge, label, or modify the PR). The permission is not declared at workflow scope, so no other job inherits it.
-
-| Permission | Scope | Purpose |
-|------------|-------|---------|
-| `contents: read` | `lint-actions` job | Checkout |
-| `pull-requests: write` | `lint-actions` job | Inline diff annotations via GitHub API |
-
-The alternative, a problem matcher with `::add-matcher::` and a direct binary invocation, achieves Checks-tab annotations with `contents: read` only, but requires committing `actionlint-matcher.json` to the repository and managing the binary download separately. The inline diff surfacing justifies the narrowly scoped permission increase.
+The job grants only `contents: read`, which permits checkout without write access to repository content or pull requests.
 
 ### Local usage
 
 `actionlint` is available in the dev shell via `flake.nix`. The `just lint` recipe runs it alongside `golangci-lint`, so contributors get the same workflow validation locally before pushing.
-
-### Risks
-
-| Risk | Impact | Notes |
-|------|--------|-------|
-| `pull-requests: write` broadens job permissions | Slightly elevated trust for the linting job | Scoped to `lint-actions` only; `devops-actions/actionlint` uses it solely to post annotations. |
-| `actionlint` flags unknown runner labels | False positives for custom or hosted runners | Pass `action-flags: -ignore 'label ".+" is unknown'` if the repo uses self-hosted runners with custom labels. |
-| `devops-actions/actionlint` is a low-star wrapper (9 stars) | Third-party action risk | Mitigated by version-tag pinning; Dependabot tracks updates automatically; the action shells out to official `rhysd/actionlint` releases. |
 
 ## Source Configs
 

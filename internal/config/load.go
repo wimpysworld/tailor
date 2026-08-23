@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -11,7 +12,10 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-const configPath = ".tailor.yml"
+const (
+	configPath    = ".tailor.yml"
+	maxConfigSize = 1 << 20
+)
 
 // Exists reports whether .tailor.yml is present in dir.
 func Exists(dir string) bool {
@@ -21,10 +25,43 @@ func Exists(dir string) bool {
 // Load reads and parses .tailor.yml from dir, returning the validated Config
 // or an error.
 func Load(dir string) (*Config, error) {
-	path := filepath.Join(dir, configPath)
-	data, err := os.ReadFile(path)
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return nil, fmt.Errorf("reading config: opening project root %q: %w", dir, err)
+	}
+	defer root.Close()
+
+	info, err := root.Lstat(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading config: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("reading config: %s is not a regular file", configPath)
+	}
+
+	file, err := root.Open(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading config: %w", err)
+	}
+	defer file.Close()
+
+	info, err = file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("reading config metadata: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("reading config: %s is not a regular file", configPath)
+	}
+	if info.Size() > maxConfigSize {
+		return nil, fmt.Errorf("reading config: %s exceeds maximum size of 1 MiB", configPath)
+	}
+
+	data, err := io.ReadAll(io.LimitReader(file, maxConfigSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("reading config: %w", err)
+	}
+	if len(data) > maxConfigSize {
+		return nil, fmt.Errorf("reading config: %s exceeds maximum size of 1 MiB", configPath)
 	}
 
 	return parseAndValidate(data, "config")
@@ -47,17 +84,8 @@ func parseAndValidate(data []byte, context string) (*Config, error) {
 
 // validate checks the parsed config for structural correctness.
 func validate(cfg *Config) error {
-	for i, s := range cfg.Swatches {
-		if s.Path == "" {
-			return fmt.Errorf("swatch[%d]: path must not be empty", i)
-		}
-		switch s.Alteration {
-		case swatch.Always, swatch.FirstFit, swatch.Triggered, swatch.Never:
-			// valid
-		default:
-			return fmt.Errorf("swatch[%d]: alteration must be %q, %q, %q, or %q, got %q",
-				i, swatch.Always, swatch.FirstFit, swatch.Triggered, swatch.Never, s.Alteration)
-		}
+	if err := validateSwatches(cfg, true); err != nil {
+		return err
 	}
 	if err := ValidateRepoSettings(cfg); err != nil {
 		return err
@@ -70,6 +98,30 @@ func validate(cfg *Config) error {
 	}
 	if err := ValidateLabels(cfg); err != nil {
 		return err
+	}
+	return nil
+}
+
+// ValidateSwatches checks active swatch entries without legacy allowances.
+func ValidateSwatches(cfg *Config) error {
+	return validateSwatches(cfg, false)
+}
+
+func validateSwatches(cfg *Config, allowLegacyRetired bool) error {
+	for i, s := range cfg.Swatches {
+		if s.Path == "" {
+			return fmt.Errorf("swatch[%d]: path must not be empty", i)
+		}
+		switch s.Alteration {
+		case swatch.Always, swatch.FirstFit, swatch.Never:
+			// valid
+		default:
+			if allowLegacyRetired && isLegacyRetiredEntry(s) {
+				continue
+			}
+			return fmt.Errorf("swatch[%d]: alteration must be %q, %q, or %q, got %q",
+				i, swatch.Always, swatch.FirstFit, swatch.Never, s.Alteration)
+		}
 	}
 	return nil
 }

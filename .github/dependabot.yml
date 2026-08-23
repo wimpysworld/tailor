@@ -3,7 +3,6 @@ updates:
   - package-ecosystem: github-actions
     directories:
       - /
-      - /swatches/.github/workflows
     schedule:
       interval: monthly
     groups:
