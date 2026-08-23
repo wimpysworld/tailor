@@ -74,11 +74,11 @@ swatches:
   - path: .envrc
     alteration: first-fit
 
+  - path: cubic.yaml
+    alteration: first-fit
+
   - path: .tailor.yml
     alteration: always
-
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: never
 `
 
 func TestUnmarshalSpecYAML(t *testing.T) {
@@ -124,10 +124,10 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	}
 
 	last := cfg.Swatches[15]
-	if last.Path != ".github/workflows/tailor-automerge.yml" {
+	if last.Path != ".tailor.yml" {
 		t.Errorf("last swatch Path = %q", last.Path)
 	}
-	if last.Alteration != swatch.Never {
+	if last.Alteration != swatch.Always {
 		t.Errorf("last swatch Alteration = %q", last.Alteration)
 	}
 }

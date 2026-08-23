@@ -26,6 +26,7 @@ func (m ApplyMode) ShouldWrite() bool { return m == Apply || m == Recut }
 // repository settings, fetches the licence, and processes swatches.
 // When client is nil, a default GitHub REST client is created.
 func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) error {
+	configChanged := config.RemoveRetiredWorkflowEntries(cfg)
 	if err := validateConfig(cfg); err != nil {
 		return err
 	}
@@ -35,16 +36,9 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 
 	// Keep the local config aligned with built-in defaults only when the
 	// config swatch mode allows tailor to rewrite it.
-	configMerged := false
 	if shouldMerge(cfg, mode) {
 		added, repoMerged, labelsMerged := config.MergeDefaults(cfg)
-		configMerged = len(added) > 0 || repoMerged || labelsMerged
-		if configMerged && mode.ShouldWrite() {
-			todayDate := time.Now().Format("2006-01-02")
-			if err := config.Write(dir, cfg, todayDate, "Refitted"); err != nil {
-				return fmt.Errorf("writing refitted config: %w", err)
-			}
-		}
+		configChanged = configChanged || len(added) > 0 || repoMerged || labelsMerged
 		// Re-validate after merge as a safety check.
 		if err := validateConfig(cfg); err != nil {
 			return err
@@ -52,6 +46,17 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		if err := config.ValidateRepoSettings(cfg); err != nil {
 			return err
 		}
+	}
+	if configChanged && mode.ShouldWrite() {
+		todayDate := time.Now().Format("2006-01-02")
+		if err := config.Write(dir, cfg, todayDate, "Refitted"); err != nil {
+			return fmt.Errorf("writing refitted config: %w", err)
+		}
+	}
+
+	retiredResults, err := ProcessRetiredWorkflows(dir, mode)
+	if err != nil {
+		return err
 	}
 
 	if client == nil {
@@ -72,7 +77,6 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		GitHubUsername: username,
 		Owner:          owner,
 		Name:           name,
-		Repository:     cfg.Repository,
 	}
 
 	repoResults, err := ProcessRepoSettings(cfg, mode, client, owner, name, hasRepo)
@@ -99,9 +103,10 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	if licenceResult != nil {
 		swatchResults = append([]SwatchResult{*licenceResult}, swatchResults...)
 	}
-	if configMerged {
+	if configChanged {
 		swatchResults = append(swatchResults, SwatchResult{Path: configPath, Category: WouldUpdateConfig})
 	}
+	swatchResults = append(swatchResults, retiredResults...)
 
 	output := FormatOutput(repoResults, labelResults, swatchResults, mode)
 	if output != "" {
@@ -113,6 +118,9 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 
 // validateConfig runs path and duplicate-path validation in sequence.
 func validateConfig(cfg *config.Config) error {
+	if err := config.ValidateSwatches(cfg); err != nil {
+		return err
+	}
 	if err := config.ValidatePaths(cfg); err != nil {
 		return err
 	}

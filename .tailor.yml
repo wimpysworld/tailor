@@ -128,8 +128,5 @@ swatches:
   - path: .tailor.yml
     alteration: always
 
-  - path: .github/workflows/tailor-automerge.yml
-    alteration: never
-
   - path: cubic.yaml
     alteration: first-fit

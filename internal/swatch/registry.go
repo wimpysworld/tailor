@@ -17,10 +17,9 @@ const (
 type AlterationMode string
 
 const (
-	Always    AlterationMode = "always"
-	FirstFit  AlterationMode = "first-fit"
-	Triggered AlterationMode = "triggered"
-	Never     AlterationMode = "never"
+	Always   AlterationMode = "always"
+	FirstFit AlterationMode = "first-fit"
+	Never    AlterationMode = "never"
 )
 
 // LicenseDestination is the destination path for the licence file.
@@ -52,7 +51,6 @@ var registry = []Swatch{
 	{Path: ".github/ISSUE_TEMPLATE/feature_request.yml", DefaultAlteration: Always, Category: Health},
 	{Path: ".github/ISSUE_TEMPLATE/config.yml", DefaultAlteration: FirstFit, Category: Health},
 	{Path: ".github/pull_request_template.md", DefaultAlteration: Always, Category: Health},
-	{Path: ".github/workflows/tailor-automerge.yml", DefaultAlteration: Never, Category: Development},
 	{Path: ".tailor.yml", DefaultAlteration: Always, Category: Development},
 }
 

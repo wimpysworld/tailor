@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -68,9 +69,6 @@ const (
 )
 
 func TestReadRepoSettings(t *testing.T) {
-	ResetTokenProbe()
-	t.Cleanup(ResetTokenProbe)
-
 	tests := []struct {
 		name        string
 		repoJSON    string
@@ -237,10 +235,49 @@ func TestReadRepoSettings(t *testing.T) {
 	}
 }
 
-func TestReadRepoSettingsRepoAPIError(t *testing.T) {
-	ResetTokenProbe()
-	t.Cleanup(ResetTokenProbe)
+func TestReadRepoSettingsIgnoresGitHubActionsEnvironment(t *testing.T) {
+	t.Setenv("GITHUB_ACTIONS", "true")
+	t.Setenv("GITHUB_REPOSITORY_OWNER", "actions-owner")
 
+	var userRequests atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/user":
+			userRequests.Add(1)
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
+		case "/repos/testowner/testrepo":
+			fmt.Fprint(w, `{}`)
+		case "/repos/testowner/testrepo/actions/permissions/workflow":
+			fmt.Fprint(w, wfPermsReadJSON)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	settings, warnings, err := ReadRepoSettings(client, "testowner", "testrepo")
+	if err != nil {
+		t.Fatalf("ReadRepoSettings() error: %v", err)
+	}
+	if got := userRequests.Load(); got != 0 {
+		t.Errorf("ReadRepoSettings() made %d /user requests, want 0", got)
+	}
+	if len(warnings) != 0 {
+		t.Errorf("ReadRepoSettings() warnings = %v, want none", warnings)
+	}
+
+	testutil.AssertBoolPtr(t, settings.AllowAutoMerge, false, false, "allow_auto_merge")
+	testutil.AssertBoolPtr(t, settings.AllowRebaseMerge, false, false, "allow_rebase_merge")
+	testutil.AssertBoolPtr(t, settings.AllowSquashMerge, false, false, "allow_squash_merge")
+	testutil.AssertBoolPtr(t, settings.AllowUpdateBranch, false, false, "allow_update_branch")
+	testutil.AssertBoolPtr(t, settings.DeleteBranchOnMerge, false, false, "delete_branch_on_merge")
+	testutil.AssertStringPtr(t, settings.SquashMergeCommitMessage, false, "", "squash_merge_commit_message")
+	testutil.AssertStringPtr(t, settings.SquashMergeCommitTitle, false, "", "squash_merge_commit_title")
+}
+
+func TestReadRepoSettingsRepoAPIError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		fmt.Fprint(w, `{"message": "Not Found"}`)
@@ -255,9 +292,6 @@ func TestReadRepoSettingsRepoAPIError(t *testing.T) {
 }
 
 func TestReadRepoSettingsWFPerms403GracefulDegradation(t *testing.T) {
-	ResetTokenProbe()
-	t.Cleanup(ResetTokenProbe)
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/repos/testowner/testrepo":
@@ -289,14 +323,8 @@ func TestReadRepoSettingsWFPerms403GracefulDegradation(t *testing.T) {
 }
 
 func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
-	ResetTokenProbe()
-	t.Cleanup(ResetTokenProbe)
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/user":
-			// Return 200 so IsInstallationToken detects a PAT.
-			fmt.Fprint(w, `{"login": "testuser"}`)
 		case "/repos/testowner/testrepo":
 			fmt.Fprint(w, fullRepoJSON)
 		default:
@@ -329,9 +357,6 @@ func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
 }
 
 func TestReadRepoSettingsNon403StillFails(t *testing.T) {
-	ResetTokenProbe()
-	t.Cleanup(ResetTokenProbe)
-
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/repos/testowner/testrepo":

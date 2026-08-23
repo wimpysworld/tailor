@@ -9,7 +9,6 @@ import (
 
 // defaultLabelWidth is the minimum column width for status labels in formatted
 // output. Sized to accommodate "would skip (insufficient scope): " (37 characters).
-// Annotations on triggered swatches may widen this dynamically.
 const defaultLabelWidth = 37
 
 // FormatOutput produces the alter command output from repo settings results,
@@ -131,9 +130,6 @@ func formatAnnotatedLabel(category, annotation string, isSkip bool) string {
 
 func outputCategory(category string, mode ApplyMode) string {
 	if !mode.ShouldWrite() {
-		if category == "removed" {
-			return "would remove"
-		}
 		return category
 	}
 
@@ -148,8 +144,6 @@ func outputCategory(category string, mode ApplyMode) string {
 		return "copied"
 	case "would overwrite":
 		return "overwritten"
-	case "would deploy":
-		return "deployed"
 	case "would remove":
 		return "removed"
 	default:
@@ -169,14 +163,8 @@ func labelResultLabel(r LabelResult, mode ApplyMode) string {
 	return formatAnnotatedLabel(outputCategory(string(r.Category), mode), r.Annotation, isSkip)
 }
 
-// swatchLabel returns the formatted label for a swatch result, including any
-// trigger annotation. For example: "would deploy (triggered: allow_auto_merge):".
 func swatchLabel(r SwatchResult, mode ApplyMode) string {
-	category := outputCategory(string(r.Category), mode)
-	if r.Annotation != "" {
-		return category + " (" + r.Annotation + "):"
-	}
-	return category + ":"
+	return outputCategory(string(r.Category), mode) + ":"
 }
 
 // labelWidth computes the column width needed to accommodate all labels. It
@@ -289,23 +277,19 @@ func swatchOrder(c SwatchCategory) int {
 	switch c {
 	case WouldUpdateConfig:
 		return 0
-	case WouldCopy:
-		return 1
-	case WouldOverwrite:
-		return 2
-	case WouldDeploy:
-		return 3
 	case WouldRemove:
-		return 4
-	case Removed:
-		return 5
+		return 1
+	case WouldCopy:
+		return 2
+	case WouldOverwrite:
+		return 3
 	case NoChange:
-		return 6
+		return 4
 	case SkippedFirstFit:
-		return 7
+		return 5
 	case SkippedNever:
-		return 8
+		return 6
 	default:
-		return 9
+		return 7
 	}
 }
