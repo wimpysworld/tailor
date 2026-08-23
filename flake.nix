@@ -36,7 +36,13 @@
                 actionlint
                 cosign
                 gh
-                go_1_26
+                (go_1_26.overrideAttrs (_: rec {
+                  version = "1.26.6";
+                  src = fetchurl {
+                    url = "https://go.dev/dl/go${version}.src.tar.gz";
+                    hash = "sha256-oHIcVMaIkBRI13rZs+x+p8R0cwdV/4kTgukuy5P/LLE=";
+                  };
+                }))
                 gocyclo
                 golangci-lint
                 goreleaser
