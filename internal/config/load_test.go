@@ -179,7 +179,12 @@ func TestLoadConfigSizeLimit(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, configPath), bytes.Repeat([]byte{'['}, tt.size), 0o644); err != nil {
+			data := bytes.Repeat([]byte{'['}, tt.size)
+			if !tt.wantSizeError {
+				prefix := []byte("license: none\nswatches: []\n#")
+				data = append(prefix, bytes.Repeat([]byte{'x'}, tt.size-len(prefix))...)
+			}
+			if err := os.WriteFile(filepath.Join(dir, configPath), data, 0o644); err != nil {
 				t.Fatalf("WriteFile: %v", err)
 			}
 
@@ -190,8 +195,8 @@ func TestLoadConfigSizeLimit(t *testing.T) {
 				}
 				return
 			}
-			if err != nil && err.Error() == wantSizeError {
-				t.Fatalf("Load() rejected the exact 1 MiB boundary: %v", err)
+			if err != nil {
+				t.Fatalf("Load() error at exact 1 MiB boundary: %v", err)
 			}
 		})
 	}
