@@ -85,21 +85,20 @@ All configs examined were golangci-lint v2 format unless noted. "Linters enabled
 
 ## Dependency Review Security Gate
 
-The `security` job in `.github/workflows/builder.yml` runs `actions/dependency-review-action@v4` on every pull request to `main`. It blocks merges that introduce a vulnerable or licence-incompatible dependency before code reaches the default branch.
+The `security` job in [`.github/workflows/builder.yml`](../.github/workflows/builder.yml) runs `actions/dependency-review-action@v5` for pull requests to `main`. It blocks merges that introduce a runtime dependency with a moderate-or-higher vulnerability or an unapproved licence.
 
 ### Trigger and CI graph position
 
-The job runs only on `pull_request` events (`if: github.event_name == 'pull_request'`). On push, tag, and dispatch events it is skipped. `sentinel` depends on `security` alongside `lint-code`, `lint-actions`, `coverage`, and `build-test`; because `sentinel` checks only for `failure` or `cancelled` results, a skipped `security` job passes sentinel on non-PR events. Branch protection targets `sentinel` exclusively, so no additional required-status-check entries are needed.
+The dependency review step runs only on `pull_request` events (`if: github.event_name == 'pull_request'`). It skips push, tag, schedule, and workflow dispatch events. The `security` job still runs `govulncheck` on those events. `sentinel` depends on `security` alongside `lint-code`, `lint-actions`, `coverage`, and `test`. Branch protection targets `sentinel` exclusively, so no additional required status checks are needed.
 
 ### Policy
 
 | Setting | Value | Rationale |
 |---------|-------|-----------|
 | `fail-on-severity` | `moderate` | Blocks moderate, high, and critical CVEs; low-only vulnerabilities pass. Matches GitHub's recommended starting point. |
-| `deny-licenses` | `GPL-2.0, GPL-3.0, AGPL-3.0-only, AGPL-3.0-or-later, LGPL-2.1, LGPL-3.0` | Deny-list approach per GitHub best practice. Copyleft licences are incompatible with typical Go project distribution; tailor's own dependencies are MIT/BSD/Apache-2.0. |
+| `allow-licenses` | See the full allowlist in [`.github/workflows/builder.yml`](../.github/workflows/builder.yml), including `LicenseRef-scancode-google-patent-license-golang` | Blocks every licence outside the explicit list. |
 | `fail-on-scopes` | `runtime` | Checks runtime dependencies only; test-only imports are excluded to reduce false positives. |
 | `comment-summary-in-pr` | `on-failure` | Posts a summary comment on the PR when the job fails; no noise on clean PRs. |
-
 
 ## Workflow Linting (actionlint)
 
