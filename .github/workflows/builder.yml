@@ -87,7 +87,6 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
-      pull-requests: write
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
@@ -97,10 +96,8 @@ jobs:
         run: go test ./...
       - name: Build tailor
         run: go build -o tailor ./cmd/tailor
-      - name: Baste
-        run: ./tailor baste
-        env:
-          GH_TOKEN: ${{ secrets.TAILOR_TOKEN || secrets.GITHUB_TOKEN }}
+      - name: Measure
+        run: ./tailor measure
 
   security:
     name: Security 🔒
