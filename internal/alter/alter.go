@@ -35,9 +35,11 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 
 	// Keep the local config aligned with built-in defaults only when the
 	// config swatch mode allows tailor to rewrite it.
+	configMerged := false
 	if shouldMerge(cfg, mode) {
 		added, repoMerged, labelsMerged := config.MergeDefaults(cfg)
-		if (len(added) > 0 || repoMerged || labelsMerged) && mode.ShouldWrite() {
+		configMerged = len(added) > 0 || repoMerged || labelsMerged
+		if configMerged && mode.ShouldWrite() {
 			todayDate := time.Now().Format("2006-01-02")
 			if err := config.Write(dir, cfg, todayDate, "Refitted"); err != nil {
 				return fmt.Errorf("writing refitted config: %w", err)
@@ -97,8 +99,11 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	if licenceResult != nil {
 		swatchResults = append([]SwatchResult{*licenceResult}, swatchResults...)
 	}
+	if configMerged {
+		swatchResults = append(swatchResults, SwatchResult{Path: configPath, Category: WouldUpdateConfig})
+	}
 
-	output := FormatOutput(repoResults, labelResults, swatchResults)
+	output := FormatOutput(repoResults, labelResults, swatchResults, mode)
 	if output != "" {
 		fmt.Print(output)
 	}

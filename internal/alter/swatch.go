@@ -16,14 +16,15 @@ import (
 type SwatchCategory string
 
 const (
-	WouldCopy       SwatchCategory = "would copy"
-	WouldOverwrite  SwatchCategory = "would overwrite"
-	WouldDeploy     SwatchCategory = "would deploy"
-	WouldRemove     SwatchCategory = "would remove"
-	Removed         SwatchCategory = "removed"
-	NoChange        SwatchCategory = "no change"
-	SkippedFirstFit SwatchCategory = "skipped (first-fit, exists)"
-	SkippedNever    SwatchCategory = "skip (never)"
+	WouldUpdateConfig SwatchCategory = "would update"
+	WouldCopy         SwatchCategory = "would copy"
+	WouldOverwrite    SwatchCategory = "would overwrite"
+	WouldDeploy       SwatchCategory = "would deploy"
+	WouldRemove       SwatchCategory = "would remove"
+	Removed           SwatchCategory = "removed"
+	NoChange          SwatchCategory = "no change"
+	SkippedFirstFit   SwatchCategory = "skipped (first-fit, exists)"
+	SkippedNever      SwatchCategory = "skip (never)"
 )
 
 // SwatchResult records the path and categorised outcome for one swatch entry.

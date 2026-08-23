@@ -314,6 +314,8 @@ tailor alter --recut    # Overwrite regardless of mode
 
 `--recut` overwrites all files including `first-fit` swatches. `LICENSE` is exempt (fetched content, not an embedded swatch). For `.tailor.yml`, `--recut` appends missing default swatch entries but never modifies existing entries.
 
+After each successful change, `alter` and `alter --recut` report `set`, `created`, `updated`, `copied`, `overwritten`, `deployed`, or `removed`. A default merge into `.tailor.yml` reports `updated`.
+
 ### `baste`
 
 Previews what `alter` would do without making changes.
@@ -322,13 +324,28 @@ Previews what `alter` would do without making changes.
 tailor baste
 ```
 
+`baste` uses planned labels. The write commands use the corresponding completed labels:
+
+| `baste` | `alter` and `alter --recut` |
+|---------|-----------------------------|
+| `would set` | `set` |
+| `would create` | `created` |
+| `would update` | `updated` |
+| `would copy` | `copied` |
+| `would overwrite` | `overwritten` |
+| `would deploy` | `deployed` |
+| `would remove` | `removed` |
+
+A default merge into `.tailor.yml` reports `would update` in `baste` and `updated` after a successful write.
+
 ```
-     would set: repository.has_wiki = false
-    would copy: LICENSE
- would overwrite: SECURITY.md
-     no change: CODE_OF_CONDUCT.md
-skipped (first-fit, exists): justfile
+would set:                                  repository.has_wiki = false
+would update:                               .tailor.yml
+would copy:                                 LICENSE
+would overwrite:                            SECURITY.md
 would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
+no change:                                  CODE_OF_CONDUCT.md
+skipped (first-fit, exists):                justfile
 ```
 
 ### `docket`
