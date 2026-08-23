@@ -24,7 +24,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: go vet ./...
@@ -45,7 +45,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: freerangebytes/setup-actionlint@v0.1.1
+      - uses: freerangebytes/setup-actionlint@v0.1.2
       - name: Run actionlint
         run: |
           echo "::add-matcher::.github/actionlint-matcher.json"
@@ -58,7 +58,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - uses: robherley/go-test-action@v1
@@ -90,7 +90,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - name: Test
@@ -127,7 +127,7 @@ jobs:
           output-file: govulncheck.sarif
 
       - name: Upload SARIF
-        uses: github/codeql-action/upload-sarif@v4.36.2
+        uses: github/codeql-action/upload-sarif@v4.37.7
         if: always()
         with:
           sarif_file: govulncheck.sarif
@@ -189,7 +189,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         if: steps.guard.outputs.run == 'true'
         with:
           go-version-file: go.mod
