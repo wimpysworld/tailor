@@ -14,18 +14,22 @@ const defaultLabelWidth = 37
 
 // FormatOutput produces the alter command output from repo settings results,
 // label results, and swatch results (including licence).
-func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, swatchResults []SwatchResult) string {
+func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, swatchResults []SwatchResult, mode ApplyMode) string {
 	if len(repoResults) == 0 && len(labelResults) == 0 && len(swatchResults) == 0 {
 		return ""
 	}
+	if mode.ShouldWrite() {
+		repoResults = removeSkippedRepoResults(repoResults)
+		labelResults = removeSkippedLabelResults(labelResults)
+	}
 
 	sortedSwatches := sortSwatchResults(swatchResults)
-	width := labelWidth(repoResults, labelResults, sortedSwatches)
+	width := labelWidth(repoResults, labelResults, sortedSwatches, mode)
 
 	var b strings.Builder
 
 	for _, r := range sortRepoResults(repoResults) {
-		label := repoLabel(r)
+		label := repoLabel(r, mode)
 		switch r.Category {
 		case WouldSet:
 			fmt.Fprintf(&b, "%-*srepository.%s = %s\n", width, label, r.Field, r.Value)
@@ -37,7 +41,7 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 	}
 
 	for _, r := range sortLabelResults(labelResults) {
-		label := labelResultLabel(r)
+		label := labelResultLabel(r, mode)
 		switch r.Category {
 		case WouldCreate, WouldUpdate:
 			fmt.Fprintf(&b, "%-*slabel.%s = %s\n", width, label, r.Name, r.Value)
@@ -49,11 +53,69 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 	}
 
 	for _, r := range sortedSwatches {
-		label := swatchLabel(r)
+		label := swatchLabel(r, mode)
 		fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Path)
 	}
 
 	return b.String()
+}
+
+func removeSkippedRepoResults(results []RepoSettingResult) []RepoSettingResult {
+	skipped := make(map[string]bool)
+	for _, result := range results {
+		if result.Category == WouldSkipScope {
+			skipped[result.Field] = true
+		}
+	}
+	if len(skipped) == 0 {
+		return results
+	}
+
+	filtered := make([]RepoSettingResult, 0, len(results))
+	for _, result := range results {
+		if result.Category != WouldSet || !skipped[repoSettingOperation(result.Field)] {
+			filtered = append(filtered, result)
+		}
+	}
+	return filtered
+}
+
+func repoSettingOperation(field string) string {
+	switch field {
+	case "topics":
+		return "set topics"
+	case "default_workflow_permissions", "can_approve_pull_request_reviews":
+		return "set workflow permissions"
+	default:
+		return "patch repo settings"
+	}
+}
+
+func removeSkippedLabelResults(results []LabelResult) []LabelResult {
+	skipped := make(map[string]bool)
+	for _, result := range results {
+		if result.Category == LabelSkipScope {
+			skipped[result.Name] = true
+		}
+	}
+	if len(skipped) == 0 {
+		return results
+	}
+
+	filtered := make([]LabelResult, 0, len(results))
+	for _, result := range results {
+		operation := ""
+		switch result.Category {
+		case WouldCreate:
+			operation = fmt.Sprintf("create label %q", result.Name)
+		case WouldUpdate:
+			operation = fmt.Sprintf("update label %q", result.Name)
+		}
+		if !skipped[operation] {
+			filtered = append(filtered, result)
+		}
+	}
+	return filtered
 }
 
 // formatAnnotatedLabel embeds an annotation into a skip-category label when
@@ -67,44 +129,73 @@ func formatAnnotatedLabel(category, annotation string, isSkip bool) string {
 	return category + ":"
 }
 
+func outputCategory(category string, mode ApplyMode) string {
+	if !mode.ShouldWrite() {
+		if category == "removed" {
+			return "would remove"
+		}
+		return category
+	}
+
+	switch category {
+	case "would set":
+		return "set"
+	case "would create":
+		return "created"
+	case "would update":
+		return "updated"
+	case "would copy":
+		return "copied"
+	case "would overwrite":
+		return "overwritten"
+	case "would deploy":
+		return "deployed"
+	case "would remove":
+		return "removed"
+	default:
+		return category
+	}
+}
+
 // repoLabel returns the formatted label for a repo setting result.
-func repoLabel(r RepoSettingResult) string {
+func repoLabel(r RepoSettingResult, mode ApplyMode) string {
 	isSkip := r.Category == WouldSkipScope
-	return formatAnnotatedLabel(string(r.Category), r.Annotation, isSkip)
+	return formatAnnotatedLabel(outputCategory(string(r.Category), mode), r.Annotation, isSkip)
 }
 
 // labelResultLabel returns the formatted label for a label result.
-func labelResultLabel(r LabelResult) string {
+func labelResultLabel(r LabelResult, mode ApplyMode) string {
 	isSkip := r.Category == LabelSkipScope
-	return formatAnnotatedLabel(string(r.Category), r.Annotation, isSkip)
+	return formatAnnotatedLabel(outputCategory(string(r.Category), mode), r.Annotation, isSkip)
 }
 
 // swatchLabel returns the formatted label for a swatch result, including any
 // trigger annotation. For example: "would deploy (triggered: allow_auto_merge):".
-func swatchLabel(r SwatchResult) string {
+func swatchLabel(r SwatchResult, mode ApplyMode) string {
+	category := outputCategory(string(r.Category), mode)
 	if r.Annotation != "" {
-		return string(r.Category) + " (" + r.Annotation + "):"
+		return category + " (" + r.Annotation + "):"
 	}
-	return string(r.Category) + ":"
+	return category + ":"
 }
 
 // labelWidth computes the column width needed to accommodate all labels. It
 // returns at least defaultLabelWidth, widening if any annotated label exceeds
 // that.
-func labelWidth(repos []RepoSettingResult, labels []LabelResult, swatches []SwatchResult) int {
+func labelWidth(repos []RepoSettingResult, labels []LabelResult, swatches []SwatchResult, mode ApplyMode) int {
 	width := defaultLabelWidth
 	for _, r := range repos {
-		if w := len(repoLabel(r)) + 1; w > width {
+		if w := len(repoLabel(r, mode)) + 1; w > width {
 			width = w
 		}
 	}
 	for _, r := range labels {
-		if w := len(labelResultLabel(r)) + 1; w > width {
+		if w := len(labelResultLabel(r, mode)) + 1; w > width {
 			width = w
 		}
 	}
 	for _, r := range swatches {
-		if w := len(swatchLabel(r)) + 1; w > width {
+		if w := len(swatchLabel(r, mode)) + 1; w > width {
 			width = w
 		}
 	}
@@ -142,9 +233,8 @@ func repoOrder(c RepoSettingCategory) int {
 	}
 }
 
-// sortSwatchResults returns a sorted copy: actionable (WouldCopy, WouldOverwrite)
-// before informational (NoChange, SkippedFirstFit), lexicographic by path within
-// each group.
+// sortSwatchResults returns a sorted copy with actionable results before
+// informational results and paths sorted within each category.
 func sortSwatchResults(results []SwatchResult) []SwatchResult {
 	if len(results) == 0 {
 		return nil
@@ -194,27 +284,28 @@ func labelOrder(c LabelCategory) int {
 }
 
 // swatchOrder returns the sort priority for a SwatchCategory.
-// Actionable categories sort before informational: deploy, overwrite, remove,
-// then no-change, skipped, ignored.
+// Actionable categories sort before informational categories.
 func swatchOrder(c SwatchCategory) int {
 	switch c {
-	case WouldCopy:
+	case WouldUpdateConfig:
 		return 0
-	case WouldOverwrite:
+	case WouldCopy:
 		return 1
-	case WouldDeploy:
+	case WouldOverwrite:
 		return 2
-	case WouldRemove:
+	case WouldDeploy:
 		return 3
-	case Removed:
+	case WouldRemove:
 		return 4
-	case NoChange:
+	case Removed:
 		return 5
-	case SkippedFirstFit:
+	case NoChange:
 		return 6
-	case SkippedNever:
+	case SkippedFirstFit:
 		return 7
-	default:
+	case SkippedNever:
 		return 8
+	default:
+		return 9
 	}
 }

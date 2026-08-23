@@ -414,6 +414,63 @@ swatches:
 	}
 }
 
+func TestAlterRunOutputByMode(t *testing.T) {
+	configYAML := `license: mit
+repository:
+  has_wiki: false
+labels:
+  - name: bug
+    color: d73a4a
+    description: A problem
+swatches:
+  - path: .gitignore
+    alteration: first-fit
+`
+	tests := []struct {
+		name string
+		mode alter.ApplyMode
+		want string
+	}{
+		{
+			name: "dry run",
+			mode: alter.DryRun,
+			want: "would set:                           repository.has_wiki = false\n" +
+				"would create:                        label.bug = #d73a4a \"A problem\"\n" +
+				"would copy:                          .gitignore\n" +
+				"would copy:                          LICENSE\n",
+		},
+		{
+			name: "apply",
+			mode: alter.Apply,
+			want: "set:                                 repository.has_wiki = false\n" +
+				"created:                             label.bug = #d73a4a \"A problem\"\n" +
+				"copied:                              .gitignore\n" +
+				"copied:                              LICENSE\n",
+		},
+		{
+			name: "recut",
+			mode: alter.Recut,
+			want: "set:                                 repository.has_wiki = false\n" +
+				"created:                             label.bug = #d73a4a \"A problem\"\n" +
+				"copied:                              .gitignore\n" +
+				"copied:                              LICENSE\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc := setupAlterTest(t, configYAML,
+				WithRepoSettings(repoJSON{HasWiki: true}),
+			)
+			cfg := loadTestConfig(t, tc.Dir)
+			got := captureAlterRun(t, cfg, tc.Dir, tt.mode, tc.Client)
+			if got != tt.want {
+				t.Errorf("alter.Run() output =\n%s\nwant:\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
 // TestAlterRunDryRunWithRepoSettings verifies that repo settings appear in
 // dry-run output when they differ from live settings.
 func TestAlterRunDryRunWithRepoSettings(t *testing.T) {
@@ -863,7 +920,7 @@ swatches:
 }
 
 // TestAlterRunDryRunColumnWidth verifies that all category labels in the output
-// are padded to exactly 29 characters (the labelWidth constant from format.go).
+// use the default 37-character column width.
 func TestAlterRunDryRunColumnWidth(t *testing.T) {
 	configYAML := `license: mit
 repository:
@@ -893,9 +950,7 @@ swatches:
 		t.Fatal("expected non-empty output")
 	}
 
-	// Each line should have the label portion padded to 29 characters,
-	// meaning position 29 starts the content (no leading space at pos 29
-	// unless the label itself is shorter).
+	// Each line has the label portion padded to 37 characters.
 	knownLabels := []string{
 		"would copy:",
 		"would overwrite:",
@@ -904,7 +959,7 @@ swatches:
 		"would set:",
 	}
 
-	const expectedWidth = 29
+	const expectedWidth = 37
 	for _, line := range lines {
 		if len(line) < expectedWidth {
 			t.Errorf("line too short to contain label + content: %q", line)
@@ -1646,9 +1701,11 @@ swatches:
 
 	// DryRun: output should indicate the swatch would be deployed.
 	dryOutput := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-	requireContains(t, dryOutput, "would deploy")
-	requireContains(t, dryOutput, "tailor-automerge.yml")
-	requireContains(t, dryOutput, "triggered: allow_auto_merge")
+	wantDryOutput := "no change:                                  repository.allow_auto_merge (already true)\n" +
+		"would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
+	if dryOutput != wantDryOutput {
+		t.Errorf("alter.Run() output =\n%s\nwant:\n%s", dryOutput, wantDryOutput)
+	}
 
 	// File must not exist after dry-run.
 	automergeFile := filepath.Join(tc.Dir, ".github/workflows/tailor-automerge.yml")
@@ -1657,7 +1714,12 @@ swatches:
 	}
 
 	// Apply writes the triggered swatch.
-	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	applyOutput := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	wantApplyOutput := "no change:                              repository.allow_auto_merge (already true)\n" +
+		"deployed (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
+	if applyOutput != wantApplyOutput {
+		t.Errorf("alter.Run() output =\n%s\nwant:\n%s", applyOutput, wantApplyOutput)
+	}
 
 	data, err := os.ReadFile(automergeFile)
 	if err != nil {
@@ -1711,15 +1773,23 @@ swatches:
 
 		// Dry-run reports removal without deleting the file.
 		dryOutput := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-		requireContains(t, dryOutput, "would remove")
-		requireContains(t, dryOutput, "tailor-automerge.yml")
+		wantDryOutput := "no change:                                  repository.allow_auto_merge (already false)\n" +
+			"would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
+		if dryOutput != wantDryOutput {
+			t.Errorf("alter.Run() output =\n%s\nwant:\n%s", dryOutput, wantDryOutput)
+		}
 
 		if _, err := os.Stat(automergeFile); err != nil {
 			t.Errorf("dry run removed tailor-automerge.yml from disk: %v", err)
 		}
 
 		// Apply removes the stale triggered file.
-		_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+		applyOutput := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+		wantApplyOutput := "no change:                             repository.allow_auto_merge (already false)\n" +
+			"removed (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
+		if applyOutput != wantApplyOutput {
+			t.Errorf("alter.Run() output =\n%s\nwant:\n%s", applyOutput, wantApplyOutput)
+		}
 
 		if _, err := os.Stat(automergeFile); err == nil {
 			t.Error("tailor-automerge.yml still exists after apply with trigger not met")
@@ -1878,7 +1948,8 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
-	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	output := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	requireContains(t, output, "updated:                             .tailor.yml\n")
 
 	// MergeDefaultSwatches appends the missing entries before swatch processing.
 	for _, dest := range []string{"SUPPORT.md", "justfile"} {
@@ -1979,7 +2050,8 @@ func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)
-	_ = captureAlterRun(t, cfg, tc.Dir, alter.Recut, tc.Client)
+	output := captureAlterRun(t, cfg, tc.Dir, alter.Recut, tc.Client)
+	requireContains(t, output, "updated:                             .tailor.yml\n")
 
 	// Recut merges defaults, then processes the newly merged swatches.
 	for _, dest := range []string{"SUPPORT.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md"} {
@@ -2015,7 +2087,8 @@ func TestConfigMergeDryRunNoRewrite(t *testing.T) {
 	}
 
 	cfg := loadTestConfig(t, tc.Dir)
-	_ = captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
+	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
+	requireContains(t, output, "would update:                        .tailor.yml\n")
 
 	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {

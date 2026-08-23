@@ -13,7 +13,7 @@ func TestFormatOutputSwatchesOnly(t *testing.T) {
 		{Path: ".tailor.yml", Category: SkippedFirstFit},
 	}
 
-	got := FormatOutput(nil, nil, swatches)
+	got := FormatOutput(nil, nil, swatches, DryRun)
 	want := "would copy:                          CONTRIBUTING.md\n" +
 		"would overwrite:                     .github/FUNDING.yml\n" +
 		"no change:                           LICENSE\n" +
@@ -31,7 +31,7 @@ func TestFormatOutputRepoSettingsOnly(t *testing.T) {
 		{Field: "description", Category: WouldSet, Value: "My project"},
 	}
 
-	got := FormatOutput(repos, nil, nil)
+	got := FormatOutput(repos, nil, nil, DryRun)
 	want := "would set:                           repository.description = My project\n" +
 		"would set:                           repository.has_wiki = false\n" +
 		"no change:                           repository.has_issues (already true)\n"
@@ -52,7 +52,7 @@ func TestFormatOutputCombined(t *testing.T) {
 		{Path: "LICENSE", Category: NoChange},
 	}
 
-	got := FormatOutput(repos, nil, swatches)
+	got := FormatOutput(repos, nil, swatches, DryRun)
 	want := "would set:                           repository.has_wiki = false\n" +
 		"no change:                           repository.has_issues (already true)\n" +
 		"would copy:                          CONTRIBUTING.md\n" +
@@ -64,14 +64,14 @@ func TestFormatOutputCombined(t *testing.T) {
 }
 
 func TestFormatOutputEmpty(t *testing.T) {
-	got := FormatOutput(nil, nil, nil)
+	got := FormatOutput(nil, nil, nil, DryRun)
 	if got != "" {
 		t.Errorf("FormatOutput empty: got %q, want %q", got, "")
 	}
 }
 
 func TestFormatOutputEmptySlices(t *testing.T) {
-	got := FormatOutput([]RepoSettingResult{}, nil, []SwatchResult{})
+	got := FormatOutput([]RepoSettingResult{}, nil, []SwatchResult{}, DryRun)
 	if got != "" {
 		t.Errorf("FormatOutput empty slices: got %q, want %q", got, "")
 	}
@@ -87,7 +87,7 @@ func TestFormatOutputSwatchSorting(t *testing.T) {
 		{Path: "M-file.md", Category: NoChange},
 	}
 
-	got := FormatOutput(nil, nil, swatches)
+	got := FormatOutput(nil, nil, swatches, DryRun)
 	want := "would copy:                          B-file.md\n" +
 		"would copy:                          C-file.md\n" +
 		"would overwrite:                     A-file.md\n" +
@@ -108,7 +108,7 @@ func TestFormatOutputRepoSettingSorting(t *testing.T) {
 		{Field: "allow_squash_merge", Category: WouldSet, Value: "true"},
 	}
 
-	got := FormatOutput(repos, nil, nil)
+	got := FormatOutput(repos, nil, nil, DryRun)
 	want := "would set:                           repository.allow_squash_merge = true\n" +
 		"would set:                           repository.has_issues = true\n" +
 		"no change:                           repository.description (already A project)\n" +
@@ -150,7 +150,7 @@ func TestFormatOutputActionableBeforeInformational(t *testing.T) {
 		{Path: "action2.md", Category: WouldOverwrite},
 	}
 
-	got := FormatOutput(nil, nil, swatches)
+	got := FormatOutput(nil, nil, swatches, DryRun)
 	want := "would copy:                          action1.md\n" +
 		"would overwrite:                     action2.md\n" +
 		"no change:                           info1.md\n" +
@@ -169,7 +169,7 @@ func TestFormatOutputRepoSettingsBeforeSwatches(t *testing.T) {
 		{Path: "CONTRIBUTING.md", Category: WouldCopy},
 	}
 
-	got := FormatOutput(repos, nil, swatches)
+	got := FormatOutput(repos, nil, swatches, DryRun)
 
 	// Repo settings line must appear before swatch line.
 	repoIdx := 0
@@ -185,7 +185,7 @@ func TestFormatOutputNoTrailingBlankLine(t *testing.T) {
 		{Path: "file.md", Category: WouldCopy},
 	}
 
-	got := FormatOutput(nil, nil, swatches)
+	got := FormatOutput(nil, nil, swatches, DryRun)
 	if got[len(got)-1] != '\n' {
 		t.Error("output should end with newline")
 	}
@@ -202,10 +202,10 @@ func TestFormatOutputNewCategories(t *testing.T) {
 		{Path: "copied.md", Category: WouldCopy},
 	}
 
-	got := FormatOutput(nil, nil, swatches)
+	got := FormatOutput(nil, nil, swatches, DryRun)
 	want := "would copy:                          copied.md\n" +
 		"would remove:                        would-remove.yml\n" +
-		"removed:                             removed.yml\n" +
+		"would remove:                        removed.yml\n" +
 		"skip (never):                        ignored.yml\n"
 
 	if got != want {
@@ -225,12 +225,12 @@ func TestFormatOutputNewCategorySorting(t *testing.T) {
 		{Path: "a-would-remove.yml", Category: WouldRemove},
 	}
 
-	got := FormatOutput(nil, nil, swatches)
+	got := FormatOutput(nil, nil, swatches, DryRun)
 	want := "would copy:                          e-would-copy.md\n" +
 		"would overwrite:                     f-would-overwrite.md\n" +
 		"would remove:                        a-would-remove.yml\n" +
 		"would remove:                        b-would-remove.yml\n" +
-		"removed:                             a-removed.yml\n" +
+		"would remove:                        a-removed.yml\n" +
 		"no change:                           d-no-change.md\n" +
 		"skipped (first-fit, exists):         c-skipped.md\n" +
 		"skip (never):                        z-ignored.yml\n"
@@ -247,7 +247,7 @@ func TestFormatOutputSkipCategories(t *testing.T) {
 		{Field: "patch repo settings", Category: WouldSkipScope, Value: "insufficient scope"},
 	}
 
-	got := FormatOutput(repos, nil, nil)
+	got := FormatOutput(repos, nil, nil, DryRun)
 	want := "would set:                           repository.has_wiki = false\n" +
 		"no change:                           repository.has_issues (already true)\n" +
 		"would skip (insufficient scope):     patch repo settings\n"
@@ -264,7 +264,7 @@ func TestFormatOutputSkipSorting(t *testing.T) {
 		{Field: "patch repo settings", Category: WouldSkipScope, Value: "scope error"},
 	}
 
-	got := FormatOutput(repos, nil, nil)
+	got := FormatOutput(repos, nil, nil, DryRun)
 	want := "would set:                           repository.description = My project\n" +
 		"no change:                           repository.has_wiki (already false)\n" +
 		"would skip (insufficient scope):     patch repo settings\n"
@@ -280,7 +280,7 @@ func TestFormatOutputAnnotations(t *testing.T) {
 		{Path: "LICENSE", Category: NoChange},
 	}
 
-	got := FormatOutput(nil, nil, swatches)
+	got := FormatOutput(nil, nil, swatches, DryRun)
 	// Annotated label "would deploy (triggered: allow_auto_merge):" is 43 chars,
 	// plus 1 space = 44 column width.
 	want := "would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
@@ -296,7 +296,7 @@ func TestFormatOutputAnnotationWouldRemove(t *testing.T) {
 		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldRemove, Annotation: "triggered: allow_auto_merge"},
 	}
 
-	got := FormatOutput(nil, nil, swatches)
+	got := FormatOutput(nil, nil, swatches, DryRun)
 	want := "would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
 
 	if got != want {
@@ -310,7 +310,7 @@ func TestFormatOutputAnnotationSkippedNever(t *testing.T) {
 		{Path: "CONTRIBUTING.md", Category: WouldCopy},
 	}
 
-	got := FormatOutput(nil, nil, swatches)
+	got := FormatOutput(nil, nil, swatches, DryRun)
 	// "skip (never) (triggered: allow_auto_merge):" = 43 chars + 1 space = 44 width
 	want := "would copy:                                 CONTRIBUTING.md\n" +
 		"skip (never) (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
@@ -328,7 +328,7 @@ func TestFormatOutputAnnotationMixedWithRepo(t *testing.T) {
 		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldDeploy, Annotation: "triggered: allow_auto_merge"},
 	}
 
-	got := FormatOutput(repos, nil, swatches)
+	got := FormatOutput(repos, nil, swatches, DryRun)
 	// Column width widens to 44 to fit the annotated swatch label.
 	want := "would set:                                  repository.allow_auto_merge = true\n" +
 		"would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n"
@@ -343,7 +343,7 @@ func TestFormatOutputSkipAnnotationScope(t *testing.T) {
 		{Field: "default_workflow_permissions", Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
 
-	got := FormatOutput(repos, nil, nil)
+	got := FormatOutput(repos, nil, nil, DryRun)
 	// "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 space = 63 width.
 	want := "would skip (insufficient scope: token missing required scope): default_workflow_permissions\n"
 
@@ -360,7 +360,7 @@ func TestFormatOutputSkipAnnotationMixed(t *testing.T) {
 		{Field: "can_approve_pull_request_reviews", Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
 
-	got := FormatOutput(repos, nil, nil)
+	got := FormatOutput(repos, nil, nil, DryRun)
 	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 = 63.
 	want := "would set:                                                     repository.has_wiki = false\n" +
 		"no change:                                                     repository.has_issues (already true)\n" +
@@ -378,7 +378,7 @@ func TestFormatOutputLabelSkipAnnotations(t *testing.T) {
 		{Name: "enhancement", Category: LabelSkipScope, Annotation: "token missing required scope"},
 	}
 
-	got := FormatOutput(nil, labels, nil)
+	got := FormatOutput(nil, labels, nil, DryRun)
 	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 + 1 = 63.
 	want := "would create:                                                  label.bug = #d73a4a\n" +
 		"would skip (insufficient scope: token missing required scope): enhancement\n"
@@ -393,7 +393,7 @@ func TestFormatOutputSkipAnnotationColumnWidth(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "vuln", Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
-	got := FormatOutput(repos, nil, nil)
+	got := FormatOutput(repos, nil, nil, DryRun)
 
 	// "would skip (insufficient scope: token missing required scope):" is 62 chars.
 	// Column width = 63 (62 + 1 space). The field starts at position 63.
@@ -413,10 +413,101 @@ func TestFormatOutputSkipWithoutAnnotation(t *testing.T) {
 		{Field: "patch repo settings", Category: WouldSkipScope},
 	}
 
-	got := FormatOutput(repos, nil, nil)
+	got := FormatOutput(repos, nil, nil, DryRun)
 	want := "would skip (insufficient scope):     patch repo settings\n"
 
 	if got != want {
 		t.Errorf("FormatOutput skip without annotation:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputApplyModes(t *testing.T) {
+	repos := []RepoSettingResult{
+		{Field: "has_wiki", Category: WouldSet, Value: "false"},
+	}
+	labels := []LabelResult{
+		{Name: "bug", Category: WouldCreate, Value: "#d73a4a \"A problem\""},
+		{Name: "docs", Category: WouldUpdate, Value: "#0075ca"},
+	}
+	swatches := []SwatchResult{
+		{Path: "LICENSE", Category: WouldCopy},
+		{Path: "CONTRIBUTING.md", Category: WouldOverwrite},
+		{Path: ".tailor.yml", Category: WouldUpdateConfig},
+		{Path: ".github/workflows/tailor-automerge.yml", Category: WouldDeploy, Annotation: "triggered: allow_auto_merge"},
+		{Path: ".github/workflows/tailor-automerge-old.yml", Category: Removed, Annotation: "triggered: allow_auto_merge"},
+	}
+
+	tests := []struct {
+		name string
+		mode ApplyMode
+		want string
+	}{
+		{
+			name: "dry run",
+			mode: DryRun,
+			want: "would set:                                  repository.has_wiki = false\n" +
+				"would create:                               label.bug = #d73a4a \"A problem\"\n" +
+				"would update:                               label.docs = #0075ca\n" +
+				"would update:                               .tailor.yml\n" +
+				"would copy:                                 LICENSE\n" +
+				"would overwrite:                            CONTRIBUTING.md\n" +
+				"would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
+				"would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge-old.yml\n",
+		},
+		{
+			name: "apply",
+			mode: Apply,
+			want: "set:                                    repository.has_wiki = false\n" +
+				"created:                                label.bug = #d73a4a \"A problem\"\n" +
+				"updated:                                label.docs = #0075ca\n" +
+				"updated:                                .tailor.yml\n" +
+				"copied:                                 LICENSE\n" +
+				"overwritten:                            CONTRIBUTING.md\n" +
+				"deployed (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
+				"removed (triggered: allow_auto_merge):  .github/workflows/tailor-automerge-old.yml\n",
+		},
+		{
+			name: "recut",
+			mode: Recut,
+			want: "set:                                    repository.has_wiki = false\n" +
+				"created:                                label.bug = #d73a4a \"A problem\"\n" +
+				"updated:                                label.docs = #0075ca\n" +
+				"updated:                                .tailor.yml\n" +
+				"copied:                                 LICENSE\n" +
+				"overwritten:                            CONTRIBUTING.md\n" +
+				"deployed (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml\n" +
+				"removed (triggered: allow_auto_merge):  .github/workflows/tailor-automerge-old.yml\n",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FormatOutput(repos, labels, swatches, tt.mode)
+			if got != tt.want {
+				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFormatOutputWriteModesOmitSkippedActions(t *testing.T) {
+	repos := []RepoSettingResult{
+		{Field: "topics", Category: WouldSet, Value: "go, cli"},
+		{Field: "set topics", Category: WouldSkipScope, Annotation: "token missing required scope"},
+	}
+	labels := []LabelResult{
+		{Name: "bug", Category: WouldCreate, Value: "#d73a4a"},
+		{Name: "create label \"bug\"", Category: LabelSkipScope, Annotation: "token missing required scope"},
+	}
+	want := "would skip (insufficient scope: token missing required scope): set topics\n" +
+		"would skip (insufficient scope: token missing required scope): create label \"bug\"\n"
+
+	for _, mode := range []ApplyMode{Apply, Recut} {
+		t.Run(fmt.Sprint(mode), func(t *testing.T) {
+			got := FormatOutput(repos, labels, nil, mode)
+			if got != want {
+				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, want)
+			}
+		})
 	}
 }

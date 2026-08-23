@@ -259,61 +259,111 @@ Behaviour:
 - If `.tailor.yml` is missing or malformed, exits immediately with the error described in Error Handling.
 - `baste` performs the same comparison logic as `alter` but writes nothing. It reports what `alter` would do.
 
-Output format - repository settings are shown first (if a `repository` section is present), then labels (if a `labels` section is present), then swatch entries.
+Output contract - repository settings are shown first (if a `repository` section is present), then labels (if a `labels` section is present), then file results. File results include the licence, the `.tailor.yml` default merge, and swatches. `baste` uses planned labels. `alter` and `alter --recut` use completed labels, and report each label only after the change succeeds. Informational and access-warning labels are the same for all three commands.
+
+| Result | `baste` | `alter` and `alter --recut` |
+|---|---|---|
+| Repository setting differs | `would set` | `set` |
+| Label is absent | `would create` | `created` |
+| Label differs | `would update` | `updated` |
+| `.tailor.yml` gains built-in defaults | `would update` | `updated` |
+| Licence or non-triggered swatch destination is absent | `would copy` | `copied` |
+| Non-triggered swatch destination is replaced | `would overwrite` | `overwritten` |
+| Triggered swatch condition is met and content is written | `would deploy (triggered: <field>)` | `deployed (triggered: <field>)` |
+| Triggered swatch condition is false and the file exists | `would remove (triggered: <field>)` | `removed (triggered: <field>)` |
 
 Repository settings output uses the following categories:
 
+`baste`:
+
 ```
-would set:                                    repository.has_wiki = false
-would set:                                    repository.delete_branch_on_merge = true
-no change:                                    repository.allow_squash_merge (already true)
+would set:                           repository.has_wiki = false
+no change:                           repository.allow_squash_merge (already true)
 ```
 
-`would set` - declared value differs from the live repository setting.
+`alter` and `alter --recut`:
+
+```
+set:                                 repository.has_wiki = false
+no change:                           repository.allow_squash_merge (already true)
+```
+
+`would set` - declared value differs from the live repository setting in `baste`.
+`set` - `alter` or `alter --recut` changed the declared value.
 `no change` - declared value matches the live repository setting.
 
-Repository settings entries are sorted lexicographically by field name within each category: `would set` first, then `no change`.
+Repository setting entries are sorted by category, with `would set` or `set` first, `no change` second, and `would skip` variants last. Entries are sorted lexicographically by field name within each category.
 
 Label output uses the following categories:
 
+`baste`:
+
 ```
-would create:                                 label.bug = #d20f39 "Something isn't working"
-would update:                                 label.documentation = #04a5e5 "Documentation improvement"
-no change:                                    label.enhancement (already #1e66f5 "New feature request")
-would skip (insufficient scope: <detail>):    create label "bug"
+would create:                              label.bug = #d20f39 "Something isn't working"
+would update:                              label.documentation = #04a5e5 "Documentation improvement"
+no change:                                 label.enhancement (already #1e66f5 "New feature request")
+would skip (insufficient scope: <detail>): create label "bug"
 ```
 
-`would create` - label does not exist on GitHub and would be created.
-`would update` - label exists on GitHub but colour or description differs from config.
+`alter` and `alter --recut`:
+
+```
+created:                             label.bug = #d20f39 "Something isn't working"
+updated:                             label.documentation = #04a5e5 "Documentation improvement"
+no change:                           label.enhancement (already #1e66f5 "New feature request")
+```
+
+`would create` - label does not exist on GitHub in `baste`.
+`created` - `alter` or `alter --recut` created the label.
+`would update` - label exists on GitHub but colour or description differs from config in `baste`.
+`updated` - `alter` or `alter --recut` updated the label.
 `no change` - label exists on GitHub and matches config.
 `would skip (insufficient scope: <detail>)` - operation could not be applied because the token lacks the required scope or permission. In GitHub Actions, available operations depend on the installation token's repository and job permissions. A suitably scoped PAT can be used when the workflow token cannot access a required endpoint.
 
-Label entries are sorted: `would create` first, then `would update`, then `no change`, then `would skip` variants. Within each category, sorted lexicographically by label name.
+Label entries are sorted by category: `would create` or `created` first, `would update` or `updated` second, `no change` third, then `would skip` variants. Entries are sorted lexicographically by label name within each category.
 
-Swatch output uses the following categories:
+File output uses the following categories:
+
+`baste`:
 
 ```
-would copy:                                LICENSE
-would overwrite:                           SECURITY.md
+would update:                               .tailor.yml
+would copy:                                 LICENSE
+would overwrite:                            SECURITY.md
 would deploy (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
 would remove (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
-no change:                                 CODE_OF_CONDUCT.md
-skipped (first-fit, exists):               justfile
-skip (never):                              .github/workflows/tailor-automerge.yml
+no change:                                  CODE_OF_CONDUCT.md
+skipped (first-fit, exists):                justfile
+skip (never):                               .github/workflows/tailor-automerge.yml
 ```
 
+`alter` and `alter --recut`:
+
+```
+updated:                                .tailor.yml
+copied:                                 LICENSE
+overwritten:                            SECURITY.md
+deployed (triggered: allow_auto_merge): .github/workflows/tailor-automerge.yml
+removed (triggered: allow_auto_merge):  .github/workflows/tailor-automerge.yml
+```
+
+`would update` - `baste` found built-in defaults to merge into `.tailor.yml`.
+`updated` - `alter` or `alter --recut` merged built-in defaults into `.tailor.yml`.
 `would copy` - destination does not exist and the swatch would be written. Applies regardless of whether the swatch is `always` or `first-fit`.
+`copied` - `alter` or `alter --recut` copied the licence or non-triggered swatch.
 `would overwrite` - `always` swatch whose embedded content differs from the on-disk file.
+`overwritten` - `alter` or `alter --recut` overwrote the non-triggered swatch.
 `would deploy (triggered: <field>)` - triggered swatch whose condition is met; the annotation shows which config field activated it. Covers both copy (file absent) and overwrite (file exists, content differs) cases.
-`would remove (triggered: <field>)` - triggered swatch whose condition is not met and the file exists on disk. In `baste` this is a preview; `alter` uses `removed (triggered: <field>)` when the file is actually deleted.
-`removed (triggered: <field>)` - triggered swatch whose condition is not met and the file has been deleted from disk. Appears in `alter` output only, not in `baste`.
+`deployed (triggered: <field>)` - `alter` or `alter --recut` copied or overwrote the triggered swatch.
+`would remove (triggered: <field>)` - triggered swatch condition is not met and the file exists on disk in `baste`.
+`removed (triggered: <field>)` - `alter` or `alter --recut` deleted the triggered swatch.
 `no change` - `always` or `triggered` swatch whose embedded content matches the on-disk file. `no change` only appears for `always` and active `triggered` swatches; `first-fit` swatches that exist always produce `skipped (first-fit, exists)`, never `no change`. Substituted swatches participate in the normal SHA-256 comparison after token resolution and can produce `no change` when the resolved content matches the on-disk file.
 `skipped (first-fit, exists)` - `first-fit` swatch whose destination already exists; no comparison is performed.
 `skip (never)` - swatch with `alteration: never`; skipped unconditionally.
 
-`baste` and `alter` use the same output format. The categories above apply to both commands; the only category exclusive to `alter` is `removed`.
+File results put actionable categories first: update, copy, overwrite, deploy, and remove. Informational categories follow: `no change`, `skipped (first-fit, exists)`, and `skip (never)`. The planned or completed tense does not change this order. Entries are sorted lexicographically by path within each category.
 
-Output order: actionable items first (`would set`, `would copy`, `would overwrite`, `would deploy`, `would remove`), then informational (`no change`, `skipped (first-fit, exists)`, `skip (never)`). Within each category, entries are sorted lexicographically by path or field name. The category label width is computed dynamically from the longest label in the output, with a minimum of 37 characters to accommodate `would skip (insufficient scope):` labels.
+The category label width is computed dynamically from the longest label in the full output, with a minimum of 37 characters. Trigger and access-warning annotations can increase the width.
 
 ### `measure`
 
