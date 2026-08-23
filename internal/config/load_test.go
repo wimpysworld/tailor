@@ -182,7 +182,8 @@ func TestLoadConfigSizeLimit(t *testing.T) {
 			data := bytes.Repeat([]byte{'['}, tt.size)
 			if !tt.wantSizeError {
 				prefix := []byte("license: none\nswatches: []\n#")
-				data = append(prefix, bytes.Repeat([]byte{'x'}, tt.size-len(prefix))...)
+				prefix = append(prefix, bytes.Repeat([]byte{'x'}, tt.size-len(prefix))...)
+				data = prefix
 			}
 			if err := os.WriteFile(filepath.Join(dir, configPath), data, 0o644); err != nil {
 				t.Fatalf("WriteFile: %v", err)
