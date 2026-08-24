@@ -183,7 +183,20 @@ func selectedPolicyBroadens(desired, current *model.ActionsSettings) bool {
 		}
 	}
 	for pattern := range currentPatterns {
-		if strings.HasPrefix(pattern, "!") && !desiredPatterns[pattern] {
+		if strings.HasPrefix(pattern, "!") && !exclusionCovered(pattern, desiredPatterns) {
+			return true
+		}
+	}
+	return false
+}
+
+func exclusionCovered(current string, desired map[string]bool) bool {
+	if desired[current] {
+		return true
+	}
+	for pattern := range desired {
+		if strings.HasPrefix(pattern, "!") && strings.HasSuffix(pattern, "*") &&
+			strings.HasPrefix(strings.TrimPrefix(current, "!"), strings.TrimSuffix(strings.TrimPrefix(pattern, "!"), "*")) {
 			return true
 		}
 	}
