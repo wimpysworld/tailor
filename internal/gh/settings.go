@@ -182,6 +182,15 @@ type ApplyResult struct {
 // are collected in the returned ApplyResult rather than aborting.
 // Hard errors still return as the error value.
 func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *model.RepositorySettings) (*ApplyResult, error) {
+	return applyRepoSettings(client, owner, name, settings, nil)
+}
+
+// ApplyRepoSettingsWithCurrent applies settings with the live state available to avoid redundant security feature writes.
+func ApplyRepoSettingsWithCurrent(client *api.RESTClient, owner, name string, settings, current *model.RepositorySettings) (*ApplyResult, error) {
+	return applyRepoSettings(client, owner, name, settings, current)
+}
+
+func applyRepoSettings(client *api.RESTClient, owner, name string, settings, current *model.RepositorySettings) (*ApplyResult, error) {
 	p := buildSettingsPayload(settings)
 	result := &ApplyResult{}
 
@@ -209,8 +218,8 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *mod
 
 	alertsPath := fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name)
 	fixesPath := fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name)
-	fixesDisabled := false
-	if p.AutomatedSecurityFixes != nil && !*p.AutomatedSecurityFixes {
+	fixesDisabled := current != nil && current.AutomatedSecurityFixesEnabled != nil && !*current.AutomatedSecurityFixesEnabled
+	if p.AutomatedSecurityFixes != nil && !*p.AutomatedSecurityFixes && !fixesDisabled {
 		var err error
 		fixesDisabled, err = applySecuritySetting(client, fixesPath, false, "automated security fixes", result)
 		if err != nil {

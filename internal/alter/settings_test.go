@@ -1106,3 +1106,40 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldSet)
 	}
 }
+
+func TestProcessRepoSettingsDoesNotRewriteDisabledSecurityFixes(t *testing.T) {
+	var paths []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			paths = append(paths, r.URL.Path)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		switch r.URL.Path {
+		case "/repos/testowner/testrepo":
+			fmt.Fprint(w, `{"permissions":{"admin":true}}`)
+		case "/repos/testowner/testrepo/actions/permissions/workflow":
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+		case "/repos/testowner/testrepo/private-vulnerability-reporting":
+			fmt.Fprint(w, `{"enabled":false}`)
+		case "/repos/testowner/testrepo/vulnerability-alerts":
+			w.WriteHeader(http.StatusNoContent)
+		case "/repos/testowner/testrepo/automated-security-fixes":
+			fmt.Fprint(w, `{"enabled":false,"paused":false}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	settings := &model.RepositorySettings{
+		VulnerabilityAlertsEnabled:    ptr.Ptr(false),
+		AutomatedSecurityFixesEnabled: ptr.Ptr(false),
+	}
+	if _, err := alter.ProcessRepoSettings(&config.Config{Repository: settings}, alter.Apply, testutil.NewTestClient(t, server), "testowner", "testrepo", true); err != nil {
+		t.Fatal(err)
+	}
+	if len(paths) != 1 || paths[0] != "/repos/testowner/testrepo/vulnerability-alerts" {
+		t.Fatalf("write paths = %v, want vulnerability alerts only", paths)
+	}
+}
