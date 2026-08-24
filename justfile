@@ -37,7 +37,7 @@ release VERSION:
     set -e
 
     # Validate version format
-    if ! echo "{{VERSION}}" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    if ! [[ "{{VERSION}}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "Error: VERSION must be in format x.y.z (e.g., 0.1.0)"
         exit 1
     fi
