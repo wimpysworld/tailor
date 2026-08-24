@@ -1,11 +1,13 @@
 package measure
 
 import (
+	"bytes"
 	"cmp"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strings"
 
 	"github.com/wimpysworld/tailor/internal/fsutil"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -30,14 +32,75 @@ type HealthResult struct {
 	Detail string
 }
 
-// placeholderRe matches unresolved bracket or brace tokens in licence templates,
-// such as [year], [fullname], [yyyy], [name of copyright owner], or {project}.
-var placeholderRe = regexp.MustCompile(`\[[^\]]+\]|\{[^}]+\}`)
+var (
+	placeholderWhitespaceRe = regexp.MustCompile(`[ \t\n\v\f\r]+`)
+	placeholderNames        = map[string]struct{}{
+		"year":                     {},
+		"yyyy":                     {},
+		"fullname":                 {},
+		"name of copyright owner":  {},
+		"name of copyright holder": {},
+		"software name":            {},
+		"project":                  {},
+		"projecturl":               {},
+		"email":                    {},
+	}
+)
 
-// hasUnresolvedPlaceholders reports whether data contains any bracket or brace
-// tokens typical of GitHub licence templates.
+// hasCompleteInlineLink reports whether offset starts a balanced Markdown
+// inline-link destination. Backslashes escape the following byte.
+func hasCompleteInlineLink(data []byte, offset int) bool {
+	if offset >= len(data) || data[offset] != '(' {
+		return false
+	}
+
+	depth := 0
+	for i := offset; i < len(data); i++ {
+		switch data[i] {
+		case '\\':
+			i++
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// hasUnresolvedPlaceholders reports whether data contains a known unresolved
+// token inside matching square or curly delimiters.
 func hasUnresolvedPlaceholders(data []byte) bool {
-	return placeholderRe.Match(data)
+	for start, open := range data {
+		var close byte
+		switch open {
+		case '[':
+			close = ']'
+		case '{':
+			close = '}'
+		default:
+			continue
+		}
+
+		end := bytes.IndexByte(data[start+1:], close)
+		if end < 0 {
+			continue
+		}
+		end += start + 1
+		if open == '[' && hasCompleteInlineLink(data, end+1) {
+			continue
+		}
+
+		name := placeholderWhitespaceRe.ReplaceAllString(string(data[start+1:end]), " ")
+		name = strings.ToLower(strings.Trim(name, " "))
+		if _, ok := placeholderNames[name]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // readmeFile is the exact filename checked as a local health diagnostic.

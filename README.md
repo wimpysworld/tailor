@@ -104,7 +104,7 @@ tailor fit .                  # Create .tailor.yml
 tailor alter                  # Apply swatches and settings
 ```
 
-`measure` checks which community health files are present, missing, or need attention. It warns when `README.md` is absent or when `LICENSE` contains unresolved placeholders. `fit .` works in an existing directory without error. If the project has a GitHub remote, `fit` reads the live repository settings so it preserves anything already configured.
+`measure` checks which community health files are present, missing, or need attention. It warns when `README.md` is absent or when `LICENSE` contains a known unresolved placeholder. The licence check recognises `year`, `yyyy`, `fullname`, `name of copyright owner`, `name of copyright holder`, `software name`, `project`, `projecturl`, and `email` inside square or curly braces. Matching ignores case, allows ASCII whitespace beside the delimiters, and treats each internal sequence of ASCII whitespace as one space. Other bracketed licence text and complete Markdown inline links do not cause a warning. `fit .` works in an existing directory without error. If the project has a GitHub remote, `fit` reads the live repository settings so it preserves anything already configured.
 
 Edit `.tailor.yml` to add swatches or change alteration modes, then run `alter`. Set `alteration: never` on any swatch you want tailor to skip.
 
@@ -397,7 +397,7 @@ not-configured: .github/dependabot.yml
 | Status | Meaning |
 |--------|--------|
 | `missing` | Health file does not exist on disk |
-| `warning` | Health diagnostic needing attention (missing `README.md` or unresolved licence placeholders) |
+| `warning` | Health diagnostic needing attention (missing `README.md` or known unresolved licence placeholders) |
 | `present` | Health file exists on disk |
 | `not-configured` | Default swatch not in `.tailor.yml` |
 | `config-only` | Swatch in `.tailor.yml` not in the built-in default set |

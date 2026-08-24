@@ -3,10 +3,104 @@ package measure
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
+
+func TestHasUnresolvedPlaceholdersSupportedNames(t *testing.T) {
+	names := []string{
+		"year",
+		"yyyy",
+		"fullname",
+		"name of copyright owner",
+		"name of copyright holder",
+		"software name",
+		"project",
+		"projecturl",
+		"email",
+	}
+	delimiters := []struct {
+		name  string
+		open  string
+		close string
+	}{
+		{name: "square", open: "[", close: "]"},
+		{name: "curly", open: "{", close: "}"},
+	}
+
+	for _, name := range names {
+		for _, delimiter := range delimiters {
+			t.Run(name+"/"+delimiter.name, func(t *testing.T) {
+				variants := []string{
+					name,
+					strings.ToUpper(name),
+					" \t\n\v\f\r" + name + "\r\f\v\n\t ",
+					strings.ReplaceAll(name, " ", " \t\n\v\f\r "),
+				}
+				for _, variant := range variants {
+					token := delimiter.open + variant + delimiter.close
+					if !hasUnresolvedPlaceholders([]byte(token)) {
+						t.Errorf("hasUnresolvedPlaceholders(%q) = false, want true", token)
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestHasUnresolvedPlaceholdersRejectsOtherBracketedText(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{name: "blue oak markdown link", content: "complied with [Notices](#notices)"},
+		{name: "markdown link matching placeholder", content: "see [year](#year)"},
+		{name: "markdown link with plain destination", content: "see [year](unfinished)"},
+		{name: "markdown link with nested destination", content: "see [year](docs/(archive))"},
+		{name: "cecill name fragments", content: "Ce[a] C[nrs] I[nria] L[ogiciel] L[ibre]"},
+		{name: "gpl application example", content: "Copyright (C) <year> <name of author>"},
+		{name: "resolved copyright", content: "Copyright (c) 2026 Jane Smith"},
+		{name: "arbitrary square brackets", content: "[licence terms]"},
+		{name: "arbitrary curly braces", content: "{licence terms}"},
+		{name: "longer name", content: "[yearly]"},
+		{name: "prefixed name", content: "[copyright year]"},
+		{name: "space within projecturl", content: "{project url}"},
+		{name: "punctuation within email", content: "[e-mail]"},
+		{name: "square open curly close", content: "[year}"},
+		{name: "curly open square close", content: "{year]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if hasUnresolvedPlaceholders([]byte(tt.content)) {
+				t.Errorf("hasUnresolvedPlaceholders(%q) = true, want false", tt.content)
+			}
+		})
+	}
+}
+
+func TestHasUnresolvedPlaceholdersFindsTokenAmongValidText(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+	}{
+		{name: "after valid markdown link", content: "complied with [Notices](#notices)\nCopyright (c) [year] Jane Smith"},
+		{name: "link opening without destination", content: "[year]("},
+		{name: "link destination without closing parenthesis", content: "[year](unfinished"},
+		{name: "after malformed same delimiter", content: "[broken [year]"},
+		{name: "inside mixed delimiters", content: "{text [year]}"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if !hasUnresolvedPlaceholders([]byte(tt.content)) {
+				t.Errorf("hasUnresolvedPlaceholders(%q) = false, want true", tt.content)
+			}
+		})
+	}
+}
 
 func TestCheckHealthEmptyDir(t *testing.T) {
 	dir := t.TempDir()
