@@ -9,7 +9,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -184,7 +183,7 @@ func TestWriteCreatesFile(t *testing.T) {
 	cfg := &Config{
 		License: "MIT",
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -245,28 +244,28 @@ func TestWriteOptionalFieldsPresent(t *testing.T) {
 	cfg := &Config{
 		License: "Apache-2.0",
 		Repository: &model.RepositorySettings{
-			Description:                       ptr.Ptr("My project"),
-			Homepage:                          ptr.Ptr("https://example.com"),
-			HasWiki:                           ptr.Ptr(true),
-			HasDiscussions:                    ptr.Ptr(false),
-			HasProjects:                       ptr.Ptr(false),
-			HasIssues:                         ptr.Ptr(true),
-			AllowMergeCommit:                  ptr.Ptr(true),
-			AllowSquashMerge:                  ptr.Ptr(true),
-			AllowRebaseMerge:                  ptr.Ptr(false),
-			SquashMergeCommitTitle:            ptr.Ptr("PR_TITLE"),
-			SquashMergeCommitMessage:          ptr.Ptr("COMMIT_MESSAGES"),
-			MergeCommitTitle:                  ptr.Ptr("PR_TITLE"),
-			MergeCommitMessage:                ptr.Ptr("PR_BODY"),
-			DeleteBranchOnMerge:               ptr.Ptr(true),
-			AllowUpdateBranch:                 ptr.Ptr(true),
-			AllowAutoMerge:                    ptr.Ptr(false),
-			WebCommitSignoffRequired:          ptr.Ptr(true),
-			PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-			VulnerabilityAlertsEnabled:        ptr.Ptr(false),
-			AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
-			DefaultWorkflowPermissions:        ptr.Ptr("write"),
-			CanApprovePullRequestReviews:      ptr.Ptr(true),
+			Description:                       new("My project"),
+			Homepage:                          new("https://example.com"),
+			HasWiki:                           new(true),
+			HasDiscussions:                    new(false),
+			HasProjects:                       new(false),
+			HasIssues:                         new(true),
+			AllowMergeCommit:                  new(true),
+			AllowSquashMerge:                  new(true),
+			AllowRebaseMerge:                  new(false),
+			SquashMergeCommitTitle:            new("PR_TITLE"),
+			SquashMergeCommitMessage:          new("COMMIT_MESSAGES"),
+			MergeCommitTitle:                  new("PR_TITLE"),
+			MergeCommitMessage:                new("PR_BODY"),
+			DeleteBranchOnMerge:               new(true),
+			AllowUpdateBranch:                 new(true),
+			AllowAutoMerge:                    new(false),
+			WebCommitSignoffRequired:          new(true),
+			PrivateVulnerabilityReportEnabled: new(true),
+			VulnerabilityAlertsEnabled:        new(false),
+			AutomatedSecurityFixesEnabled:     new(true),
+			DefaultWorkflowPermissions:        new("write"),
+			CanApprovePullRequestReviews:      new(true),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -325,21 +324,21 @@ func TestWriteOptionalFieldsOmitted(t *testing.T) {
 		License: "MIT",
 		Repository: &model.RepositorySettings{
 			// Description, Homepage, MergeCommitTitle, MergeCommitMessage are nil.
-			HasWiki:                      ptr.Ptr(false),
-			HasDiscussions:               ptr.Ptr(false),
-			HasProjects:                  ptr.Ptr(false),
-			HasIssues:                    ptr.Ptr(true),
-			AllowMergeCommit:             ptr.Ptr(false),
-			AllowSquashMerge:             ptr.Ptr(true),
-			AllowRebaseMerge:             ptr.Ptr(true),
-			SquashMergeCommitTitle:       ptr.Ptr("PR_TITLE"),
-			SquashMergeCommitMessage:     ptr.Ptr("PR_BODY"),
-			DeleteBranchOnMerge:          ptr.Ptr(true),
-			AllowUpdateBranch:            ptr.Ptr(true),
-			AllowAutoMerge:               ptr.Ptr(true),
-			WebCommitSignoffRequired:     ptr.Ptr(false),
-			DefaultWorkflowPermissions:   ptr.Ptr("read"),
-			CanApprovePullRequestReviews: ptr.Ptr(false),
+			HasWiki:                      new(false),
+			HasDiscussions:               new(false),
+			HasProjects:                  new(false),
+			HasIssues:                    new(true),
+			AllowMergeCommit:             new(false),
+			AllowSquashMerge:             new(true),
+			AllowRebaseMerge:             new(true),
+			SquashMergeCommitTitle:       new("PR_TITLE"),
+			SquashMergeCommitMessage:     new("PR_BODY"),
+			DeleteBranchOnMerge:          new(true),
+			AllowUpdateBranch:            new(true),
+			AllowAutoMerge:               new(true),
+			WebCommitSignoffRequired:     new(false),
+			DefaultWorkflowPermissions:   new("read"),
+			CanApprovePullRequestReviews: new(false),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -392,8 +391,8 @@ func TestWriteYAMLSpecialCharactersQuoted(t *testing.T) {
 		License: "MIT",
 		Repository: &model.RepositorySettings{
 			Description:      &desc,
-			HasWiki:          ptr.Ptr(false),
-			AllowSquashMerge: ptr.Ptr(true),
+			HasWiki:          new(false),
+			AllowSquashMerge: new(true),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -429,7 +428,7 @@ func TestWriteTopicsPreserved(t *testing.T) {
 	cfg := &Config{
 		License: "MIT",
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 			Topics:  &topics,
 		},
 		Swatches: []SwatchEntry{
@@ -475,7 +474,7 @@ func TestWriteTopicsOmittedWhenNil(t *testing.T) {
 	cfg := &Config{
 		License: "MIT",
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 			// Nil topics are omitted from output.
 		},
 		Swatches: []SwatchEntry{
@@ -503,7 +502,7 @@ func TestWriteEmptyTopicsRoundTrip(t *testing.T) {
 	cfg := &Config{
 		License: "MIT",
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 			Topics:  &topics,
 		},
 		Swatches: []SwatchEntry{

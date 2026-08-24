@@ -13,7 +13,6 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
 type actionsPermissionsResponse struct {
@@ -45,9 +44,9 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 		}
 	} else {
 		coreKnown = true
-		settings.Enabled = ptr.Ptr(permissions.Enabled)
-		settings.AllowedActions = ptr.Ptr(permissions.AllowedActions)
-		settings.SHAPinningRequired = ptr.Ptr(permissions.SHAPinningRequired)
+		settings.Enabled = new(permissions.Enabled)
+		settings.AllowedActions = new(permissions.AllowedActions)
+		settings.SHAPinningRequired = new(permissions.SHAPinningRequired)
 	}
 
 	// GitHub rejects the selected-actions read while another policy is active.
@@ -62,8 +61,8 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 				return nil, nil, fmt.Errorf("fetching selected actions permissions: %w", err)
 			}
 		} else {
-			settings.GitHubOwnedAllowed = ptr.Ptr(policy.GitHubOwnedAllowed)
-			settings.VerifiedAllowed = ptr.Ptr(policy.VerifiedAllowed)
+			settings.GitHubOwnedAllowed = new(policy.GitHubOwnedAllowed)
+			settings.VerifiedAllowed = new(policy.VerifiedAllowed)
 			settings.PatternsAllowed = &policy.PatternsAllowed
 		}
 	}

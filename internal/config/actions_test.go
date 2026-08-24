@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
 var approvedDefaultActionPatterns = []string{
@@ -80,12 +79,12 @@ func TestValidateActions(t *testing.T) {
 		wantErr string
 	}{
 		{name: "absent"},
-		{name: "all", actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("all")}},
-		{name: "local only", actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("local_only")}},
-		{name: "selected", actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("selected"), PatternsAllowed: &[]string{"acme/*"}}},
-		{name: "invalid enum", actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("private")}, wantErr: "invalid allowed_actions"},
-		{name: "selected field without enum", actions: &model.ActionsSettings{VerifiedAllowed: ptr.Ptr(true)}, wantErr: "require allowed_actions"},
-		{name: "selected field with all", actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("all"), GitHubOwnedAllowed: ptr.Ptr(true)}, wantErr: "require allowed_actions"},
+		{name: "all", actions: &model.ActionsSettings{AllowedActions: new("all")}},
+		{name: "local only", actions: &model.ActionsSettings{AllowedActions: new("local_only")}},
+		{name: "selected", actions: &model.ActionsSettings{AllowedActions: new("selected"), PatternsAllowed: &[]string{"acme/*"}}},
+		{name: "invalid enum", actions: &model.ActionsSettings{AllowedActions: new("private")}, wantErr: "invalid allowed_actions"},
+		{name: "selected field without enum", actions: &model.ActionsSettings{VerifiedAllowed: new(true)}, wantErr: "require allowed_actions"},
+		{name: "selected field with all", actions: &model.ActionsSettings{AllowedActions: new("all"), GitHubOwnedAllowed: new(true)}, wantErr: "require allowed_actions"},
 		{name: "unknown", actions: &model.ActionsSettings{Extra: map[string]interface{}{"unknown": true}}, wantErr: "unrecognised actions setting"},
 	}
 	for _, tt := range tests {
@@ -109,23 +108,23 @@ func TestValidateCompleteActions(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "absent"},
-		{name: "all", actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("all")}},
-		{name: "local only", actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("local_only")}},
+		{name: "all", actions: &model.ActionsSettings{AllowedActions: new("all")}},
+		{name: "local only", actions: &model.ActionsSettings{AllowedActions: new("local_only")}},
 		{
 			name: "complete selected",
 			actions: &model.ActionsSettings{
-				AllowedActions:     ptr.Ptr("selected"),
-				GitHubOwnedAllowed: ptr.Ptr(true),
-				VerifiedAllowed:    ptr.Ptr(true),
+				AllowedActions:     new("selected"),
+				GitHubOwnedAllowed: new(true),
+				VerifiedAllowed:    new(true),
 				PatternsAllowed:    &completePatterns,
 			},
 		},
-		{name: "missing all selected fields", actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("selected")}, wantErr: true},
+		{name: "missing all selected fields", actions: &model.ActionsSettings{AllowedActions: new("selected")}, wantErr: true},
 		{
 			name: "missing github owned",
 			actions: &model.ActionsSettings{
-				AllowedActions:  ptr.Ptr("selected"),
-				VerifiedAllowed: ptr.Ptr(true),
+				AllowedActions:  new("selected"),
+				VerifiedAllowed: new(true),
 				PatternsAllowed: &completePatterns,
 			},
 			wantErr: true,
@@ -133,8 +132,8 @@ func TestValidateCompleteActions(t *testing.T) {
 		{
 			name: "missing verified",
 			actions: &model.ActionsSettings{
-				AllowedActions:     ptr.Ptr("selected"),
-				GitHubOwnedAllowed: ptr.Ptr(true),
+				AllowedActions:     new("selected"),
+				GitHubOwnedAllowed: new(true),
 				PatternsAllowed:    &completePatterns,
 			},
 			wantErr: true,
@@ -142,9 +141,9 @@ func TestValidateCompleteActions(t *testing.T) {
 		{
 			name: "missing patterns",
 			actions: &model.ActionsSettings{
-				AllowedActions:     ptr.Ptr("selected"),
-				GitHubOwnedAllowed: ptr.Ptr(true),
-				VerifiedAllowed:    ptr.Ptr(true),
+				AllowedActions:     new("selected"),
+				GitHubOwnedAllowed: new(true),
+				VerifiedAllowed:    new(true),
 			},
 			wantErr: true,
 		},
@@ -198,8 +197,8 @@ func TestMergeActionsDefaults(t *testing.T) {
 
 	t.Run("partial selected gets default patterns", func(t *testing.T) {
 		cfg := &Config{Actions: &model.ActionsSettings{
-			AllowedActions:     ptr.Ptr("selected"),
-			GitHubOwnedAllowed: ptr.Ptr(false),
+			AllowedActions:     new("selected"),
+			GitHubOwnedAllowed: new(false),
 		}}
 		if !mergeActionsFrom(cfg, defaults) {
 			t.Fatal("mergeActionsFrom() changed = false, want true")
@@ -212,9 +211,9 @@ func TestMergeActionsDefaults(t *testing.T) {
 	t.Run("partial selected preserves explicit values", func(t *testing.T) {
 		emptyPatterns := []string{}
 		cfg := &Config{Actions: &model.ActionsSettings{
-			Enabled:            ptr.Ptr(false),
-			AllowedActions:     ptr.Ptr("selected"),
-			GitHubOwnedAllowed: ptr.Ptr(false),
+			Enabled:            new(false),
+			AllowedActions:     new("selected"),
+			GitHubOwnedAllowed: new(false),
 			PatternsAllowed:    &emptyPatterns,
 		}}
 		patternsBefore := cfg.Actions.PatternsAllowed
@@ -244,7 +243,7 @@ func TestMergeActionsDefaults(t *testing.T) {
 	t.Run("partial selected preserves explicit custom patterns", func(t *testing.T) {
 		patterns := []string{"acme/private-action@v1"}
 		cfg := &Config{Actions: &model.ActionsSettings{
-			AllowedActions:  ptr.Ptr("selected"),
+			AllowedActions:  new("selected"),
 			PatternsAllowed: &patterns,
 		}}
 		patternsBefore := cfg.Actions.PatternsAllowed
@@ -259,8 +258,8 @@ func TestMergeActionsDefaults(t *testing.T) {
 	for _, policy := range []string{"all", "local_only"} {
 		t.Run(policy+" skips selected fields", func(t *testing.T) {
 			cfg := &Config{Actions: &model.ActionsSettings{
-				Enabled:        ptr.Ptr(false),
-				AllowedActions: ptr.Ptr(policy),
+				Enabled:        new(false),
+				AllowedActions: new(policy),
 			}}
 			if !mergeActionsFrom(cfg, defaults) {
 				t.Fatal("mergeActionsFrom() changed = false, want true")
@@ -283,11 +282,11 @@ func TestMergeActionsDefaults(t *testing.T) {
 	t.Run("complete selected policy is unchanged", func(t *testing.T) {
 		emptyPatterns := []string{}
 		cfg := &Config{Actions: &model.ActionsSettings{
-			Enabled:            ptr.Ptr(false),
-			AllowedActions:     ptr.Ptr("selected"),
-			SHAPinningRequired: ptr.Ptr(true),
-			GitHubOwnedAllowed: ptr.Ptr(false),
-			VerifiedAllowed:    ptr.Ptr(false),
+			Enabled:            new(false),
+			AllowedActions:     new("selected"),
+			SHAPinningRequired: new(true),
+			GitHubOwnedAllowed: new(false),
+			VerifiedAllowed:    new(false),
 			PatternsAllowed:    &emptyPatterns,
 		}}
 		patternsBefore := cfg.Actions.PatternsAllowed
@@ -302,7 +301,7 @@ func TestMergeActionsDefaults(t *testing.T) {
 
 func TestWriteActionsEmptyPatterns(t *testing.T) {
 	cfg := &Config{License: "none", Actions: &model.ActionsSettings{
-		AllowedActions:  ptr.Ptr("selected"),
+		AllowedActions:  new("selected"),
 		PatternsAllowed: &[]string{},
 	}}
 	dir := t.TempDir()

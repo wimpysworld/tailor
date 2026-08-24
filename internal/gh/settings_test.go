@@ -11,7 +11,6 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
@@ -537,9 +536,9 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		Description:    ptr.Ptr("new desc"),
-		HasWiki:        ptr.Ptr(true),
-		AllowAutoMerge: ptr.Ptr(false),
+		Description:    new("new desc"),
+		HasWiki:        new(true),
+		AllowAutoMerge: new(false),
 	}
 
 	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -588,14 +587,14 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
 	topics := []string{"go", "cli"}
 	settings := &model.RepositorySettings{
-		Description:                       ptr.Ptr("desc"),
-		HasWiki:                           ptr.Ptr(true),
-		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-		VulnerabilityAlertsEnabled:        ptr.Ptr(false),
-		AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
+		Description:                       new("desc"),
+		HasWiki:                           new(true),
+		PrivateVulnerabilityReportEnabled: new(true),
+		VulnerabilityAlertsEnabled:        new(false),
+		AutomatedSecurityFixesEnabled:     new(true),
 		Topics:                            &topics,
-		DefaultWorkflowPermissions:        ptr.Ptr("read"),
-		CanApprovePullRequestReviews:      ptr.Ptr(true),
+		DefaultWorkflowPermissions:        new("read"),
+		CanApprovePullRequestReviews:      new(true),
 	}
 
 	p := buildSettingsPayload(settings)
@@ -648,7 +647,7 @@ func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
 
 func TestBuildSettingsPayloadNilFieldsStayNil(t *testing.T) {
 	settings := &model.RepositorySettings{
-		HasWiki: ptr.Ptr(true),
+		HasWiki: new(true),
 	}
 
 	p := buildSettingsPayload(settings)
@@ -699,7 +698,7 @@ func TestApplyRepoSettingsPatchError(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		HasWiki: ptr.Ptr(true),
+		HasWiki: new(true),
 	}
 
 	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -717,7 +716,7 @@ func TestApplyRepoSettingsPatch403Skipped(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		HasWiki: ptr.Ptr(true),
+		HasWiki: new(true),
 	}
 
 	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -748,8 +747,8 @@ func TestApplyRepoSettingsWorkflowPermsBothFields(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		DefaultWorkflowPermissions:   ptr.Ptr("read"),
-		CanApprovePullRequestReviews: ptr.Ptr(false),
+		DefaultWorkflowPermissions:   new("read"),
+		CanApprovePullRequestReviews: new(false),
 	}
 
 	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -796,7 +795,7 @@ func TestApplyRepoSettingsWorkflowPermsPartialFetchesCurrent(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		DefaultWorkflowPermissions: ptr.Ptr("read"),
+		DefaultWorkflowPermissions: new("read"),
 	}
 
 	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -826,7 +825,7 @@ func TestApplyRepoSettingsWorkflowPermsSkippedWhenBothNil(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		HasWiki: ptr.Ptr(true),
+		HasWiki: new(true),
 	}
 
 	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -856,7 +855,7 @@ func TestApplyRepoSettingsWorkflowPermsGetError(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		CanApprovePullRequestReviews: ptr.Ptr(true),
+		CanApprovePullRequestReviews: new(true),
 	}
 
 	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -880,8 +879,8 @@ func TestApplyRepoSettingsWorkflowPermsPutError(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		DefaultWorkflowPermissions:   ptr.Ptr("read"),
-		CanApprovePullRequestReviews: ptr.Ptr(false),
+		DefaultWorkflowPermissions:   new("read"),
+		CanApprovePullRequestReviews: new(false),
 	}
 
 	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -986,7 +985,7 @@ func TestApplyRepoSettingsTopicsSkippedWhenNil(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		HasWiki: ptr.Ptr(true),
+		HasWiki: new(true),
 	}
 
 	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -1036,7 +1035,7 @@ func TestApplyRepoSettingsPartialTopics403(t *testing.T) {
 	client := newTestClient(t, server)
 	topics := []string{"go"}
 	settings := &model.RepositorySettings{
-		HasWiki: ptr.Ptr(true),
+		HasWiki: new(true),
 		Topics:  &topics,
 	}
 
@@ -1058,7 +1057,7 @@ func TestApplyRepoSettingsAllSkipped(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		HasWiki: ptr.Ptr(true),
+		HasWiki: new(true),
 	}
 
 	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -1078,7 +1077,7 @@ func TestApplyRepoSettingsApplyResultPopulatedOnSuccess(t *testing.T) {
 
 	client := newTestClient(t, server)
 	settings := &model.RepositorySettings{
-		HasWiki: ptr.Ptr(true),
+		HasWiki: new(true),
 	}
 
 	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
@@ -1103,9 +1102,9 @@ func TestApplyRepoSettingsSecurityFeatureMethodsAndEnableOrder(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	settings := &model.RepositorySettings{
-		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-		VulnerabilityAlertsEnabled:        ptr.Ptr(true),
-		AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
+		PrivateVulnerabilityReportEnabled: new(true),
+		VulnerabilityAlertsEnabled:        new(true),
+		AutomatedSecurityFixesEnabled:     new(true),
 	}
 	if _, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings); err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
@@ -1138,8 +1137,8 @@ func TestApplyRepoSettingsSecurityFeatureDisableOrder(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	settings := &model.RepositorySettings{
-		VulnerabilityAlertsEnabled:    ptr.Ptr(false),
-		AutomatedSecurityFixesEnabled: ptr.Ptr(false),
+		VulnerabilityAlertsEnabled:    new(false),
+		AutomatedSecurityFixesEnabled: new(false),
 	}
 	if _, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings); err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
@@ -1162,7 +1161,7 @@ func TestApplyRepoSettingsDoesNotDisableAlertsWhenFixesAreUnmanaged(t *testing.T
 	}))
 	t.Cleanup(server.Close)
 
-	settings := &model.RepositorySettings{VulnerabilityAlertsEnabled: ptr.Ptr(false)}
+	settings := &model.RepositorySettings{VulnerabilityAlertsEnabled: new(false)}
 	_, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings)
 	if err == nil || err.Error() != "cannot disable vulnerability alerts while automated security fixes are unmanaged" {
 		t.Fatalf("ApplyRepoSettings() error = %v, want unmanaged fixes error", err)
@@ -1179,7 +1178,7 @@ func TestApplyRepoSettingsSecurityFeatureAccessErrorIsSkipped(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	settings := &model.RepositorySettings{VulnerabilityAlertsEnabled: ptr.Ptr(true)}
+	settings := &model.RepositorySettings{VulnerabilityAlertsEnabled: new(true)}
 	result, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
@@ -1198,16 +1197,16 @@ func TestApplyRepoSettingsSecurityPrerequisiteStopsDependentWrite(t *testing.T) 
 		{
 			name: "enable alerts before fixes",
 			settings: &model.RepositorySettings{
-				VulnerabilityAlertsEnabled:    ptr.Ptr(true),
-				AutomatedSecurityFixesEnabled: ptr.Ptr(true),
+				VulnerabilityAlertsEnabled:    new(true),
+				AutomatedSecurityFixesEnabled: new(true),
 			},
 			first: "/repos/testowner/testrepo/vulnerability-alerts",
 		},
 		{
 			name: "disable fixes before alerts",
 			settings: &model.RepositorySettings{
-				VulnerabilityAlertsEnabled:    ptr.Ptr(false),
-				AutomatedSecurityFixesEnabled: ptr.Ptr(false),
+				VulnerabilityAlertsEnabled:    new(false),
+				AutomatedSecurityFixesEnabled: new(false),
 			},
 			first: "/repos/testowner/testrepo/automated-security-fixes",
 		},
@@ -1249,7 +1248,7 @@ func TestApplyRepoSettingsSecurityFeatureHardErrorStops(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	settings := &model.RepositorySettings{AutomatedSecurityFixesEnabled: ptr.Ptr(true)}
+	settings := &model.RepositorySettings{AutomatedSecurityFixesEnabled: new(true)}
 	if _, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings); err == nil {
 		t.Fatal("ApplyRepoSettings() error = nil, want hard error")
 	}

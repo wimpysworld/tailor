@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -281,7 +280,7 @@ func TestMergeRepoSettingsPartialRepository(t *testing.T) {
 }
 
 func TestMergeRepoSettingsAddsSecurityDefaults(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{HasWiki: ptr.Ptr(false)}}
+	cfg := &Config{Repository: &model.RepositorySettings{HasWiki: new(false)}}
 
 	if !mergeRepoDefaultsForTest(t, cfg) {
 		t.Fatal("expected changed=true for missing security settings")
@@ -294,9 +293,9 @@ func TestMergeRepoSettingsAddsSecurityDefaults(t *testing.T) {
 
 func TestMergeRepoSettingsPreservesExplicitFalseSecuritySettings(t *testing.T) {
 	cfg := &Config{Repository: &model.RepositorySettings{
-		PrivateVulnerabilityReportEnabled: ptr.Ptr(false),
-		VulnerabilityAlertsEnabled:        ptr.Ptr(false),
-		AutomatedSecurityFixesEnabled:     ptr.Ptr(false),
+		PrivateVulnerabilityReportEnabled: new(false),
+		VulnerabilityAlertsEnabled:        new(false),
+		AutomatedSecurityFixesEnabled:     new(false),
 	}}
 
 	if !mergeRepoDefaultsForTest(t, cfg) {

@@ -13,7 +13,6 @@ import (
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
@@ -52,8 +51,8 @@ func TestProcessActionsCanonicalNoChange(t *testing.T) {
 	t.Cleanup(server.Close)
 	patterns := []string{"a/*", "z/*"}
 	cfg := &config.Config{Actions: &model.ActionsSettings{
-		Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected"), SHAPinningRequired: ptr.Ptr(true),
-		GitHubOwnedAllowed: ptr.Ptr(true), VerifiedAllowed: ptr.Ptr(false), PatternsAllowed: &patterns,
+		Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(true),
+		GitHubOwnedAllowed: new(true), VerifiedAllowed: new(false), PatternsAllowed: &patterns,
 	}}
 	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
 	if err != nil {
@@ -73,7 +72,7 @@ func TestProcessActionsDryRunAndApply(t *testing.T) {
 	var writes atomic.Int32
 	server := actionsServer(t, &writes, false)
 	t.Cleanup(server.Close)
-	cfg := &config.Config{Actions: &model.ActionsSettings{Enabled: ptr.Ptr(false)}}
+	cfg := &config.Config{Actions: &model.ActionsSettings{Enabled: new(false)}}
 	client := testutil.NewTestClient(t, server)
 	results, err := alter.ProcessActions(cfg, alter.DryRun, client, "acme", "widget", true)
 	if err != nil || len(results) != 1 || results[0].Category != alter.WouldSet || writes.Load() != 0 {
@@ -116,7 +115,7 @@ func TestProcessActionsTransitionsToSelectedInOneApply(t *testing.T) {
 
 	patterns := []string{"acme/*"}
 	cfg := &config.Config{Actions: &model.ActionsSettings{
-		AllowedActions:  ptr.Ptr("selected"),
+		AllowedActions:  new("selected"),
 		PatternsAllowed: &patterns,
 	}}
 	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
@@ -140,7 +139,7 @@ func TestProcessActionsAccessErrorProducesSkip(t *testing.T) {
 	var writes atomic.Int32
 	server := actionsServer(t, &writes, true)
 	t.Cleanup(server.Close)
-	cfg := &config.Config{Actions: &model.ActionsSettings{Enabled: ptr.Ptr(true)}}
+	cfg := &config.Config{Actions: &model.ActionsSettings{Enabled: new(true)}}
 	results, err := alter.ProcessActions(cfg, alter.DryRun, testutil.NewTestClient(t, server), "acme", "widget", true)
 	if err != nil {
 		t.Fatal(err)
@@ -160,7 +159,7 @@ func TestProcessActionsUnknownCoreSkipsAllDeclaredPolicyFields(t *testing.T) {
 	t.Cleanup(server.Close)
 	patterns := []string{"acme/*"}
 	cfg := &config.Config{Actions: &model.ActionsSettings{
-		AllowedActions: ptr.Ptr("selected"), PatternsAllowed: &patterns,
+		AllowedActions: new("selected"), PatternsAllowed: &patterns,
 	}}
 	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
 	if err != nil {
@@ -196,8 +195,8 @@ func TestProcessActionsUnknownSelectedPolicyBlocksEnable(t *testing.T) {
 	t.Cleanup(server.Close)
 	patterns := []string{"acme/*"}
 	cfg := &config.Config{Actions: &model.ActionsSettings{
-		Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected"), SHAPinningRequired: ptr.Ptr(false),
-		GitHubOwnedAllowed: ptr.Ptr(true), VerifiedAllowed: ptr.Ptr(true), PatternsAllowed: &patterns,
+		Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(false),
+		GitHubOwnedAllowed: new(true), VerifiedAllowed: new(true), PatternsAllowed: &patterns,
 	}}
 	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
 	if err != nil {
@@ -241,8 +240,8 @@ func TestProcessActionsDisablesBeforeChangingSelectedPolicyAndRelaxingSHAPinning
 
 	patterns := []string{"acme/*"}
 	cfg := &config.Config{Actions: &model.ActionsSettings{
-		Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected"), SHAPinningRequired: ptr.Ptr(false),
-		GitHubOwnedAllowed: ptr.Ptr(true), VerifiedAllowed: ptr.Ptr(true), PatternsAllowed: &patterns,
+		Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(false),
+		GitHubOwnedAllowed: new(true), VerifiedAllowed: new(true), PatternsAllowed: &patterns,
 	}}
 	if _, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true); err != nil {
 		t.Fatal(err)
@@ -283,8 +282,8 @@ func TestProcessActionsSelectedOnlyWriteAccessError(t *testing.T) {
 
 	patterns := []string{}
 	cfg := &config.Config{Actions: &model.ActionsSettings{
-		Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected"), SHAPinningRequired: ptr.Ptr(false),
-		GitHubOwnedAllowed: ptr.Ptr(true), VerifiedAllowed: ptr.Ptr(true), PatternsAllowed: &patterns,
+		Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(false),
+		GitHubOwnedAllowed: new(true), VerifiedAllowed: new(true), PatternsAllowed: &patterns,
 	}}
 	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
 	if err != nil {
@@ -318,7 +317,7 @@ func TestProcessActionsWriteAccessErrorProducesClearOutput(t *testing.T) {
 		fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
 	}))
 	t.Cleanup(server.Close)
-	cfg := &config.Config{Actions: &model.ActionsSettings{Enabled: ptr.Ptr(false)}}
+	cfg := &config.Config{Actions: &model.ActionsSettings{Enabled: new(false)}}
 	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
 	if err != nil {
 		t.Fatal(err)
@@ -351,7 +350,7 @@ func TestProcessActionsStopsSelectedWriteAfterCoreFailure(t *testing.T) {
 			t.Cleanup(server.Close)
 			patterns := []string{"acme/*"}
 			cfg := &config.Config{Actions: &model.ActionsSettings{
-				Enabled: ptr.Ptr(false), AllowedActions: ptr.Ptr("selected"), PatternsAllowed: &patterns,
+				Enabled: new(false), AllowedActions: new("selected"), PatternsAllowed: &patterns,
 			}}
 			results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
 			if status == http.StatusForbidden && err != nil {
@@ -391,7 +390,7 @@ func TestProcessActionsTightensSelectedPolicyBeforeEnabling(t *testing.T) {
 	t.Cleanup(server.Close)
 	patterns := []string{"acme/*"}
 	cfg := &config.Config{Actions: &model.ActionsSettings{
-		Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected"), PatternsAllowed: &patterns,
+		Enabled: new(true), AllowedActions: new("selected"), PatternsAllowed: &patterns,
 	}}
 	if _, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true); err != nil {
 		t.Fatal(err)
@@ -421,7 +420,7 @@ func TestProcessActionsInitialTransitionSkipSuppressesUnattemptedWrites(t *testi
 	t.Cleanup(server.Close)
 	patterns := []string{"acme/*"}
 	cfg := &config.Config{Actions: &model.ActionsSettings{
-		AllowedActions: ptr.Ptr("selected"), PatternsAllowed: &patterns,
+		AllowedActions: new("selected"), PatternsAllowed: &patterns,
 	}}
 	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
 	if err != nil {
@@ -472,7 +471,7 @@ func TestProcessActionsLocalOnlyTransitionFailsClosed(t *testing.T) {
 				}))
 				t.Cleanup(server.Close)
 				patterns := []string{"acme/*"}
-				cfg := &config.Config{Actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("selected"), PatternsAllowed: &patterns}}
+				cfg := &config.Config{Actions: &model.ActionsSettings{AllowedActions: new("selected"), PatternsAllowed: &patterns}}
 				_, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
 				if err == nil || !strings.Contains(err.Error(), "while actions are disabled") {
 					t.Fatalf("ProcessActions() error = %v, want explicit disabled transition failure", err)
@@ -495,7 +494,7 @@ func TestProcessActionsSelectedTransitionDryRunIsReadOnly(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	patterns := []string{"acme/*"}
-	cfg := &config.Config{Actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("selected"), PatternsAllowed: &patterns}}
+	cfg := &config.Config{Actions: &model.ActionsSettings{AllowedActions: new("selected"), PatternsAllowed: &patterns}}
 	if _, err := alter.ProcessActions(cfg, alter.DryRun, testutil.NewTestClient(t, server), "acme", "widget", true); err != nil {
 		t.Fatal(err)
 	}
@@ -507,8 +506,8 @@ func TestProcessActionsSelectedTransitionDryRunIsReadOnly(t *testing.T) {
 func TestRunRejectsInvalidActionsBeforeWrites(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{Actions: &model.ActionsSettings{
-		AllowedActions:  ptr.Ptr("all"),
-		VerifiedAllowed: ptr.Ptr(true),
+		AllowedActions:  new("all"),
+		VerifiedAllowed: new(true),
 	}}
 	err := alter.Run(cfg, dir, alter.Apply, nil)
 	if err == nil {
@@ -518,7 +517,7 @@ func TestRunRejectsInvalidActionsBeforeWrites(t *testing.T) {
 
 func TestRunRejectsIncompleteSelectedActions(t *testing.T) {
 	dir := t.TempDir()
-	cfg := &config.Config{Actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("selected")}}
+	cfg := &config.Config{Actions: &model.ActionsSettings{AllowedActions: new("selected")}}
 	err := alter.Run(cfg, dir, alter.Apply, nil)
 	if err == nil || !strings.Contains(err.Error(), "requires github_owned_allowed, verified_allowed, and patterns_allowed") {
 		t.Fatalf("Run() error = %v, want incomplete selected policy error", err)

@@ -14,7 +14,6 @@ import (
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/ghfake"
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
@@ -111,7 +110,7 @@ func TestProcessRepoSettingsNoRepoContext(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 	}
 
@@ -145,7 +144,7 @@ func TestProcessRepoSettingsWouldSetWhenDiffer(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 	}
 
@@ -177,7 +176,7 @@ func TestProcessRepoSettingsNoChangeWhenMatch(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 	}
 
@@ -210,7 +209,7 @@ func TestProcessRepoSettingsApplyCallsAPI(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 	}
 
@@ -234,7 +233,7 @@ func TestProcessRepoSettingsRecutCallsAPI(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 	}
 
@@ -258,7 +257,7 @@ func TestProcessRepoSettingsDryRunDoesNotCallAPI(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 	}
 
@@ -282,8 +281,8 @@ func TestProcessRepoSettingsNoApplyWhenAllMatch(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			HasWiki:   ptr.Ptr(false),
-			HasIssues: ptr.Ptr(true),
+			HasWiki:   new(false),
+			HasIssues: new(true),
 		},
 	}
 
@@ -305,7 +304,7 @@ func TestProcessRepoSettingsErrorPropagated(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 	}
 
@@ -330,10 +329,10 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			HasWiki:             ptr.Ptr(false), // differs
-			HasIssues:           ptr.Ptr(true),  // matches
-			Description:         ptr.Ptr("New"), // differs
-			DeleteBranchOnMerge: ptr.Ptr(true),  // differs
+			HasWiki:             new(false), // differs
+			HasIssues:           new(true),  // matches
+			Description:         new("New"), // differs
+			DeleteBranchOnMerge: new(true),  // differs
 		},
 	}
 
@@ -367,8 +366,8 @@ func TestProcessRepoSettingsStringFieldValues(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			Description: ptr.Ptr("new description"),
-			Homepage:    ptr.Ptr("https://old.example.com"), // matches
+			Description: new("new description"),
+			Homepage:    new("https://old.example.com"), // matches
 		},
 	}
 
@@ -543,7 +542,7 @@ func TestProcessRepoSettingsDefaultWorkflowPermissionsNoChange(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			DefaultWorkflowPermissions: ptr.Ptr("read"),
+			DefaultWorkflowPermissions: new("read"),
 		},
 	}
 
@@ -576,7 +575,7 @@ func TestProcessRepoSettingsDefaultWorkflowPermissionsWouldSet(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			DefaultWorkflowPermissions: ptr.Ptr("write"),
+			DefaultWorkflowPermissions: new("write"),
 		},
 	}
 
@@ -609,7 +608,7 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsNoChange(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			CanApprovePullRequestReviews: ptr.Ptr(false),
+			CanApprovePullRequestReviews: new(false),
 		},
 	}
 
@@ -636,9 +635,9 @@ func TestProcessRepoSettingsSecurityFeaturesDryRun(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 	cfg := &config.Config{Repository: &model.RepositorySettings{
-		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-		VulnerabilityAlertsEnabled:        ptr.Ptr(true),
-		AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
+		PrivateVulnerabilityReportEnabled: new(true),
+		VulnerabilityAlertsEnabled:        new(true),
+		AutomatedSecurityFixesEnabled:     new(true),
 	}}
 
 	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
@@ -686,10 +685,10 @@ func TestProcessRepoSettingsAppliesOnlyChangedSecurityEndpoints(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	cfg := &config.Config{Repository: &model.RepositorySettings{
-		HasWiki:                           ptr.Ptr(false),
-		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
-		VulnerabilityAlertsEnabled:        ptr.Ptr(true),
-		AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
+		HasWiki:                           new(false),
+		PrivateVulnerabilityReportEnabled: new(true),
+		VulnerabilityAlertsEnabled:        new(true),
+		AutomatedSecurityFixesEnabled:     new(true),
 	}}
 	if _, err := alter.ProcessRepoSettings(cfg, alter.Apply, testutil.NewTestClient(t, server), "testowner", "testrepo", true); err != nil {
 		t.Fatal(err)
@@ -708,7 +707,7 @@ func TestProcessRepoSettingsAutomatedFixesPrerequisiteWarning(t *testing.T) {
 	}{
 		{name: "alerts remain disabled", wantWarning: true},
 		{name: "alerts already enabled", alertsLive: true},
-		{name: "same run enables alerts", alertsDesired: ptr.Ptr(true)},
+		{name: "same run enables alerts", alertsDesired: new(true)},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -736,7 +735,7 @@ func TestProcessRepoSettingsAutomatedFixesPrerequisiteWarning(t *testing.T) {
 			t.Cleanup(server.Close)
 			cfg := &config.Config{Repository: &model.RepositorySettings{
 				VulnerabilityAlertsEnabled:    tt.alertsDesired,
-				AutomatedSecurityFixesEnabled: ptr.Ptr(true),
+				AutomatedSecurityFixesEnabled: new(true),
 			}}
 			var err error
 			output := captureStderr(t, func() {
@@ -771,7 +770,7 @@ func TestProcessRepoSettingsSecurityReadAccessWarning(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 	cfg := &config.Config{Repository: &model.RepositorySettings{
-		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
+		PrivateVulnerabilityReportEnabled: new(true),
 	}}
 
 	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
@@ -799,7 +798,7 @@ func TestProcessRepoSettingsUnknownSecurityPrerequisiteSkipsDependent(t *testing
 			fixesResponse: func(w http.ResponseWriter) {
 				fmt.Fprint(w, `{"enabled":false,"paused":false}`)
 			},
-			settings:       &model.RepositorySettings{AutomatedSecurityFixesEnabled: ptr.Ptr(true)},
+			settings:       &model.RepositorySettings{AutomatedSecurityFixesEnabled: new(true)},
 			dependentField: "automated_security_fixes_enabled",
 		},
 		{
@@ -810,7 +809,7 @@ func TestProcessRepoSettingsUnknownSecurityPrerequisiteSkipsDependent(t *testing
 			fixesResponse: func(w http.ResponseWriter) {
 				w.WriteHeader(http.StatusForbidden)
 			},
-			settings:       &model.RepositorySettings{VulnerabilityAlertsEnabled: ptr.Ptr(false)},
+			settings:       &model.RepositorySettings{VulnerabilityAlertsEnabled: new(false)},
 			dependentField: "vulnerability_alerts_enabled",
 		},
 	}
@@ -865,7 +864,7 @@ func TestProcessRepoSettingsSkippedSecurityWriteSkipsDependentOutput(t *testing.
 		{
 			name: "alerts write blocks fixes",
 			settings: &model.RepositorySettings{
-				VulnerabilityAlertsEnabled: ptr.Ptr(true), AutomatedSecurityFixesEnabled: ptr.Ptr(true),
+				VulnerabilityAlertsEnabled: new(true), AutomatedSecurityFixesEnabled: new(true),
 			},
 			dependent: "enable automated security fixes",
 		},
@@ -874,7 +873,7 @@ func TestProcessRepoSettingsSkippedSecurityWriteSkipsDependentOutput(t *testing.
 			alertsEnabled: true,
 			fixesEnabled:  true,
 			settings: &model.RepositorySettings{
-				VulnerabilityAlertsEnabled: ptr.Ptr(false), AutomatedSecurityFixesEnabled: ptr.Ptr(false),
+				VulnerabilityAlertsEnabled: new(false), AutomatedSecurityFixesEnabled: new(false),
 			},
 			dependent: "disable vulnerability alerts",
 		},
@@ -960,7 +959,7 @@ func TestProcessRepoSettingsPatch403ScopeProducesSkipScope(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 	}
 
@@ -1020,7 +1019,7 @@ func TestProcessRepoSettingsReadPath403WorkflowProducesSkipScope(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			DefaultWorkflowPermissions: ptr.Ptr("write"),
+			DefaultWorkflowPermissions: new("write"),
 		},
 	}
 
@@ -1049,8 +1048,8 @@ func TestProcessRepoSettingsReadPath403DoesNotProduceWouldSet(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			DefaultWorkflowPermissions:   ptr.Ptr("write"),
-			CanApprovePullRequestReviews: ptr.Ptr(true),
+			DefaultWorkflowPermissions:   new("write"),
+			CanApprovePullRequestReviews: new(true),
 		},
 	}
 
@@ -1088,7 +1087,7 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsWouldSet(t *testing.T) {
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
-			CanApprovePullRequestReviews: ptr.Ptr(true),
+			CanApprovePullRequestReviews: new(true),
 		},
 	}
 
@@ -1133,8 +1132,8 @@ func TestProcessRepoSettingsDoesNotRewriteDisabledSecurityFixes(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	settings := &model.RepositorySettings{
-		VulnerabilityAlertsEnabled:    ptr.Ptr(false),
-		AutomatedSecurityFixesEnabled: ptr.Ptr(false),
+		VulnerabilityAlertsEnabled:    new(false),
+		AutomatedSecurityFixesEnabled: new(false),
 	}
 	if _, err := alter.ProcessRepoSettings(&config.Config{Repository: settings}, alter.Apply, testutil.NewTestClient(t, server), "testowner", "testrepo", true); err != nil {
 		t.Fatal(err)
