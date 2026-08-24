@@ -268,6 +268,20 @@ func TestFormatOutputSkipCategories(t *testing.T) {
 	}
 }
 
+func TestFormatOutputActionsSkipOperationHasNoSectionPrefix(t *testing.T) {
+	repos := []RepoSettingResult{
+		{Section: "actions", Field: "enabled", Category: WouldSkipScope},
+		{Section: "actions", Field: "disable actions for fail-closed policy update", Category: WouldSkipScope},
+	}
+
+	got := FormatOutput(repos, nil, nil, DryRun)
+	want := "would skip (insufficient scope):     disable actions for fail-closed policy update\n" +
+		"would skip (insufficient scope):     actions.enabled\n"
+	if got != want {
+		t.Errorf("FormatOutput actions skip operations:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
 func TestFormatOutputSkipSorting(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: RepoNoChange, Value: "false"},
