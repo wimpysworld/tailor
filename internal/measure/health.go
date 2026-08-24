@@ -74,17 +74,17 @@ func hasCompleteInlineLink(data []byte, offset int) bool {
 // token inside matching square or curly delimiters.
 func hasUnresolvedPlaceholders(data []byte) bool {
 	for start, open := range data {
-		var close byte
+		var closer byte
 		switch open {
 		case '[':
-			close = ']'
+			closer = ']'
 		case '{':
-			close = '}'
+			closer = '}'
 		default:
 			continue
 		}
 
-		end := bytes.IndexByte(data[start+1:], close)
+		end := bytes.IndexByte(data[start+1:], closer)
 		if end < 0 {
 			continue
 		}
