@@ -102,22 +102,32 @@ func boundedHTTPError(err error) error {
 
 	const maxDetails = 3
 	const maxTextLength = 256
+	// go-gh joins the top-level message and the normalised per-error lines
+	// into Message. Validation errors with a non-custom code carry their
+	// field detail only in those lines, so details come from Message, not
+	// from the per-item Message fields.
+	lines := strings.Split(httpErr.Message, "\n")
 	bounded := &api.HTTPError{
 		Headers:    httpErr.Headers.Clone(),
-		Message:    boundedSanitisedText(httpErr.Message, maxTextLength, true),
+		Message:    boundedSanitisedText(lines[0], maxTextLength),
 		RequestURL: httpErr.RequestURL,
 		StatusCode: httpErr.StatusCode,
 	}
-	details := make([]string, 0, min(len(httpErr.Errors), maxDetails))
-	for _, item := range httpErr.Errors {
-		detail := boundedSanitisedText(item.Message, maxTextLength, false)
+	details := make([]string, 0, min(len(lines)-1, maxDetails))
+	for _, line := range lines[1:] {
+		detail := boundedSanitisedText(line, maxTextLength)
 		if detail == "" {
 			continue
 		}
 		details = append(details, detail)
-		item.Message = detail
-		bounded.Errors = append(bounded.Errors, item)
 		if len(details) == maxDetails {
+			break
+		}
+	}
+	for _, item := range httpErr.Errors {
+		item.Message = boundedSanitisedText(item.Message, maxTextLength)
+		bounded.Errors = append(bounded.Errors, item)
+		if len(bounded.Errors) == maxDetails {
 			break
 		}
 	}
@@ -130,13 +140,10 @@ func boundedHTTPError(err error) error {
 	return bounded
 }
 
-func boundedSanitisedText(input string, limit int, firstLineOnly bool) string {
+func boundedSanitisedText(input string, limit int) string {
 	var output strings.Builder
 	truncated := false
 	for _, r := range input {
-		if firstLineOnly && r == '\n' {
-			break
-		}
 		if unicode.IsControl(r) {
 			r = ' '
 		}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -234,5 +235,22 @@ func TestParseCSVScopes(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestBoundedHTTPErrorKeepsNormalisedValidationDetail(t *testing.T) {
+	// go-gh normalises a validation error with a non-custom code into a
+	// Message line and leaves the item Message empty.
+	httpErr := &api.HTTPError{
+		Message:    "Validation Failed\nLabel.name already exists",
+		RequestURL: &url.URL{Scheme: "https", Host: "api.github.com", Path: "/repos/acme/widget/labels"},
+		StatusCode: http.StatusUnprocessableEntity,
+		Errors: []api.HTTPErrorItem{
+			{Resource: "Label", Field: "name", Code: "already_exists"},
+		},
+	}
+	rendered := boundedHTTPError(httpErr).Error()
+	if !strings.Contains(rendered, "Label.name already exists") {
+		t.Errorf("error is missing the validation detail: %q", rendered)
 	}
 }
