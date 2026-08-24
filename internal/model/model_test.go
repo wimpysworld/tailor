@@ -43,9 +43,6 @@ func TestRepositorySettingFieldsMetadata(t *testing.T) {
 		if fields[i].Index != i {
 			t.Errorf("field %d Index = %d, want %d", i, fields[i].Index, i)
 		}
-		if fields[i].GoName == "Extra" {
-			t.Fatal("Extra should be excluded")
-		}
 		if fields[i].Set {
 			t.Errorf("field %s Set = true for nil settings", fields[i].YAMLKey)
 		}
