@@ -18,7 +18,7 @@ func TestErrInsufficientScope_Error(t *testing.T) {
 		NeedScopes:  []string{"repo"},
 		Message:     "Must have admin rights to Repository.",
 		DocumentURL: "https://docs.github.com/rest/repos/repos#update-a-repository",
-		Operation:   "enable vulnerability alerts",
+		Operation:   SecurityFeatureOp(true, OpSetVulnerabilityAlerts),
 	}
 
 	want := "enable vulnerability alerts: insufficient scope (have: [public_repo], need: [repo]): Must have admin rights to Repository. (see https://docs.github.com/rest/repos/repos#update-a-repository)"
@@ -33,7 +33,7 @@ func TestErrInsufficientScope_ErrorEmptyScopes(t *testing.T) {
 		HaveScopes: nil,
 		NeedScopes: nil,
 		Message:    "Resource not accessible by integration",
-		Operation:  "enable vulnerability alerts",
+		Operation:  SecurityFeatureOp(true, OpSetVulnerabilityAlerts),
 	}
 
 	want := "enable vulnerability alerts: insufficient scope (have: [], need: []): Resource not accessible by integration"
@@ -48,10 +48,10 @@ func TestErrInsufficientScope_ErrorWithoutDocURL(t *testing.T) {
 		HaveScopes: []string{"public_repo"},
 		NeedScopes: []string{"repo"},
 		Message:    "Forbidden",
-		Operation:  "update repository settings",
+		Operation:  Op(OpPatchRepoSettings),
 	}
 
-	want := "update repository settings: insufficient scope (have: [public_repo], need: [repo]): Forbidden"
+	want := "patch repo settings: insufficient scope (have: [public_repo], need: [repo]): Forbidden"
 	if got := err.Error(); got != want {
 		t.Errorf("Error() =\n  %q\nwant:\n  %q", got, want)
 	}
@@ -60,7 +60,7 @@ func TestErrInsufficientScope_ErrorWithoutDocURL(t *testing.T) {
 func TestErrInsufficientScope_SatisfiesErrorInterface(t *testing.T) {
 	var err error = &ErrInsufficientScope{
 		StatusCode: 403,
-		Operation:  "test",
+		Operation:  Op(OpSetTopics),
 		Message:    "test message",
 	}
 	if err.Error() == "" {
@@ -74,7 +74,7 @@ func TestErrInsufficientScope_ErrorsAs(t *testing.T) {
 		HaveScopes: []string{"public_repo"},
 		NeedScopes: []string{"repo"},
 		Message:    "forbidden",
-		Operation:  "enable vulnerability alerts",
+		Operation:  SecurityFeatureOp(true, OpSetVulnerabilityAlerts),
 	}
 
 	wrapped := fmt.Errorf("applying settings: %w", original)
@@ -83,8 +83,8 @@ func TestErrInsufficientScope_ErrorsAs(t *testing.T) {
 	if !errors.As(wrapped, &target) {
 		t.Fatal("errors.As failed to unwrap ErrInsufficientScope")
 	}
-	if target.Operation != "enable vulnerability alerts" {
-		t.Errorf("Operation = %q, want %q", target.Operation, "enable vulnerability alerts")
+	if target.Operation.String() != "enable vulnerability alerts" {
+		t.Errorf("Operation = %q, want %q", target.Operation.String(), "enable vulnerability alerts")
 	}
 	if target.StatusCode != http.StatusForbidden {
 		t.Errorf("StatusCode = %d, want %d", target.StatusCode, http.StatusForbidden)
@@ -101,14 +101,14 @@ func newHTTPError(statusCode int, message string, headers http.Header) *api.HTTP
 }
 
 func TestClassifyHTTPError_NilError(t *testing.T) {
-	if err := classifyHTTPError(nil, "test"); err != nil {
+	if err := classifyHTTPError(nil, Op(OpPatchRepoSettings)); err != nil {
 		t.Errorf("classifyHTTPError(nil) = %v, want nil", err)
 	}
 }
 
 func TestClassifyHTTPError_NonHTTPError(t *testing.T) {
 	original := fmt.Errorf("network timeout")
-	got := classifyHTTPError(original, "test")
+	got := classifyHTTPError(original, Op(OpPatchRepoSettings))
 	if !errors.Is(got, original) {
 		t.Errorf("classifyHTTPError returned %v, want original error %v", got, original)
 	}
@@ -116,7 +116,7 @@ func TestClassifyHTTPError_NonHTTPError(t *testing.T) {
 
 func TestClassifyHTTPError_Non403Non404(t *testing.T) {
 	httpErr := newHTTPError(http.StatusInternalServerError, "Internal Server Error", http.Header{})
-	got := classifyHTTPError(httpErr, "test")
+	got := classifyHTTPError(httpErr, Op(OpPatchRepoSettings))
 
 	var target *api.HTTPError
 	if !errors.As(got, &target) {
@@ -133,7 +133,7 @@ func TestClassifyHTTPError_403ScopeError(t *testing.T) {
 	headers.Set("X-Accepted-OAuth-Scopes", "repo")
 	httpErr := newHTTPError(http.StatusForbidden, "Must have admin rights to Repository.", headers)
 
-	got := classifyHTTPError(httpErr, "update repository settings")
+	got := classifyHTTPError(httpErr, Op(OpPatchRepoSettings))
 
 	var scopeErr *ErrInsufficientScope
 	if !errors.As(got, &scopeErr) {
@@ -142,8 +142,8 @@ func TestClassifyHTTPError_403ScopeError(t *testing.T) {
 	if scopeErr.StatusCode != http.StatusForbidden {
 		t.Errorf("StatusCode = %d, want %d", scopeErr.StatusCode, http.StatusForbidden)
 	}
-	if scopeErr.Operation != "update repository settings" {
-		t.Errorf("Operation = %q, want %q", scopeErr.Operation, "update repository settings")
+	if scopeErr.Operation != Op(OpPatchRepoSettings) {
+		t.Errorf("Operation = %v, want %v", scopeErr.Operation, Op(OpPatchRepoSettings))
 	}
 	if len(scopeErr.HaveScopes) != 2 || scopeErr.HaveScopes[0] != "public_repo" || scopeErr.HaveScopes[1] != "read:org" {
 		t.Errorf("HaveScopes = %v, want [public_repo read:org]", scopeErr.HaveScopes)
@@ -159,7 +159,7 @@ func TestClassifyHTTPError_403ScopeError(t *testing.T) {
 func TestClassifyHTTPError_404ClassifiedAsScopeError(t *testing.T) {
 	httpErr := newHTTPError(http.StatusNotFound, "Not Found", http.Header{})
 
-	got := classifyHTTPError(httpErr, "update repository settings")
+	got := classifyHTTPError(httpErr, Op(OpPatchRepoSettings))
 
 	var scopeErr *ErrInsufficientScope
 	if !errors.As(got, &scopeErr) {
@@ -176,21 +176,21 @@ func TestClassifyHTTPError_WrappedHTTPError(t *testing.T) {
 	httpErr := newHTTPError(http.StatusForbidden, "Forbidden", headers)
 	wrapped := fmt.Errorf("applying settings: %w", httpErr)
 
-	got := classifyHTTPError(wrapped, "update repository settings")
+	got := classifyHTTPError(wrapped, Op(OpPatchRepoSettings))
 
 	var scopeErr *ErrInsufficientScope
 	if !errors.As(got, &scopeErr) {
 		t.Fatalf("expected *ErrInsufficientScope from wrapped error, got %T: %v", got, got)
 	}
-	if scopeErr.Operation != "update repository settings" {
-		t.Errorf("Operation = %q, want %q", scopeErr.Operation, "update repository settings")
+	if scopeErr.Operation != Op(OpPatchRepoSettings) {
+		t.Errorf("Operation = %v, want %v", scopeErr.Operation, Op(OpPatchRepoSettings))
 	}
 }
 
 func TestClassifyHTTPError_EmptyScopeHeaders(t *testing.T) {
 	httpErr := newHTTPError(http.StatusForbidden, "Resource not accessible by integration", http.Header{})
 
-	got := classifyHTTPError(httpErr, "update repository settings")
+	got := classifyHTTPError(httpErr, Op(OpPatchRepoSettings))
 
 	var scopeErr *ErrInsufficientScope
 	if !errors.As(got, &scopeErr) {

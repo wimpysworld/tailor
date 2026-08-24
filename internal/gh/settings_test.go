@@ -740,8 +740,8 @@ func TestApplyRepoSettingsPatch403Skipped(t *testing.T) {
 	if len(result.Skipped) != 1 {
 		t.Fatalf("expected 1 skipped operation, got %d", len(result.Skipped))
 	}
-	if result.Skipped[0].Operation != "patch repo settings" {
-		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, "patch repo settings")
+	if result.Skipped[0].Operation.String() != "patch repo settings" {
+		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation.String(), "patch repo settings")
 	}
 }
 
@@ -879,8 +879,8 @@ func TestApplyRepoSettingsWorkflowPermsGetError(t *testing.T) {
 	if len(result.Skipped) != 1 {
 		t.Fatalf("expected 1 skipped operation, got %d", len(result.Skipped))
 	}
-	if result.Skipped[0].Operation != "set workflow permissions" {
-		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, "set workflow permissions")
+	if result.Skipped[0].Operation.String() != "set workflow permissions" {
+		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation.String(), "set workflow permissions")
 	}
 }
 
@@ -1057,7 +1057,7 @@ func TestApplyRepoSettingsPartialTopics403(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected hard error: %v", err)
 	}
-	if len(result.Skipped) != 1 || result.Skipped[0].Operation != "set topics" {
+	if len(result.Skipped) != 1 || result.Skipped[0].Operation.String() != "set topics" {
 		t.Errorf("Skipped = %v, want [{set topics ...}]", result.Skipped)
 	}
 }
@@ -1197,7 +1197,7 @@ func TestApplyRepoSettingsSecurityFeatureAccessErrorIsSkipped(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
-	if len(result.Skipped) != 1 || result.Skipped[0].Operation != "enable vulnerability alerts" {
+	if len(result.Skipped) != 1 || result.Skipped[0].Operation.String() != "enable vulnerability alerts" {
 		t.Errorf("Skipped = %v, want enable vulnerability alerts", result.Skipped)
 	}
 }

@@ -42,9 +42,12 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 		case RepoNoChange:
 			fmt.Fprintf(&b, "%-*s%s.%s (already %s)\n", width, label, section, r.Field, r.Value)
 		case WouldSkipScope:
-			if r.Section == "actions" && isActionsPolicyField(r.Field) {
+			switch {
+			case r.Field == "":
+				fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Operation)
+			case r.Section == "actions" && isActionsPolicyField(r.Field):
 				fmt.Fprintf(&b, "%-*sactions.%s\n", width, label, r.Field)
-			} else {
+			default:
 				fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Field)
 			}
 		}
@@ -58,7 +61,7 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 		case LabelNoChange:
 			fmt.Fprintf(&b, "%-*slabel.%s (already %s)\n", width, label, r.Name, r.Value)
 		case LabelSkipScope:
-			fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Name)
+			fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Operation)
 		}
 	}
 
@@ -76,10 +79,10 @@ func isActionsPolicyField(field string) bool {
 }
 
 func removeSkippedRepoResults(results []RepoSettingResult) []RepoSettingResult {
-	skipped := make(map[string]bool)
+	skipped := make(map[gh.OperationKind]bool)
 	for _, result := range results {
-		if result.Category == WouldSkipScope {
-			skipped[result.Field] = true
+		if result.Category == WouldSkipScope && result.Operation.Kind != gh.OpNone {
+			skipped[result.Operation.Kind] = true
 		}
 	}
 	if len(skipped) == 0 {
@@ -88,14 +91,16 @@ func removeSkippedRepoResults(results []RepoSettingResult) []RepoSettingResult {
 
 	filtered := make([]RepoSettingResult, 0, len(results))
 	for _, result := range results {
-		if result.Category != WouldSet || !skipped[repoSettingOperation(result)] {
+		if result.Category != WouldSet || !skipped[repoSettingWriteKind(result)] {
 			filtered = append(filtered, result)
 		}
 	}
 	return filtered
 }
 
-func repoSettingOperation(result RepoSettingResult) string {
+// repoSettingWriteKind returns the kind of the write operation that applies
+// the result's field.
+func repoSettingWriteKind(result RepoSettingResult) gh.OperationKind {
 	if result.Section == "actions" {
 		if group, ok := actionsFieldGroupFor(result.Field); ok {
 			return group.writeOperation()
@@ -103,11 +108,11 @@ func repoSettingOperation(result RepoSettingResult) string {
 	}
 	switch result.Field {
 	case "private_vulnerability_reporting_enabled":
-		return gh.SecurityFeatureOp(result.Value == "true", gh.FeaturePrivateVulnerabilityReporting)
+		return gh.OpSetPrivateVulnerabilityReporting
 	case "vulnerability_alerts_enabled":
-		return gh.SecurityFeatureOp(result.Value == "true", gh.FeatureVulnerabilityAlerts)
+		return gh.OpSetVulnerabilityAlerts
 	case "automated_security_fixes_enabled":
-		return gh.SecurityFeatureOp(result.Value == "true", gh.FeatureAutomatedSecurityFixes)
+		return gh.OpSetAutomatedSecurityFixes
 	case "topics":
 		return gh.OpSetTopics
 	case "default_workflow_permissions", "can_approve_pull_request_reviews":
@@ -121,7 +126,7 @@ func removeSkippedLabelResults(results []LabelResult) []LabelResult {
 	skipped := make(map[string]bool)
 	for _, result := range results {
 		if result.Category == LabelSkipScope {
-			skipped[result.Name] = true
+			skipped[result.Operation.Label] = true
 		}
 	}
 	if len(skipped) == 0 {
@@ -130,14 +135,8 @@ func removeSkippedLabelResults(results []LabelResult) []LabelResult {
 
 	filtered := make([]LabelResult, 0, len(results))
 	for _, result := range results {
-		operation := ""
-		switch result.Category {
-		case WouldCreate:
-			operation = gh.CreateLabelOp(result.Name)
-		case WouldUpdate:
-			operation = gh.UpdateLabelOp(result.Name)
-		}
-		if !skipped[operation] {
+		actionable := result.Category == WouldCreate || result.Category == WouldUpdate
+		if !actionable || !skipped[result.Name] {
 			filtered = append(filtered, result)
 		}
 	}
@@ -225,14 +224,23 @@ func labelWidth(repos []RepoSettingResult, labels []LabelResult, swatches []Swat
 }
 
 // sortRepoResults returns a sorted copy: actionable (WouldSet) before
-// informational (RepoNoChange), lexicographic by field within each group.
+// informational (RepoNoChange), lexicographic by sort key within each group.
 func sortRepoResults(results []RepoSettingResult) []RepoSettingResult {
 	return slices.SortedStableFunc(slices.Values(results), func(a, b RepoSettingResult) int {
 		if c := cmp.Compare(repoOrder(a.Category), repoOrder(b.Category)); c != 0 {
 			return c
 		}
-		return cmp.Compare(a.Field, b.Field)
+		return cmp.Compare(repoSortKey(a), repoSortKey(b))
 	})
+}
+
+// repoSortKey returns the field name, or the skipped operation text for
+// write-skip results, which have no field name.
+func repoSortKey(r RepoSettingResult) string {
+	if r.Field != "" {
+		return r.Field
+	}
+	return r.Operation.String()
 }
 
 // repoOrder returns the sort priority for a RepoSettingCategory.
@@ -261,14 +269,23 @@ func sortSwatchResults(results []SwatchResult) []SwatchResult {
 }
 
 // sortLabelResults returns a sorted copy: actionable (WouldCreate, WouldUpdate)
-// before informational (LabelNoChange), lexicographic by name within each group.
+// before informational (LabelNoChange), lexicographic by sort key within each group.
 func sortLabelResults(results []LabelResult) []LabelResult {
 	return slices.SortedStableFunc(slices.Values(results), func(a, b LabelResult) int {
 		if c := cmp.Compare(labelOrder(a.Category), labelOrder(b.Category)); c != 0 {
 			return c
 		}
-		return cmp.Compare(a.Name, b.Name)
+		return cmp.Compare(labelSortKey(a), labelSortKey(b))
 	})
+}
+
+// labelSortKey returns the label name, or the skipped operation text for
+// skip results, which have no label name.
+func labelSortKey(r LabelResult) string {
+	if r.Name != "" {
+		return r.Name
+	}
+	return r.Operation.String()
 }
 
 // labelOrder returns the sort priority for a LabelCategory.

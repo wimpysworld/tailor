@@ -22,8 +22,8 @@ const (
 	actionsSelected
 )
 
-// writeOperation returns the gh write operation for the group.
-func (g actionsFieldGroup) writeOperation() string {
+// writeOperation returns the gh write operation kind for the group.
+func (g actionsFieldGroup) writeOperation() gh.OperationKind {
 	if g == actionsSelected {
 		return gh.OpSetSelectedActionsPermissions
 	}
@@ -194,7 +194,7 @@ func suppressActionsReadWarnings(results []RepoSettingResult, warnings []error, 
 			continue
 		}
 		fields := actionsFieldNames(actionsCore)
-		switch scopeErr.Operation {
+		switch scopeErr.Operation.Kind {
 		case gh.OpFetchActionsPermissions:
 			fields = actionsFieldNames(actionsCore, actionsSelected)
 		case gh.OpFetchSelectedActionsPermissions:

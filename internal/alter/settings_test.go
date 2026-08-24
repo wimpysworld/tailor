@@ -12,6 +12,7 @@ import (
 
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/ghfake"
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/testutil"
@@ -970,7 +971,7 @@ func TestProcessRepoSettingsPatch403ScopeProducesSkipScope(t *testing.T) {
 
 	var foundScopeSkip bool
 	for _, r := range results {
-		if r.Category == alter.WouldSkipScope && r.Field == "patch repo settings" {
+		if r.Category == alter.WouldSkipScope && r.Operation == gh.Op(gh.OpPatchRepoSettings) {
 			foundScopeSkip = true
 		}
 	}
