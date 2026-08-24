@@ -79,6 +79,49 @@ func ValidateWorkflowPermissions(cfg *Config) error {
 	return nil
 }
 
+// ValidateActions checks the Actions policy field names, enum values, and
+// selected-action field combinations.
+func ValidateActions(cfg *Config) error {
+	if cfg.Actions == nil {
+		return nil
+	}
+	if len(cfg.Actions.Extra) > 0 {
+		keys := make([]string, 0, len(cfg.Actions.Extra))
+		for key := range cfg.Actions.Extra {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		return fmt.Errorf("unrecognised actions setting %q in config; valid settings: allowed_actions, enabled, github_owned_allowed, patterns_allowed, sha_pinning_required, verified_allowed", keys[0])
+	}
+
+	a := cfg.Actions
+	if a.AllowedActions != nil {
+		v := *a.AllowedActions
+		if v != "all" && v != "local_only" && v != "selected" {
+			return fmt.Errorf("invalid allowed_actions %q; must be %q, %q, or %q", v, "all", "local_only", "selected")
+		}
+	}
+	selectedFieldsSet := a.GitHubOwnedAllowed != nil || a.VerifiedAllowed != nil || a.PatternsAllowed != nil
+	if selectedFieldsSet && (a.AllowedActions == nil || *a.AllowedActions != "selected") {
+		return fmt.Errorf("github_owned_allowed, verified_allowed, and patterns_allowed require allowed_actions to be %q", "selected")
+	}
+	return nil
+}
+
+// ValidateCompleteActions checks that a selected Actions policy includes the
+// complete selected-actions endpoint payload after default merging.
+func ValidateCompleteActions(cfg *Config) error {
+	if cfg.Actions == nil || cfg.Actions.AllowedActions == nil || *cfg.Actions.AllowedActions != "selected" {
+		return nil
+	}
+
+	a := cfg.Actions
+	if a.GitHubOwnedAllowed == nil || a.VerifiedAllowed == nil || a.PatternsAllowed == nil {
+		return fmt.Errorf("allowed_actions %q requires github_owned_allowed, verified_allowed, and patterns_allowed", "selected")
+	}
+	return nil
+}
+
 // ValidateTopics checks that every topic, if set, starts with a lowercase
 // letter or number, contains only lowercase alphanumerics and hyphens, and
 // does not exceed 50 characters.

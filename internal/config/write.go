@@ -125,6 +125,15 @@ repository:
 {{- if set .Repository.WebCommitSignoffRequired }}
   web_commit_signoff_required: {{ derefBool .Repository.WebCommitSignoffRequired }}
 {{- end }}
+{{- if set .Repository.PrivateVulnerabilityReportEnabled }}
+  private_vulnerability_reporting_enabled: {{ derefBool .Repository.PrivateVulnerabilityReportEnabled }}
+{{- end }}
+{{- if set .Repository.VulnerabilityAlertsEnabled }}
+  vulnerability_alerts_enabled: {{ derefBool .Repository.VulnerabilityAlertsEnabled }}
+{{- end }}
+{{- if set .Repository.AutomatedSecurityFixesEnabled }}
+  automated_security_fixes_enabled: {{ derefBool .Repository.AutomatedSecurityFixesEnabled }}
+{{- end }}
 {{- if set .Repository.DefaultWorkflowPermissions }}
   default_workflow_permissions: {{ deref .Repository.DefaultWorkflowPermissions }}
 {{- end }}
@@ -134,6 +143,31 @@ repository:
 {{- if set .Repository.Topics }}
   topics:{{ if eq (len (derefSlice .Repository.Topics)) 0 }} []{{ else }}
 {{- range derefSlice .Repository.Topics }}
+    - {{ yamlVal . }}
+{{- end }}{{ end }}
+{{- end }}
+{{- end }}
+{{- if .Actions }}
+
+actions:
+{{- if set .Actions.Enabled }}
+  enabled: {{ derefBool .Actions.Enabled }}
+{{- end }}
+{{- if set .Actions.AllowedActions }}
+  allowed_actions: {{ deref .Actions.AllowedActions }}
+{{- end }}
+{{- if set .Actions.SHAPinningRequired }}
+  sha_pinning_required: {{ derefBool .Actions.SHAPinningRequired }}
+{{- end }}
+{{- if set .Actions.GitHubOwnedAllowed }}
+  github_owned_allowed: {{ derefBool .Actions.GitHubOwnedAllowed }}
+{{- end }}
+{{- if set .Actions.VerifiedAllowed }}
+  verified_allowed: {{ derefBool .Actions.VerifiedAllowed }}
+{{- end }}
+{{- if set .Actions.PatternsAllowed }}
+  patterns_allowed:{{ if eq (len (derefSlice .Actions.PatternsAllowed)) 0 }} []{{ else }}
+{{- range derefSlice .Actions.PatternsAllowed }}
     - {{ yamlVal . }}
 {{- end }}{{ end }}
 {{- end }}

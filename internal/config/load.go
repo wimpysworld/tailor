@@ -93,6 +93,9 @@ func validate(cfg *Config) error {
 	if err := ValidateWorkflowPermissions(cfg); err != nil {
 		return err
 	}
+	if err := ValidateActions(cfg); err != nil {
+		return err
+	}
 	if err := ValidateTopics(cfg); err != nil {
 		return err
 	}

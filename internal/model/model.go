@@ -12,6 +12,19 @@ type LabelEntry struct {
 	Description string `yaml:"description" json:"description"`
 }
 
+// ActionsSettings holds repository GitHub Actions policy fields.
+// Pointer types distinguish absent fields from zero values.
+type ActionsSettings struct {
+	Enabled            *bool     `yaml:"enabled,omitempty"`
+	AllowedActions     *string   `yaml:"allowed_actions,omitempty"`
+	SHAPinningRequired *bool     `yaml:"sha_pinning_required,omitempty"`
+	GitHubOwnedAllowed *bool     `yaml:"github_owned_allowed,omitempty"`
+	VerifiedAllowed    *bool     `yaml:"verified_allowed,omitempty"`
+	PatternsAllowed    *[]string `yaml:"patterns_allowed,omitempty"`
+
+	Extra map[string]interface{} `yaml:",inline"`
+}
+
 // LabelNeedsUpdate reports whether existing differs from desired in name casing,
 // colour, or description. Colour comparison is case-insensitive to match GitHub
 // behaviour. Name comparison is case-sensitive: the caller already matched these
@@ -25,26 +38,29 @@ func LabelNeedsUpdate(existing, desired LabelEntry) bool {
 // RepositorySettings holds GitHub repository configuration fields.
 // Pointer types distinguish absent fields from zero values.
 type RepositorySettings struct {
-	Description                  *string   `yaml:"description,omitempty"`
-	Homepage                     *string   `yaml:"homepage,omitempty"`
-	HasWiki                      *bool     `yaml:"has_wiki,omitempty"`
-	HasDiscussions               *bool     `yaml:"has_discussions,omitempty"`
-	HasProjects                  *bool     `yaml:"has_projects,omitempty"`
-	HasIssues                    *bool     `yaml:"has_issues,omitempty"`
-	AllowMergeCommit             *bool     `yaml:"allow_merge_commit,omitempty"`
-	AllowSquashMerge             *bool     `yaml:"allow_squash_merge,omitempty"`
-	AllowRebaseMerge             *bool     `yaml:"allow_rebase_merge,omitempty"`
-	SquashMergeCommitTitle       *string   `yaml:"squash_merge_commit_title,omitempty"`
-	SquashMergeCommitMessage     *string   `yaml:"squash_merge_commit_message,omitempty"`
-	MergeCommitTitle             *string   `yaml:"merge_commit_title,omitempty"`
-	MergeCommitMessage           *string   `yaml:"merge_commit_message,omitempty"`
-	DeleteBranchOnMerge          *bool     `yaml:"delete_branch_on_merge,omitempty"`
-	AllowUpdateBranch            *bool     `yaml:"allow_update_branch,omitempty"`
-	AllowAutoMerge               *bool     `yaml:"allow_auto_merge,omitempty"`
-	WebCommitSignoffRequired     *bool     `yaml:"web_commit_signoff_required,omitempty"`
-	Topics                       *[]string `yaml:"topics,omitempty" json:"topics,omitempty"`
-	DefaultWorkflowPermissions   *string   `yaml:"default_workflow_permissions,omitempty"`
-	CanApprovePullRequestReviews *bool     `yaml:"can_approve_pull_request_reviews,omitempty"`
+	Description                       *string   `yaml:"description,omitempty"`
+	Homepage                          *string   `yaml:"homepage,omitempty"`
+	HasWiki                           *bool     `yaml:"has_wiki,omitempty"`
+	HasDiscussions                    *bool     `yaml:"has_discussions,omitempty"`
+	HasProjects                       *bool     `yaml:"has_projects,omitempty"`
+	HasIssues                         *bool     `yaml:"has_issues,omitempty"`
+	AllowMergeCommit                  *bool     `yaml:"allow_merge_commit,omitempty"`
+	AllowSquashMerge                  *bool     `yaml:"allow_squash_merge,omitempty"`
+	AllowRebaseMerge                  *bool     `yaml:"allow_rebase_merge,omitempty"`
+	SquashMergeCommitTitle            *string   `yaml:"squash_merge_commit_title,omitempty"`
+	SquashMergeCommitMessage          *string   `yaml:"squash_merge_commit_message,omitempty"`
+	MergeCommitTitle                  *string   `yaml:"merge_commit_title,omitempty"`
+	MergeCommitMessage                *string   `yaml:"merge_commit_message,omitempty"`
+	DeleteBranchOnMerge               *bool     `yaml:"delete_branch_on_merge,omitempty"`
+	AllowUpdateBranch                 *bool     `yaml:"allow_update_branch,omitempty"`
+	AllowAutoMerge                    *bool     `yaml:"allow_auto_merge,omitempty"`
+	WebCommitSignoffRequired          *bool     `yaml:"web_commit_signoff_required,omitempty"`
+	PrivateVulnerabilityReportEnabled *bool     `yaml:"private_vulnerability_reporting_enabled,omitempty"`
+	VulnerabilityAlertsEnabled        *bool     `yaml:"vulnerability_alerts_enabled,omitempty"`
+	AutomatedSecurityFixesEnabled     *bool     `yaml:"automated_security_fixes_enabled,omitempty"`
+	Topics                            *[]string `yaml:"topics,omitempty" json:"topics,omitempty"`
+	DefaultWorkflowPermissions        *string   `yaml:"default_workflow_permissions,omitempty"`
+	CanApprovePullRequestReviews      *bool     `yaml:"can_approve_pull_request_reviews,omitempty"`
 
 	// Extra captures any YAML keys not mapped to struct fields above.
 	// ValidateRepoSettings uses this to reject unrecognised settings.

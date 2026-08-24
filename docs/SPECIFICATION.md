@@ -56,6 +56,8 @@ Swatch-to-path mappings are hardcoded in the source. Licences are not swatches -
 
 **Repository Settings**: Tailor can manage GitHub repository settings declaratively via the `repository` section in `.tailor.yml`. Field names match the GitHub REST API field names exactly (snake_case). Settings are applied via `PATCH /repos/{owner}/{repo}` as a single API call, with additional fields applied via their own separate API endpoints. Repository settings are always applied idempotently on every `alter` run - there is no `first-fit` concept for API settings. If the `repository` section is absent from `.tailor.yml`, repository settings are skipped entirely.
 
+**Actions policy**: Tailor manages repository GitHub Actions policy through the top-level `actions` section. The built-in defaults enable Actions, use `allowed_actions: selected`, disable SHA pinning, allow GitHub-owned and verified actions, and allow `freerangebytes/setup-actionlint@*`, `golangci/golangci-lint-action@*`, `robherley/go-test-action@*`, and `softprops/action-gh-release@*`. Default merging adds the complete section when it is absent.
+
 **Labels**: Tailor can manage GitHub issue labels declaratively via the `labels` section in `.tailor.yml`. Labels are a top-level config key alongside `repository:` and `swatches:`, not a field within `repository:`. The reconciliation strategy is create and update only - labels present on GitHub but absent from config are left untouched. No pruning. Label name matching is case-insensitive. When a label's name differs only in casing from the config, tailor updates the casing to match. The default config includes 12 labels (9 GitHub defaults plus `dependencies`, `github_actions`, and `hacktoberfest-accepted`) with colours from the Catppuccin Latte accent palette. If the `labels` section is absent from `.tailor.yml`, label management is skipped entirely.
 
 Supported repository settings:
@@ -79,22 +81,51 @@ Supported repository settings:
 | `allow_update_branch` | bool | Allow updating PR branches |
 | `allow_auto_merge` | bool | Allow auto-merge |
 | `web_commit_signoff_required` | bool | Require sign-off on web commits |
+| `private_vulnerability_reporting_enabled` | bool | Allow users to privately report potential security vulnerabilities |
+| `vulnerability_alerts_enabled` | bool | Enable Dependabot vulnerability alerts |
+| `automated_security_fixes_enabled` | bool | Enable Dependabot automated security fix pull requests |
 | `topics` | string array | Repository topics for discoverability (replace-all semantics) |
 | `default_workflow_permissions` | string | Default GITHUB_TOKEN permissions (`read` or `write`) |
-| `can_approve_pull_request_reviews` | bool | Allow GitHub Actions to approve pull requests |
+| `can_approve_pull_request_reviews` | bool | Allow `GITHUB_TOKEN` workflows to create pull requests and submit approval reviews |
 
 Several fields use separate API endpoints rather than the repository PATCH call. Tailor handles this transparently - they appear in `.tailor.yml` alongside other repository settings but are applied via their own API calls:
 
 | Field | Read | Write |
 |---|---|---|
+| `private_vulnerability_reporting_enabled` | `GET /repos/{owner}/{repo}/private-vulnerability-reporting` | `PUT`/`DELETE /repos/{owner}/{repo}/private-vulnerability-reporting` |
+| `vulnerability_alerts_enabled` | `GET /repos/{owner}/{repo}/vulnerability-alerts` (`204` means enabled) | `PUT`/`DELETE /repos/{owner}/{repo}/vulnerability-alerts` |
+| `automated_security_fixes_enabled` | `GET /repos/{owner}/{repo}/automated-security-fixes` (`200` JSON contains `enabled` and `paused`) | `PUT`/`DELETE /repos/{owner}/{repo}/automated-security-fixes` |
 | `topics` | Read from `GET /repos/{owner}/{repo}` response (no extra call) | `PUT /repos/{owner}/{repo}/topics` with `{"names": [...]}` |
 | `default_workflow_permissions`, `can_approve_pull_request_reviews` | `GET /repos/{owner}/{repo}/actions/permissions/workflow` | `PUT /repos/{owner}/{repo}/actions/permissions/workflow` (both fields atomically) |
 
 **Topics**: The PUT endpoint replaces the entire topics list. The config declares the complete desired set; omitted topics are removed on apply. Topics are project-specific and not included in the default config template. Topic names must start with a lowercase letter or number, contain only lowercase alphanumerics and hyphens, and be 50 characters or fewer. The `topics` field uses `*[]string` semantics: nil (absent) means skip, empty list means clear all topics.
 
-**Actions workflow permissions**: `default_workflow_permissions` accepts `read` or `write`. The PUT endpoint sends both `default_workflow_permissions` and `can_approve_pull_request_reviews` atomically. The tailor defaults (`read` and `false`) follow the principle of least privilege. If the API rejects the read or write, Tailor reports `would skip (insufficient scope)` in `baste` and skips the operation in `alter`. Use a token with the required repository permissions.
+**Security settings**: The built-in defaults set all three security settings to `true`, so generated configs expose each control. Each field uses `*bool` semantics: nil means unmanaged before default merging, and a Boolean value declares the required state. Before strict validation and default merging, Tailor normalises the automated security fixes prerequisite. When `automated_security_fixes_enabled` is `true` and `vulnerability_alerts_enabled` is absent or `false`, Tailor sets `vulnerability_alerts_enabled` to `true` in memory and emits `warning: set vulnerability_alerts_enabled to true because automated_security_fixes_enabled requires vulnerability alerts`. `alter` and `alter --recut` write the corrected `.tailor.yml` before repository API work. `baste` reports `would update` and writes nothing. `measure` and `docket` accept the pair and write nothing. Default merging then appends other missing security settings and never changes an unrelated explicit value. Tailor applies only security endpoint settings whose live values differ.
 
-Settings deliberately excluded due to risk or org-level scope: `visibility`, `default_branch`, `name`, `archived`, `is_template`, `allow_forking`, `security_and_analysis`. Additional API areas considered and deferred: Actions permissions policy (`enabled`, `allowed_actions`), autolinks, Pages configuration, deployment environments, custom properties (org-level), and Dependabot secrets. Branch protection (both classic rules and rulesets) is explicitly out of scope. It requires `Administration: write`, which is the same permission level needed to delete a repository. Tailor does not request this high-risk permission. For Tailor's target audience of solo developers and small teams, branch protection is a one-time UI operation that does not drift over time. The `gh` CLI handles the setup in a single command.
+GitHub can use `404` for a disabled feature or denied access. A private vulnerability reporting `404` always leaves the value unknown and produces an access warning. A vulnerability alerts or automated fixes `404` means disabled only when the repository response confirms `permissions.admin: true` and the Actions workflow permission read confirms Administration-read access. Otherwise, Tailor leaves the value unknown and produces an access warning. The automated fixes GET uses the `enabled` value from the official `200` JSON response and does not treat `204` as a GET result.
+
+When Tailor enables alerts and automated fixes together, it enables alerts first. If the alerts read is unknown, or the write fails or is skipped, Tailor does not enable automated fixes. When Tailor disables both, it disables automated fixes first. If the automated fixes read is unknown, or the write fails or is skipped, Tailor does not disable alerts. Tailor warns about the prerequisite only when automated fixes are required and alerts will remain disabled. Other access errors produce skip results, and other API errors stop the command.
+
+**Actions workflow permissions**: `default_workflow_permissions` accepts `read` or `write`. The PUT endpoint sends both `default_workflow_permissions` and `can_approve_pull_request_reviews` atomically. GitHub labels the latter setting “Allow GitHub Actions to create and approve pull requests”. Tailor keeps the REST API field name because repository config keys map directly to API fields. Enabling it permits the repository `GITHUB_TOKEN` to create pull requests and submit approval reviews when the workflow has `pull-requests: write`. The setting does not permit merges, bypass branch rules, or affect personal access tokens or separate GitHub App tokens. The tailor defaults (`read` and `false`) follow the principle of least privilege. If the API rejects the read or write, Tailor reports `would skip (insufficient scope)` in `baste` and skips the operation in `alter`. Use a token with the required repository permissions.
+
+Supported top-level Actions policy settings:
+
+| Field | Type | Description |
+|---|---|---|
+| `enabled` | bool | Enable GitHub Actions for the repository |
+| `allowed_actions` | string | Allowed policy: `all`, `local_only`, or `selected` |
+| `sha_pinning_required` | bool | Require full-length commit SHAs for actions |
+| `github_owned_allowed` | bool | Allow GitHub-owned actions under the selected policy |
+| `verified_allowed` | bool | Allow actions from verified creators under the selected policy |
+| `patterns_allowed` | string array | Complete set of allowed action and reusable workflow patterns |
+
+Tailor reads and writes `enabled`, `allowed_actions`, and `sha_pinning_required` through `/repos/{owner}/{repo}/actions/permissions`. Tailor uses `/repos/{owner}/{repo}/actions/permissions/selected-actions` for the other fields. The three selected-action fields are valid only with `allowed_actions: selected`. The selected endpoint replaces `patterns_allowed`; comparison sorts both lists because GitHub order has no policy meaning.
+
+Each Actions policy field uses pointer semantics, so default merging preserves explicit Boolean values, an explicit custom list, and an explicit empty list. When the section is absent, Tailor adds the complete default policy. When the effective policy is `selected`, Tailor appends each missing selected-action field. A missing `patterns_allowed` field receives the four approved defaults. After default merging, a selected policy must include `github_owned_allowed`, `verified_allowed`, and `patterns_allowed`. When the policy is `all` or `local_only`, Tailor appends only missing core fields and leaves selected-action fields absent so the result remains valid.
+
+When Tailor changes `all` or `local_only` to `selected`, the first core write sets `enabled: false` and `allowed_actions: selected`. Tailor then writes the complete selected restrictions and applies the requested final core policy. For an existing selected policy, Tailor writes changed selected restrictions before a core write that broadens access, including disabling SHA pinning. When an enabled policy combines selected broadening with core tightening, Tailor first disables Actions. Selected broadening means newly allowing GitHub-owned actions, verified actions, or patterns. Core tightening means enabling SHA pinning or disabling Actions. Tailor then writes the selected restrictions and final core policy. Tailor also disables Actions before any selected update whose final policy disables Actions. If either later write fails, Tailor returns an explicit error and leaves Actions disabled. If the selected-policy read fails while the effective policy stays selected, Tailor skips dependent core broadening. Organisation policy can restrict repository choices. Access errors produce clear skip results, and hard errors stop the command.
+
+Settings deliberately excluded due to risk or org-level scope: `visibility`, `default_branch`, `name`, `archived`, `is_template`, `allow_forking`, `security_and_analysis`. Additional API areas considered and deferred: autolinks, Pages configuration, deployment environments, custom properties (org-level), and Dependabot secrets. Branch protection (both classic rules and rulesets) is explicitly out of scope. It requires `Administration: write`, which is the same permission level needed to delete a repository. Tailor does not request this high-risk permission. For Tailor's target audience of solo developers and small teams, branch protection is a one-time UI operation that does not drift over time. The `gh` CLI handles the setup in a single command.
 
 **Alteration Modes**:
 - `always`: Tailor compares the embedded swatch content against the on-disk file on every `alter` run and overwrites if they differ. For `.tailor.yml` specifically, `always` means "migrate retired entries and append missing defaults" rather than "overwrite content", because `.tailor.yml` content is user-managed. The config is rewritten only when migration or default merging changes it
@@ -115,7 +146,7 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 | `.github/ISSUE_TEMPLATE/bug_report.yml` | `always` |
 | `.github/ISSUE_TEMPLATE/feature_request.yml` | `always` |
 | `.github/ISSUE_TEMPLATE/config.yml` | `first-fit` |
-| `.github/pull_request_template.md` | `always` |
+| `.github/pull_request_template.md` | `never` |
 | `.github/dependabot.yml` | `first-fit` |
 | `justfile` | `first-fit` |
 | `cubic.yaml` | `first-fit` |
@@ -184,7 +215,7 @@ A `license` key is included in `.tailor.yml` by default (`license: BlueOak-1.0.0
 
 **Repository settings resolution at `fit` time**: `fit` detects repository context by querying GitHub remotes in `<path>`. If a GitHub remote exists, the project has repository context. If no remote is found, no repository context exists. Repository context detection reads git remotes (via `go-gh`), so `git` must be present when a GitHub remote exists - which is always the case in practice, since the remote implies a git repository.
 
-When repository context exists, `fit` queries the live repository configuration via `GET /repos/{owner}/{repo}` and the separate endpoint for Actions workflow permissions to populate the `repository` section with the project's current settings. This ensures that enabling tailor on an existing project does not inadvertently change features that are already configured (e.g. disabling wiki or discussions that are currently enabled). The `--description` flag takes precedence over the value from GitHub. `description` and `homepage` are omitted if empty. When no repository context exists (e.g. a brand-new project with no remote), the built-in defaults from the embedded swatch are used, with `description` and `homepage` normalised to nil by `DefaultConfig` so they are omitted from the generated config.
+When repository context exists, `fit` queries the live repository configuration via `GET /repos/{owner}/{repo}` and the separate endpoints for security features and Actions workflow permissions. The live values populate the `repository` section. This prevents Tailor from changing features that the repository already configures. The `--description` flag takes precedence over the value from GitHub. `description` and `homepage` are omitted if empty. When no repository context exists, the built-in defaults from the embedded swatch are used. `DefaultConfig` normalises `description` and `homepage` to nil, so the generated config omits them.
 
 ```bash
 # Default licence (BlueOak-1.0.0)
@@ -204,7 +235,7 @@ If `<path>` already exists but does not contain `.tailor.yml`, `fit` proceeds wi
 
 Generates:
 - Project directory at `<path>`
-- `.tailor.yml` at `<path>/.tailor.yml`, containing the `license` key, the `repository` section (populated from live GitHub settings when available, otherwise from built-in defaults), the `labels` section (12 default labels with Catppuccin Latte colours), and the full default swatch set, each entry at its default alteration mode, prefixed with a `# Initially fitted by tailor on <DATE>` header comment (YYYY-MM-DD, no time).
+- `.tailor.yml` at `<path>/.tailor.yml`, containing the `license` key, the `repository` section (populated from live GitHub settings when available, otherwise from built-in defaults), the default `actions` section, the `labels` section (12 default labels with Catppuccin Latte colours), and the full default swatch set, each entry at its default alteration mode, prefixed with a `# Initially fitted by tailor on <DATE>` header comment (YYYY-MM-DD, no time).
 
 ### `alter`
 
@@ -214,17 +245,19 @@ Applies swatch alterations to the local project.
 
 ```bash
 tailor alter              # Apply changes
-tailor alter --recut      # Apply and overwrite regardless of mode or existence
+tailor alter --recut      # Apply and override first-fit protection
 ```
 
 Behaviour:
 - If `.tailor.yml` is missing or malformed, exits immediately with the error described in Error Handling.
 - **Retired workflow migration**: before strict path and mode validation, `alter` removes both retired paths from the in-memory config. The paths are `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. This migration accepts the historical `triggered` mode only on these retired entries. The migration ignores the entry mode and the mode of the `.tailor.yml` swatch.
-- **Config update**: after migration and validation, `alter` writes a changed config once. The write uses a `# Refitted by tailor on <DATE>` header comment (YYYY-MM-DD). It combines all retired-entry removals with built-in defaults merged in the same run. If the config did not change, `alter` does not write it. The default merge runs when `.tailor.yml` has `alteration: always`. The `alteration: first-fit` mode skips the merge. See "Header comment" below for the comment format. The three merge rules are:
+- **Config update**: after migration, Tailor normalises the security prerequisite and emits its warning before validation. `alter` then writes a changed config once. The write uses a `# Refitted by tailor on <DATE>` header comment (YYYY-MM-DD). It combines security prerequisite normalisation and all retired-entry removals with built-in defaults merged in the same run. The write occurs before repository API work. If the config did not change, `alter` does not write it. The default merge runs when `.tailor.yml` has `alteration: always`. The `alteration: first-fit` mode skips the merge. Security prerequisite normalisation is independent of the config swatch mode. See "Header comment" below for the comment format. The four merge rules are:
   - **Swatches**: appends each missing default swatch with the default alteration mode. The merge does not modify active entries.
-  - **Repository settings**: fills nil fields only from built-in defaults; never overwrites non-nil fields. `Description`, `Homepage`, and `Topics` are excluded from this merge because they are project-specific.
+  - **Repository settings**: fills nil fields only from built-in defaults; never overwrites non-nil fields. This appends missing security settings with the `true` defaults and preserves explicit `false` values except for the automated security fixes prerequisite described above. `Description`, `Homepage`, and `Topics` are excluded from this merge because they are project-specific.
+  - **Actions policy**: adds the complete default section when absent. Otherwise, it fills missing core fields without changing explicit values. It fills missing selected-action fields only when the effective policy is `selected`.
   - **Labels**: populated only when the labels section is entirely absent or empty (all-or-nothing). If the config already has any labels defined, no defaults are merged.
 - For repository settings: if a `repository` section is present in `.tailor.yml`, reads the current repository settings via `GET /repos/{owner}/{repo}` and additional endpoints, compares each declared field against the live value, and applies changes via `PATCH /repos/{owner}/{repo}` plus separate API calls for fields with dedicated endpoints. Repository settings are the first API stage after local migration cleanup. If no GitHub repository context exists (no remote), repository settings are skipped with a warning. `--recut` has no special effect on repository settings - they are always applied declaratively.
+- For Actions policy: after any default merge, if an `actions` section is present, reads the current policy, compares each declared field, and applies only endpoint groups that differ. The Actions policy runs after repository settings and before labels. If the section remains absent because default merging is disabled, Tailor makes no Actions policy calls. `--recut` has no other special effect.
 - For labels: if a `labels` section is present in `.tailor.yml`, reads the current labels via paginated `GET /repos/{owner}/{repo}/labels`, diffs desired vs current using case-insensitive name matching, creates missing labels via `POST`, and updates changed labels (colour or description differs) via `PATCH`. Labels present on GitHub but absent from config are left untouched. Labels are applied after repository settings and before licences and swatches. If no GitHub repository context exists (no remote), labels are skipped with a warning.
 - For `always` swatches: compares the SHA-256 of the embedded swatch content against the on-disk file. Tailor overwrites the file if the hashes differ. SHA-256 comparison applies only to `always` swatches. For swatches containing substitution tokens (`{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, or `{{HOMEPAGE_URL}}`), tokens are resolved before the SHA-256 comparison. The resolved content is hashed and compared against the on-disk file, so substituted swatches correctly produce `no change` when the resolved content matches. The substituted swatches are `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, and `.tailor.yml`.
 - For `first-fit` swatches: copies only if the destination file does not exist; never overwrites. If the destination exists, the swatch is skipped entirely - no SHA-256 comparison is performed.
@@ -234,7 +267,7 @@ Behaviour:
 - For `SECURITY.md`: substitutes `{{ADVISORY_URL}}` before writing. `{{ADVISORY_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>/security/advisories/new` from the repository context (owner/name). If no GitHub repository context exists (e.g. a brand-new project with no remote), `{{ADVISORY_URL}}` is left unsubstituted in the written file. The unsubstituted token is intentionally detectable by a future `measure` run; `alter` will resolve and substitute it on a subsequent run once the repository has a remote.
 - For `.github/ISSUE_TEMPLATE/config.yml`: substitutes `{{SUPPORT_URL}}` before writing. `{{SUPPORT_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md` from the repository context (owner/name). If no GitHub repository context exists, `{{SUPPORT_URL}}` is left unsubstituted in the written file.
 - For `.tailor.yml`: substitutes `{{HOMEPAGE_URL}}` before writing. `{{HOMEPAGE_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>` from the repository context (owner/name). If no GitHub repository context exists, `{{HOMEPAGE_URL}}` is left unsubstituted in the written file.
-- With `--recut`: overwrites regardless of mode or existence, including `first-fit` swatches - `--recut` will overwrite a `first-fit` swatch file even if it exists and has been locally modified. Use with care. The licence file is exempt from `--recut` and is never overwritten regardless, because it is fetched content not an embedded swatch. For `.tailor.yml`, `--recut` overrides `first-fit` with `always` semantics like any other swatch. Retired entries are removed, and missing default swatches are appended. Other existing entries are never modified or overwritten. When `--recut` writes a substituted swatch (e.g. `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, or `.tailor.yml`), the full token resolution pipeline runs and fresh values are substituted before writing.
+- With `--recut`: overrides `first-fit` with `always` semantics, but still skips `never` swatches. It overwrites a `first-fit` swatch file even if the file exists and has local modifications. Use with care. The licence file is exempt from `--recut` and is never overwritten, because it is fetched content, not an embedded swatch. For `.tailor.yml`, `--recut` overrides `first-fit` with `always` semantics like any other swatch. Retired entries are removed, and missing default swatches are appended. Other existing entries are never modified or overwritten. When `--recut` writes a substituted swatch (e.g. `.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, or `.tailor.yml`), the full token resolution pipeline runs and fresh values are substituted before writing.
 - If no `license` key is present in `.tailor.yml` (or its value is `none`) and no `LICENSE` file exists in the project root, emits a warning: "No licence file found and no licence configured. Add `license: BlueOak-1.0.0` (or another identifier) to `.tailor.yml` and run `tailor alter`." Warning only; does not block execution.
 - Creates intermediate directories as needed before writing any swatch whose destination path requires directories that do not yet exist.
 - After the config stage, removes each retired workflow file that exists. Cleanup uses the fixed paths even when `.tailor.yml` does not list them. Cleanup does not depend on an alteration mode. An absent retired file produces no result.
@@ -254,17 +287,17 @@ tailor baste
 
 Behaviour:
 - If `.tailor.yml` is missing or malformed, exits immediately with the error described in Error Handling.
-- Before strict validation, `baste` applies the same in-memory retired workflow migration as `alter`. It accepts historical `triggered` entries only for the two retired paths.
+- Before strict validation, `baste` applies the same in-memory retired workflow migration and security prerequisite normalisation as `alter`. It accepts historical `triggered` entries only for the two retired paths. It emits the normalisation warning and reports `would update: .tailor.yml` without writing.
 - `baste` performs the same comparison and file-safety checks as `alter` but writes and removes nothing. It reports what `alter` would do.
 
-Output contract - repository settings are shown first (if a `repository` section is present), then labels (if a `labels` section is present), then file results. File results include the licence, the `.tailor.yml` default merge, and swatches. `baste` uses planned labels. `alter` and `alter --recut` use completed labels, and report each label only after the change succeeds. Informational and access-warning labels are the same for all three commands.
+Output contract - repository settings and Actions policy settings are shown first, then labels, then file results. Actions policy fields use the `actions.` prefix. File results include the licence, the `.tailor.yml` default merge, and swatches. `baste` uses planned labels. `alter` and `alter --recut` use completed labels, and report each label only after the change succeeds. Informational and access-warning labels are the same for all three commands.
 
 | Result | `baste` | `alter` and `alter --recut` |
 |---|---|---|
 | Repository setting differs | `would set` | `set` |
 | Label is absent | `would create` | `created` |
 | Label differs | `would update` | `updated` |
-| `.tailor.yml` gains built-in defaults or loses retired entries | `would update` | `updated` |
+| `.tailor.yml` gains built-in defaults, loses retired entries, or normalises the security prerequisite | `would update` | `updated` |
 | Retired workflow file exists | `would remove` | `removed` |
 | Licence or swatch destination is absent | `would copy` | `copied` |
 | Swatch destination is replaced | `would overwrite` | `overwritten` |
@@ -344,8 +377,8 @@ copied:                                 LICENSE
 overwritten:                            SECURITY.md
 ```
 
-`would update` - `baste` found built-in defaults to merge or retired workflow entries to remove. Multiple retired entries produce one `.tailor.yml` result.
-`updated` - `alter` or `alter --recut` wrote the changed `.tailor.yml` once. The write combines default merges and retired-entry removals.
+`would update` - `baste` found built-in defaults to merge, retired workflow entries to remove, or a security prerequisite to normalise. Security normalisation also emits its warning. Multiple config changes produce one `.tailor.yml` result.
+`updated` - `alter` or `alter --recut` wrote the changed `.tailor.yml` once. The write combines default merges, retired-entry removals, and security prerequisite normalisation.
 `would remove` - a retired workflow file exists and `baste` would remove it. `baste` does not change the file.
 `removed` - `alter` or `alter --recut` removed a retired workflow file. Tailor reports the result only after removal succeeds.
 `would copy` - destination does not exist and the swatch would be written. Applies regardless of whether the swatch is `always` or `first-fit`.
@@ -467,7 +500,7 @@ Behaviour:
 
 **`.tailor.yml` is not a valid config file**: Tailor rejects `.tailor.yml` if it is not a regular file or exceeds 1 MiB. The command exits before YAML parsing.
 
-**`always` swatch modified locally**: tailor treats the file as changed whenever the SHA-256 of the embedded swatch content differs from the on-disk file. `alter` overwrites it unconditionally. Tailor does not preserve local edits to `always` swatches; use `first-fit` alteration mode if local modifications must be retained after the initial fit. `--recut` overrides `first-fit` protection for all swatches except the licence file, which is never overwritten regardless of flags. For `.tailor.yml`, `always` removes retired entries and appends missing defaults. Other existing entries are never modified or overwritten.
+**`always` swatch modified locally**: tailor treats the file as changed whenever the SHA-256 of the embedded swatch content differs from the on-disk file. `alter` overwrites it unconditionally. Tailor does not preserve local edits to `always` swatches; use `first-fit` alteration mode if local modifications must be retained after the initial fit. `--recut` overrides `first-fit` protection but still skips `never` swatches. The licence file is never overwritten regardless of flags. For `.tailor.yml`, `always` removes retired entries and appends missing defaults. Other existing entries are never modified or overwritten.
 
 **Duplicate path in `.tailor.yml`**: `alter` and `baste` remove retired entries before duplicate validation. If active entries share a path, the command identifies the conflict and exits before disk changes.
 
@@ -483,6 +516,8 @@ Behaviour:
 
 **Repository settings with insufficient scope**: When GitHub rejects a repository-setting read or write with an access error, Tailor skips the affected fields rather than exiting. `baste` reports `would skip (insufficient scope: token missing required scope)` and `alter` skips the operation. Other repository settings continue to be applied. Use a token with the required repository permissions.
 
+**Actions policy failure**: Access errors from Actions policy reads or writes produce `would skip (insufficient scope)` results for the affected fields or operation. After Tailor disables Actions for a transition to `selected`, a selected-policy or final core write failure stops the command and leaves Actions disabled. Other errors stop the command. An invalid `allowed_actions` value or selected-action combination stops validation before any write.
+
 **Unrecognised repository setting**: if `.tailor.yml` contains a field in the `repository` section that is not in the supported settings list, `alter` exits with an error identifying the unrecognised field and listing all valid repository setting field names.
 
 **`fit` repository settings query failed**: if `fit` detects a GitHub remote but the subsequent API call to read repository settings fails (e.g. insufficient permissions, network error), `fit` exits with the API error. The user can re-run `fit` after resolving the issue, or create `.tailor.yml` manually.
@@ -491,7 +526,7 @@ Behaviour:
 
 ### `.tailor.yml`
 
-`.tailor.yml` has four top-level sections: `license` (a string), `repository` (a map of GitHub repository settings), `labels` (a list of label entries with name, colour, and description), and `swatches` (a list of swatch entries). `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (e.g. `justfile`) are referenced as-is. The `repository` and `labels` sections are optional; if absent, their respective management is skipped.
+`.tailor.yml` has five top-level sections: `license`, `repository`, `actions`, `labels`, and `swatches`. The `actions` section is a map of repository Actions policy settings. `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (e.g. `justfile`) are referenced as-is. The `repository`, `actions`, and `labels` sections can be absent in a hand-written config. Default merging adds missing Actions defaults before policy management.
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 
@@ -517,10 +552,25 @@ repository:
   squash_merge_commit_message: PR_BODY
   delete_branch_on_merge: true
   allow_update_branch: true
-  allow_auto_merge: false
+  allow_auto_merge: true
   web_commit_signoff_required: false
+  private_vulnerability_reporting_enabled: true
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: true
   default_workflow_permissions: read
   can_approve_pull_request_reviews: false
+
+actions:
+  enabled: true
+  allowed_actions: selected
+  sha_pinning_required: false
+  github_owned_allowed: true
+  verified_allowed: true
+  patterns_allowed:
+    - freerangebytes/setup-actionlint@*
+    - golangci/golangci-lint-action@*
+    - robherley/go-test-action@*
+    - softprops/action-gh-release@*
 
 labels:
   - name: bug
@@ -588,7 +638,7 @@ swatches:
     alteration: first-fit
 
   - path: .github/pull_request_template.md
-    alteration: always
+    alteration: never
 
   - path: SECURITY.md
     alteration: always
@@ -626,7 +676,7 @@ swatches:
 The first line of `.tailor.yml` is a header comment indicating when the config was created or last updated by Tailor.
 
 - `# Initially fitted by tailor on <DATE>` - written by `fit` when the config is first created.
-- `# Refitted by tailor on <DATE>` - written by `alter` when it removes retired workflow entries or merges built-in defaults. The date is the current date (YYYY-MM-DD). If the config does not change, the header does not change.
+- `# Refitted by tailor on <DATE>` - written by `alter` when it removes retired workflow entries, normalises the security prerequisite, or merges built-in defaults. The date is the current date (YYYY-MM-DD). If the config does not change, the header does not change.
 
 The `config.Write` function accepts a date string and a header verb. The template uses the verb to select between "Initially fitted" and "Refitted".
 
@@ -692,12 +742,12 @@ measure:
 
 ## Implementation Notes
 
-1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. SHA-256 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For swatches containing substitution tokens, tokens are resolved before the hash comparison, so the resolved content is compared against the on-disk file. Bypassed with `--recut`.
+1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. SHA-256 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For swatches containing substitution tokens, tokens are resolved before the hash comparison, so the resolved content is compared against the on-disk file. `--recut` bypasses this comparison for `always` and `first-fit` swatches, but still skips `never` swatches.
 2. **Interpolation (FUNDING.yml, SECURITY.md, issue template config, and .tailor.yml)**: Swatches are complete verbatim files with four exceptions. `.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted at `alter` time from `GET /user`. `SECURITY.md` has `{{ADVISORY_URL}}` constructed from the repository context (owner/name). If no GitHub repository context exists, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` constructed from the repository context, which produces `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. If no GitHub repository context exists, the token is left unsubstituted. `.tailor.yml` has `{{HOMEPAGE_URL}}` constructed from the repository context, which produces `https://github.com/<owner>/<name>`. If no GitHub repository context exists, the token is left unsubstituted. No per-swatch configuration is required. Licences are fetched via `GET /licenses/{id}` and written verbatim. Licences do not use token substitution.
 3. **No versioning**: No swatch versions, always uses swatches from current tailor binary. Upgrading tailor will cause all `always` swatches to be re-evaluated against the new embedded content; files whose swatch content has changed will be overwritten on the next `alter` run.
 4. **No global state**: All state is per-project in `.tailor.yml`
 5. **No project registry**: Tailor has no awareness of its consumers. Projects pull from tailor, tailor does not track projects.
 6. **Authentication via `go-gh`**: All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions. Token resolution follows the `go-gh` precedence order: `GH_TOKEN` environment variable, `GITHUB_TOKEN` environment variable, `gh` config file, `gh` keyring (via the `gh` binary). When `GH_TOKEN` or `GITHUB_TOKEN` is set, the `gh` binary is not required. The `gh` binary is needed only for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access when no environment variable is set. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If no valid token can be resolved, `fit`, `alter`, and `baste` exit immediately with an error.
 7. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
-8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `.tailor.yml`, plus separate API calls for fields with dedicated endpoints (topics, Actions workflow permissions). Field names map directly to the GitHub REST API without translation. Current settings are read via `GET /repos/{owner}/{repo}` and the relevant separate endpoints for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client.
-9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then validates the remaining config. Next, it writes the changed config once and removes present retired workflow files. It then applies repository settings, labels, the licence, and active swatches in that order. `baste` uses `DryRun`; it performs the same planning and validation but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.
+8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `.tailor.yml`, plus separate API calls for security features, topics, and Actions workflow permissions. The top-level `actions` section uses the Actions permissions and selected-actions endpoints. Field names map directly to the GitHub REST API without translation. Current settings are read via `GET /repos/{owner}/{repo}` and the relevant separate endpoints for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client.
+9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisite and emits its warning before validation. Next, it writes the changed config once and removes present retired workflow files. It then applies repository settings, Actions policy, labels, the licence, and active swatches in that order. `baste` uses `DryRun`; it performs the same planning and validation but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.

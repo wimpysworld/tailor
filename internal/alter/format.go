@@ -29,13 +29,21 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 
 	for _, r := range sortRepoResults(repoResults) {
 		label := repoLabel(r, mode)
+		section := r.Section
+		if section == "" {
+			section = "repository"
+		}
 		switch r.Category {
 		case WouldSet:
-			fmt.Fprintf(&b, "%-*srepository.%s = %s\n", width, label, r.Field, r.Value)
+			fmt.Fprintf(&b, "%-*s%s.%s = %s\n", width, label, section, r.Field, r.Value)
 		case RepoNoChange:
-			fmt.Fprintf(&b, "%-*srepository.%s (already %s)\n", width, label, r.Field, r.Value)
+			fmt.Fprintf(&b, "%-*s%s.%s (already %s)\n", width, label, section, r.Field, r.Value)
 		case WouldSkipScope:
-			fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Field)
+			if r.Section == "actions" && !strings.HasPrefix(r.Field, "set ") {
+				fmt.Fprintf(&b, "%-*sactions.%s\n", width, label, r.Field)
+			} else {
+				fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Field)
+			}
 		}
 	}
 
@@ -72,15 +80,29 @@ func removeSkippedRepoResults(results []RepoSettingResult) []RepoSettingResult {
 
 	filtered := make([]RepoSettingResult, 0, len(results))
 	for _, result := range results {
-		if result.Category != WouldSet || !skipped[repoSettingOperation(result.Field)] {
+		if result.Category != WouldSet || !skipped[repoSettingOperation(result)] {
 			filtered = append(filtered, result)
 		}
 	}
 	return filtered
 }
 
-func repoSettingOperation(field string) string {
-	switch field {
+func repoSettingOperation(result RepoSettingResult) string {
+	if result.Section == "actions" {
+		switch result.Field {
+		case "enabled", "allowed_actions", "sha_pinning_required":
+			return "set actions permissions"
+		case "github_owned_allowed", "verified_allowed", "patterns_allowed":
+			return "set selected actions permissions"
+		}
+	}
+	switch result.Field {
+	case "private_vulnerability_reporting_enabled":
+		return operationForValue(result.Value, "private vulnerability reporting")
+	case "vulnerability_alerts_enabled":
+		return operationForValue(result.Value, "vulnerability alerts")
+	case "automated_security_fixes_enabled":
+		return operationForValue(result.Value, "automated security fixes")
 	case "topics":
 		return "set topics"
 	case "default_workflow_permissions", "can_approve_pull_request_reviews":
@@ -88,6 +110,13 @@ func repoSettingOperation(field string) string {
 	default:
 		return "patch repo settings"
 	}
+}
+
+func operationForValue(value, feature string) string {
+	if value == "true" {
+		return "enable " + feature
+	}
+	return "disable " + feature
 }
 
 func removeSkippedLabelResults(results []LabelResult) []LabelResult {

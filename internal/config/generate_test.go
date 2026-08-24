@@ -2,6 +2,7 @@ package config
 
 import (
 	"io/fs"
+	"slices"
 	"strings"
 	"testing"
 
@@ -50,10 +51,24 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	testutil.AssertStringPtr(t, got.Repository.SquashMergeCommitMessage, false, "PR_BODY", "squash_merge_commit_message")
 	testutil.AssertBoolPtr(t, got.Repository.DeleteBranchOnMerge, false, true, "delete_branch_on_merge")
 	testutil.AssertBoolPtr(t, got.Repository.AllowUpdateBranch, false, true, "allow_update_branch")
-	testutil.AssertBoolPtr(t, got.Repository.AllowAutoMerge, false, false, "allow_auto_merge")
+	testutil.AssertBoolPtr(t, got.Repository.AllowAutoMerge, false, true, "allow_auto_merge")
 	testutil.AssertBoolPtr(t, got.Repository.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
+	testutil.AssertBoolPtr(t, got.Repository.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
+	testutil.AssertBoolPtr(t, got.Repository.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	testutil.AssertBoolPtr(t, got.Repository.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
 	testutil.AssertStringPtr(t, got.Repository.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
-	testutil.AssertBoolPtr(t, got.Repository.CanApprovePullRequestReviews, false, true, "can_approve_pull_request_reviews")
+	testutil.AssertBoolPtr(t, got.Repository.CanApprovePullRequestReviews, false, false, "can_approve_pull_request_reviews")
+	if got.Actions == nil {
+		t.Fatal("Actions is nil, want default policy")
+	}
+	testutil.AssertBoolPtr(t, got.Actions.Enabled, false, true, "actions.enabled")
+	testutil.AssertStringPtr(t, got.Actions.AllowedActions, false, "selected", "actions.allowed_actions")
+	testutil.AssertBoolPtr(t, got.Actions.SHAPinningRequired, false, false, "actions.sha_pinning_required")
+	testutil.AssertBoolPtr(t, got.Actions.GitHubOwnedAllowed, false, true, "actions.github_owned_allowed")
+	testutil.AssertBoolPtr(t, got.Actions.VerifiedAllowed, false, true, "actions.verified_allowed")
+	if got.Actions.PatternsAllowed == nil || !slices.Equal(*got.Actions.PatternsAllowed, approvedDefaultActionPatterns) {
+		t.Fatalf("actions.patterns_allowed = %v, want %v", got.Actions.PatternsAllowed, approvedDefaultActionPatterns)
+	}
 
 	// Labels should match the embedded defaults.
 	if len(got.Labels) != 12 {

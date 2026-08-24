@@ -30,6 +30,9 @@ repository:
   allow_update_branch: true
   allow_auto_merge: false
   web_commit_signoff_required: false
+  private_vulnerability_reporting_enabled: true
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: true
 
 swatches:
   - path: .github/dependabot.yml
@@ -109,6 +112,9 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	testutil.AssertBoolPtr(t, r.AllowUpdateBranch, false, true, "allow_update_branch")
 	testutil.AssertBoolPtr(t, r.AllowAutoMerge, false, false, "allow_auto_merge")
 	testutil.AssertBoolPtr(t, r.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
+	testutil.AssertBoolPtr(t, r.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
+	testutil.AssertBoolPtr(t, r.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	testutil.AssertBoolPtr(t, r.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
 
 	if len(cfg.Swatches) != 16 {
 		t.Fatalf("Swatches count = %d, want 16", len(cfg.Swatches))
@@ -167,6 +173,22 @@ func TestMarshalRoundTrip(t *testing.T) {
 				i, s.Path, s.Alteration, o.Path, o.Alteration)
 		}
 	}
+}
+
+func TestUnmarshalOptionalSecuritySettings(t *testing.T) {
+	var cfg Config
+	err := yaml.Unmarshal([]byte(`repository:
+  private_vulnerability_reporting_enabled: true
+  vulnerability_alerts_enabled: false
+  automated_security_fixes_enabled: true
+`), &cfg)
+	if err != nil {
+		t.Fatalf("Unmarshal failed: %v", err)
+	}
+
+	testutil.AssertBoolPtr(t, cfg.Repository.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
+	testutil.AssertBoolPtr(t, cfg.Repository.VulnerabilityAlertsEnabled, false, false, "vulnerability_alerts_enabled")
+	testutil.AssertBoolPtr(t, cfg.Repository.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
 }
 
 func TestRepositoryNilWhenAbsent(t *testing.T) {

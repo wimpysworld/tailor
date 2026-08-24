@@ -115,6 +115,16 @@ func TestValidateRepoSettingsAcceptsNilRepository(t *testing.T) {
 	}
 }
 
+func TestValidateRepoSettingsAcceptsNormalisableSecuritySettings(t *testing.T) {
+	cfg := &Config{Repository: &model.RepositorySettings{
+		VulnerabilityAlertsEnabled:    ptr.Ptr(false),
+		AutomatedSecurityFixesEnabled: ptr.Ptr(true),
+	}}
+	if err := ValidateRepoSettings(cfg); err != nil {
+		t.Fatalf("ValidateRepoSettings() returned unexpected error: %v", err)
+	}
+}
+
 func TestValidateRepoSettingsRejectsUnknownSetting(t *testing.T) {
 	// Unmarshal YAML with an unknown key to populate the Extra map.
 	input := `repository:
@@ -146,6 +156,7 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 		"allow_rebase_merge",
 		"allow_squash_merge",
 		"allow_update_branch",
+		"automated_security_fixes_enabled",
 		"can_approve_pull_request_reviews",
 		"default_workflow_permissions",
 		"delete_branch_on_merge",
@@ -157,9 +168,11 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 		"homepage",
 		"merge_commit_message",
 		"merge_commit_title",
+		"private_vulnerability_reporting_enabled",
 		"squash_merge_commit_message",
 		"squash_merge_commit_title",
 		"topics",
+		"vulnerability_alerts_enabled",
 		"web_commit_signoff_required",
 	}
 	if len(names) != len(expected) {

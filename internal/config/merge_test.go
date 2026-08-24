@@ -5,7 +5,9 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/model"
+	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
 // allNonConfigSwatches returns every registered swatch except .tailor.yml.
@@ -226,11 +228,13 @@ func TestMergeRepoSettingsNilRepository(t *testing.T) {
 
 func TestMergeRepoSettingsPartialRepository(t *testing.T) {
 	customWiki := true
+	customCanApprove := true
 	customTitle := "CUSTOM_TITLE"
 	cfg := &Config{
 		Repository: &model.RepositorySettings{
-			HasWiki:                &customWiki,
-			SquashMergeCommitTitle: &customTitle,
+			HasWiki:                      &customWiki,
+			CanApprovePullRequestReviews: &customCanApprove,
+			SquashMergeCommitTitle:       &customTitle,
 		},
 	}
 
@@ -243,6 +247,9 @@ func TestMergeRepoSettingsPartialRepository(t *testing.T) {
 	// Existing values must be preserved.
 	if *cfg.Repository.HasWiki != customWiki {
 		t.Errorf("HasWiki changed: got %v, want %v", *cfg.Repository.HasWiki, customWiki)
+	}
+	if *cfg.Repository.CanApprovePullRequestReviews != customCanApprove {
+		t.Errorf("CanApprovePullRequestReviews changed: got %v, want %v", *cfg.Repository.CanApprovePullRequestReviews, customCanApprove)
 	}
 	if *cfg.Repository.SquashMergeCommitTitle != customTitle {
 		t.Errorf("SquashMergeCommitTitle changed: got %q, want %q", *cfg.Repository.SquashMergeCommitTitle, customTitle)
@@ -271,6 +278,34 @@ func TestMergeRepoSettingsPartialRepository(t *testing.T) {
 			t.Errorf("field %s should be set from defaults", f.Name)
 		}
 	}
+}
+
+func TestMergeRepoSettingsAddsSecurityDefaults(t *testing.T) {
+	cfg := &Config{Repository: &model.RepositorySettings{HasWiki: ptr.Ptr(false)}}
+
+	if !mergeRepoDefaultsForTest(t, cfg) {
+		t.Fatal("expected changed=true for missing security settings")
+	}
+
+	testutil.AssertBoolPtr(t, cfg.Repository.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
+	testutil.AssertBoolPtr(t, cfg.Repository.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	testutil.AssertBoolPtr(t, cfg.Repository.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
+}
+
+func TestMergeRepoSettingsPreservesExplicitFalseSecuritySettings(t *testing.T) {
+	cfg := &Config{Repository: &model.RepositorySettings{
+		PrivateVulnerabilityReportEnabled: ptr.Ptr(false),
+		VulnerabilityAlertsEnabled:        ptr.Ptr(false),
+		AutomatedSecurityFixesEnabled:     ptr.Ptr(false),
+	}}
+
+	if !mergeRepoDefaultsForTest(t, cfg) {
+		t.Fatal("expected changed=true for other missing repository settings")
+	}
+
+	testutil.AssertBoolPtr(t, cfg.Repository.PrivateVulnerabilityReportEnabled, false, false, "private_vulnerability_reporting_enabled")
+	testutil.AssertBoolPtr(t, cfg.Repository.VulnerabilityAlertsEnabled, false, false, "vulnerability_alerts_enabled")
+	testutil.AssertBoolPtr(t, cfg.Repository.AutomatedSecurityFixesEnabled, false, false, "automated_security_fixes_enabled")
 }
 
 func TestMergeRepoSettingsFullRepository(t *testing.T) {

@@ -3,7 +3,9 @@ package gh
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
@@ -30,6 +32,13 @@ type repoResponse struct {
 	AllowAutoMerge           bool     `json:"allow_auto_merge"`
 	WebCommitSignoffRequired bool     `json:"web_commit_signoff_required"`
 	Topics                   []string `json:"topics"`
+	Permissions              struct {
+		Admin bool `json:"admin"`
+	} `json:"permissions"`
+}
+
+type securityFeatureResponse struct {
+	Enabled *bool `json:"enabled"`
 }
 
 // workflowPermissionsResponse holds the Actions workflow permission settings.
@@ -40,10 +49,10 @@ type workflowPermissionsResponse struct {
 
 // ReadRepoSettings fetches repository settings from the GitHub API and returns
 // them as a model.RepositorySettings. It makes separate API calls for the
-// standard repository fields and Actions workflow permissions.
+// standard repository fields, security features, and Actions workflow permissions.
 //
 // The returned warnings slice contains classified access errors
-// (ErrInsufficientScope) for sub-calls that returned 403.
+// (ErrInsufficientScope) for sub-calls that returned 403 or an ambiguous 404.
 // The corresponding fields in the returned settings are left nil. Callers can
 // log these warnings or ignore them.
 func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.RepositorySettings, []error, error) {
@@ -74,7 +83,7 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 	}
 
 	var warnings []error
-
+	adminRead := false
 	var wfPerms workflowPermissionsResponse
 	if err := client.Get(fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name), &wfPerms); err != nil {
 		classified := classifyHTTPError(err, "fetch workflow permissions")
@@ -84,11 +93,74 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 			return nil, nil, fmt.Errorf("fetching workflow permissions: %w", err)
 		}
 	} else {
+		adminRead = true
 		s.DefaultWorkflowPermissions = ptr.Ptr(wfPerms.DefaultWorkflowPermissions)
 		s.CanApprovePullRequestReviews = ptr.Ptr(wfPerms.CanApprovePullRequestReviews)
 	}
 
+	securityFeatures := []struct {
+		path             string
+		operation        string
+		statusOnly       bool
+		allow404Disabled bool
+		set              func(bool)
+	}{
+		{
+			path:      fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name),
+			operation: "fetch private vulnerability reporting",
+			set:       func(enabled bool) { s.PrivateVulnerabilityReportEnabled = ptr.Ptr(enabled) },
+		},
+		{
+			path:             fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name),
+			operation:        "fetch vulnerability alerts",
+			statusOnly:       true,
+			allow404Disabled: adminRead && repo.Permissions.Admin,
+			set:              func(enabled bool) { s.VulnerabilityAlertsEnabled = ptr.Ptr(enabled) },
+		},
+		{
+			path:             fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name),
+			operation:        "fetch automated security fixes",
+			allow404Disabled: adminRead && repo.Permissions.Admin,
+			set:              func(enabled bool) { s.AutomatedSecurityFixesEnabled = ptr.Ptr(enabled) },
+		},
+	}
+	for _, feature := range securityFeatures {
+		enabled, known, err := readSecurityFeature(client, feature.path, feature.statusOnly, feature.allow404Disabled)
+		if known {
+			feature.set(enabled)
+			continue
+		}
+		classified := classifyHTTPError(err, feature.operation)
+		if isAccessError(classified) {
+			warnings = append(warnings, classified)
+			continue
+		}
+		return nil, nil, fmt.Errorf("%s: %w", feature.operation, err)
+	}
+
 	return s, warnings, nil
+}
+
+func readSecurityFeature(client *api.RESTClient, path string, statusOnly, allow404Disabled bool) (enabled bool, known bool, err error) {
+	var response any
+	var feature securityFeatureResponse
+	if !statusOnly {
+		response = &feature
+	}
+	if err := client.Get(path, response); err != nil {
+		var httpErr *api.HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound && allow404Disabled {
+			return false, true, nil
+		}
+		return false, false, err
+	}
+	if statusOnly {
+		return true, true, nil
+	}
+	if feature.Enabled == nil {
+		return false, false, fmt.Errorf("security feature response is missing enabled")
+	}
+	return *feature.Enabled, true, nil
 }
 
 // SkippedOperation records a sub-operation that was skipped due to
@@ -106,7 +178,7 @@ type ApplyResult struct {
 
 // ApplyRepoSettings sends a PATCH /repos/{owner}/{repo} with the declared
 // settings. It also handles fields that require separate API endpoints:
-// topics and Actions workflow permissions. Access errors (insufficient scope)
+// security features, topics, and Actions workflow permissions. Access errors
 // are collected in the returned ApplyResult rather than aborting.
 // Hard errors still return as the error value.
 func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *model.RepositorySettings) (*ApplyResult, error) {
@@ -125,6 +197,43 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *mod
 			} else {
 				return nil, fmt.Errorf("patching repo settings: %w", err)
 			}
+		}
+	}
+
+	if p.PrivateVulnerabilityReporting != nil {
+		path := fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name)
+		if _, err := applySecuritySetting(client, path, *p.PrivateVulnerabilityReporting, "private vulnerability reporting", result); err != nil {
+			return nil, err
+		}
+	}
+
+	alertsPath := fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name)
+	fixesPath := fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name)
+	fixesDisabled := true
+	if p.AutomatedSecurityFixes != nil && !*p.AutomatedSecurityFixes {
+		var err error
+		fixesDisabled, err = applySecuritySetting(client, fixesPath, false, "automated security fixes", result)
+		if err != nil {
+			return nil, err
+		}
+		if !fixesDisabled && p.VulnerabilityAlerts != nil && !*p.VulnerabilityAlerts {
+			appendSkippedDependency(result, "disable vulnerability alerts")
+		}
+	}
+	alertsApplied := true
+	if p.VulnerabilityAlerts != nil && (*p.VulnerabilityAlerts || fixesDisabled) {
+		var err error
+		alertsApplied, err = applySecuritySetting(client, alertsPath, *p.VulnerabilityAlerts, "vulnerability alerts", result)
+		if err != nil {
+			return nil, err
+		}
+		if !alertsApplied && p.AutomatedSecurityFixes != nil && *p.AutomatedSecurityFixes {
+			appendSkippedDependency(result, "enable automated security fixes")
+		}
+	}
+	if p.AutomatedSecurityFixes != nil && *p.AutomatedSecurityFixes && alertsApplied {
+		if _, err := applySecuritySetting(client, fixesPath, true, "automated security fixes", result); err != nil {
+			return nil, err
 		}
 	}
 
@@ -158,6 +267,51 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *mod
 	}
 
 	return result, nil
+}
+
+func operationName(enabled bool, feature string) string {
+	if enabled {
+		return "enable " + feature
+	}
+	return "disable " + feature
+}
+
+func applyBooleanEndpoint(client *api.RESTClient, path string, enabled bool, feature string) error {
+	operation := operationName(enabled, feature)
+	if enabled {
+		if err := client.Put(path, bytes.NewReader([]byte("{}")), nil); err != nil {
+			return fmt.Errorf("%s: %w", operation, err)
+		}
+		return nil
+	}
+	if err := client.Delete(path, nil); err != nil {
+		return fmt.Errorf("%s: %w", operation, err)
+	}
+	return nil
+}
+
+func applySecuritySetting(client *api.RESTClient, path string, enabled bool, feature string, result *ApplyResult) (bool, error) {
+	operation := operationName(enabled, feature)
+	err := applyBooleanEndpoint(client, path, enabled, feature)
+	if err == nil {
+		return true, nil
+	}
+	classified := classifyHTTPError(err, operation)
+	if isAccessError(classified) {
+		result.Skipped = append(result.Skipped, SkippedOperation{Operation: operation, Err: classified})
+		return false, nil
+	}
+	return false, err
+}
+
+func appendSkippedDependency(result *ApplyResult, operation string) {
+	if len(result.Skipped) == 0 {
+		return
+	}
+	result.Skipped = append(result.Skipped, SkippedOperation{
+		Operation: operation,
+		Err:       result.Skipped[len(result.Skipped)-1].Err,
+	})
 }
 
 // applyWorkflowPermissions sends a PUT to the Actions workflow permissions
@@ -203,7 +357,10 @@ func applyWorkflowPermissions(client *api.RESTClient, owner, name string, p sett
 // that require their own API endpoints are extracted from the PATCH body.
 type settingsPayload struct {
 	// Body is the map sent as PATCH /repos/{owner}/{repo}.
-	Body map[string]any
+	Body                          map[string]any
+	PrivateVulnerabilityReporting *bool
+	VulnerabilityAlerts           *bool
+	AutomatedSecurityFixes        *bool
 	// Topics is non-nil when the field is declared.
 	Topics *[]string
 	// DefaultWorkflowPermissions is non-nil when the field is declared.
@@ -215,9 +372,12 @@ type settingsPayload struct {
 // nonPatchFields lists yaml keys that must not appear in the PATCH body
 // because they are managed by separate API endpoints.
 var nonPatchFields = map[string]bool{
-	"topics":                           true,
-	"default_workflow_permissions":     true,
-	"can_approve_pull_request_reviews": true,
+	"private_vulnerability_reporting_enabled": true,
+	"vulnerability_alerts_enabled":            true,
+	"automated_security_fixes_enabled":        true,
+	"topics":                                  true,
+	"default_workflow_permissions":            true,
+	"can_approve_pull_request_reviews":        true,
 }
 
 // buildSettingsPayload uses reflection to build a map of non-nil fields from
@@ -235,6 +395,15 @@ func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 		fv := field.Value
 		if nonPatchFields[field.YAMLKey] {
 			switch field.YAMLKey {
+			case "private_vulnerability_reporting_enabled":
+				b := fv.Elem().Bool()
+				p.PrivateVulnerabilityReporting = &b
+			case "vulnerability_alerts_enabled":
+				b := fv.Elem().Bool()
+				p.VulnerabilityAlerts = &b
+			case "automated_security_fixes_enabled":
+				b := fv.Elem().Bool()
+				p.AutomatedSecurityFixes = &b
 			case "topics":
 				s := fv.Elem().Interface().([]string)
 				p.Topics = &s

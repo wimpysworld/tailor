@@ -14,10 +14,25 @@ repository:
   squash_merge_commit_message: PR_BODY
   delete_branch_on_merge: true
   allow_update_branch: true
-  allow_auto_merge: false
+  allow_auto_merge: true
   web_commit_signoff_required: false
+  private_vulnerability_reporting_enabled: true
+  vulnerability_alerts_enabled: true
+  automated_security_fixes_enabled: true
   default_workflow_permissions: read
-  can_approve_pull_request_reviews: true
+  can_approve_pull_request_reviews: false
+
+actions:
+  enabled: true
+  allowed_actions: selected
+  sha_pinning_required: false
+  github_owned_allowed: true
+  verified_allowed: true
+  patterns_allowed:
+    - freerangebytes/setup-actionlint@*
+    - golangci/golangci-lint-action@*
+    - robherley/go-test-action@*
+    - softprops/action-gh-release@*
 
 labels:
   - name: bug
@@ -85,7 +100,7 @@ swatches:
     alteration: first-fit
 
   - path: .github/pull_request_template.md
-    alteration: always
+    alteration: never
 
   - path: SECURITY.md
     alteration: always
