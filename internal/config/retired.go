@@ -25,20 +25,11 @@ func IsRetiredWorkflowPath(path string) bool {
 
 // RemoveRetiredWorkflowEntries removes every retired workflow entry from cfg.
 func RemoveRetiredWorkflowEntries(cfg *Config) bool {
-	kept := cfg.Swatches[:0]
-	removed := false
-	for _, entry := range cfg.Swatches {
-		if IsRetiredWorkflowPath(entry.Path) {
-			removed = true
-			continue
-		}
-		kept = append(kept, entry)
-	}
-	if removed {
-		clear(cfg.Swatches[len(kept):])
-		cfg.Swatches = kept
-	}
-	return removed
+	originalLength := len(cfg.Swatches)
+	cfg.Swatches = slices.DeleteFunc(cfg.Swatches, func(entry SwatchEntry) bool {
+		return IsRetiredWorkflowPath(entry.Path)
+	})
+	return len(cfg.Swatches) != originalLength
 }
 
 func isLegacyRetiredEntry(entry SwatchEntry) bool {
