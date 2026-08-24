@@ -9,6 +9,7 @@ import (
 type Config struct {
 	License    string                    `yaml:"license"`
 	Repository *model.RepositorySettings `yaml:"repository,omitempty"`
+	Actions    *model.ActionsSettings    `yaml:"actions,omitempty"`
 	Labels     []model.LabelEntry        `yaml:"labels,omitempty"`
 	Swatches   []SwatchEntry             `yaml:"swatches"`
 }

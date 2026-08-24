@@ -2,6 +2,7 @@ package alter
 
 import (
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -27,18 +28,26 @@ func (m ApplyMode) ShouldWrite() bool { return m == Apply || m == Recut }
 // When client is nil, a default GitHub REST client is created.
 func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) error {
 	configChanged := config.RemoveRetiredWorkflowEntries(cfg)
+	securityNormalised := config.NormaliseSecurityPrerequisites(cfg)
+	if securityNormalised {
+		fmt.Fprintln(os.Stderr, "warning: set vulnerability_alerts_enabled to true because automated_security_fixes_enabled requires vulnerability alerts")
+	}
+	configChanged = configChanged || securityNormalised
 	if err := validateConfig(cfg); err != nil {
 		return err
 	}
 	if err := config.ValidateRepoSettings(cfg); err != nil {
 		return err
 	}
+	if err := config.ValidateActions(cfg); err != nil {
+		return err
+	}
 
 	// Keep the local config aligned with built-in defaults only when the
 	// config swatch mode allows tailor to rewrite it.
 	if shouldMerge(cfg, mode) {
-		added, repoMerged, labelsMerged := config.MergeDefaults(cfg)
-		configChanged = configChanged || len(added) > 0 || repoMerged || labelsMerged
+		added, repoMerged, actionsMerged, labelsMerged := config.MergeDefaults(cfg)
+		configChanged = configChanged || len(added) > 0 || repoMerged || actionsMerged || labelsMerged
 		// Re-validate after merge as a safety check.
 		if err := validateConfig(cfg); err != nil {
 			return err
@@ -46,6 +55,12 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		if err := config.ValidateRepoSettings(cfg); err != nil {
 			return err
 		}
+		if err := config.ValidateActions(cfg); err != nil {
+			return err
+		}
+	}
+	if err := config.ValidateCompleteActions(cfg); err != nil {
+		return err
 	}
 	if configChanged && mode.ShouldWrite() {
 		todayDate := time.Now().Format("2006-01-02")
@@ -83,6 +98,11 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	if err != nil {
 		return err
 	}
+	actionsResults, err := ProcessActions(cfg, mode, client, owner, name, hasRepo)
+	if err != nil {
+		return err
+	}
+	repoResults = append(repoResults, actionsResults...)
 
 	labelResults, err := ProcessLabels(cfg, mode, client, owner, name, hasRepo)
 	if err != nil {

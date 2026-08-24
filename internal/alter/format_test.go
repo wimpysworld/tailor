@@ -450,3 +450,25 @@ func TestFormatOutputWriteModesOmitSkippedActions(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatOutputWriteModesOmitSkippedSecuritySettings(t *testing.T) {
+	repos := []RepoSettingResult{
+		{Field: "private_vulnerability_reporting_enabled", Category: WouldSet, Value: "true"},
+		{Field: "enable private vulnerability reporting", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Field: "vulnerability_alerts_enabled", Category: WouldSet, Value: "false"},
+		{Field: "disable vulnerability alerts", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Field: "automated_security_fixes_enabled", Category: WouldSet, Value: "true"},
+		{Field: "enable automated security fixes", Category: WouldSkipScope, Annotation: "token missing required scope"},
+	}
+	want := "would skip (insufficient scope: token missing required scope): disable vulnerability alerts\n" +
+		"would skip (insufficient scope: token missing required scope): enable automated security fixes\n" +
+		"would skip (insufficient scope: token missing required scope): enable private vulnerability reporting\n"
+
+	for _, mode := range []ApplyMode{Apply, Recut} {
+		t.Run(fmt.Sprint(mode), func(t *testing.T) {
+			if got := FormatOutput(repos, nil, nil, mode); got != want {
+				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, want)
+			}
+		})
+	}
+}

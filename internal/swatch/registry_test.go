@@ -49,7 +49,7 @@ func TestSwatchAttributes(t *testing.T) {
 		{".github/ISSUE_TEMPLATE/bug_report.yml", swatch.Always, swatch.Health},
 		{".github/ISSUE_TEMPLATE/feature_request.yml", swatch.Always, swatch.Health},
 		{".github/ISSUE_TEMPLATE/config.yml", swatch.FirstFit, swatch.Health},
-		{".github/pull_request_template.md", swatch.Always, swatch.Health},
+		{".github/pull_request_template.md", swatch.Never, swatch.Health},
 		{".tailor.yml", swatch.Always, swatch.Development},
 	}
 

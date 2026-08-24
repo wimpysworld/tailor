@@ -50,7 +50,7 @@ var registry = []Swatch{
 	{Path: ".github/ISSUE_TEMPLATE/bug_report.yml", DefaultAlteration: Always, Category: Health},
 	{Path: ".github/ISSUE_TEMPLATE/feature_request.yml", DefaultAlteration: Always, Category: Health},
 	{Path: ".github/ISSUE_TEMPLATE/config.yml", DefaultAlteration: FirstFit, Category: Health},
-	{Path: ".github/pull_request_template.md", DefaultAlteration: Always, Category: Health},
+	{Path: ".github/pull_request_template.md", DefaultAlteration: Never, Category: Health},
 	{Path: ".tailor.yml", DefaultAlteration: Always, Category: Development},
 }
 

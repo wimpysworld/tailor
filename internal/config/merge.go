@@ -17,20 +17,21 @@ var repoSettingsSkipFields = map[string]bool{
 	"Topics":      true,
 }
 
-// MergeDefaults calls DefaultConfig once and delegates to the three merge
+// MergeDefaults calls DefaultConfig once and delegates to the four merge
 // functions, avoiding redundant YAML parses. Returns the newly added swatch
-// entries and whether repo settings or labels were merged.
-func MergeDefaults(cfg *Config) (swatchesAdded []SwatchEntry, repoMerged bool, labelsMerged bool) {
+// entries and whether repo settings, Actions settings, or labels were merged.
+func MergeDefaults(cfg *Config) (swatchesAdded []SwatchEntry, repoMerged, actionsMerged, labelsMerged bool) {
 	swatchesAdded = MergeDefaultSwatches(cfg)
 
 	defaults, err := DefaultConfig("_")
 	if err != nil {
-		return swatchesAdded, false, false
+		return swatchesAdded, false, false, false
 	}
 
 	repoMerged = mergeRepoSettingsFrom(cfg, defaults)
+	actionsMerged = mergeActionsFrom(cfg, defaults)
 	labelsMerged = mergeLabelsFrom(cfg, defaults)
-	return swatchesAdded, repoMerged, labelsMerged
+	return swatchesAdded, repoMerged, actionsMerged, labelsMerged
 }
 
 // mergeRepoSettingsFrom fills nil pointer fields in cfg.Repository from the
@@ -66,6 +67,51 @@ func mergeRepoSettingsFrom(cfg *Config, defaults *Config) bool {
 		newVal := reflect.New(dfv.Elem().Type())
 		newVal.Elem().Set(dfv.Elem())
 		cfv.Set(newVal)
+		changed = true
+	}
+
+	return changed
+}
+
+// mergeActionsFrom fills missing Actions policy fields from the defaults.
+// Selected-action fields apply only when the effective policy is selected.
+func mergeActionsFrom(cfg *Config, defaults *Config) bool {
+	if defaults.Actions == nil {
+		return false
+	}
+	if cfg.Actions == nil {
+		cfg.Actions = &model.ActionsSettings{}
+	}
+
+	changed := false
+	mergeBool := func(current **bool, fallback *bool) {
+		if *current == nil && fallback != nil {
+			value := *fallback
+			*current = &value
+			changed = true
+		}
+	}
+	mergeString := func(current **string, fallback *string) {
+		if *current == nil && fallback != nil {
+			value := *fallback
+			*current = &value
+			changed = true
+		}
+	}
+
+	mergeBool(&cfg.Actions.Enabled, defaults.Actions.Enabled)
+	mergeString(&cfg.Actions.AllowedActions, defaults.Actions.AllowedActions)
+	mergeBool(&cfg.Actions.SHAPinningRequired, defaults.Actions.SHAPinningRequired)
+
+	if cfg.Actions.AllowedActions == nil || *cfg.Actions.AllowedActions != "selected" {
+		return changed
+	}
+
+	mergeBool(&cfg.Actions.GitHubOwnedAllowed, defaults.Actions.GitHubOwnedAllowed)
+	mergeBool(&cfg.Actions.VerifiedAllowed, defaults.Actions.VerifiedAllowed)
+	if cfg.Actions.PatternsAllowed == nil && defaults.Actions.PatternsAllowed != nil {
+		patterns := slices.Clone(*defaults.Actions.PatternsAllowed)
+		cfg.Actions.PatternsAllowed = &patterns
 		changed = true
 	}
 

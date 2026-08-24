@@ -4,7 +4,7 @@ default:
 
 # Alter tailor swatches
 alter:
-    @tailor alter
+    @go run ./cmd/tailor alter
 
 # Build tailor binary
 build:
@@ -30,8 +30,8 @@ test:
 
 # Check what tailor would change and measure
 measure:
-    @tailor baste
-    @tailor measure
+    @go run ./cmd/tailor baste
+    @go run ./cmd/tailor measure
 
 # Create a new release tag (requires VERSION=x.y.z)
 release VERSION:

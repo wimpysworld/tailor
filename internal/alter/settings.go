@@ -27,6 +27,7 @@ const (
 // repository setting. Annotation carries optional context for skip categories,
 // embedded in the label (e.g. "token missing required scope").
 type RepoSettingResult struct {
+	Section    string
 	Field      string
 	Category   RepoSettingCategory
 	Value      string
@@ -52,7 +53,15 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 
 	// Convert read-path warnings into skip results and collect the affected
 	// field names so the corresponding WouldSet entries can be suppressed.
-	skipResults, skippedFields := readWarningsToResults(warnings, cfg.Repository)
+	skipResults, skippedFields := readWarningsToResults(warnings, cfg.Repository, live)
+
+	if cfg.Repository.AutomatedSecurityFixesEnabled != nil &&
+		*cfg.Repository.AutomatedSecurityFixesEnabled &&
+		(cfg.Repository.VulnerabilityAlertsEnabled == nil || !*cfg.Repository.VulnerabilityAlertsEnabled) &&
+		live.VulnerabilityAlertsEnabled != nil &&
+		!*live.VulnerabilityAlertsEnabled {
+		fmt.Fprintln(os.Stderr, "warning: automated_security_fixes_enabled is true but vulnerability alerts are disabled on GitHub; enable vulnerability_alerts_enabled first")
+	}
 
 	results := compareSettings(cfg.Repository, live)
 
@@ -72,7 +81,7 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 	results = append(results, skipResults...)
 
 	if mode.ShouldWrite() && hasChanges(results) {
-		applyResult, err := gh.ApplyRepoSettings(client, owner, name, cfg.Repository)
+		applyResult, err := gh.ApplyRepoSettings(client, owner, name, settingsForApply(cfg.Repository, results))
 		if err != nil {
 			return nil, err
 		}
@@ -80,6 +89,26 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 	}
 
 	return results, nil
+}
+
+func settingsForApply(declared *model.RepositorySettings, results []RepoSettingResult) *model.RepositorySettings {
+	changed := make(map[string]bool)
+	for _, result := range results {
+		if result.Category == WouldSet {
+			changed[result.Field] = true
+		}
+	}
+	apply := *declared
+	if !changed["private_vulnerability_reporting_enabled"] {
+		apply.PrivateVulnerabilityReportEnabled = nil
+	}
+	if !changed["vulnerability_alerts_enabled"] {
+		apply.VulnerabilityAlertsEnabled = nil
+	}
+	if !changed["automated_security_fixes_enabled"] {
+		apply.AutomatedSecurityFixesEnabled = nil
+	}
+	return &apply
 }
 
 // skippedToResults converts gh.ApplyResult skipped operations into
@@ -153,7 +182,10 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 // readWarningOperationFields maps read-path operation names from
 // ErrInsufficientScope to the config field names they affect.
 var readWarningOperationFields = map[string][]string{
-	"fetch workflow permissions": {"default_workflow_permissions", "can_approve_pull_request_reviews"},
+	"fetch vulnerability alerts":            {"vulnerability_alerts_enabled"},
+	"fetch automated security fixes":        {"automated_security_fixes_enabled"},
+	"fetch private vulnerability reporting": {"private_vulnerability_reporting_enabled"},
+	"fetch workflow permissions":            {"default_workflow_permissions", "can_approve_pull_request_reviews"},
 }
 
 // readWarningsToResults converts read-path access-error warnings into
@@ -162,7 +194,7 @@ var readWarningOperationFields = map[string][]string{
 // are silently ignored. It also returns a set of field names that should be
 // suppressed from compareSettings output (because their nil live value is due
 // to a 403, not a real diff).
-func readWarningsToResults(warnings []error, declared *model.RepositorySettings) ([]RepoSettingResult, map[string]bool) {
+func readWarningsToResults(warnings []error, declared, live *model.RepositorySettings) ([]RepoSettingResult, map[string]bool) {
 	if len(warnings) == 0 {
 		return nil, nil
 	}
@@ -186,9 +218,31 @@ func readWarningsToResults(warnings []error, declared *model.RepositorySettings)
 			if !declaredFields[f] {
 				continue
 			}
+			if skippedFields[f] {
+				continue
+			}
 			skippedFields[f] = true
 			results = append(results, RepoSettingResult{
 				Field:      f,
+				Category:   cat,
+				Value:      w.Error(),
+				Annotation: ann,
+			})
+		}
+
+		dependent := ""
+		switch {
+		case op == "fetch vulnerability alerts" && declared.AutomatedSecurityFixesEnabled != nil && *declared.AutomatedSecurityFixesEnabled &&
+			live.AutomatedSecurityFixesEnabled != nil && !*live.AutomatedSecurityFixesEnabled:
+			dependent = "automated_security_fixes_enabled"
+		case op == "fetch automated security fixes" && declared.VulnerabilityAlertsEnabled != nil && !*declared.VulnerabilityAlertsEnabled &&
+			live.VulnerabilityAlertsEnabled != nil && *live.VulnerabilityAlertsEnabled:
+			dependent = "vulnerability_alerts_enabled"
+		}
+		if dependent != "" && !skippedFields[dependent] {
+			skippedFields[dependent] = true
+			results = append(results, RepoSettingResult{
+				Field:      dependent,
 				Category:   cat,
 				Value:      w.Error(),
 				Annotation: ann,

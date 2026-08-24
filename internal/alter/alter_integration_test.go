@@ -24,6 +24,13 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
+var approvedDefaultActionPatterns = []string{
+	"freerangebytes/setup-actionlint@*",
+	"golangci/golangci-lint-action@*",
+	"robherley/go-test-action@*",
+	"softprops/action-gh-release@*",
+}
+
 // apiCall records a single API request made to the mock server.
 type apiCall struct {
 	Method string
@@ -75,17 +82,19 @@ type testOption func(*alterServerConfig)
 
 // alterServerConfig holds the mock server's response data.
 type alterServerConfig struct {
-	username     string
-	owner        string
-	repo         string
-	repoJSON     repoJSON
-	licenceID    string
-	licenceBody  string
-	labels       []model.LabelEntry // labels returned by GET /repos/{owner}/{repo}/labels
-	noRepo       bool               // stub RepoContext to return false
-	userError    int                // non-zero: return this HTTP status for GET /user
-	licenceError int                // non-zero: return this HTTP status for GET /licenses/*
-	patchError   int                // non-zero: return this HTTP status for PATCH /repos/*
+	username          string
+	owner             string
+	repo              string
+	repoJSON          repoJSON
+	licenceID         string
+	licenceBody       string
+	labels            []model.LabelEntry // labels returned by GET /repos/{owner}/{repo}/labels
+	noRepo            bool               // stub RepoContext to return false
+	userError         int                // non-zero: return this HTTP status for GET /user
+	licenceError      int                // non-zero: return this HTTP status for GET /licenses/*
+	patchError        int                // non-zero: return this HTTP status for PATCH /repos/*
+	securityEndpoints bool
+	alertPutError     int
 }
 
 // WithUsername sets the mock username for GET /user.
@@ -137,6 +146,14 @@ func WithLicenceError(statusCode int) testOption {
 // WithPatchError makes PATCH /repos/* return the given HTTP status code.
 func WithPatchError(statusCode int) testOption {
 	return func(c *alterServerConfig) { c.patchError = statusCode }
+}
+
+func withSecurityEndpoints(alertPutError int) testOption {
+	return func(c *alterServerConfig) {
+		c.securityEndpoints = true
+		c.alertPutError = alertPutError
+		c.repoJSON.Permissions.Admin = true
+	}
 }
 
 // setupAlterTest creates a temp dir, writes .tailor.yml from the provided
@@ -191,9 +208,35 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(sc.repoJSON)
 
+		case sc.securityEndpoints && r.Method == http.MethodGet && path == repoPath+"/vulnerability-alerts":
+			w.WriteHeader(http.StatusNotFound)
+
+		case sc.securityEndpoints && r.Method == http.MethodGet && path == repoPath+"/automated-security-fixes":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":false,"paused":false}`)
+
+		case sc.securityEndpoints && r.Method == http.MethodPut && path == repoPath+"/vulnerability-alerts":
+			if sc.alertPutError != 0 {
+				w.WriteHeader(sc.alertPutError)
+				fmt.Fprint(w, `{"message":"error"}`)
+				return
+			}
+			w.WriteHeader(http.StatusNoContent)
+
+		case sc.securityEndpoints && r.Method == http.MethodPut && path == repoPath+"/automated-security-fixes":
+			w.WriteHeader(http.StatusNoContent)
+
 		case r.Method == http.MethodGet && path == repoPath+"/actions/permissions/workflow":
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+
+		case r.Method == http.MethodGet && path == repoPath+"/actions/permissions":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":true,"allowed_actions":"selected","sha_pinning_required":true}`)
+
+		case r.Method == http.MethodGet && path == repoPath+"/actions/permissions/selected-actions":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"github_owned_allowed":true,"verified_allowed":false,"patterns_allowed":["z/*","a/*"]}`)
 
 		case r.Method == http.MethodGet && strings.HasPrefix(path, "/licenses/"):
 			if sc.licenceError != 0 {
@@ -215,6 +258,9 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 			fmt.Fprint(w, `{}`)
 
 		case r.Method == http.MethodPut && path == repoPath+"/actions/permissions/workflow":
+			w.WriteHeader(http.StatusNoContent)
+
+		case r.Method == http.MethodPut && (path == repoPath+"/actions/permissions" || path == repoPath+"/actions/permissions/selected-actions"):
 			w.WriteHeader(http.StatusNoContent)
 
 		case r.Method == http.MethodGet && path == repoPath+"/labels":
@@ -353,6 +399,113 @@ func requireContains(t *testing.T, output, substr string) {
 	}
 }
 
+func TestAlterRunNormalisesSecurityPrerequisite(t *testing.T) {
+	const configYAML = `license: none
+repository:
+  vulnerability_alerts_enabled: false
+  automated_security_fixes_enabled: true
+swatches:
+  - path: .tailor.yml
+    alteration: never
+`
+	const warning = "warning: set vulnerability_alerts_enabled to true because automated_security_fixes_enabled requires vulnerability alerts\n"
+
+	tests := []struct {
+		name      string
+		mode      alter.ApplyMode
+		wantWrite bool
+	}{
+		{name: "alter", mode: alter.Apply, wantWrite: true},
+		{name: "recut", mode: alter.Recut, wantWrite: true},
+		{name: "baste", mode: alter.DryRun},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc := setupAlterTest(t, configYAML, withSecurityEndpoints(0))
+			writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+			before, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+			if err != nil {
+				t.Fatalf("reading initial config: %v", err)
+			}
+
+			cfg := loadTestConfig(t, tc.Dir)
+			stdout, stderr, err := captureAlterRunWithStderr(t, cfg, tc.Dir, tt.mode, tc.Client)
+			if err != nil {
+				t.Fatalf("alter.Run() error: %v", err)
+			}
+			if stderr != warning {
+				t.Errorf("stderr = %q, want %q", stderr, warning)
+			}
+			if tt.wantWrite {
+				requireContains(t, stdout, "updated:")
+			} else {
+				requireContains(t, stdout, "would update:")
+			}
+			requireContains(t, stdout, ".tailor.yml")
+
+			after, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+			if err != nil {
+				t.Fatalf("reading final config: %v", err)
+			}
+			if tt.wantWrite {
+				persisted := loadTestConfig(t, tc.Dir)
+				testutil.AssertBoolPtr(t, persisted.Repository.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+				if bytes.Equal(after, before) {
+					t.Error(".tailor.yml bytes did not change")
+				}
+			} else {
+				if !bytes.Equal(after, before) {
+					t.Error("baste changed .tailor.yml")
+				}
+				if calls := tc.MutatingCalls(); len(calls) != 0 {
+					t.Errorf("baste made mutating API calls: %v", calls)
+				}
+				return
+			}
+
+			var securityWrites []string
+			for _, call := range tc.MutatingCalls() {
+				if strings.Contains(call.Path, "vulnerability-alerts") || strings.Contains(call.Path, "automated-security-fixes") {
+					securityWrites = append(securityWrites, call.Path)
+				}
+			}
+			wantOrder := []string{"/repos/testowner/testrepo/vulnerability-alerts", "/repos/testowner/testrepo/automated-security-fixes"}
+			if !slices.Equal(securityWrites, wantOrder) {
+				t.Errorf("security API order = %v, want %v", securityWrites, wantOrder)
+			}
+		})
+	}
+}
+
+func TestAlterRunAlertFailureBlocksAutomatedSecurityFixes(t *testing.T) {
+	const configYAML = `license: none
+repository:
+  vulnerability_alerts_enabled: false
+  automated_security_fixes_enabled: true
+swatches:
+  - path: .tailor.yml
+    alteration: never
+`
+	tc := setupAlterTest(t, configYAML, withSecurityEndpoints(http.StatusInternalServerError))
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+	_, stderr, err := captureAlterRunWithStderr(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	if err == nil {
+		t.Fatal("alter.Run() returned nil, want alert API error")
+	}
+	requireContains(t, stderr, "warning: set vulnerability_alerts_enabled to true")
+
+	persisted := loadTestConfig(t, tc.Dir)
+	testutil.AssertBoolPtr(t, persisted.Repository.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	for _, call := range tc.MutatingCalls() {
+		if strings.Contains(call.Path, "automated-security-fixes") {
+			t.Fatalf("automated security fixes API called after alert failure: %v", tc.MutatingCalls())
+		}
+	}
+}
+
 // requireNotContains fails if output contains substr.
 func requireNotContains(t *testing.T, output, substr string) {
 	t.Helper()
@@ -411,6 +564,42 @@ swatches:
 	// Dry-run must not make mutating API calls.
 	if mc := tc.MutatingCalls(); len(mc) != 0 {
 		t.Errorf("dry run made %d mutating API calls: %v", len(mc), mc)
+	}
+	for _, call := range tc.Calls() {
+		if call.Path == "/repos/testowner/testrepo/actions/permissions" || strings.HasSuffix(call.Path, "/actions/permissions/selected-actions") {
+			t.Errorf("config without actions section made Actions policy call: %v", call)
+		}
+	}
+}
+
+func TestAlterRunActionsPolicy(t *testing.T) {
+	configYAML := `license: none
+actions:
+  enabled: false
+  allowed_actions: selected
+  sha_pinning_required: true
+  github_owned_allowed: true
+  verified_allowed: false
+  patterns_allowed:
+    - a/*
+    - z/*
+swatches: []
+`
+	tc := setupAlterTest(t, configYAML)
+	cfg := loadTestConfig(t, tc.Dir)
+
+	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
+	requireContains(t, output, "actions.enabled = false")
+	requireContains(t, output, "actions.patterns_allowed (already a/*, z/*)")
+	if calls := tc.MutatingCalls(); len(calls) != 0 {
+		t.Fatalf("dry run made mutating calls: %v", calls)
+	}
+
+	output = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	requireContains(t, output, "actions.enabled = false")
+	calls := tc.MutatingCalls()
+	if len(calls) != 1 || calls[0].Path != "/repos/testowner/testrepo/actions/permissions" {
+		t.Fatalf("mutating calls = %v, want one Actions permissions PUT", calls)
 	}
 }
 
@@ -1753,6 +1942,15 @@ func allDefaultRepoSettingsYAML(t *testing.T) string {
 	if r.WebCommitSignoffRequired != nil {
 		fmt.Fprintf(&sb, "  web_commit_signoff_required: %t\n", *r.WebCommitSignoffRequired)
 	}
+	if r.PrivateVulnerabilityReportEnabled != nil {
+		fmt.Fprintf(&sb, "  private_vulnerability_reporting_enabled: %t\n", *r.PrivateVulnerabilityReportEnabled)
+	}
+	if r.VulnerabilityAlertsEnabled != nil {
+		fmt.Fprintf(&sb, "  vulnerability_alerts_enabled: %t\n", *r.VulnerabilityAlertsEnabled)
+	}
+	if r.AutomatedSecurityFixesEnabled != nil {
+		fmt.Fprintf(&sb, "  automated_security_fixes_enabled: %t\n", *r.AutomatedSecurityFixesEnabled)
+	}
 	if r.DefaultWorkflowPermissions != nil {
 		fmt.Fprintf(&sb, "  default_workflow_permissions: %s\n", *r.DefaultWorkflowPermissions)
 	}
@@ -1760,6 +1958,40 @@ func allDefaultRepoSettingsYAML(t *testing.T) string {
 		fmt.Fprintf(&sb, "  can_approve_pull_request_reviews: %t\n", *r.CanApprovePullRequestReviews)
 	}
 	return sb.String()
+}
+
+func allDefaultActionsYAML(t *testing.T) string {
+	t.Helper()
+	defaults, err := config.DefaultConfig("none")
+	if err != nil {
+		t.Fatalf("loading default config: %v", err)
+	}
+	a := defaults.Actions
+	if a == nil {
+		t.Fatal("default Actions policy is nil")
+	}
+
+	var sb strings.Builder
+	sb.WriteString("actions:\n")
+	fmt.Fprintf(&sb, "  enabled: %t\n", *a.Enabled)
+	fmt.Fprintf(&sb, "  allowed_actions: %s\n", *a.AllowedActions)
+	fmt.Fprintf(&sb, "  sha_pinning_required: %t\n", *a.SHAPinningRequired)
+	fmt.Fprintf(&sb, "  github_owned_allowed: %t\n", *a.GitHubOwnedAllowed)
+	fmt.Fprintf(&sb, "  verified_allowed: %t\n", *a.VerifiedAllowed)
+	writePatternsAllowedYAML(&sb, *a.PatternsAllowed)
+	return sb.String()
+}
+
+func writePatternsAllowedYAML(sb *strings.Builder, patterns []string) {
+	sb.WriteString("  patterns_allowed:")
+	if len(patterns) == 0 {
+		sb.WriteString(" []\n")
+		return
+	}
+	sb.WriteByte('\n')
+	for _, pattern := range patterns {
+		fmt.Fprintf(sb, "    - %q\n", pattern)
+	}
 }
 
 // allDefaultLabelsYAML returns YAML for all default labels.
@@ -1800,7 +2032,7 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 
 	cfg := loadTestConfig(t, tc.Dir)
 	output := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
-	requireContains(t, output, "updated:                             .tailor.yml\n")
+	requireContains(t, output, "updated:                                                       .tailor.yml\n")
 
 	// MergeDefaultSwatches appends the missing entries before swatch processing.
 	for _, dest := range []string{"SUPPORT.md", "justfile"} {
@@ -1826,6 +2058,7 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 func TestConfigMergeAllPresentApply(t *testing.T) {
 	configYAML := "license: none\n" +
 		allDefaultRepoSettingsYAML(t) +
+		allDefaultActionsYAML(t) +
 		allDefaultLabelsYAML(t) +
 		"swatches:\n" +
 		"  - path: .tailor.yml\n    alteration: always\n" +
@@ -1902,7 +2135,7 @@ func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 
 	cfg := loadTestConfig(t, tc.Dir)
 	output := captureAlterRun(t, cfg, tc.Dir, alter.Recut, tc.Client)
-	requireContains(t, output, "updated:                             .tailor.yml\n")
+	requireContains(t, output, "updated:                                                       .tailor.yml\n")
 
 	// Recut merges defaults, then processes the newly merged swatches.
 	for _, dest := range []string{"SUPPORT.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md"} {
@@ -1939,7 +2172,7 @@ func TestConfigMergeDryRunNoRewrite(t *testing.T) {
 
 	cfg := loadTestConfig(t, tc.Dir)
 	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
-	requireContains(t, output, "would update:                        .tailor.yml\n")
+	requireContains(t, output, "would update:                                                  .tailor.yml\n")
 
 	afterData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
@@ -1949,12 +2182,14 @@ func TestConfigMergeDryRunNoRewrite(t *testing.T) {
 	if !bytes.Equal(originalData, afterData) {
 		t.Error("config.yml was rewritten during dry-run despite ShouldWrite() being false")
 	}
+	if calls := tc.MutatingCalls(); len(calls) != 0 {
+		t.Fatalf("dry run made mutating calls: %v", calls)
+	}
 }
 
-// TestAlterRunMergeRepoSettingsAndLabels verifies that a config missing repo
-// settings fields and the labels section receives defaults during the merge
-// step, and the config file is rewritten with the merged content.
-func TestAlterRunMergeRepoSettingsAndLabels(t *testing.T) {
+// TestAlterRunMergeDefaults verifies that missing settings and sections receive
+// defaults, the rewritten config validates, and Actions defaults apply at once.
+func TestAlterRunMergeDefaults(t *testing.T) {
 	// Config has config.yml swatch set to always (triggers shouldMerge),
 	// a partial repository section (only has_wiki), and no labels.
 	configYAML := `license: none
@@ -1985,6 +2220,9 @@ swatches:
 		"allow_squash_merge:",
 		"delete_branch_on_merge:",
 		"allow_auto_merge:",
+		"private_vulnerability_reporting_enabled: true",
+		"vulnerability_alerts_enabled: true",
+		"automated_security_fixes_enabled: true",
 		"default_workflow_permissions:",
 	} {
 		if !strings.Contains(content, field) {
@@ -2004,6 +2242,221 @@ swatches:
 	for _, label := range []string{"bug", "enhancement", "documentation"} {
 		if !strings.Contains(content, label) {
 			t.Errorf("merged config missing default label %q", label)
+		}
+	}
+
+	for _, field := range []string{
+		"actions:\n",
+		"  enabled: true\n",
+		"  allowed_actions: selected\n",
+		"  sha_pinning_required: false\n",
+		"  github_owned_allowed: true\n",
+		"  verified_allowed: true\n",
+		"  patterns_allowed:\n",
+		"    - \"freerangebytes/setup-actionlint@*\"\n",
+		"    - \"golangci/golangci-lint-action@*\"\n",
+		"    - \"robherley/go-test-action@*\"\n",
+		"    - \"softprops/action-gh-release@*\"\n",
+	} {
+		if !strings.Contains(content, field) {
+			t.Errorf("merged config missing Actions default %q", field)
+		}
+	}
+	if _, err := config.Load(tc.Dir); err != nil {
+		t.Fatalf("loading merged config: %v", err)
+	}
+
+	writes := map[string]bool{}
+	for _, call := range tc.MutatingCalls() {
+		if strings.Contains(call.Path, "/actions/permissions") {
+			writes[call.Path] = true
+		}
+	}
+	for _, path := range []string{
+		"/repos/testowner/testrepo/actions/permissions",
+		"/repos/testowner/testrepo/actions/permissions/selected-actions",
+	} {
+		if !writes[path] {
+			t.Errorf("missing same-run Actions write to %s", path)
+		}
+	}
+}
+
+func TestAlterRunCompletesPartialSelectedActionsBeforeProcessing(t *testing.T) {
+	configYAML := `license: none
+actions:
+  allowed_actions: selected
+swatches:
+  - path: .tailor.yml
+    alteration: always
+`
+	tc := setupAlterTest(t, configYAML)
+	cfg := loadTestConfig(t, tc.Dir)
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	if cfg.Actions.GitHubOwnedAllowed == nil || !*cfg.Actions.GitHubOwnedAllowed {
+		t.Fatalf("merged github_owned_allowed = %v, want true", cfg.Actions.GitHubOwnedAllowed)
+	}
+
+	written, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(written)
+	for _, field := range []string{
+		"  enabled: true\n",
+		"  allowed_actions: selected\n",
+		"  sha_pinning_required: false\n",
+		"  github_owned_allowed: true\n",
+		"  verified_allowed: true\n",
+		"  patterns_allowed:\n",
+		"    - \"freerangebytes/setup-actionlint@*\"\n",
+		"    - \"golangci/golangci-lint-action@*\"\n",
+		"    - \"robherley/go-test-action@*\"\n",
+		"    - \"softprops/action-gh-release@*\"\n",
+	} {
+		if !strings.Contains(content, field) {
+			t.Errorf("completed config missing %q", field)
+		}
+	}
+	merged, err := config.Load(tc.Dir)
+	if err != nil {
+		t.Fatalf("loading completed config: %v", err)
+	}
+	if err := config.ValidateCompleteActions(merged); err != nil {
+		t.Fatalf("completed config validation: %v", err)
+	}
+
+	var actionsWrites []apiCall
+	for _, call := range tc.MutatingCalls() {
+		if call.Path == "/repos/testowner/testrepo/actions/permissions" ||
+			call.Path == "/repos/testowner/testrepo/actions/permissions/selected-actions" {
+			actionsWrites = append(actionsWrites, call)
+		}
+	}
+	if len(actionsWrites) != 3 {
+		t.Fatalf("Actions writes = %v, want disable, selected, and final core writes", actionsWrites)
+	}
+	if actionsWrites[0].Path != "/repos/testowner/testrepo/actions/permissions" ||
+		actionsWrites[1].Path != "/repos/testowner/testrepo/actions/permissions/selected-actions" ||
+		actionsWrites[2].Path != "/repos/testowner/testrepo/actions/permissions" {
+		t.Fatalf("Actions write order = %v, want disable, selected, then final core", actionsWrites)
+	}
+	var disableBody map[string]any
+	if err := json.Unmarshal([]byte(actionsWrites[0].Body), &disableBody); err != nil {
+		t.Fatal(err)
+	}
+	if len(disableBody) != 1 || disableBody["enabled"] != false {
+		t.Fatalf("disable body = %v, want enabled false", disableBody)
+	}
+
+	var selectedBody map[string]any
+	if err := json.Unmarshal([]byte(actionsWrites[1].Body), &selectedBody); err != nil {
+		t.Fatal(err)
+	}
+	if len(selectedBody) != 3 || selectedBody["github_owned_allowed"] != true ||
+		selectedBody["verified_allowed"] != true {
+		t.Fatalf("selected body = %v, want complete merged policy", selectedBody)
+	}
+	patterns, ok := selectedBody["patterns_allowed"].([]any)
+	if !ok || len(patterns) != len(approvedDefaultActionPatterns) {
+		t.Fatalf("patterns_allowed = %v, want %v", selectedBody["patterns_allowed"], approvedDefaultActionPatterns)
+	}
+	for i, want := range approvedDefaultActionPatterns {
+		if patterns[i] != want {
+			t.Fatalf("patterns_allowed = %v, want %v", selectedBody["patterns_allowed"], approvedDefaultActionPatterns)
+		}
+	}
+
+	var coreBody map[string]any
+	if err := json.Unmarshal([]byte(actionsWrites[2].Body), &coreBody); err != nil {
+		t.Fatal(err)
+	}
+	if coreBody["enabled"] != true || coreBody["allowed_actions"] != "selected" ||
+		coreBody["sha_pinning_required"] != false {
+		t.Fatalf("core body = %v, want merged policy in the same run", coreBody)
+	}
+}
+
+func TestAlterRunBasteMergedActionsDefaultsIsReadOnly(t *testing.T) {
+	configYAML := `license: none
+swatches:
+  - path: .tailor.yml
+    alteration: always
+`
+	tc := setupAlterTest(t, configYAML)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+	before, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := loadTestConfig(t, tc.Dir)
+	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
+	after, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(after, before) {
+		t.Fatalf("baste changed .tailor.yml:\n%s", after)
+	}
+	if calls := tc.MutatingCalls(); len(calls) != 0 {
+		t.Fatalf("baste made mutating calls: %v", calls)
+	}
+
+	getCounts := map[string]int{}
+	for _, call := range tc.Calls() {
+		if call.Method == http.MethodGet {
+			getCounts[call.Path]++
+		}
+	}
+	for _, path := range []string{
+		"/repos/testowner/testrepo/actions/permissions",
+		"/repos/testowner/testrepo/actions/permissions/selected-actions",
+	} {
+		if getCounts[path] != 1 {
+			t.Errorf("GET %s count = %d, want 1", path, getCounts[path])
+		}
+	}
+	wantPatterns := "actions.patterns_allowed = " + strings.Join(approvedDefaultActionPatterns, ", ")
+	if !strings.Contains(output, wantPatterns) {
+		t.Fatalf("output does not show the approved default patterns:\n%s", output)
+	}
+}
+
+func TestAlterRunMergeNonSelectedActionsPolicy(t *testing.T) {
+	configYAML := `license: none
+actions:
+  enabled: false
+  allowed_actions: all
+swatches:
+  - path: .tailor.yml
+    alteration: always
+`
+	tc := setupAlterTest(t, configYAML)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+
+	written, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(written)
+	if !strings.Contains(content, "  enabled: false\n") || !strings.Contains(content, "  allowed_actions: all\n") || !strings.Contains(content, "  sha_pinning_required: false\n") {
+		t.Fatalf("merged core Actions policy is incomplete:\n%s", content)
+	}
+	for _, field := range []string{"github_owned_allowed:", "verified_allowed:", "patterns_allowed:"} {
+		if strings.Contains(content, field) {
+			t.Errorf("merged non-selected policy contains %s", field)
+		}
+	}
+	if _, err := config.Load(tc.Dir); err != nil {
+		t.Fatalf("loading merged non-selected config: %v", err)
+	}
+	for _, call := range tc.Calls() {
+		if strings.HasSuffix(call.Path, "/actions/permissions/selected-actions") {
+			t.Errorf("non-selected policy called selected-actions endpoint: %v", call)
 		}
 	}
 }
@@ -2063,11 +2516,41 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 		if defaults.Repository.WebCommitSignoffRequired != nil {
 			fmt.Fprintf(&sb, "  web_commit_signoff_required: %t\n", *defaults.Repository.WebCommitSignoffRequired)
 		}
+		if defaults.Repository.PrivateVulnerabilityReportEnabled != nil {
+			fmt.Fprintf(&sb, "  private_vulnerability_reporting_enabled: %t\n", *defaults.Repository.PrivateVulnerabilityReportEnabled)
+		}
+		if defaults.Repository.VulnerabilityAlertsEnabled != nil {
+			fmt.Fprintf(&sb, "  vulnerability_alerts_enabled: %t\n", *defaults.Repository.VulnerabilityAlertsEnabled)
+		}
+		if defaults.Repository.AutomatedSecurityFixesEnabled != nil {
+			fmt.Fprintf(&sb, "  automated_security_fixes_enabled: %t\n", *defaults.Repository.AutomatedSecurityFixesEnabled)
+		}
 		if defaults.Repository.DefaultWorkflowPermissions != nil {
 			fmt.Fprintf(&sb, "  default_workflow_permissions: %s\n", *defaults.Repository.DefaultWorkflowPermissions)
 		}
 		if defaults.Repository.CanApprovePullRequestReviews != nil {
 			fmt.Fprintf(&sb, "  can_approve_pull_request_reviews: %t\n", *defaults.Repository.CanApprovePullRequestReviews)
+		}
+	}
+	if defaults.Actions != nil {
+		sb.WriteString("\nactions:\n")
+		if defaults.Actions.Enabled != nil {
+			fmt.Fprintf(&sb, "  enabled: %t\n", *defaults.Actions.Enabled)
+		}
+		if defaults.Actions.AllowedActions != nil {
+			fmt.Fprintf(&sb, "  allowed_actions: %s\n", *defaults.Actions.AllowedActions)
+		}
+		if defaults.Actions.SHAPinningRequired != nil {
+			fmt.Fprintf(&sb, "  sha_pinning_required: %t\n", *defaults.Actions.SHAPinningRequired)
+		}
+		if defaults.Actions.GitHubOwnedAllowed != nil {
+			fmt.Fprintf(&sb, "  github_owned_allowed: %t\n", *defaults.Actions.GitHubOwnedAllowed)
+		}
+		if defaults.Actions.VerifiedAllowed != nil {
+			fmt.Fprintf(&sb, "  verified_allowed: %t\n", *defaults.Actions.VerifiedAllowed)
+		}
+		if defaults.Actions.PatternsAllowed != nil {
+			writePatternsAllowedYAML(&sb, *defaults.Actions.PatternsAllowed)
 		}
 	}
 
@@ -2267,7 +2750,7 @@ swatches:
 
 	cfg := loadTestConfig(t, tc.Dir)
 	output := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
-	if count := strings.Count(output, "updated:                             .tailor.yml\n"); count != 1 {
+	if count := strings.Count(output, "updated:                                                       .tailor.yml\n"); count != 1 {
 		t.Errorf("config update count = %d, want 1\noutput:\n%s", count, output)
 	}
 

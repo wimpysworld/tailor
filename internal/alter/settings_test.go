@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -38,12 +39,16 @@ type repoJSON struct {
 	AllowAutoMerge           bool     `json:"allow_auto_merge"`
 	WebCommitSignoffRequired bool     `json:"web_commit_signoff_required"`
 	Topics                   []string `json:"topics"`
+	Permissions              struct {
+		Admin bool `json:"admin"`
+	} `json:"permissions"`
 }
 
 // settingsServer creates an httptest server that responds to repo settings
 // GET, PATCH, and PUT requests. patchCalled is incremented when PATCH or PUT
 // is received.
 func settingsServer(repo repoJSON, patchCalled *atomic.Int32) *httptest.Server {
+	repo.Permissions.Admin = true
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
 
@@ -55,6 +60,12 @@ func settingsServer(repo repoJSON, patchCalled *atomic.Int32) *httptest.Server {
 		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/actions/permissions/workflow":
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/private-vulnerability-reporting":
+			fmt.Fprint(w, `{"enabled":false}`)
+
+		case r.Method == http.MethodGet && path == "/repos/testowner/testrepo/automated-security-fixes":
+			fmt.Fprint(w, `{"enabled":false,"paused":false}`)
 
 		case r.Method == http.MethodPatch && path == "/repos/testowner/testrepo":
 			if patchCalled != nil {
@@ -614,6 +625,303 @@ func TestProcessRepoSettingsCanApprovePullRequestReviewsNoChange(t *testing.T) {
 	}
 	if results[0].Category != alter.RepoNoChange {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
+	}
+}
+
+func TestProcessRepoSettingsSecurityFeaturesDryRun(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	var writes atomic.Int32
+	server := settingsServer(repoJSON{}, &writes)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+	cfg := &config.Config{Repository: &model.RepositorySettings{
+		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
+		VulnerabilityAlertsEnabled:        ptr.Ptr(true),
+		AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
+	}}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("ProcessRepoSettings() error: %v", err)
+	}
+	if writes.Load() != 0 {
+		t.Errorf("writes = %d, want 0", writes.Load())
+	}
+	if len(results) != 3 {
+		t.Fatalf("results = %v, want three results", results)
+	}
+	for _, result := range results {
+		if result.Category != alter.WouldSet || result.Value != "true" {
+			t.Errorf("result = %+v, want would set true", result)
+		}
+	}
+}
+
+func TestProcessRepoSettingsAppliesOnlyChangedSecurityEndpoints(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+	var patchWrites atomic.Int32
+	var securityWrites atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo":
+			fmt.Fprint(w, `{"has_wiki":true,"permissions":{"admin":true}}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/actions/permissions/workflow":
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/private-vulnerability-reporting":
+			fmt.Fprint(w, `{"enabled":true}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/vulnerability-alerts":
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/automated-security-fixes":
+			fmt.Fprint(w, `{"enabled":true,"paused":false}`)
+		case r.Method == http.MethodPatch:
+			patchWrites.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPut || r.Method == http.MethodDelete:
+			securityWrites.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	cfg := &config.Config{Repository: &model.RepositorySettings{
+		HasWiki:                           ptr.Ptr(false),
+		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
+		VulnerabilityAlertsEnabled:        ptr.Ptr(true),
+		AutomatedSecurityFixesEnabled:     ptr.Ptr(true),
+	}}
+	if _, err := alter.ProcessRepoSettings(cfg, alter.Apply, testutil.NewTestClient(t, server), "testowner", "testrepo", true); err != nil {
+		t.Fatal(err)
+	}
+	if patchWrites.Load() != 1 || securityWrites.Load() != 0 {
+		t.Fatalf("patch writes = %d, security writes = %d, want 1 and 0", patchWrites.Load(), securityWrites.Load())
+	}
+}
+
+func TestProcessRepoSettingsAutomatedFixesPrerequisiteWarning(t *testing.T) {
+	tests := []struct {
+		name          string
+		alertsLive    bool
+		alertsDesired *bool
+		wantWarning   bool
+	}{
+		{name: "alerts remain disabled", wantWarning: true},
+		{name: "alerts already enabled", alertsLive: true},
+		{name: "same run enables alerts", alertsDesired: ptr.Ptr(true)},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/repos/testowner/testrepo":
+					fmt.Fprint(w, `{"permissions":{"admin":true}}`)
+				case "/repos/testowner/testrepo/actions/permissions/workflow":
+					fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+				case "/repos/testowner/testrepo/private-vulnerability-reporting":
+					fmt.Fprint(w, `{"enabled":false}`)
+				case "/repos/testowner/testrepo/vulnerability-alerts":
+					if tt.alertsLive {
+						w.WriteHeader(http.StatusNoContent)
+					} else {
+						w.WriteHeader(http.StatusNotFound)
+						fmt.Fprint(w, `{"message":"Not Found"}`)
+					}
+				case "/repos/testowner/testrepo/automated-security-fixes":
+					fmt.Fprint(w, `{"enabled":false,"paused":false}`)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			cfg := &config.Config{Repository: &model.RepositorySettings{
+				VulnerabilityAlertsEnabled:    tt.alertsDesired,
+				AutomatedSecurityFixesEnabled: ptr.Ptr(true),
+			}}
+			var err error
+			output := captureStderr(t, func() {
+				_, err = alter.ProcessRepoSettings(cfg, alter.DryRun, testutil.NewTestClient(t, server), "testowner", "testrepo", true)
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Contains(output, "warning: automated_security_fixes_enabled") != tt.wantWarning {
+				t.Fatalf("stderr = %q, want warning %t", output, tt.wantWarning)
+			}
+		})
+	}
+}
+
+func TestProcessRepoSettingsSecurityReadAccessWarning(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/repos/testowner/testrepo":
+			fmt.Fprint(w, `{}`)
+		case "/repos/testowner/testrepo/private-vulnerability-reporting":
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message":"Forbidden"}`)
+		case "/repos/testowner/testrepo/actions/permissions/workflow":
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+	cfg := &config.Config{Repository: &model.RepositorySettings{
+		PrivateVulnerabilityReportEnabled: ptr.Ptr(true),
+	}}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	if err != nil {
+		t.Fatalf("ProcessRepoSettings() error: %v", err)
+	}
+	if len(results) != 1 || results[0].Category != alter.WouldSkipScope {
+		t.Errorf("results = %+v, want one scope warning", results)
+	}
+}
+
+func TestProcessRepoSettingsUnknownSecurityPrerequisiteSkipsDependent(t *testing.T) {
+	tests := []struct {
+		name           string
+		alertsResponse func(http.ResponseWriter)
+		fixesResponse  func(http.ResponseWriter)
+		settings       *model.RepositorySettings
+		dependentField string
+	}{
+		{
+			name: "unknown alerts block enabling fixes",
+			alertsResponse: func(w http.ResponseWriter) {
+				w.WriteHeader(http.StatusForbidden)
+			},
+			fixesResponse: func(w http.ResponseWriter) {
+				fmt.Fprint(w, `{"enabled":false,"paused":false}`)
+			},
+			settings:       &model.RepositorySettings{AutomatedSecurityFixesEnabled: ptr.Ptr(true)},
+			dependentField: "automated_security_fixes_enabled",
+		},
+		{
+			name: "unknown fixes block disabling alerts",
+			alertsResponse: func(w http.ResponseWriter) {
+				w.WriteHeader(http.StatusNoContent)
+			},
+			fixesResponse: func(w http.ResponseWriter) {
+				w.WriteHeader(http.StatusForbidden)
+			},
+			settings:       &model.RepositorySettings{VulnerabilityAlertsEnabled: ptr.Ptr(false)},
+			dependentField: "vulnerability_alerts_enabled",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var writes atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					writes.Add(1)
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				switch r.URL.Path {
+				case "/repos/testowner/testrepo":
+					fmt.Fprint(w, `{"permissions":{"admin":true}}`)
+				case "/repos/testowner/testrepo/actions/permissions/workflow":
+					fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+				case "/repos/testowner/testrepo/private-vulnerability-reporting":
+					fmt.Fprint(w, `{"enabled":false}`)
+				case "/repos/testowner/testrepo/vulnerability-alerts":
+					tt.alertsResponse(w)
+				case "/repos/testowner/testrepo/automated-security-fixes":
+					tt.fixesResponse(w)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+
+			results, err := alter.ProcessRepoSettings(&config.Config{Repository: tt.settings}, alter.Apply, testutil.NewTestClient(t, server), "testowner", "testrepo", true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if writes.Load() != 0 || len(results) != 1 || results[0].Field != tt.dependentField || results[0].Category != alter.WouldSkipScope {
+				t.Fatalf("results = %+v, writes = %d, want one dependent skip", results, writes.Load())
+			}
+			if output := alter.FormatOutput(results, nil, nil, alter.Apply); strings.Contains(output, "set:") {
+				t.Fatalf("output = %q, want no set result", output)
+			}
+		})
+	}
+}
+
+func TestProcessRepoSettingsSkippedSecurityWriteSkipsDependentOutput(t *testing.T) {
+	tests := []struct {
+		name          string
+		alertsEnabled bool
+		fixesEnabled  bool
+		settings      *model.RepositorySettings
+		dependent     string
+	}{
+		{
+			name: "alerts write blocks fixes",
+			settings: &model.RepositorySettings{
+				VulnerabilityAlertsEnabled: ptr.Ptr(true), AutomatedSecurityFixesEnabled: ptr.Ptr(true),
+			},
+			dependent: "enable automated security fixes",
+		},
+		{
+			name:          "fixes write blocks alerts",
+			alertsEnabled: true,
+			fixesEnabled:  true,
+			settings: &model.RepositorySettings{
+				VulnerabilityAlertsEnabled: ptr.Ptr(false), AutomatedSecurityFixesEnabled: ptr.Ptr(false),
+			},
+			dependent: "disable vulnerability alerts",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var writes atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					writes.Add(1)
+					w.WriteHeader(http.StatusForbidden)
+					fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
+					return
+				}
+				switch r.URL.Path {
+				case "/repos/testowner/testrepo":
+					fmt.Fprint(w, `{"permissions":{"admin":true}}`)
+				case "/repos/testowner/testrepo/actions/permissions/workflow":
+					fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+				case "/repos/testowner/testrepo/private-vulnerability-reporting":
+					fmt.Fprint(w, `{"enabled":false}`)
+				case "/repos/testowner/testrepo/vulnerability-alerts":
+					if tt.alertsEnabled {
+						w.WriteHeader(http.StatusNoContent)
+					} else {
+						w.WriteHeader(http.StatusNotFound)
+					}
+				case "/repos/testowner/testrepo/automated-security-fixes":
+					fmt.Fprintf(w, `{"enabled":%t,"paused":false}`, tt.fixesEnabled)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+
+			results, err := alter.ProcessRepoSettings(&config.Config{Repository: tt.settings}, alter.Apply, testutil.NewTestClient(t, server), "testowner", "testrepo", true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if writes.Load() != 1 {
+				t.Fatalf("writes = %d, want one prerequisite attempt", writes.Load())
+			}
+			output := alter.FormatOutput(results, nil, nil, alter.Apply)
+			if strings.Contains(output, "set:") || !strings.Contains(output, tt.dependent) {
+				t.Fatalf("output = %q, want skipped dependent %q", output, tt.dependent)
+			}
+		})
 	}
 }
 
