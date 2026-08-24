@@ -18,9 +18,6 @@ const (
 	ModeDiffers   DiffCategory = "mode-differs"
 )
 
-// Label returns the category string with a trailing colon, suitable for formatted output.
-func (c DiffCategory) Label() string { return string(c) + ":" }
-
 // DiffResult describes a single config-diff finding.
 type DiffResult struct {
 	Path     string
