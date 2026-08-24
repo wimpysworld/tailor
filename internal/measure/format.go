@@ -6,14 +6,15 @@ import (
 )
 
 // labelWidth is the fixed column width for status labels in formatted output.
+// It fits the longest label, "not-configured:", plus one trailing space.
 const labelWidth = 16
 
 // AdvisoryMessage is printed when no .tailor.yml is found.
 const AdvisoryMessage = "No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks."
 
-// FormatOutput produces the measure command output. Health results are always
-// included. Diff results are included only when a config was loaded. When
-// hasConfig is false, the advisory message is appended after a blank line.
+// FormatOutput produces the measure command output: health results first,
+// then diff results. When hasConfig is false, the advisory message is
+// appended after a blank line.
 func FormatOutput(health []HealthResult, diff []DiffResult, hasConfig bool) string {
 	var b strings.Builder
 

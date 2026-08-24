@@ -1586,9 +1586,9 @@ swatches:
 	}
 }
 
-// TestAlterRunRecutMergesConfigAndOverwrites verifies that recut with
-// first-fit config.yml triggers merge of missing default swatches, then
-// processes config.yml through normal recut (overwrite) semantics.
+// TestAlterRunRecutMergesConfigAndOverwrites verifies that recut with a
+// first-fit .tailor.yml entry merges missing default swatches, then rewrites
+// .tailor.yml through the config write step.
 func TestAlterRunRecutMergesConfigAndOverwrites(t *testing.T) {
 	configYAML := `license: none
 swatches:
@@ -1605,7 +1605,7 @@ swatches:
 	if err != nil {
 		t.Fatal(err)
 	}
-	// After recut, config.yml is overwritten by swatch processing.
+	// After recut, the merge step rewrites .tailor.yml.
 	if len(data) == 0 {
 		t.Error("config.yml is empty after recut")
 	}
@@ -2041,12 +2041,11 @@ func allDefaultLabelsYAML(t *testing.T) string {
 
 // TestConfigMergeMissingSwatchesApply verifies that Apply mode with a config
 // missing two swatches merges them into cfg.Swatches so they are processed.
-// The config file on disk is first rewritten with a "Refitted" header by the
-// merge step, then overwritten by swatch processing (which treats config.yml
-// as an always swatch). The net observable effect: the two previously missing
-// swatch files appear on disk.
+// The merge step rewrites the config file on disk with a "Refitted" header
+// (swatch processing skips the .tailor.yml entry). The net observable effect:
+// the two previously missing swatch files appear on disk.
 func TestConfigMergeMissingSwatchesApply(t *testing.T) {
-	// Config includes config.yml swatch (always) but omits SUPPORT.md and justfile.
+	// Config includes the .tailor.yml swatch (always) but omits SUPPORT.md and justfile.
 	configYAML := "license: none\nswatches:\n" +
 		"  - path: .tailor.yml\n    alteration: always\n"
 	for _, s := range swatch.All() {
@@ -2070,7 +2069,7 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 		}
 	}
 
-	// Swatch processing writes the config file.
+	// The merge step writes the config file.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("config.yml not found after apply: %v", err)
@@ -2082,8 +2081,8 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 
 // TestConfigMergeAllPresentApply verifies that Apply mode with all swatches,
 // repo settings, and labels already present does not trigger a merge rewrite.
-// The merge step finds no missing entries, so config.Write is not called.
-// Swatch processing then handles config.yml via processAlways (hash comparison).
+// The merge step finds no missing entries, so config.Write is not called and
+// .tailor.yml stays untouched (swatch processing skips the config entry).
 func TestConfigMergeAllPresentApply(t *testing.T) {
 	configYAML := "license: none\n" +
 		allDefaultRepoSettingsYAML(t) +
@@ -2106,20 +2105,18 @@ func TestConfigMergeAllPresentApply(t *testing.T) {
 		t.Fatalf("reading config after apply: %v", err)
 	}
 
-	// The merge step did not write (no missing entries), so the config.yml
-	// swatch processing determines the file state. If the on-disk content
-	// differs from the embedded template, swatch processing overwrites.
-	// If it matches, no write occurs. Either way, the "Refitted" header
-	// should NOT appear because merge added zero entries.
+	// The merge step added zero entries, so config.Write does not run and
+	// swatch processing skips the .tailor.yml entry. The file keeps its
+	// original content, without a "Refitted" header.
 	if strings.Contains(string(afterData), "Refitted by tailor on") {
 		t.Error("config.yml contains 'Refitted' header despite no entries being merged")
 	}
 }
 
-// TestConfigMergeFirstFitApplySkips verifies that when the config.yml swatch
+// TestConfigMergeFirstFitApplySkips verifies that when the .tailor.yml swatch
 // entry has alteration: first-fit, Apply mode does not rewrite the config.
 func TestConfigMergeFirstFitApplySkips(t *testing.T) {
-	// Config with first-fit for config.yml, missing SUPPORT.md.
+	// Config with first-fit for .tailor.yml, missing SUPPORT.md.
 	configYAML := "license: none\nswatches:\n" +
 		"  - path: .tailor.yml\n    alteration: first-fit\n" +
 		"  - path: .gitignore\n    alteration: first-fit\n"
@@ -2151,7 +2148,7 @@ func TestConfigMergeFirstFitApplySkips(t *testing.T) {
 }
 
 // TestConfigMergeFirstFitRecutAppends verifies that Recut mode with
-// first-fit config.yml overrides to always semantics, appending missing
+// first-fit .tailor.yml overrides to always semantics, appending missing
 // entries. The merged swatch files must appear on disk after processing.
 func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 	// A first-fit config swatch is promoted to merge behaviour during recut.
@@ -2173,7 +2170,7 @@ func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 		}
 	}
 
-	// Recut writes config.yml via swatch processing.
+	// Recut rewrites .tailor.yml through the config write step.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("config.yml not found after recut: %v", err)
@@ -2186,7 +2183,7 @@ func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 // TestConfigMergeDryRunNoRewrite verifies that DryRun mode with missing
 // entries does not rewrite the config file on disk.
 func TestConfigMergeDryRunNoRewrite(t *testing.T) {
-	// Dry-run can detect missing entries without rewriting config.yml.
+	// Dry-run can detect missing entries without rewriting .tailor.yml.
 	configYAML := "license: none\nswatches:\n" +
 		"  - path: .tailor.yml\n    alteration: always\n" +
 		"  - path: .gitignore\n    alteration: first-fit\n"
@@ -2219,7 +2216,7 @@ func TestConfigMergeDryRunNoRewrite(t *testing.T) {
 // TestAlterRunMergeDefaults verifies that missing settings and sections receive
 // defaults, the rewritten config validates, and Actions defaults apply at once.
 func TestAlterRunMergeDefaults(t *testing.T) {
-	// Config has config.yml swatch set to always (triggers shouldMerge),
+	// Config has the .tailor.yml swatch set to always (triggers shouldMerge),
 	// a partial repository section (only has_wiki), and no labels.
 	configYAML := `license: none
 repository:

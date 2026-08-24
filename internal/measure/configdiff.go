@@ -12,6 +12,7 @@ import (
 // DiffCategory classifies a config-diff result.
 type DiffCategory string
 
+// Diff categories, in output order.
 const (
 	NotConfigured DiffCategory = "not-configured"
 	ConfigOnly    DiffCategory = "config-only"

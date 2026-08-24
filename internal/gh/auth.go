@@ -9,8 +9,8 @@ import (
 // tokenForHost wraps auth.TokenForHost for testability.
 var tokenForHost = auth.TokenForHost
 
-// CheckAuth verifies that a valid GitHub authentication token is available for github.com.
-// It returns an error if no valid token is available.
+// CheckAuth checks that a GitHub authentication token is present for
+// github.com. It does not validate the token against the API.
 func CheckAuth() error {
 	token, _ := tokenForHost("github.com")
 	if token == "" {

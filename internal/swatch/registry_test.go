@@ -78,7 +78,7 @@ func TestSwatchAttributes(t *testing.T) {
 func TestHealthSwatchesReturnsCorrectSubset(t *testing.T) {
 	health := swatch.HealthSwatches()
 
-	// The spec lists 10 health swatches (excluding LICENSE which is not embedded).
+	// The spec lists 10 health swatches (excluding LICENSE, which is not embedded).
 	if len(health) != 10 {
 		t.Fatalf("HealthSwatches() returned %d swatches, want 10", len(health))
 	}

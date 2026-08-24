@@ -17,6 +17,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
+// version is set at release time by GoReleaser via -X main.version.
 var version = "dev"
 
 var cli struct {

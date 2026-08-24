@@ -50,7 +50,8 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 	}
 
 	// GitHub rejects the selected-actions read while another policy is active.
-	// Leave those live values unknown so apply can use the policy transition.
+	// Leave the live selected values unknown so ApplyActionsPolicy takes the
+	// policy transition path.
 	if selected && coreKnown && permissions.AllowedActions == "selected" {
 		var policy selectedActionsResponse
 		if err := boundedActionsHTTPError(client.Get(base+"/selected-actions", &policy)); err != nil {
@@ -183,6 +184,10 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 	return result, nil
 }
 
+// selectedPolicyBroadens reports whether the desired selected-actions policy
+// allows more than the current one, including via a removed or narrowed
+// exclusion pattern. ApplyActionsPolicy disables Actions before a broadening
+// update so a partial write cannot widen the policy while Actions run.
 func selectedPolicyBroadens(desired, current *model.ActionsSettings) bool {
 	if desired.GitHubOwnedAllowed != nil && *desired.GitHubOwnedAllowed &&
 		current.GitHubOwnedAllowed != nil && !*current.GitHubOwnedAllowed {
@@ -217,6 +222,8 @@ func selectedPolicyBroadens(desired, current *model.ActionsSettings) bool {
 	return false
 }
 
+// exclusionCovered reports whether a current exclusion pattern stays excluded
+// under desired, either exactly or through a broader "!prefix*" pattern.
 func exclusionCovered(current string, desired map[string]bool) bool {
 	if desired[current] {
 		return true

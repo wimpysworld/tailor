@@ -45,6 +45,8 @@ func Load(dir string) (*Config, error) {
 	}
 	defer file.Close()
 
+	// Re-check the open handle: the path can change to a non-regular
+	// file between Lstat and Open.
 	info, err = file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("reading config metadata: %w", err)

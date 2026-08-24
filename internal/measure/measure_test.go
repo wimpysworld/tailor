@@ -298,7 +298,7 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 			t.Errorf("line too short for padding check: %q", line)
 			continue
 		}
-		// Characters 0-15 are the padded label; character 16 starts the value.
+		// Characters 0-15 are the padded label. Character 16 starts the value.
 		label := line[:16]
 		lastLabelChar := label[len(label)-1]
 		if lastLabelChar != ' ' && lastLabelChar != ':' {

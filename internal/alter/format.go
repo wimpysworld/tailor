@@ -8,7 +8,8 @@ import (
 )
 
 // defaultLabelWidth is the minimum column width for status labels in formatted
-// output. Sized to accommodate "would skip (insufficient scope): " (37 characters).
+// output. It fits the longest fixed label, "would skip (insufficient scope):",
+// with padding.
 const defaultLabelWidth = 37
 
 // FormatOutput produces the alter command output from repo settings results,

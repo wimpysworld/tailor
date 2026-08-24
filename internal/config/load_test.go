@@ -386,7 +386,6 @@ func TestExistsFalse(t *testing.T) {
 
 func TestExistsFalseForDirectory(t *testing.T) {
 	dir := t.TempDir()
-	// Create .tailor.yml as a directory, not a file.
 	if err := os.MkdirAll(filepath.Join(dir, ".tailor.yml"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}

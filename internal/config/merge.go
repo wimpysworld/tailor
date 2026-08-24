@@ -17,8 +17,9 @@ var repoSettingsSkipFields = map[string]bool{
 	"topics":      true,
 }
 
-// MergeDefaults calls DefaultConfig once and reports whether any defaults were
-// merged into the config.
+// MergeDefaults merges missing swatch entries, repository settings, Actions
+// policy fields, and labels from the embedded defaults into cfg. It reports
+// whether anything changed.
 func MergeDefaults(cfg *Config) bool {
 	swatchesChanged := len(MergeDefaultSwatches(cfg)) > 0
 

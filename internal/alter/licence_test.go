@@ -99,7 +99,7 @@ func TestProcessLicenceSkippedWhenPresent(t *testing.T) {
 		t.Errorf("result = %+v, want skipped because first-fit destination exists", result)
 	}
 
-	// Dry-run leaves the file unchanged.
+	// Apply leaves the existing file unchanged.
 	data, err := os.ReadFile(filepath.Join(dir, "LICENSE"))
 	if err != nil {
 		t.Fatal(err)

@@ -22,6 +22,8 @@ type ActionsSettings struct {
 	VerifiedAllowed    *bool     `yaml:"verified_allowed,omitempty"`
 	PatternsAllowed    *[]string `yaml:"patterns_allowed,omitempty"`
 
+	// Extra captures any YAML keys not mapped to struct fields above.
+	// ValidateActions uses this to reject unrecognised settings.
 	Extra map[string]interface{} `yaml:",inline"`
 }
 

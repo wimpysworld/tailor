@@ -140,6 +140,11 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 	return s, warnings, nil
 }
 
+// readSecurityFeature reads one security feature endpoint. statusOnly is for
+// endpoints that answer with a bare status code (204 enabled, 404 disabled)
+// instead of a JSON body. allow404Disabled treats 404 as a confirmed disabled
+// state; that reading is only safe with confirmed admin access, because 404
+// also means the endpoint is not visible to the token.
 func readSecurityFeature(client *api.RESTClient, path string, statusOnly, allow404Disabled bool) (enabled bool, known bool, err error) {
 	var response any
 	var feature securityFeatureResponse
@@ -175,6 +180,9 @@ type ApplyResult struct {
 	Skipped []SkippedOperation
 }
 
+// recordAccessError appends the operation to result.Skipped when err is an
+// access error, and reports whether it did. Other errors are left to the
+// caller to return as hard failures.
 func recordAccessError(result *ApplyResult, operation string, err error) bool {
 	classified := classifyHTTPError(err, operation)
 	if !isAccessError(classified) {
@@ -299,6 +307,9 @@ func applySecuritySetting(client *api.RESTClient, path string, enabled bool, fea
 	return false, fmt.Errorf("%s: %w", operation, err)
 }
 
+// appendSkippedDependency records an operation that was not attempted because
+// a prerequisite operation was skipped, reusing the error from the most
+// recent skip. It does nothing when nothing was skipped.
 func appendSkippedDependency(result *ApplyResult, operation string) {
 	if len(result.Skipped) == 0 {
 		return

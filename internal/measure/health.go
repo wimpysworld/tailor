@@ -13,9 +13,11 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// HealthStatus indicates whether a health file is present or missing.
+// HealthStatus is the on-disk status of a health file: missing, warning,
+// or present.
 type HealthStatus string
 
+// Health statuses, in output order.
 const (
 	Missing HealthStatus = "missing"
 	Warning HealthStatus = "warning"

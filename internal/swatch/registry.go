@@ -17,13 +17,19 @@ const (
 type AlterationMode string
 
 const (
-	Always   AlterationMode = "always"
+	// Always compares the embedded content against the on-disk file on
+	// every alter run and overwrites the file when they differ.
+	Always AlterationMode = "always"
+	// FirstFit writes the file only when it does not already exist.
 	FirstFit AlterationMode = "first-fit"
-	Never    AlterationMode = "never"
+	// Never skips the swatch. Tailor does not write or compare the
+	// destination.
+	Never AlterationMode = "never"
 )
 
 // LicenseDestination is the destination path for the licence file.
-// Licences are not embedded swatches; they are fetched via gh at alter time.
+// Licences are not embedded swatches. Tailor fetches them via the GitHub
+// REST API at alter time.
 const LicenseDestination = "LICENSE"
 
 // Swatch describes a single template file with its path, default alteration

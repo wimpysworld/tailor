@@ -6,9 +6,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// TestContentAvailableForAllRegisteredSwatches verifies that the embed FS
-// contains a file for every swatch in the registry. This is the wiring test
-// connecting Task 1.1 (embed) to Task 1.2 (registry).
+// TestContentAvailableForAllRegisteredSwatches verifies that the embedded
+// filesystem contains a file for every swatch in the registry.
 func TestContentAvailableForAllRegisteredSwatches(t *testing.T) {
 	all := swatch.All()
 	if len(all) == 0 {

@@ -17,8 +17,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-// repoSettingsJSON returns a JSON string matching the repoResponse struct
-// from the gh package.
+// repoJSON mirrors the repoResponse struct in the gh package for building
+// mock GET /repos/{owner}/{repo} responses.
 type repoJSON struct {
 	Description              string   `json:"description"`
 	Homepage                 string   `json:"homepage"`
