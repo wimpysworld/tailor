@@ -98,22 +98,22 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 	}
 
 	r := cfg.Repository
-	testutil.AssertBoolPtr(t, r.HasWiki, false, false, "has_wiki")
-	testutil.AssertBoolPtr(t, r.HasDiscussions, false, false, "has_discussions")
-	testutil.AssertBoolPtr(t, r.HasProjects, false, false, "has_projects")
-	testutil.AssertBoolPtr(t, r.HasIssues, false, true, "has_issues")
-	testutil.AssertBoolPtr(t, r.AllowMergeCommit, false, false, "allow_merge_commit")
-	testutil.AssertBoolPtr(t, r.AllowSquashMerge, false, true, "allow_squash_merge")
-	testutil.AssertBoolPtr(t, r.AllowRebaseMerge, false, true, "allow_rebase_merge")
-	testutil.AssertStringPtr(t, r.SquashMergeCommitTitle, false, "PR_TITLE", "squash_merge_commit_title")
-	testutil.AssertStringPtr(t, r.SquashMergeCommitMessage, false, "PR_BODY", "squash_merge_commit_message")
-	testutil.AssertBoolPtr(t, r.DeleteBranchOnMerge, false, true, "delete_branch_on_merge")
-	testutil.AssertBoolPtr(t, r.AllowUpdateBranch, false, true, "allow_update_branch")
-	testutil.AssertBoolPtr(t, r.AllowAutoMerge, false, false, "allow_auto_merge")
-	testutil.AssertBoolPtr(t, r.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
-	testutil.AssertBoolPtr(t, r.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
-	testutil.AssertBoolPtr(t, r.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
-	testutil.AssertBoolPtr(t, r.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
+	testutil.AssertPtr(t, r.HasWiki, false, false, "has_wiki")
+	testutil.AssertPtr(t, r.HasDiscussions, false, false, "has_discussions")
+	testutil.AssertPtr(t, r.HasProjects, false, false, "has_projects")
+	testutil.AssertPtr(t, r.HasIssues, false, true, "has_issues")
+	testutil.AssertPtr(t, r.AllowMergeCommit, false, false, "allow_merge_commit")
+	testutil.AssertPtr(t, r.AllowSquashMerge, false, true, "allow_squash_merge")
+	testutil.AssertPtr(t, r.AllowRebaseMerge, false, true, "allow_rebase_merge")
+	testutil.AssertPtr(t, r.SquashMergeCommitTitle, false, "PR_TITLE", "squash_merge_commit_title")
+	testutil.AssertPtr(t, r.SquashMergeCommitMessage, false, "PR_BODY", "squash_merge_commit_message")
+	testutil.AssertPtr(t, r.DeleteBranchOnMerge, false, true, "delete_branch_on_merge")
+	testutil.AssertPtr(t, r.AllowUpdateBranch, false, true, "allow_update_branch")
+	testutil.AssertPtr(t, r.AllowAutoMerge, false, false, "allow_auto_merge")
+	testutil.AssertPtr(t, r.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
+	testutil.AssertPtr(t, r.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
+	testutil.AssertPtr(t, r.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	testutil.AssertPtr(t, r.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
 
 	if len(cfg.Swatches) != 16 {
 		t.Fatalf("Swatches count = %d, want 16", len(cfg.Swatches))
@@ -185,9 +185,9 @@ func TestUnmarshalOptionalSecuritySettings(t *testing.T) {
 		t.Fatalf("Unmarshal failed: %v", err)
 	}
 
-	testutil.AssertBoolPtr(t, cfg.Repository.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
-	testutil.AssertBoolPtr(t, cfg.Repository.VulnerabilityAlertsEnabled, false, false, "vulnerability_alerts_enabled")
-	testutil.AssertBoolPtr(t, cfg.Repository.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
+	testutil.AssertPtr(t, cfg.Repository.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
+	testutil.AssertPtr(t, cfg.Repository.VulnerabilityAlertsEnabled, false, false, "vulnerability_alerts_enabled")
+	testutil.AssertPtr(t, cfg.Repository.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
 }
 
 func TestRepositoryNilWhenAbsent(t *testing.T) {
@@ -265,8 +265,8 @@ swatches: []
 	}
 
 	r := cfg.Repository
-	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
-	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, false, false, "can_approve_pull_request_reviews")
+	testutil.AssertPtr(t, r.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
+	testutil.AssertPtr(t, r.CanApprovePullRequestReviews, false, false, "can_approve_pull_request_reviews")
 
 	if r.Topics == nil {
 		t.Fatal("Topics is nil, want non-nil")
@@ -289,8 +289,8 @@ swatches: []
 	}
 
 	r := cfg.Repository
-	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, true, "", "default_workflow_permissions")
-	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, true, false, "can_approve_pull_request_reviews")
+	testutil.AssertPtr(t, r.DefaultWorkflowPermissions, true, "", "default_workflow_permissions")
+	testutil.AssertPtr(t, r.CanApprovePullRequestReviews, true, false, "can_approve_pull_request_reviews")
 
 	if r.Topics != nil {
 		t.Errorf("Topics = %v, want nil when omitted", *r.Topics)
@@ -342,8 +342,8 @@ func TestNewFieldsRoundTrip(t *testing.T) {
 	}
 
 	r := roundTripped.Repository
-	testutil.AssertStringPtr(t, r.DefaultWorkflowPermissions, false, "write", "default_workflow_permissions")
-	testutil.AssertBoolPtr(t, r.CanApprovePullRequestReviews, false, true, "can_approve_pull_request_reviews")
+	testutil.AssertPtr(t, r.DefaultWorkflowPermissions, false, "write", "default_workflow_permissions")
+	testutil.AssertPtr(t, r.CanApprovePullRequestReviews, false, true, "can_approve_pull_request_reviews")
 
 	if r.Topics == nil {
 		t.Fatal("round-tripped Topics is nil")
@@ -551,8 +551,8 @@ swatches: []
 	}
 
 	r := cfg.Repository
-	testutil.AssertStringPtr(t, r.Description, false, "My project", "description")
-	testutil.AssertStringPtr(t, r.Homepage, false, "https://example.com", "homepage")
-	testutil.AssertStringPtr(t, r.MergeCommitTitle, false, "PR_TITLE", "merge_commit_title")
-	testutil.AssertStringPtr(t, r.MergeCommitMessage, false, "PR_BODY", "merge_commit_message")
+	testutil.AssertPtr(t, r.Description, false, "My project", "description")
+	testutil.AssertPtr(t, r.Homepage, false, "https://example.com", "homepage")
+	testutil.AssertPtr(t, r.MergeCommitTitle, false, "PR_TITLE", "merge_commit_title")
+	testutil.AssertPtr(t, r.MergeCommitMessage, false, "PR_BODY", "merge_commit_message")
 }

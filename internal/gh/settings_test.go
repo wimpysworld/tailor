@@ -188,29 +188,29 @@ func TestReadRepoSettings(t *testing.T) {
 			}
 
 			// description and homepage
-			testutil.AssertStringPtr(t, settings.Description, tt.wantDescNil, tt.wantDesc, "description")
-			testutil.AssertStringPtr(t, settings.Homepage, tt.wantHomeNil, tt.wantHome, "homepage")
+			testutil.AssertPtr(t, settings.Description, tt.wantDescNil, tt.wantDesc, "description")
+			testutil.AssertPtr(t, settings.Homepage, tt.wantHomeNil, tt.wantHome, "homepage")
 
 			// bool fields
-			testutil.AssertBoolPtr(t, settings.HasWiki, false, tt.wantWiki, "has_wiki")
-			testutil.AssertBoolPtr(t, settings.HasDiscussions, false, tt.wantDisc, "has_discussions")
-			testutil.AssertBoolPtr(t, settings.HasProjects, false, tt.wantProj, "has_projects")
-			testutil.AssertBoolPtr(t, settings.HasIssues, false, tt.wantIssues, "has_issues")
-			testutil.AssertBoolPtr(t, settings.AllowMergeCommit, false, tt.wantMerge, "allow_merge_commit")
-			testutil.AssertBoolPtr(t, settings.AllowSquashMerge, false, tt.wantSquash, "allow_squash_merge")
-			testutil.AssertBoolPtr(t, settings.AllowRebaseMerge, false, tt.wantRebase, "allow_rebase_merge")
-			testutil.AssertBoolPtr(t, settings.DeleteBranchOnMerge, false, tt.wantDelete, "delete_branch_on_merge")
-			testutil.AssertBoolPtr(t, settings.AllowUpdateBranch, false, tt.wantUpdate, "allow_update_branch")
-			testutil.AssertBoolPtr(t, settings.AllowAutoMerge, false, tt.wantAuto, "allow_auto_merge")
-			testutil.AssertBoolPtr(t, settings.WebCommitSignoffRequired, false, tt.wantSignoff, "web_commit_signoff_required")
-			testutil.AssertBoolPtr(t, settings.CanApprovePullRequestReviews, false, tt.wantCanApprove, "can_approve_pull_request_reviews")
+			testutil.AssertPtr(t, settings.HasWiki, false, tt.wantWiki, "has_wiki")
+			testutil.AssertPtr(t, settings.HasDiscussions, false, tt.wantDisc, "has_discussions")
+			testutil.AssertPtr(t, settings.HasProjects, false, tt.wantProj, "has_projects")
+			testutil.AssertPtr(t, settings.HasIssues, false, tt.wantIssues, "has_issues")
+			testutil.AssertPtr(t, settings.AllowMergeCommit, false, tt.wantMerge, "allow_merge_commit")
+			testutil.AssertPtr(t, settings.AllowSquashMerge, false, tt.wantSquash, "allow_squash_merge")
+			testutil.AssertPtr(t, settings.AllowRebaseMerge, false, tt.wantRebase, "allow_rebase_merge")
+			testutil.AssertPtr(t, settings.DeleteBranchOnMerge, false, tt.wantDelete, "delete_branch_on_merge")
+			testutil.AssertPtr(t, settings.AllowUpdateBranch, false, tt.wantUpdate, "allow_update_branch")
+			testutil.AssertPtr(t, settings.AllowAutoMerge, false, tt.wantAuto, "allow_auto_merge")
+			testutil.AssertPtr(t, settings.WebCommitSignoffRequired, false, tt.wantSignoff, "web_commit_signoff_required")
+			testutil.AssertPtr(t, settings.CanApprovePullRequestReviews, false, tt.wantCanApprove, "can_approve_pull_request_reviews")
 
 			// string fields (always non-nil)
-			testutil.AssertStringPtr(t, settings.DefaultWorkflowPermissions, false, tt.wantWfPerms, "default_workflow_permissions")
-			testutil.AssertStringPtr(t, settings.SquashMergeCommitTitle, false, tt.wantSqTitle, "squash_merge_commit_title")
-			testutil.AssertStringPtr(t, settings.SquashMergeCommitMessage, false, tt.wantSqMsg, "squash_merge_commit_message")
-			testutil.AssertStringPtr(t, settings.MergeCommitTitle, false, tt.wantMcTitle, "merge_commit_title")
-			testutil.AssertStringPtr(t, settings.MergeCommitMessage, false, tt.wantMcMsg, "merge_commit_message")
+			testutil.AssertPtr(t, settings.DefaultWorkflowPermissions, false, tt.wantWfPerms, "default_workflow_permissions")
+			testutil.AssertPtr(t, settings.SquashMergeCommitTitle, false, tt.wantSqTitle, "squash_merge_commit_title")
+			testutil.AssertPtr(t, settings.SquashMergeCommitMessage, false, tt.wantSqMsg, "squash_merge_commit_message")
+			testutil.AssertPtr(t, settings.MergeCommitTitle, false, tt.wantMcTitle, "merge_commit_title")
+			testutil.AssertPtr(t, settings.MergeCommitMessage, false, tt.wantMcMsg, "merge_commit_message")
 
 			// topics
 			if tt.wantTopics == nil {
@@ -274,13 +274,13 @@ func TestReadRepoSettingsIgnoresGitHubActionsEnvironment(t *testing.T) {
 		t.Errorf("ReadRepoSettings() warnings = %v, want none", warnings)
 	}
 
-	testutil.AssertBoolPtr(t, settings.AllowAutoMerge, false, false, "allow_auto_merge")
-	testutil.AssertBoolPtr(t, settings.AllowRebaseMerge, false, false, "allow_rebase_merge")
-	testutil.AssertBoolPtr(t, settings.AllowSquashMerge, false, false, "allow_squash_merge")
-	testutil.AssertBoolPtr(t, settings.AllowUpdateBranch, false, false, "allow_update_branch")
-	testutil.AssertBoolPtr(t, settings.DeleteBranchOnMerge, false, false, "delete_branch_on_merge")
-	testutil.AssertStringPtr(t, settings.SquashMergeCommitMessage, false, "", "squash_merge_commit_message")
-	testutil.AssertStringPtr(t, settings.SquashMergeCommitTitle, false, "", "squash_merge_commit_title")
+	testutil.AssertPtr(t, settings.AllowAutoMerge, false, false, "allow_auto_merge")
+	testutil.AssertPtr(t, settings.AllowRebaseMerge, false, false, "allow_rebase_merge")
+	testutil.AssertPtr(t, settings.AllowSquashMerge, false, false, "allow_squash_merge")
+	testutil.AssertPtr(t, settings.AllowUpdateBranch, false, false, "allow_update_branch")
+	testutil.AssertPtr(t, settings.DeleteBranchOnMerge, false, false, "delete_branch_on_merge")
+	testutil.AssertPtr(t, settings.SquashMergeCommitMessage, false, "", "squash_merge_commit_message")
+	testutil.AssertPtr(t, settings.SquashMergeCommitTitle, false, "", "squash_merge_commit_title")
 }
 
 func TestReadRepoSettingsRepoAPIError(t *testing.T) {
@@ -325,7 +325,7 @@ func TestReadRepoSettingsWFPerms403GracefulDegradation(t *testing.T) {
 		t.Errorf("CanApprovePullRequestReviews = %v, want nil", *settings.CanApprovePullRequestReviews)
 	}
 	// Other fields should be populated.
-	testutil.AssertStringPtr(t, settings.Description, false, "A tailor for your repos", "description")
+	testutil.AssertPtr(t, settings.Description, false, "A tailor for your repos", "description")
 }
 
 func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
@@ -361,8 +361,8 @@ func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
 		t.Errorf("expected 4 warnings, got %d", len(warnings))
 	}
 	// Core repo fields should still be populated.
-	testutil.AssertStringPtr(t, settings.Description, false, "A tailor for your repos", "description")
-	testutil.AssertBoolPtr(t, settings.HasWiki, false, false, "has_wiki")
+	testutil.AssertPtr(t, settings.Description, false, "A tailor for your repos", "description")
+	testutil.AssertPtr(t, settings.HasWiki, false, false, "has_wiki")
 }
 
 func TestReadRepoSettingsNon403StillFails(t *testing.T) {
@@ -412,9 +412,9 @@ func TestReadRepoSettingsSecurityFeatures(t *testing.T) {
 	if len(warnings) != 0 {
 		t.Fatalf("warnings = %v, want none", warnings)
 	}
-	testutil.AssertBoolPtr(t, settings.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
-	testutil.AssertBoolPtr(t, settings.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
-	testutil.AssertBoolPtr(t, settings.AutomatedSecurityFixesEnabled, false, false, "automated_security_fixes_enabled")
+	testutil.AssertPtr(t, settings.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
+	testutil.AssertPtr(t, settings.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	testutil.AssertPtr(t, settings.AutomatedSecurityFixesEnabled, false, false, "automated_security_fixes_enabled")
 }
 
 func TestReadRepoSettingsSecurityFeature404HandlingForAdmin(t *testing.T) {
@@ -438,9 +438,9 @@ func TestReadRepoSettingsSecurityFeature404HandlingForAdmin(t *testing.T) {
 	if len(warnings) != 1 {
 		t.Fatalf("warnings = %v, want private reporting access warning", warnings)
 	}
-	testutil.AssertBoolPtr(t, settings.PrivateVulnerabilityReportEnabled, true, false, "private_vulnerability_reporting_enabled")
-	testutil.AssertBoolPtr(t, settings.VulnerabilityAlertsEnabled, false, false, "vulnerability_alerts_enabled")
-	testutil.AssertBoolPtr(t, settings.AutomatedSecurityFixesEnabled, false, false, "automated_security_fixes_enabled")
+	testutil.AssertPtr(t, settings.PrivateVulnerabilityReportEnabled, true, false, "private_vulnerability_reporting_enabled")
+	testutil.AssertPtr(t, settings.VulnerabilityAlertsEnabled, false, false, "vulnerability_alerts_enabled")
+	testutil.AssertPtr(t, settings.AutomatedSecurityFixesEnabled, false, false, "automated_security_fixes_enabled")
 }
 
 func TestReadRepoSettingsSecurityFeature404UnknownWithoutConfirmedAdminAccess(t *testing.T) {

@@ -59,40 +59,21 @@ func WriteConfig(t *testing.T, dir, content string) {
 	}
 }
 
-// AssertBoolPtr checks a *bool field. When wantNil is true, it expects got to
+// AssertPtr checks a pointer field. When wantNil is true, it expects got to
 // be nil. Otherwise it expects got to be non-nil with value wantVal.
-func AssertBoolPtr(t *testing.T, got *bool, wantNil bool, wantVal bool, field string) {
+func AssertPtr[T comparable](t *testing.T, got *T, wantNil bool, wantVal T, field string) {
 	t.Helper()
 	if wantNil {
 		if got != nil {
-			t.Errorf("%s = %v, want nil", field, *got)
+			t.Errorf("%s = %#v, want nil", field, *got)
 		}
 		return
 	}
 	if got == nil {
-		t.Errorf("%s is nil, want %v", field, wantVal)
+		t.Errorf("%s is nil, want %#v", field, wantVal)
 		return
 	}
 	if *got != wantVal {
-		t.Errorf("%s = %v, want %v", field, *got, wantVal)
-	}
-}
-
-// AssertStringPtr checks a *string field. When wantNil is true, it expects got
-// to be nil. Otherwise it expects got to be non-nil with value wantVal.
-func AssertStringPtr(t *testing.T, got *string, wantNil bool, wantVal string, field string) {
-	t.Helper()
-	if wantNil {
-		if got != nil {
-			t.Errorf("%s = %q, want nil", field, *got)
-		}
-		return
-	}
-	if got == nil {
-		t.Errorf("%s is nil, want %q", field, wantVal)
-		return
-	}
-	if *got != wantVal {
-		t.Errorf("%s = %q, want %q", field, *got, wantVal)
+		t.Errorf("%s = %#v, want %#v", field, *got, wantVal)
 	}
 }

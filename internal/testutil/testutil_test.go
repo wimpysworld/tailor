@@ -21,3 +21,15 @@ func TestWriteConfigCreatesFile(t *testing.T) {
 		t.Errorf("file content = %q, want %q", string(data), content)
 	}
 }
+
+func TestAssertPtrBool(t *testing.T) {
+	val := true
+	AssertPtr(t, &val, false, true, "bool_field")
+	AssertPtr[bool](t, nil, true, false, "bool_field")
+}
+
+func TestAssertPtrString(t *testing.T) {
+	val := "read"
+	AssertPtr(t, &val, false, "read", "string_field")
+	AssertPtr[string](t, nil, true, "", "string_field")
+}
