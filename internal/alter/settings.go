@@ -81,7 +81,7 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 	results = append(results, skipResults...)
 
 	if mode.ShouldWrite() && hasChanges(results) {
-		applyResult, err := gh.ApplyRepoSettings(client, owner, name, settingsForApply(cfg.Repository, results))
+		applyResult, err := gh.ApplyRepoSettingsWithCurrent(client, owner, name, settingsForApply(cfg.Repository, results), live)
 		if err != nil {
 			return nil, err
 		}
