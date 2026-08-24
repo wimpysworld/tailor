@@ -522,7 +522,7 @@ func TestRunRejectsInvalidActionsBeforeWrites(t *testing.T) {
 	}
 }
 
-func TestRunRejectsIncompleteSelectedActionsAfterDefaultMerging(t *testing.T) {
+func TestRunRejectsIncompleteSelectedActions(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{Actions: &model.ActionsSettings{AllowedActions: ptr.Ptr("selected")}}
 	err := alter.Run(cfg, dir, alter.Apply, nil)
