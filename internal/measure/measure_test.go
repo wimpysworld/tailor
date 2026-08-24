@@ -329,15 +329,23 @@ func TestIntegrationLicenseWithPlaceholders(t *testing.T) {
 	}
 }
 
-func TestIntegrationRepositoryLicenseIsPresent(t *testing.T) {
-	health := CheckHealth(filepath.Join("..", ".."))
+func TestIntegrationLicenseWithMarkdownLinkIsPresent(t *testing.T) {
+	dir := t.TempDir()
+
+	content := "The licensee must comply with [Notices](#notices).\n"
+	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	testutil.CreateFile(t, dir, "README.md")
+
+	health := CheckHealth(dir)
 	got := FormatOutput(health, nil, false)
 
 	if strings.Contains(got, "warning:        LICENSE") {
-		t.Errorf("repository LICENSE should not appear as warning:\n%s", got)
+		t.Errorf("LICENSE with Markdown link should not appear as warning:\n%s", got)
 	}
 	if !strings.Contains(got, "present:        LICENSE") {
-		t.Errorf("repository LICENSE should appear as present:\n%s", got)
+		t.Errorf("LICENSE with Markdown link should appear as present:\n%s", got)
 	}
 }
 
