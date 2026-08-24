@@ -13,7 +13,9 @@ import (
 
 var approvedDefaultActionPatterns = []string{
 	"freerangebytes/setup-actionlint@*",
+	"golang/govulncheck-action@*",
 	"golangci/golangci-lint-action@*",
+	"nick-fields/retry@*",
 	"robherley/go-test-action@*",
 	"softprops/action-gh-release@*",
 }
