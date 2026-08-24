@@ -129,6 +129,52 @@ func TestMergeEmptyConfig(t *testing.T) {
 	}
 }
 
+func TestMergeDefaultsChangedByEachSection(t *testing.T) {
+	tests := []struct {
+		name  string
+		alter func(*Config)
+	}{
+		{
+			name: "swatches",
+			alter: func(cfg *Config) {
+				cfg.Swatches = cfg.Swatches[1:]
+			},
+		},
+		{
+			name: "repository",
+			alter: func(cfg *Config) {
+				cfg.Repository.HasIssues = nil
+			},
+		},
+		{
+			name: "actions",
+			alter: func(cfg *Config) {
+				cfg.Actions.Enabled = nil
+			},
+		},
+		{
+			name: "labels",
+			alter: func(cfg *Config) {
+				cfg.Labels = nil
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := defaultConfig(t)
+			tt.alter(cfg)
+
+			if !MergeDefaults(cfg) {
+				t.Fatal("MergeDefaults() changed = false, want true")
+			}
+			if MergeDefaults(cfg) {
+				t.Fatal("second MergeDefaults() changed = true, want false")
+			}
+		})
+	}
+}
+
 // defaultRepoDefaults returns the default RepositorySettings from the embedded
 // config, for comparison in merge tests.
 func defaultRepoDefaults(t *testing.T) *model.RepositorySettings {

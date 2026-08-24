@@ -40,8 +40,8 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	// Keep the local config aligned with built-in defaults only when the
 	// config swatch mode allows tailor to rewrite it.
 	if shouldMerge(cfg, mode) {
-		added, repoMerged, actionsMerged, labelsMerged := config.MergeDefaults(cfg)
-		configChanged = configChanged || len(added) > 0 || repoMerged || actionsMerged || labelsMerged
+		defaultsChanged := config.MergeDefaults(cfg)
+		configChanged = configChanged || defaultsChanged
 		// Re-validate after merge as a safety check.
 		if err := validateConfig(cfg); err != nil {
 			return err
