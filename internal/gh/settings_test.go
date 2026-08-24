@@ -1154,6 +1154,24 @@ func TestApplyRepoSettingsSecurityFeatureDisableOrder(t *testing.T) {
 	}
 }
 
+func TestApplyRepoSettingsDoesNotDisableAlertsWhenFixesAreUnmanaged(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	settings := &model.RepositorySettings{VulnerabilityAlertsEnabled: ptr.Ptr(false)}
+	_, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings)
+	if err == nil || err.Error() != "cannot disable vulnerability alerts while automated security fixes are unmanaged" {
+		t.Fatalf("ApplyRepoSettings() error = %v, want unmanaged fixes error", err)
+	}
+	if calls != 0 {
+		t.Fatalf("calls = %d, want 0", calls)
+	}
+}
+
 func TestApplyRepoSettingsSecurityFeatureAccessErrorIsSkipped(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusForbidden)
