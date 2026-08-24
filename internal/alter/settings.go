@@ -164,19 +164,15 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 			equal = !lfv.IsNil() && lfv.Elem().Interface() == declaredVal
 		}
 
+		category := WouldSet
 		if equal {
-			results = append(results, RepoSettingResult{
-				Field:    field.YAMLKey,
-				Category: RepoNoChange,
-				Value:    displayVal,
-			})
-		} else {
-			results = append(results, RepoSettingResult{
-				Field:    field.YAMLKey,
-				Category: WouldSet,
-				Value:    displayVal,
-			})
+			category = RepoNoChange
 		}
+		results = append(results, RepoSettingResult{
+			Field:    field.YAMLKey,
+			Category: category,
+			Value:    displayVal,
+		})
 	}
 
 	return results

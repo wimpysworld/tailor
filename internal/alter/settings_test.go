@@ -340,19 +340,19 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(results) != 4 {
-		t.Fatalf("got %d results, want 4", len(results))
+	want := []alter.RepoSettingResult{
+		{Field: "description", Category: alter.WouldSet, Value: "New"},
+		{Field: "has_wiki", Category: alter.WouldSet, Value: "false"},
+		{Field: "has_issues", Category: alter.RepoNoChange, Value: "true"},
+		{Field: "delete_branch_on_merge", Category: alter.WouldSet, Value: "true"},
 	}
-
-	counts := map[alter.RepoSettingCategory]int{}
-	for _, r := range results {
-		counts[r.Category]++
+	if len(results) != len(want) {
+		t.Fatalf("got %d results, want %d", len(results), len(want))
 	}
-	if counts[alter.WouldSet] != 3 {
-		t.Errorf("WouldSet count = %d, want 3", counts[alter.WouldSet])
-	}
-	if counts[alter.RepoNoChange] != 1 {
-		t.Errorf("RepoNoChange count = %d, want 1", counts[alter.RepoNoChange])
+	for i := range want {
+		if results[i] != want[i] {
+			t.Errorf("result %d = %#v, want %#v", i, results[i], want[i])
+		}
 	}
 }
 
