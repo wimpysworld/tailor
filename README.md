@@ -247,7 +247,7 @@ GitHub requires vulnerability alerts before automated security fixes. When autom
 
 ## Actions Policy
 
-The top-level `actions` section manages the repository Actions policy. Generated configs enable Actions, select restricted actions, allow GitHub-owned and verified actions, disable SHA pinning, and allow the four patterns in the configuration example.
+The top-level `actions` section manages the repository Actions policy. Generated configs enable Actions, select restricted actions, allow GitHub-owned and verified actions, disable SHA pinning, and allow the six patterns in the configuration example.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -258,7 +258,7 @@ The top-level `actions` section manages the repository Actions policy. Generated
 | `verified_allowed` | bool | Allow actions from verified creators when `allowed_actions` is `selected` |
 | `patterns_allowed` | string[] | Complete set of allowed action and reusable workflow patterns |
 
-The selected-action fields require `allowed_actions: selected`. A selected policy must include `github_owned_allowed`, `verified_allowed`, and `patterns_allowed` after default merging. The `patterns_allowed` field replaces the full GitHub list. Tailor ignores list order during comparison. Default merging adds a missing `actions` section and fills missing fields without changing explicit values. For `all` and `local_only`, Tailor does not add selected-only fields. For `selected`, Tailor adds each missing selected-only field. A missing `patterns_allowed` field receives the four approved defaults. Tailor preserves an explicit custom list or `patterns_allowed: []`.
+The selected-action fields require `allowed_actions: selected`. A selected policy must include `github_owned_allowed`, `verified_allowed`, and `patterns_allowed` after default merging. The `patterns_allowed` field replaces the full GitHub list. Tailor ignores list order during comparison. Default merging adds a missing `actions` section and fills missing fields without changing explicit values. For `all` and `local_only`, Tailor does not add selected-only fields. For `selected`, Tailor adds each missing selected-only field. A missing `patterns_allowed` field receives the six approved defaults. Tailor preserves an explicit custom list or `patterns_allowed: []`.
 
 For a transition from `all` or `local_only`, Tailor first sets `enabled: false` and `allowed_actions: selected`. Tailor then applies the complete selected rules before it applies the final core policy. For an existing selected policy, Tailor applies changed selected rules before any core broadening, including disabling SHA pinning. When an enabled policy combines selected broadening with SHA pinning or disabling Actions, Tailor disables Actions before both updates. Broadening means newly allowing GitHub-owned actions, verified actions, or patterns. Tailor also disables Actions before any selected update whose final policy disables Actions. A later update failure leaves Actions disabled and stops the command. If Tailor cannot read an active selected policy, it does not enable Actions or disable SHA pinning. Organisation policy can restrict repository values. Other access failures produce skip results, and other API failures stop the command.
 
