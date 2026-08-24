@@ -56,7 +56,7 @@ Swatch-to-path mappings are hardcoded in the source. Licences are not swatches -
 
 **Repository Settings**: Tailor can manage GitHub repository settings declaratively via the `repository` section in `.tailor.yml`. Field names match the GitHub REST API field names exactly (snake_case). Settings are applied via `PATCH /repos/{owner}/{repo}` as a single API call, with additional fields applied via their own separate API endpoints. Repository settings are always applied idempotently on every `alter` run - there is no `first-fit` concept for API settings. If the `repository` section is absent from `.tailor.yml`, repository settings are skipped entirely.
 
-**Actions policy**: Tailor manages repository GitHub Actions policy through the top-level `actions` section. The built-in defaults enable Actions, use `allowed_actions: selected`, disable SHA pinning, allow GitHub-owned and verified actions, and allow `freerangebytes/setup-actionlint@*`, `golangci/golangci-lint-action@*`, `robherley/go-test-action@*`, and `softprops/action-gh-release@*`. Default merging adds the complete section when it is absent.
+**Actions policy**: Tailor manages repository GitHub Actions policy through the top-level `actions` section. The built-in defaults enable Actions, use `allowed_actions: selected`, disable SHA pinning, allow GitHub-owned and verified actions, and allow `freerangebytes/setup-actionlint@*`, `golang/govulncheck-action@*`, `golangci/golangci-lint-action@*`, `nick-fields/retry@*`, `robherley/go-test-action@*`, and `softprops/action-gh-release@*`. Default merging adds the complete section when it is absent.
 
 **Labels**: Tailor can manage GitHub issue labels declaratively via the `labels` section in `.tailor.yml`. Labels are a top-level config key alongside `repository:` and `swatches:`, not a field within `repository:`. The reconciliation strategy is create and update only - labels present on GitHub but absent from config are left untouched. No pruning. Label name matching is case-insensitive. When a label's name differs only in casing from the config, tailor updates the casing to match. The default config includes 12 labels (9 GitHub defaults plus `dependencies`, `github_actions`, and `hacktoberfest-accepted`) with colours from the Catppuccin Latte accent palette. If the `labels` section is absent from `.tailor.yml`, label management is skipped entirely.
 
@@ -568,7 +568,9 @@ actions:
   verified_allowed: true
   patterns_allowed:
     - freerangebytes/setup-actionlint@*
+    - golang/govulncheck-action@*
     - golangci/golangci-lint-action@*
+    - nick-fields/retry@*
     - robherley/go-test-action@*
     - softprops/action-gh-release@*
 

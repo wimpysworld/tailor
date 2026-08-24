@@ -26,7 +26,9 @@ import (
 
 var approvedDefaultActionPatterns = []string{
 	"freerangebytes/setup-actionlint@*",
+	"golang/govulncheck-action@*",
 	"golangci/golangci-lint-action@*",
+	"nick-fields/retry@*",
 	"robherley/go-test-action@*",
 	"softprops/action-gh-release@*",
 }
@@ -2254,7 +2256,9 @@ swatches:
 		"  verified_allowed: true\n",
 		"  patterns_allowed:\n",
 		"    - \"freerangebytes/setup-actionlint@*\"\n",
+		"    - \"golang/govulncheck-action@*\"\n",
 		"    - \"golangci/golangci-lint-action@*\"\n",
+		"    - \"nick-fields/retry@*\"\n",
 		"    - \"robherley/go-test-action@*\"\n",
 		"    - \"softprops/action-gh-release@*\"\n",
 	} {
@@ -2310,7 +2314,9 @@ swatches:
 		"  verified_allowed: true\n",
 		"  patterns_allowed:\n",
 		"    - \"freerangebytes/setup-actionlint@*\"\n",
+		"    - \"golang/govulncheck-action@*\"\n",
 		"    - \"golangci/golangci-lint-action@*\"\n",
+		"    - \"nick-fields/retry@*\"\n",
 		"    - \"robherley/go-test-action@*\"\n",
 		"    - \"softprops/action-gh-release@*\"\n",
 	} {

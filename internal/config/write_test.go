@@ -46,7 +46,9 @@ actions:
   verified_allowed: true
   patterns_allowed:
     - "freerangebytes/setup-actionlint@*"
+    - "golang/govulncheck-action@*"
     - "golangci/golangci-lint-action@*"
+    - "nick-fields/retry@*"
     - "robherley/go-test-action@*"
     - "softprops/action-gh-release@*"
 
