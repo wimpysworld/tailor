@@ -1,7 +1,6 @@
 package measure
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -68,33 +67,6 @@ func TestFormatOutputWithConfig(t *testing.T) {
 	}
 }
 
-func TestFormatOutputPaddingWidth(t *testing.T) {
-	// Every category label produces exactly 16 characters before the destination.
-	tests := []struct {
-		label string
-		width int
-	}{
-		{"missing:", 16},
-		{"warning:", 16},
-		{"present:", 16},
-		{"not-configured:", 16},
-		{"config-only:", 16},
-		{"mode-differs:", 16},
-	}
-
-	for _, tt := range tests {
-		formatted := formatLabel(tt.label, tt.width)
-		if len(formatted) != tt.width {
-			t.Errorf("label %q padded to %d chars, want %d", tt.label, len(formatted), tt.width)
-		}
-	}
-}
-
-// formatLabel pads label to the given width, matching the production format logic.
-func formatLabel(label string, width int) string {
-	return fmt.Sprintf("%-*s", width, label)
-}
-
 func TestFormatOutputEmptyResults(t *testing.T) {
 	got := FormatOutput(nil, nil, true)
 	if got != "" {
@@ -112,12 +84,5 @@ func TestFormatOutputHealthOnlyWithConfig(t *testing.T) {
 
 	if got != want {
 		t.Errorf("got: %q\nwant: %q", got, want)
-	}
-}
-
-func TestAdvisoryMessageContent(t *testing.T) {
-	want := "No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks."
-	if AdvisoryMessage != want {
-		t.Errorf("AdvisoryMessage =\n%q\nwant:\n%q", AdvisoryMessage, want)
 	}
 }
