@@ -207,6 +207,29 @@ func TestApplyActionsPolicyDisablesBeforeSelectedBroadeningAndSHAPinning(t *test
 	}
 }
 
+func TestSelectedPolicyBroadensPatterns(t *testing.T) {
+	tests := []struct {
+		name    string
+		desired []string
+		current []string
+		want    bool
+	}{
+		{name: "positive addition", desired: []string{"acme/*", "octo/*"}, current: []string{"acme/*"}, want: true},
+		{name: "positive removal", desired: []string{"acme/*"}, current: []string{"acme/*", "octo/*"}},
+		{name: "exclusion addition", desired: []string{"*", "!evil/*"}, current: []string{"*"}},
+		{name: "exclusion removal", desired: []string{"*"}, current: []string{"*", "!evil/*"}, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desired := &model.ActionsSettings{PatternsAllowed: &tt.desired}
+			current := &model.ActionsSettings{PatternsAllowed: &tt.current}
+			if got := selectedPolicyBroadens(desired, current); got != tt.want {
+				t.Fatalf("selectedPolicyBroadens() = %t, want %t", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestApplyActionsPolicyMixedTighteningFailureLeavesActionsDisabled(t *testing.T) {
 	tests := []struct {
 		name            string
