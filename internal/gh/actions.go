@@ -147,9 +147,7 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 			if actionsDisabled {
 				return nil, fmt.Errorf("setting selected actions permissions failed while actions are disabled: %w", err)
 			}
-			classified := classifyHTTPError(err, "set selected actions permissions")
-			if isAccessError(classified) {
-				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "set selected actions permissions", Err: classified})
+			if recordAccessError(result, "set selected actions permissions", err) {
 				appendSkippedDependency(result, "set actions permissions")
 				return result, nil
 			}
@@ -177,10 +175,7 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 	}
 	if selected && coreApplied {
 		if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
-			classified := classifyHTTPError(err, "set selected actions permissions")
-			if isAccessError(classified) {
-				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "set selected actions permissions", Err: classified})
-			} else {
+			if !recordAccessError(result, "set selected actions permissions", err) {
 				return nil, fmt.Errorf("setting selected actions permissions: %w", err)
 			}
 		}
@@ -271,9 +266,7 @@ func actionsSelectedBody(desired *model.ActionsSettings) map[string]any {
 
 func applyActionsWrite(client *api.RESTClient, path string, body map[string]any, operation string, result *ApplyResult) (bool, error) {
 	if err := putActionsPolicy(client, path, body); err != nil {
-		classified := classifyHTTPError(err, operation)
-		if isAccessError(classified) {
-			result.Skipped = append(result.Skipped, SkippedOperation{Operation: operation, Err: classified})
+		if recordAccessError(result, operation, err) {
 			return false, nil
 		}
 		return false, fmt.Errorf("%s: %w", operation, err)
