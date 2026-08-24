@@ -222,13 +222,43 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 		}
 	}
 
-	if p.PrivateVulnerabilityReporting != nil {
-		path := fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name)
-		if _, err := applySecuritySetting(client, path, *p.PrivateVulnerabilityReporting, FeaturePrivateVulnerabilityReporting, result); err != nil {
-			return nil, err
-		}
+	if err := applyPrivateVulnerabilityReporting(client, owner, name, p, result); err != nil {
+		return nil, err
 	}
 
+	if err := applyVulnerabilityAlertsAndFixes(client, owner, name, p, current, result); err != nil {
+		return nil, err
+	}
+
+	if err := applyWorkflowPermissions(client, owner, name, p, result); err != nil {
+		return nil, err
+	}
+
+	if err := applyTopics(client, owner, name, p, result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// applyPrivateVulnerabilityReporting toggles the private vulnerability
+// reporting endpoint when the field is declared.
+func applyPrivateVulnerabilityReporting(client *api.RESTClient, owner, name string, p settingsPayload, result *ApplyResult) error {
+	if p.PrivateVulnerabilityReporting == nil {
+		return nil
+	}
+	path := fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name)
+	_, err := applySecuritySetting(client, path, *p.PrivateVulnerabilityReporting, FeaturePrivateVulnerabilityReporting, result)
+	return err
+}
+
+// applyVulnerabilityAlertsAndFixes sequences the vulnerability-alerts and
+// automated-security-fixes endpoints. GitHub couples the two features, so the
+// order is fixed: disable automated security fixes before disabling
+// vulnerability alerts, and enable vulnerability alerts before enabling
+// automated security fixes. current, when non-nil, supplies the live state so
+// an already disabled fixes feature is not disabled again.
+func applyVulnerabilityAlertsAndFixes(client *api.RESTClient, owner, name string, p settingsPayload, current *model.RepositorySettings, result *ApplyResult) error {
 	alertsPath := fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name)
 	fixesPath := fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name)
 	fixesDisabled := current != nil && current.AutomatedSecurityFixesEnabled != nil && !*current.AutomatedSecurityFixesEnabled
@@ -236,12 +266,12 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 		var err error
 		fixesDisabled, err = applySecuritySetting(client, fixesPath, false, FeatureAutomatedSecurityFixes, result)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
 	if !fixesDisabled && p.VulnerabilityAlerts != nil && !*p.VulnerabilityAlerts {
 		if p.AutomatedSecurityFixes == nil {
-			return nil, fmt.Errorf("cannot disable vulnerability alerts while automated security fixes are unmanaged")
+			return fmt.Errorf("cannot disable vulnerability alerts while automated security fixes are unmanaged")
 		}
 		appendSkippedDependency(result, SecurityFeatureOp(false, FeatureVulnerabilityAlerts))
 	}
@@ -250,7 +280,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 		var err error
 		alertsApplied, err = applySecuritySetting(client, alertsPath, *p.VulnerabilityAlerts, FeatureVulnerabilityAlerts, result)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		if !alertsApplied && p.AutomatedSecurityFixes != nil && *p.AutomatedSecurityFixes {
 			appendSkippedDependency(result, SecurityFeatureOp(true, FeatureAutomatedSecurityFixes))
@@ -258,34 +288,30 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 	}
 	if p.AutomatedSecurityFixes != nil && *p.AutomatedSecurityFixes && alertsApplied {
 		if _, err := applySecuritySetting(client, fixesPath, true, FeatureAutomatedSecurityFixes, result); err != nil {
-			return nil, err
+			return err
 		}
 	}
+	return nil
+}
 
-	if p.DefaultWorkflowPermissions != nil || p.CanApprovePullRequestReviews != nil {
-		if err := applyWorkflowPermissions(client, owner, name, p); err != nil {
-			if !recordAccessError(result, OpSetWorkflowPermissions, err) {
-				return nil, err
-			}
+// applyTopics replaces the repository topics when the field is declared.
+func applyTopics(client *api.RESTClient, owner, name string, p settingsPayload, result *ApplyResult) error {
+	if p.Topics == nil {
+		return nil
+	}
+	topicsBody := struct {
+		Names []string `json:"names"`
+	}{Names: *p.Topics}
+	payload, err := json.Marshal(topicsBody)
+	if err != nil {
+		return fmt.Errorf("marshalling topics: %w", err)
+	}
+	if err := boundedHTTPError(client.Put(fmt.Sprintf("repos/%s/%s/topics", owner, name), bytes.NewReader(payload), nil)); err != nil {
+		if !recordAccessError(result, OpSetTopics, err) {
+			return fmt.Errorf("setting topics: %w", err)
 		}
 	}
-
-	if p.Topics != nil {
-		topicsBody := struct {
-			Names []string `json:"names"`
-		}{Names: *p.Topics}
-		payload, err := json.Marshal(topicsBody)
-		if err != nil {
-			return nil, fmt.Errorf("marshalling topics: %w", err)
-		}
-		if err := boundedHTTPError(client.Put(fmt.Sprintf("repos/%s/%s/topics", owner, name), bytes.NewReader(payload), nil)); err != nil {
-			if !recordAccessError(result, OpSetTopics, err) {
-				return nil, fmt.Errorf("setting topics: %w", err)
-			}
-		}
-	}
-
-	return result, nil
+	return nil
 }
 
 func applySecuritySetting(client *api.RESTClient, path string, enabled bool, feature string, result *ApplyResult) (bool, error) {
@@ -319,10 +345,24 @@ func appendSkippedDependency(result *ApplyResult, operation string) {
 }
 
 // applyWorkflowPermissions sends a PUT to the Actions workflow permissions
-// endpoint. The endpoint replaces both fields atomically, so when only one
-// field is declared in the config, the other is fetched from the current
-// repository state.
-func applyWorkflowPermissions(client *api.RESTClient, owner, name string, p settingsPayload) error {
+// endpoint when either field is declared. The endpoint replaces both fields
+// atomically, so when only one field is declared in the config, the other is
+// fetched from the current repository state. Access errors are recorded in
+// result rather than returned.
+func applyWorkflowPermissions(client *api.RESTClient, owner, name string, p settingsPayload, result *ApplyResult) error {
+	if p.DefaultWorkflowPermissions == nil && p.CanApprovePullRequestReviews == nil {
+		return nil
+	}
+	if err := putWorkflowPermissions(client, owner, name, p); err != nil {
+		if !recordAccessError(result, OpSetWorkflowPermissions, err) {
+			return err
+		}
+	}
+	return nil
+}
+
+// putWorkflowPermissions builds the complete PUT body and sends it.
+func putWorkflowPermissions(client *api.RESTClient, owner, name string, p settingsPayload) error {
 	wfpPath := fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name)
 
 	perms := p.DefaultWorkflowPermissions
