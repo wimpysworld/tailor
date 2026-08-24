@@ -61,7 +61,7 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 
 	for _, r := range sortedSwatches {
 		label := swatchLabel(r, mode)
-		fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Path)
+		fmt.Fprintf(&b, "%-*s%s%s\n", width, label, r.Path, swatchReason(r))
 	}
 
 	return b.String()
@@ -205,6 +205,13 @@ func swatchLabel(r SwatchResult, mode ApplyMode) string {
 	return outputCategory(string(r.Category), mode) + ":"
 }
 
+func swatchReason(r SwatchResult) string {
+	if r.Reason == "" {
+		return ""
+	}
+	return " (" + string(r.Reason) + ")"
+}
+
 // labelWidth computes the column width needed to accommodate all labels. It
 // returns at least defaultLabelWidth, widening if any annotated label exceeds
 // that.
@@ -268,7 +275,7 @@ func sortSwatchResults(results []SwatchResult) []SwatchResult {
 	sorted := make([]SwatchResult, len(results))
 	copy(sorted, results)
 	slices.SortStableFunc(sorted, func(a, b SwatchResult) int {
-		if c := cmp.Compare(swatchOrder(a.Category), swatchOrder(b.Category)); c != 0 {
+		if c := cmp.Compare(swatchOrder(a), swatchOrder(b)); c != 0 {
 			return c
 		}
 		return cmp.Compare(a.Path, b.Path)
@@ -309,10 +316,10 @@ func labelOrder(c LabelCategory) int {
 	}
 }
 
-// swatchOrder returns the sort priority for a SwatchCategory.
+// swatchOrder returns the sort priority for a SwatchResult.
 // Actionable categories sort before informational categories.
-func swatchOrder(c SwatchCategory) int {
-	switch c {
+func swatchOrder(result SwatchResult) int {
+	switch result.Category {
 	case WouldUpdateConfig:
 		return 0
 	case WouldRemove:
@@ -323,9 +330,10 @@ func swatchOrder(c SwatchCategory) int {
 		return 3
 	case NoChange:
 		return 4
-	case SkippedFirstFit:
-		return 5
-	case SkippedNever:
+	case Skipped:
+		if result.Reason == SkipFirstFitExists {
+			return 5
+		}
 		return 6
 	default:
 		return 7

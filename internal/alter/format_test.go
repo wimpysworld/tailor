@@ -10,17 +10,34 @@ func TestFormatOutputSwatchesOnly(t *testing.T) {
 		{Path: ".github/FUNDING.yml", Category: WouldOverwrite},
 		{Path: "CONTRIBUTING.md", Category: WouldCopy},
 		{Path: "LICENSE", Category: NoChange},
-		{Path: ".tailor.yml", Category: SkippedFirstFit},
+		{Path: ".tailor.yml", Category: Skipped, Reason: SkipFirstFitExists},
 	}
 
 	got := FormatOutput(nil, nil, swatches, DryRun)
 	want := "would copy:                          CONTRIBUTING.md\n" +
 		"would overwrite:                     .github/FUNDING.yml\n" +
 		"no change:                           LICENSE\n" +
-		"skipped (first-fit, exists):         .tailor.yml\n"
+		"skipped:                             .tailor.yml (first-fit, exists)\n"
 
 	if got != want {
 		t.Errorf("FormatOutput swatches only:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputSkippedSwatchesAllModes(t *testing.T) {
+	swatches := []SwatchResult{
+		{Path: ".github/pull_request_template.md", Category: Skipped, Reason: SkipModeNever},
+		{Path: ".envrc", Category: Skipped, Reason: SkipFirstFitExists},
+	}
+	want := "skipped:                             .envrc (first-fit, exists)\n" +
+		"skipped:                             .github/pull_request_template.md (mode never)\n"
+
+	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
+		t.Run(fmt.Sprint(mode), func(t *testing.T) {
+			if got := FormatOutput(nil, nil, swatches, mode); got != want {
+				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, want)
+			}
+		})
 	}
 }
 
@@ -80,7 +97,7 @@ func TestFormatOutputEmptySlices(t *testing.T) {
 func TestFormatOutputSwatchSorting(t *testing.T) {
 	swatches := []SwatchResult{
 		{Path: "Z-file.md", Category: NoChange},
-		{Path: "A-file.md", Category: SkippedFirstFit},
+		{Path: "A-file.md", Category: Skipped, Reason: SkipFirstFitExists},
 		{Path: "B-file.md", Category: WouldCopy},
 		{Path: "A-file.md", Category: WouldOverwrite},
 		{Path: "C-file.md", Category: WouldCopy},
@@ -93,7 +110,7 @@ func TestFormatOutputSwatchSorting(t *testing.T) {
 		"would overwrite:                     A-file.md\n" +
 		"no change:                           M-file.md\n" +
 		"no change:                           Z-file.md\n" +
-		"skipped (first-fit, exists):         A-file.md\n"
+		"skipped:                             A-file.md (first-fit, exists)\n"
 
 	if got != want {
 		t.Errorf("FormatOutput swatch sorting:\ngot:\n%s\nwant:\n%s", got, want)
@@ -184,8 +201,7 @@ func TestFormatOutputColumnAlignment(t *testing.T) {
 		"would remove:",
 		"removed:",
 		"no change:",
-		"skipped (first-fit, exists):",
-		"skip (never):",
+		"skipped:",
 		"would set:",
 		"would skip (insufficient scope):",
 	}
@@ -202,7 +218,7 @@ func TestFormatOutputActionableBeforeInformational(t *testing.T) {
 	// All informational first in input, actionable should appear first in output.
 	swatches := []SwatchResult{
 		{Path: "info1.md", Category: NoChange},
-		{Path: "info2.md", Category: SkippedFirstFit},
+		{Path: "info2.md", Category: Skipped, Reason: SkipFirstFitExists},
 		{Path: "action1.md", Category: WouldCopy},
 		{Path: "action2.md", Category: WouldOverwrite},
 	}
@@ -211,7 +227,7 @@ func TestFormatOutputActionableBeforeInformational(t *testing.T) {
 	want := "would copy:                          action1.md\n" +
 		"would overwrite:                     action2.md\n" +
 		"no change:                           info1.md\n" +
-		"skipped (first-fit, exists):         info2.md\n"
+		"skipped:                             info2.md (first-fit, exists)\n"
 
 	if got != want {
 		t.Errorf("FormatOutput actionable before informational:\ngot:\n%s\nwant:\n%s", got, want)
@@ -330,6 +346,25 @@ func TestFormatOutputSkipAnnotationMixed(t *testing.T) {
 
 	if got != want {
 		t.Errorf("FormatOutput skip annotation mixed:\ngot:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+func TestFormatOutputDynamicWidthWithSkippedSwatches(t *testing.T) {
+	repos := []RepoSettingResult{
+		{Field: "default_workflow_permissions", Category: WouldSkipScope, Annotation: "token missing required scope"},
+	}
+	swatches := []SwatchResult{
+		{Path: ".github/pull_request_template.md", Category: Skipped, Reason: SkipModeNever},
+		{Path: ".envrc", Category: Skipped, Reason: SkipFirstFitExists},
+	}
+
+	got := FormatOutput(repos, nil, swatches, DryRun)
+	want := "would skip (insufficient scope: token missing required scope): default_workflow_permissions\n" +
+		"skipped:                                                       .envrc (first-fit, exists)\n" +
+		"skipped:                                                       .github/pull_request_template.md (mode never)\n"
+
+	if got != want {
+		t.Errorf("FormatOutput dynamic width with skipped swatches:\ngot:\n%s\nwant:\n%s", got, want)
 	}
 }
 

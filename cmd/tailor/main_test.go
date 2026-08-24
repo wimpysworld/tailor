@@ -9,7 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wimpysworld/tailor/internal/alter"
+	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
 func TestFitNewDirectoryDefaultConfig(t *testing.T) {
@@ -197,49 +200,60 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 	}
 }
 
-// setupAlterTest creates a temp directory with a minimal .tailor.yml,
-// starts an httptest server that handles the API calls alter.Run makes,
-// sets GH_TOKEN so go-gh creates a client, redirects http.DefaultTransport
-// to the test server, and chdir to the temp directory.
-func setupAlterTest(t *testing.T) {
+func setupSwatchCommandTest(t *testing.T) (string, *strings.Builder, func(alter.ApplyMode) error) {
 	t.Helper()
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeNoRepo(t)
 
 	dir := t.TempDir()
-	cfg := "license: none\nswatches: []\n"
+	cfg := `license: none
+swatches:
+  - path: .envrc
+    alteration: first-fit
+  - path: .github/pull_request_template.md
+    alteration: never
+  - path: SUPPORT.md
+    alteration: always
+`
 	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte(cfg), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/user"):
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(map[string]string{"login": "testuser"})
-		default:
-			w.WriteHeader(http.StatusNotFound)
+	for path, content := range map[string]string{
+		".envrc":                           "custom envrc\n",
+		".github/pull_request_template.md": "custom pull request template\n",
+	} {
+		fullPath := filepath.Join(dir, path)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
+			t.Fatalf("MkdirAll: %v", err)
 		}
-	}))
-	t.Cleanup(srv.Close)
-
-	oldTransport := http.DefaultTransport
-	http.DefaultTransport = &redirectTransport{
-		target:   srv.URL,
-		delegate: oldTransport,
+		if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
 	}
-	t.Cleanup(func() { http.DefaultTransport = oldTransport })
 
-	t.Setenv("GH_TOKEN", "gho_test")
+	var output strings.Builder
+	run := func(mode alter.ApplyMode) error {
+		cfg, err := config.Load(dir)
+		if err != nil {
+			return err
+		}
+		results, err := alter.ProcessSwatches(cfg, dir, mode, &alter.TokenContext{})
+		if err != nil {
+			return err
+		}
+		output.WriteString(alter.FormatOutput(nil, nil, results, mode))
+		return nil
+	}
+	return dir, &output, run
+}
 
-	oldDir, err := os.Getwd()
+func requireFileContent(t *testing.T, path, want string) {
+	t.Helper()
+	got, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("Getwd: %v", err)
+		t.Fatalf("ReadFile(%q): %v", path, err)
 	}
-	if err := os.Chdir(dir); err != nil {
-		t.Fatalf("Chdir: %v", err)
+	if string(got) != want {
+		t.Errorf("ReadFile(%q) = %q, want %q", path, got, want)
 	}
-	t.Cleanup(func() { _ = os.Chdir(oldDir) })
 }
 
 // redirectTransport sends all requests to the test server, preserving the
@@ -257,19 +271,71 @@ func (rt *redirectTransport) RoundTrip(req *http.Request) (*http.Response, error
 }
 
 func TestBasteCmdRun(t *testing.T) {
-	setupAlterTest(t)
-	cmd := BasteCmd{}
+	dir, output, run := setupSwatchCommandTest(t)
+	cmd := BasteCmd{run: run}
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("BasteCmd.Run() error: %v", err)
 	}
+
+	want := "would copy:                          SUPPORT.md\n" +
+		"skipped:                             .envrc (first-fit, exists)\n" +
+		"skipped:                             .github/pull_request_template.md (mode never)\n"
+	if output.String() != want {
+		t.Errorf("stdout =\n%s\nwant:\n%s", output.String(), want)
+	}
+	requireFileContent(t, filepath.Join(dir, ".envrc"), "custom envrc\n")
+	requireFileContent(t, filepath.Join(dir, ".github/pull_request_template.md"), "custom pull request template\n")
+	if _, err := os.Stat(filepath.Join(dir, "SUPPORT.md")); !os.IsNotExist(err) {
+		t.Errorf("Stat(SUPPORT.md) error = %v, want file not to exist", err)
+	}
+}
+
+func TestAlterCmdRun(t *testing.T) {
+	dir, output, run := setupSwatchCommandTest(t)
+	cmd := AlterCmd{run: run}
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("AlterCmd.Run() error: %v", err)
+	}
+
+	want := "copied:                              SUPPORT.md\n" +
+		"skipped:                             .envrc (first-fit, exists)\n" +
+		"skipped:                             .github/pull_request_template.md (mode never)\n"
+	if output.String() != want {
+		t.Errorf("stdout =\n%s\nwant:\n%s", output.String(), want)
+	}
+	requireFileContent(t, filepath.Join(dir, ".envrc"), "custom envrc\n")
+	requireFileContent(t, filepath.Join(dir, ".github/pull_request_template.md"), "custom pull request template\n")
+	wantSupport, err := swatch.Content("SUPPORT.md")
+	if err != nil {
+		t.Fatalf("swatch.Content(): %v", err)
+	}
+	requireFileContent(t, filepath.Join(dir, "SUPPORT.md"), string(wantSupport))
 }
 
 func TestAlterCmdRunRecut(t *testing.T) {
-	setupAlterTest(t)
-	cmd := AlterCmd{Recut: true}
+	dir, output, run := setupSwatchCommandTest(t)
+	cmd := AlterCmd{Recut: true, run: run}
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("AlterCmd{Recut: true}.Run() error: %v", err)
 	}
+
+	want := "copied:                              SUPPORT.md\n" +
+		"overwritten:                         .envrc\n" +
+		"skipped:                             .github/pull_request_template.md (mode never)\n"
+	if output.String() != want {
+		t.Errorf("stdout =\n%s\nwant:\n%s", output.String(), want)
+	}
+	wantEnvrc, err := swatch.Content(".envrc")
+	if err != nil {
+		t.Fatalf("swatch.Content(): %v", err)
+	}
+	requireFileContent(t, filepath.Join(dir, ".envrc"), string(wantEnvrc))
+	requireFileContent(t, filepath.Join(dir, ".github/pull_request_template.md"), "custom pull request template\n")
+	wantSupport, err := swatch.Content("SUPPORT.md")
+	if err != nil {
+		t.Fatalf("swatch.Content(): %v", err)
+	}
+	requireFileContent(t, filepath.Join(dir, "SUPPORT.md"), string(wantSupport))
 }
 
 func TestDocketAuthenticated(t *testing.T) {
