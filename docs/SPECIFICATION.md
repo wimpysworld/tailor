@@ -301,6 +301,8 @@ Output contract - repository settings and Actions policy settings are shown firs
 | Retired workflow file exists | `would remove` | `removed` |
 | Licence or swatch destination is absent | `would copy` | `copied` |
 | Swatch destination is replaced | `would overwrite` | `overwritten` |
+| Licence exists, or a `first-fit` swatch exists without `--recut` | `skipped: <path> (first-fit, exists)` | `skipped: <path> (first-fit, exists)` |
+| Swatch mode is `never` | `skipped: <path> (mode never)` | `skipped: <path> (mode never)` |
 
 Repository settings output uses the following categories:
 
@@ -363,11 +365,11 @@ would remove:                               .github/workflows/tailor.yml
 would copy:                                 LICENSE
 would overwrite:                            SECURITY.md
 no change:                                  CODE_OF_CONDUCT.md
-skipped (first-fit, exists):                justfile
-skip (never):                               .github/dependabot.yml
+skipped:                                    .envrc (first-fit, exists)
+skipped:                                    .github/pull_request_template.md (mode never)
 ```
 
-`alter` and `alter --recut`:
+`alter`:
 
 ```
 updated:                                .tailor.yml
@@ -375,6 +377,16 @@ removed:                                .github/workflows/tailor-automerge.yml
 removed:                                .github/workflows/tailor.yml
 copied:                                 LICENSE
 overwritten:                            SECURITY.md
+skipped:                                .envrc (first-fit, exists)
+skipped:                                .github/pull_request_template.md (mode never)
+```
+
+`alter --recut` overwrites existing `first-fit` swatches, but it uses the same skip format for an existing licence and a `never` swatch:
+
+```
+overwritten:                            .envrc
+skipped:                                LICENSE (first-fit, exists)
+skipped:                                .github/pull_request_template.md (mode never)
 ```
 
 `would update` - `baste` found built-in defaults to merge, retired workflow entries to remove, or a security prerequisite to normalise. Security normalisation also emits its warning. Multiple config changes produce one `.tailor.yml` result.
@@ -385,11 +397,11 @@ overwritten:                            SECURITY.md
 `copied` - `alter` or `alter --recut` copied the licence or swatch.
 `would overwrite` - `always` swatch whose embedded content differs from the on-disk file.
 `overwritten` - `alter` or `alter --recut` overwrote the swatch.
-`no change` - `always` swatch whose embedded content matches the on-disk file. `first-fit` swatches that exist always produce `skipped (first-fit, exists)`, never `no change`. Substituted swatches participate in the normal SHA-256 comparison after token resolution and can produce `no change` when the resolved content matches the on-disk file.
-`skipped (first-fit, exists)` - `first-fit` swatch whose destination already exists; no comparison is performed.
-`skip (never)` - swatch with `alteration: never`; skipped unconditionally.
+`no change` - `always` swatch whose embedded content matches the on-disk file. Existing `first-fit` swatches always produce `skipped: <path> (first-fit, exists)`, never `no change`. Substituted swatches participate in the normal SHA-256 comparison after token resolution and can produce `no change` when the resolved content matches the on-disk file.
+`skipped: <path> (first-fit, exists)` - `first-fit` swatch whose destination already exists. Tailor does not compare the content.
+`skipped: <path> (mode never)` - swatch with `alteration: never`. Tailor skips the swatch in all three commands.
 
-File results put actionable categories first: update, remove, copy, and overwrite. Informational categories follow: `no change`, `skipped (first-fit, exists)`, and `skip (never)`. The planned or completed tense does not change this order. Entries are sorted lexicographically by path within each category.
+File results put actionable categories first: update, remove, copy, and overwrite. Informational categories follow: `no change`, then `skipped`. First-fit skip results precede never-mode skip results. Entries are sorted lexicographically by path within each category and reason. The planned or completed tense does not change this order.
 
 The category label width is computed dynamically from the longest label in the full output, with a minimum of 37 characters. Access-warning annotations can increase the width.
 

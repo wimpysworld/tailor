@@ -91,6 +91,7 @@ func (f *FitCmd) Run() error {
 // AlterCmd applies swatch templates to the current project.
 type AlterCmd struct {
 	Recut bool `help:"Overwrite all files regardless of mode or existence." name:"recut"`
+	run   func(alter.ApplyMode) error
 }
 
 // Run executes the alter command.
@@ -99,14 +100,22 @@ func (a *AlterCmd) Run() error {
 	if a.Recut {
 		mode = alter.Recut
 	}
+	if a.run != nil {
+		return a.run(mode)
+	}
 	return runAlter(mode)
 }
 
 // BasteCmd previews what alter would do without making any changes.
-type BasteCmd struct{}
+type BasteCmd struct {
+	run func(alter.ApplyMode) error
+}
 
 // Run executes the baste command.
 func (b *BasteCmd) Run() error {
+	if b.run != nil {
+		return b.run(alter.DryRun)
+	}
 	return runAlter(alter.DryRun)
 }
 

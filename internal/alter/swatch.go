@@ -21,14 +21,22 @@ const (
 	WouldOverwrite    SwatchCategory = "would overwrite"
 	WouldRemove       SwatchCategory = "would remove"
 	NoChange          SwatchCategory = "no change"
-	SkippedFirstFit   SwatchCategory = "skipped (first-fit, exists)"
-	SkippedNever      SwatchCategory = "skip (never)"
+	Skipped           SwatchCategory = "skipped"
+)
+
+// SwatchReason explains why a swatch was skipped.
+type SwatchReason string
+
+const (
+	SkipFirstFitExists SwatchReason = "first-fit, exists"
+	SkipModeNever      SwatchReason = "mode never"
 )
 
 // SwatchResult records the path and categorised outcome for one swatch entry.
 type SwatchResult struct {
 	Path     string
 	Category SwatchCategory
+	Reason   SwatchReason
 }
 
 // configPath is the path of the config swatch entry.
@@ -72,7 +80,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode ApplyMode) (SwatchResult, error) {
 	// Never mode skips unconditionally, regardless of apply mode or file existence.
 	if entry.Alteration == swatch.Never {
-		return SwatchResult{Path: entry.Path, Category: SkippedNever}, nil
+		return SwatchResult{Path: entry.Path, Category: Skipped, Reason: SkipModeNever}, nil
 	}
 
 	exists, err := rootFileExists(root, entry.Path)
@@ -96,7 +104,7 @@ func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode
 
 func processFirstFit(root *os.Root, entry config.SwatchEntry, content []byte, exists bool, mode ApplyMode) (SwatchResult, error) {
 	if exists {
-		return SwatchResult{Path: entry.Path, Category: SkippedFirstFit}, nil
+		return SwatchResult{Path: entry.Path, Category: Skipped, Reason: SkipFirstFitExists}, nil
 	}
 	if mode.ShouldWrite() {
 		if err := writeFile(root, entry.Path, content); err != nil {

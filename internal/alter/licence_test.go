@@ -95,8 +95,8 @@ func TestProcessLicenceSkippedWhenPresent(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if result.Category != alter.SkippedFirstFit {
-		t.Errorf("category = %q, want %q", result.Category, alter.SkippedFirstFit)
+	if result.Category != alter.Skipped || result.Reason != alter.SkipFirstFitExists {
+		t.Errorf("result = %+v, want skipped because first-fit destination exists", result)
 	}
 
 	// Dry-run leaves the file unchanged.
@@ -126,8 +126,8 @@ func TestProcessLicenceExemptFromRecut(t *testing.T) {
 	if result == nil {
 		t.Fatal("expected non-nil result")
 	}
-	if result.Category != alter.SkippedFirstFit {
-		t.Errorf("category = %q, want %q", result.Category, alter.SkippedFirstFit)
+	if result.Category != alter.Skipped || result.Reason != alter.SkipFirstFitExists {
+		t.Errorf("result = %+v, want skipped because first-fit destination exists", result)
 	}
 
 	data, err := os.ReadFile(filepath.Join(dir, "LICENSE"))

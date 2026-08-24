@@ -823,9 +823,8 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 
-	// first-fit .gitignore exists: "skipped (first-fit, exists)".
-	requireContains(t, output, "skipped (first-fit, exists):")
-	requireContains(t, output, ".gitignore")
+	// Existing first-fit destinations report the path before the reason.
+	requireContains(t, output, "skipped:                             .gitignore (first-fit, exists)")
 
 	// Non-substituted always CODE_OF_CONDUCT.md with matching content: "no change".
 	requireContains(t, output, "no change:")
@@ -836,8 +835,8 @@ swatches:
 	requireContains(t, output, "would overwrite:")
 	requireContains(t, output, "SECURITY.md")
 
-	// Licence exists: "skipped (first-fit, exists)".
-	requireContains(t, output, "LICENSE")
+	// The existing licence uses the same first-fit skip format.
+	requireContains(t, output, "skipped:                             LICENSE (first-fit, exists)")
 
 	// Repo setting matches: "no change".
 	requireContains(t, output, "repository.has_wiki")
@@ -876,7 +875,7 @@ swatches:
 	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 
 	// Existing first-fit swatches are skipped.
-	requireContains(t, output, "skipped (first-fit, exists):")
+	requireContains(t, output, "skipped:                             .gitignore (first-fit, exists)")
 
 	// Existing always swatches with matching content report no change.
 	requireContains(t, output, "no change:")
@@ -887,6 +886,34 @@ swatches:
 
 	// Missing licences share the same copy status.
 	requireContains(t, output, "LICENSE")
+}
+
+func TestAlterRunSkippedOutputAllModes(t *testing.T) {
+	const configYAML = `license: mit
+swatches:
+  - path: .envrc
+    alteration: first-fit
+  - path: .github/pull_request_template.md
+    alteration: never
+`
+
+	for _, mode := range []alter.ApplyMode{alter.DryRun, alter.Apply, alter.Recut} {
+		t.Run(fmt.Sprint(mode), func(t *testing.T) {
+			tc := setupAlterTest(t, configYAML, WithLicence("mit", "unused"))
+			writeOnDisk(t, tc.Dir, ".envrc", []byte("existing"))
+			writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+			cfg := loadTestConfig(t, tc.Dir)
+			output := captureAlterRun(t, cfg, tc.Dir, mode, tc.Client)
+			if mode == alter.Recut {
+				requireContains(t, output, "skipped:                             LICENSE (first-fit, exists)")
+			} else {
+				requireContains(t, output, "skipped:                             .envrc (first-fit, exists)")
+			}
+			requireContains(t, output, "skipped:                             .github/pull_request_template.md (mode never)")
+			requireNotContains(t, output, "would skip")
+		})
+	}
 }
 
 // TestAlterRunDryRunAlwaysSwatchDiffersContent verifies that a non-substituted
@@ -1058,7 +1085,7 @@ swatches:
 
 	// Classify each line as actionable or informational.
 	actionableLabels := []string{"would set:", "would copy:", "would overwrite:"}
-	informationalLabels := []string{"no change:", "skipped (first-fit, exists):"}
+	informationalLabels := []string{"no change:", "skipped:"}
 
 	isActionable := func(line string) bool {
 		for _, label := range actionableLabels {
@@ -1146,7 +1173,7 @@ swatches:
 		"would copy:",
 		"would overwrite:",
 		"no change:",
-		"skipped (first-fit, exists):",
+		"skipped:",
 		"would set:",
 	}
 

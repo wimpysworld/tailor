@@ -76,8 +76,8 @@ func TestFirstFitSkipWhenExists(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("got %d results, want 1", len(results))
 	}
-	if results[0].Category != alter.SkippedFirstFit {
-		t.Errorf("category = %q, want %q", results[0].Category, alter.SkippedFirstFit)
+	if results[0].Category != alter.Skipped || results[0].Reason != alter.SkipFirstFitExists {
+		t.Errorf("result = %+v, want skipped because first-fit destination exists", results[0])
 	}
 }
 
@@ -284,8 +284,8 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 			if len(results) != 1 {
 				t.Fatalf("got %d results, want 1", len(results))
 			}
-			if results[0].Category != alter.SkippedNever {
-				t.Errorf("category = %q, want %q", results[0].Category, alter.SkippedNever)
+			if results[0].Category != alter.Skipped || results[0].Reason != alter.SkipModeNever {
+				t.Errorf("result = %+v, want skipped because mode is never", results[0])
 			}
 			if _, err := os.Stat(filepath.Join(dir, ".gitignore")); err == nil {
 				t.Error("never mode wrote file to disk")
@@ -303,8 +303,8 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 			if len(results) != 1 {
 				t.Fatalf("got %d results, want 1", len(results))
 			}
-			if results[0].Category != alter.SkippedNever {
-				t.Errorf("category = %q, want %q", results[0].Category, alter.SkippedNever)
+			if results[0].Category != alter.Skipped || results[0].Reason != alter.SkipModeNever {
+				t.Errorf("result = %+v, want skipped because mode is never", results[0])
 			}
 			data, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
 			if err != nil {

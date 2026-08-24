@@ -353,6 +353,8 @@ tailor baste
 | `would copy` | `copied` |
 | `would overwrite` | `overwritten` |
 
+`skipped` and `no change` use the same labels in all three commands. A skipped file shows its reason after the path.
+
 A default merge, retired-entry cleanup, or security prerequisite normalisation in `.tailor.yml` reports `would update` in `baste`. Security normalisation also shows a warning. After a successful write, `alter` reports `updated`.
 
 Each present retired workflow file reports `would remove` in `baste` and `removed` after deletion.
@@ -365,8 +367,8 @@ would remove:                        .github/workflows/tailor.yml
 would copy:                          LICENSE
 would overwrite:                     SECURITY.md
 no change:                           CODE_OF_CONDUCT.md
-skipped (first-fit, exists):         justfile
-skip (never):                        .github/dependabot.yml
+skipped:                             .envrc (first-fit, exists)
+skipped:                             .github/pull_request_template.md (mode never)
 ```
 
 ### `docket`
