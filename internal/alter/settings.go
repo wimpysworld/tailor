@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/model"
@@ -38,17 +37,16 @@ type RepoSettingResult struct {
 
 // ProcessRepoSettings compares declared settings against live settings
 // and optionally applies them. Returns results for output formatting.
-func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTClient, owner, name string, hasRepo bool) ([]RepoSettingResult, error) {
+func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]RepoSettingResult, error) {
 	if cfg.Repository == nil {
 		return nil, nil
 	}
 
-	if !hasRepo {
-		fmt.Fprintln(os.Stderr, "No GitHub repository context found. Repository settings will be applied once a remote is configured.")
+	if target.missingRepo("Repository settings") {
 		return nil, nil
 	}
 
-	live, warnings, err := gh.ReadRepoSettings(client, owner, name)
+	live, warnings, err := gh.ReadRepoSettings(target.Client, target.Owner, target.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +81,7 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, client *api.RESTCli
 	results = append(results, skipResults...)
 
 	if mode.ShouldWrite() && hasChanges(results) {
-		applyResult, err := gh.ApplyRepoSettingsWithCurrent(client, owner, name, settingsForApply(cfg.Repository, results), live)
+		applyResult, err := gh.ApplyRepoSettingsWithCurrent(target.Client, target.Owner, target.Name, settingsForApply(cfg.Repository, results), live)
 		if err != nil {
 			return nil, err
 		}

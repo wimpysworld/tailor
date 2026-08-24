@@ -64,7 +64,7 @@ func failingLabelsServer() *httptest.Server {
 
 func TestProcessLabelsNoLabels(t *testing.T) {
 	cfg := &config.Config{}
-	results, err := alter.ProcessLabels(cfg, alter.DryRun, nil, "", "", false)
+	results, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(nil, "", "", false))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestProcessLabelsNoRepoContext(t *testing.T) {
 	var err error
 
 	output := captureStderr(t, func() {
-		results, err = alter.ProcessLabels(cfg, alter.DryRun, nil, "", "", false)
+		results, err = alter.ProcessLabels(cfg, alter.DryRun, repoTarget(nil, "", "", false))
 	})
 
 	if err != nil {
@@ -116,7 +116,7 @@ func TestProcessLabelsWouldCreate(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessLabels(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	results, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -147,7 +147,7 @@ func TestProcessLabelsWouldUpdate(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessLabels(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	results, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -175,7 +175,7 @@ func TestProcessLabelsNoChange(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessLabels(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	results, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -203,7 +203,7 @@ func TestProcessLabelsCaseInsensitiveMatch(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessLabels(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	results, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestProcessLabelsApplyCallsAPI(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessLabels(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	_, err := alter.ProcessLabels(cfg, alter.Apply, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestProcessLabelsRecutCallsAPI(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessLabels(cfg, alter.Recut, client, "testowner", "testrepo", true)
+	_, err := alter.ProcessLabels(cfg, alter.Recut, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -278,7 +278,7 @@ func TestProcessLabelsDryRunDoesNotCallAPI(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessLabels(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	_, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestProcessLabelsNoApplyWhenAllMatch(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessLabels(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	_, err := alter.ProcessLabels(cfg, alter.Apply, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -328,7 +328,7 @@ func TestProcessLabelsErrorPropagated(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessLabels(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	_, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(client, "testowner", "testrepo", true))
 	if err == nil {
 		t.Fatal("expected error from API failure, got nil")
 	}
@@ -353,7 +353,7 @@ func TestProcessLabelsMixedResults(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessLabels(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	results, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -388,7 +388,7 @@ func TestProcessLabelsUpdateDescriptionOnly(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessLabels(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	results, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -416,7 +416,7 @@ func TestProcessLabelsColorCaseInsensitive(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessLabels(cfg, alter.DryRun, client, "testowner", "testrepo", true)
+	results, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -445,7 +445,7 @@ func TestProcessLabelsCasingOnlyApplyCallsAPI(t *testing.T) {
 		},
 	}
 
-	_, err := alter.ProcessLabels(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	_, err := alter.ProcessLabels(cfg, alter.Apply, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -471,7 +471,7 @@ func TestProcessLabelsExactNameNoChange(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessLabels(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	results, err := alter.ProcessLabels(cfg, alter.Apply, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -536,7 +536,7 @@ func TestProcessLabelsPartialApplicationWithSkipped(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessLabels(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	results, err := alter.ProcessLabels(cfg, alter.Apply, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -604,7 +604,7 @@ func TestProcessLabelsSkipDoesNotAbort(t *testing.T) {
 		},
 	}
 
-	results, err := alter.ProcessLabels(cfg, alter.Apply, client, "testowner", "testrepo", true)
+	results, err := alter.ProcessLabels(cfg, alter.Apply, repoTarget(client, "testowner", "testrepo", true))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
