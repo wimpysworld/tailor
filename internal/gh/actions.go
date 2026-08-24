@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
@@ -168,11 +169,25 @@ func selectedPolicyBroadens(desired, current *model.ActionsSettings) bool {
 		return false
 	}
 
-	desiredPatterns := slices.Clone(*desired.PatternsAllowed)
-	currentPatterns := slices.Clone(*current.PatternsAllowed)
-	slices.Sort(desiredPatterns)
-	slices.Sort(currentPatterns)
-	return !slices.Equal(desiredPatterns, currentPatterns)
+	desiredPatterns := make(map[string]bool, len(*desired.PatternsAllowed))
+	for _, pattern := range *desired.PatternsAllowed {
+		desiredPatterns[pattern] = true
+	}
+	currentPatterns := make(map[string]bool, len(*current.PatternsAllowed))
+	for _, pattern := range *current.PatternsAllowed {
+		currentPatterns[pattern] = true
+	}
+	for pattern := range desiredPatterns {
+		if !strings.HasPrefix(pattern, "!") && !currentPatterns[pattern] {
+			return true
+		}
+	}
+	for pattern := range currentPatterns {
+		if strings.HasPrefix(pattern, "!") && !desiredPatterns[pattern] {
+			return true
+		}
+	}
+	return false
 }
 
 func actionsCoreBody(desired, current *model.ActionsSettings) (map[string]any, error) {
