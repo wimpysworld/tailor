@@ -20,12 +20,8 @@ var (
 // swatch. Returns an error listing the unrecognised path and all valid paths.
 func ValidatePaths(cfg *Config) error {
 	valid := swatch.Paths()
-	known := make(map[string]bool, len(valid))
-	for _, name := range valid {
-		known[name] = true
-	}
 	for _, s := range cfg.Swatches {
-		if !known[s.Path] {
+		if !slices.Contains(valid, s.Path) {
 			return fmt.Errorf("unrecognised swatch path %q in config; valid paths: %s",
 				s.Path, strings.Join(valid, ", "))
 		}
