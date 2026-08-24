@@ -18,7 +18,7 @@ type ErrInsufficientScope struct {
 	NeedScopes  []string // parsed from X-Accepted-OAuth-Scopes
 	Message     string   // from JSON body
 	DocumentURL string   // from JSON body
-	Operation   string   // e.g. "enable vulnerability alerts"
+	Operation   Operation
 }
 
 func (e *ErrInsufficientScope) Error() string {
@@ -57,7 +57,7 @@ func parseCSVScopes(header string) []string {
 // classifyHTTPError inspects err for a *api.HTTPError and, on 403 or 404,
 // returns an *ErrInsufficientScope. Non-HTTP errors
 // and non-403/404 HTTP errors pass through unchanged.
-func classifyHTTPError(err error, operation string) error {
+func classifyHTTPError(err error, operation Operation) error {
 	if err == nil {
 		return nil
 	}

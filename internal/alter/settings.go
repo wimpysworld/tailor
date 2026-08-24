@@ -24,14 +24,16 @@ const (
 )
 
 // RepoSettingResult records the field name, category, and display value for one
-// repository setting. Annotation carries optional context for skip categories,
-// embedded in the label (e.g. "token missing required scope").
+// repository setting. Skip results for write operations leave Field empty and
+// carry the skipped Operation instead. Annotation carries optional context for
+// skip categories, embedded in the label (e.g. "token missing required scope").
 type RepoSettingResult struct {
 	Section    string
 	Field      string
 	Category   RepoSettingCategory
 	Value      string
 	Annotation string
+	Operation  gh.Operation
 }
 
 // ProcessRepoSettings compares declared settings against live settings
@@ -125,7 +127,7 @@ func skippedToResults(ar *gh.ApplyResult) []RepoSettingResult {
 	var results []RepoSettingResult
 	for _, sk := range ar.Skipped {
 		results = append(results, RepoSettingResult{
-			Field:      sk.Operation,
+			Operation:  sk.Operation,
 			Category:   WouldSkipScope,
 			Annotation: skipAnnotation,
 		})
@@ -178,9 +180,9 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 	return results
 }
 
-// readWarningOperationFields maps read-path operation names from
+// readWarningOperationFields maps read-path operation kinds from
 // ErrInsufficientScope to the config field names they affect.
-var readWarningOperationFields = map[string][]string{
+var readWarningOperationFields = map[gh.OperationKind][]string{
 	gh.OpFetchVulnerabilityAlerts:           {"vulnerability_alerts_enabled"},
 	gh.OpFetchAutomatedSecurityFixes:        {"automated_security_fixes_enabled"},
 	gh.OpFetchPrivateVulnerabilityReporting: {"private_vulnerability_reporting_enabled"},
@@ -262,13 +264,13 @@ func declaredFieldNames(s *model.RepositorySettings) map[string]bool {
 	return names
 }
 
-// warningOperation extracts the Operation field from a read-path warning.
-func warningOperation(err error) string {
+// warningOperation extracts the operation kind from a read-path warning.
+func warningOperation(err error) gh.OperationKind {
 	var scopeErr *gh.ErrInsufficientScope
 	if errors.As(err, &scopeErr) {
-		return scopeErr.Operation
+		return scopeErr.Operation.Kind
 	}
-	return ""
+	return gh.OpNone
 }
 
 // hasChanges returns true if any result is WouldSet.

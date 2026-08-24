@@ -85,7 +85,7 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 	adminRead := false
 	var wfPerms workflowPermissionsResponse
 	if err := boundedHTTPError(client.Get(fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name), &wfPerms)); err != nil {
-		classified := classifyHTTPError(err, OpFetchWorkflowPermissions)
+		classified := classifyHTTPError(err, Op(OpFetchWorkflowPermissions))
 		if isAccessError(classified) {
 			warnings = append(warnings, classified)
 		} else {
@@ -99,26 +99,26 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 
 	securityFeatures := []struct {
 		path             string
-		operation        string
+		operation        Operation
 		statusOnly       bool
 		allow404Disabled bool
 		set              func(bool)
 	}{
 		{
 			path:      fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name),
-			operation: OpFetchPrivateVulnerabilityReporting,
+			operation: Op(OpFetchPrivateVulnerabilityReporting),
 			set:       func(enabled bool) { s.PrivateVulnerabilityReportEnabled = new(enabled) },
 		},
 		{
 			path:             fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name),
-			operation:        OpFetchVulnerabilityAlerts,
+			operation:        Op(OpFetchVulnerabilityAlerts),
 			statusOnly:       true,
 			allow404Disabled: adminRead && repo.Permissions.Admin,
 			set:              func(enabled bool) { s.VulnerabilityAlertsEnabled = new(enabled) },
 		},
 		{
 			path:             fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name),
-			operation:        OpFetchAutomatedSecurityFixes,
+			operation:        Op(OpFetchAutomatedSecurityFixes),
 			allow404Disabled: adminRead && repo.Permissions.Admin,
 			set:              func(enabled bool) { s.AutomatedSecurityFixesEnabled = new(enabled) },
 		},
@@ -170,8 +170,8 @@ func readSecurityFeature(client *api.RESTClient, path string, statusOnly, allow4
 // SkippedOperation records a sub-operation that was skipped due to
 // insufficient token scope.
 type SkippedOperation struct {
-	Operation string // e.g. "set workflow permissions"
-	Err       error  // *ErrInsufficientScope
+	Operation Operation
+	Err       error // *ErrInsufficientScope
 }
 
 // ApplyResult collects the outcome of ApplyRepoSettings. Skipped lists
@@ -183,7 +183,7 @@ type ApplyResult struct {
 // recordAccessError appends the operation to result.Skipped when err is an
 // access error, and reports whether it did. Other errors are left to the
 // caller to return as hard failures.
-func recordAccessError(result *ApplyResult, operation string, err error) bool {
+func recordAccessError(result *ApplyResult, operation Operation, err error) bool {
 	classified := classifyHTTPError(err, operation)
 	if !isAccessError(classified) {
 		return false
@@ -216,7 +216,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 			return nil, fmt.Errorf("marshalling repo settings: %w", err)
 		}
 		if err := boundedHTTPError(client.Patch(fmt.Sprintf("repos/%s/%s", owner, name), bytes.NewReader(payload), nil)); err != nil {
-			if !recordAccessError(result, OpPatchRepoSettings, err) {
+			if !recordAccessError(result, Op(OpPatchRepoSettings), err) {
 				return nil, fmt.Errorf("patching repo settings: %w", err)
 			}
 		}
@@ -248,7 +248,7 @@ func applyPrivateVulnerabilityReporting(client *api.RESTClient, owner, name stri
 		return nil
 	}
 	path := fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name)
-	_, err := applySecuritySetting(client, path, *p.PrivateVulnerabilityReporting, FeaturePrivateVulnerabilityReporting, result)
+	_, err := applySecuritySetting(client, path, *p.PrivateVulnerabilityReporting, OpSetPrivateVulnerabilityReporting, result)
 	return err
 }
 
@@ -264,7 +264,7 @@ func applyVulnerabilityAlertsAndFixes(client *api.RESTClient, owner, name string
 	fixesDisabled := current != nil && isFalse(current.AutomatedSecurityFixesEnabled)
 	if isFalse(p.AutomatedSecurityFixes) && !fixesDisabled {
 		var err error
-		fixesDisabled, err = applySecuritySetting(client, fixesPath, false, FeatureAutomatedSecurityFixes, result)
+		fixesDisabled, err = applySecuritySetting(client, fixesPath, false, OpSetAutomatedSecurityFixes, result)
 		if err != nil {
 			return err
 		}
@@ -273,21 +273,21 @@ func applyVulnerabilityAlertsAndFixes(client *api.RESTClient, owner, name string
 		if p.AutomatedSecurityFixes == nil {
 			return fmt.Errorf("cannot disable vulnerability alerts while automated security fixes are unmanaged")
 		}
-		appendSkippedDependency(result, SecurityFeatureOp(false, FeatureVulnerabilityAlerts))
+		appendSkippedDependency(result, SecurityFeatureOp(false, OpSetVulnerabilityAlerts))
 	}
 	alertsApplied := true
 	if p.VulnerabilityAlerts != nil && (*p.VulnerabilityAlerts || fixesDisabled) {
 		var err error
-		alertsApplied, err = applySecuritySetting(client, alertsPath, *p.VulnerabilityAlerts, FeatureVulnerabilityAlerts, result)
+		alertsApplied, err = applySecuritySetting(client, alertsPath, *p.VulnerabilityAlerts, OpSetVulnerabilityAlerts, result)
 		if err != nil {
 			return err
 		}
 		if !alertsApplied && isTrue(p.AutomatedSecurityFixes) {
-			appendSkippedDependency(result, SecurityFeatureOp(true, FeatureAutomatedSecurityFixes))
+			appendSkippedDependency(result, SecurityFeatureOp(true, OpSetAutomatedSecurityFixes))
 		}
 	}
 	if isTrue(p.AutomatedSecurityFixes) && alertsApplied {
-		if _, err := applySecuritySetting(client, fixesPath, true, FeatureAutomatedSecurityFixes, result); err != nil {
+		if _, err := applySecuritySetting(client, fixesPath, true, OpSetAutomatedSecurityFixes, result); err != nil {
 			return err
 		}
 	}
@@ -307,14 +307,14 @@ func applyTopics(client *api.RESTClient, owner, name string, p settingsPayload, 
 		return fmt.Errorf("marshalling topics: %w", err)
 	}
 	if err := boundedHTTPError(client.Put(fmt.Sprintf("repos/%s/%s/topics", owner, name), bytes.NewReader(payload), nil)); err != nil {
-		if !recordAccessError(result, OpSetTopics, err) {
+		if !recordAccessError(result, Op(OpSetTopics), err) {
 			return fmt.Errorf("setting topics: %w", err)
 		}
 	}
 	return nil
 }
 
-func applySecuritySetting(client *api.RESTClient, path string, enabled bool, feature string, result *ApplyResult) (bool, error) {
+func applySecuritySetting(client *api.RESTClient, path string, enabled bool, kind OperationKind, result *ApplyResult) (bool, error) {
 	var err error
 	if enabled {
 		err = boundedHTTPError(client.Put(path, bytes.NewReader([]byte("{}")), nil))
@@ -324,7 +324,7 @@ func applySecuritySetting(client *api.RESTClient, path string, enabled bool, fea
 	if err == nil {
 		return true, nil
 	}
-	operation := SecurityFeatureOp(enabled, feature)
+	operation := SecurityFeatureOp(enabled, kind)
 	if recordAccessError(result, operation, err) {
 		return false, nil
 	}
@@ -334,7 +334,7 @@ func applySecuritySetting(client *api.RESTClient, path string, enabled bool, fea
 // appendSkippedDependency records an operation that was not attempted because
 // a prerequisite operation was skipped, reusing the error from the most
 // recent skip. It does nothing when nothing was skipped.
-func appendSkippedDependency(result *ApplyResult, operation string) {
+func appendSkippedDependency(result *ApplyResult, operation Operation) {
 	if len(result.Skipped) == 0 {
 		return
 	}
@@ -354,7 +354,7 @@ func applyWorkflowPermissions(client *api.RESTClient, owner, name string, p sett
 		return nil
 	}
 	if err := putWorkflowPermissions(client, owner, name, p); err != nil {
-		if !recordAccessError(result, OpSetWorkflowPermissions, err) {
+		if !recordAccessError(result, Op(OpSetWorkflowPermissions), err) {
 			return err
 		}
 	}

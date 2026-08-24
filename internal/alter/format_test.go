@@ -3,6 +3,8 @@ package alter
 import (
 	"fmt"
 	"testing"
+
+	"github.com/wimpysworld/tailor/internal/gh"
 )
 
 func TestFormatOutputSwatchesOnly(t *testing.T) {
@@ -271,7 +273,7 @@ func TestFormatOutputSkipCategories(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},
 		{Field: "has_issues", Category: RepoNoChange, Value: "true"},
-		{Field: "patch repo settings", Category: WouldSkipScope, Value: "insufficient scope"},
+		{Operation: gh.Op(gh.OpPatchRepoSettings), Category: WouldSkipScope, Value: "insufficient scope"},
 	}
 
 	got := FormatOutput(repos, nil, nil, DryRun)
@@ -287,11 +289,11 @@ func TestFormatOutputSkipCategories(t *testing.T) {
 func TestFormatOutputActionsSkipOperationHasNoSectionPrefix(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Section: "actions", Field: "enabled", Category: WouldSkipScope},
-		{Section: "actions", Field: "disable actions for fail-closed policy update", Category: WouldSkipScope},
+		{Section: "actions", Operation: gh.Op(gh.OpDisableActionsForPolicyUpdate), Category: WouldSkipScope},
 	}
 
 	got := FormatOutput(repos, nil, nil, DryRun)
-	want := "would skip (insufficient scope):     disable actions for fail-closed policy update\n" +
+	want := "would skip (insufficient scope):     disable actions for selected policy update\n" +
 		"would skip (insufficient scope):     actions.enabled\n"
 	if got != want {
 		t.Errorf("FormatOutput actions skip operations:\ngot:\n%s\nwant:\n%s", got, want)
@@ -302,7 +304,7 @@ func TestFormatOutputSkipSorting(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: RepoNoChange, Value: "false"},
 		{Field: "description", Category: WouldSet, Value: "My project"},
-		{Field: "patch repo settings", Category: WouldSkipScope, Value: "scope error"},
+		{Operation: gh.Op(gh.OpPatchRepoSettings), Category: WouldSkipScope, Value: "scope error"},
 	}
 
 	got := FormatOutput(repos, nil, nil, DryRun)
@@ -371,13 +373,13 @@ func TestFormatOutputDynamicWidthWithSkippedSwatches(t *testing.T) {
 func TestFormatOutputLabelSkipAnnotations(t *testing.T) {
 	labels := []LabelResult{
 		{Name: "bug", Category: WouldCreate, Value: "#d73a4a"},
-		{Name: "enhancement", Category: LabelSkipScope, Annotation: "token missing required scope"},
+		{Operation: gh.CreateLabelOp("enhancement"), Category: LabelSkipScope, Annotation: "token missing required scope"},
 	}
 
 	got := FormatOutput(nil, labels, nil, DryRun)
 	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 + 1 = 63.
 	want := "would create:                                                  label.bug = #d73a4a\n" +
-		"would skip (insufficient scope: token missing required scope): enhancement\n"
+		"would skip (insufficient scope: token missing required scope): create label \"enhancement\"\n"
 
 	if got != want {
 		t.Errorf("FormatOutput label skip annotations:\ngot:\n%s\nwant:\n%s", got, want)
@@ -406,7 +408,7 @@ func TestFormatOutputSkipAnnotationColumnWidth(t *testing.T) {
 func TestFormatOutputSkipWithoutAnnotation(t *testing.T) {
 	// Skip results without annotations still render with the base label.
 	repos := []RepoSettingResult{
-		{Field: "patch repo settings", Category: WouldSkipScope},
+		{Operation: gh.Op(gh.OpPatchRepoSettings), Category: WouldSkipScope},
 	}
 
 	got := FormatOutput(repos, nil, nil, DryRun)
@@ -481,11 +483,11 @@ func TestFormatOutputApplyModes(t *testing.T) {
 func TestFormatOutputWriteModesOmitSkippedActions(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "topics", Category: WouldSet, Value: "go, cli"},
-		{Field: "set topics", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Operation: gh.Op(gh.OpSetTopics), Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
 	labels := []LabelResult{
 		{Name: "bug", Category: WouldCreate, Value: "#d73a4a"},
-		{Name: "create label \"bug\"", Category: LabelSkipScope, Annotation: "token missing required scope"},
+		{Operation: gh.CreateLabelOp("bug"), Category: LabelSkipScope, Annotation: "token missing required scope"},
 	}
 	want := "would skip (insufficient scope: token missing required scope): set topics\n" +
 		"would skip (insufficient scope: token missing required scope): create label \"bug\"\n"
@@ -503,11 +505,11 @@ func TestFormatOutputWriteModesOmitSkippedActions(t *testing.T) {
 func TestFormatOutputWriteModesOmitSkippedSecuritySettings(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "private_vulnerability_reporting_enabled", Category: WouldSet, Value: "true"},
-		{Field: "enable private vulnerability reporting", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Operation: gh.SecurityFeatureOp(true, gh.OpSetPrivateVulnerabilityReporting), Category: WouldSkipScope, Annotation: "token missing required scope"},
 		{Field: "vulnerability_alerts_enabled", Category: WouldSet, Value: "false"},
-		{Field: "disable vulnerability alerts", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Operation: gh.SecurityFeatureOp(false, gh.OpSetVulnerabilityAlerts), Category: WouldSkipScope, Annotation: "token missing required scope"},
 		{Field: "automated_security_fixes_enabled", Category: WouldSet, Value: "true"},
-		{Field: "enable automated security fixes", Category: WouldSkipScope, Annotation: "token missing required scope"},
+		{Operation: gh.SecurityFeatureOp(true, gh.OpSetAutomatedSecurityFixes), Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
 	want := "would skip (insufficient scope: token missing required scope): disable vulnerability alerts\n" +
 		"would skip (insufficient scope: token missing required scope): enable automated security fixes\n" +

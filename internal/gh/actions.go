@@ -33,7 +33,7 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 	var permissions actionsPermissionsResponse
 	coreKnown := false
 	if err := boundedHTTPError(client.Get(base, &permissions)); err != nil {
-		classified := classifyHTTPError(err, OpFetchActionsPermissions)
+		classified := classifyHTTPError(err, Op(OpFetchActionsPermissions))
 		if isAccessError(classified) {
 			warnings = append(warnings, classified)
 		} else {
@@ -52,7 +52,7 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 	if selected && coreKnown && permissions.AllowedActions == "selected" {
 		var policy selectedActionsResponse
 		if err := boundedHTTPError(client.Get(base+"/selected-actions", &policy)); err != nil {
-			classified := classifyHTTPError(err, OpFetchSelectedActionsPermissions)
+			classified := classifyHTTPError(err, Op(OpFetchSelectedActionsPermissions))
 			if isAccessError(classified) {
 				warnings = append(warnings, classified)
 			} else {
@@ -130,12 +130,12 @@ func applyRestrictAllThenSelected(client *api.RESTClient, base string, desired, 
 		initialCoreBody = maps.Clone(coreBody)
 		initialCoreBody["sha_pinning_required"] = true
 	}
-	applied, err := applyActionsWrite(client, base, initialCoreBody, OpSetActionsPermissions, result)
+	applied, err := applyActionsWrite(client, base, initialCoreBody, Op(OpSetActionsPermissions), result)
 	if err != nil {
 		return nil, err
 	}
 	if !applied {
-		appendSkippedDependency(result, OpSetSelectedActionsPermissions)
+		appendSkippedDependency(result, Op(OpSetSelectedActionsPermissions))
 		return result, nil
 	}
 	if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
@@ -149,20 +149,20 @@ func applyRestrictAllThenSelected(client *api.RESTClient, base string, desired, 
 	return result, nil
 }
 
-// disableActionsStep returns the pre-update disable write and its operation
-// name, or nil when the selected policy can change while Actions keep their
+// disableActionsStep returns the pre-update disable write and its operation,
+// or nil when the selected policy can change while Actions keep their
 // current state.
-func disableActionsStep(desired, current *model.ActionsSettings) (map[string]any, string) {
+func disableActionsStep(desired, current *model.ActionsSettings) (map[string]any, Operation) {
 	if current.AllowedActions != nil && *current.AllowedActions != "selected" {
 		return map[string]any{
 			"enabled":         false,
 			"allowed_actions": "selected",
-		}, "disable actions for selected policy transition"
+		}, Op(OpDisableActionsForPolicyTransition)
 	}
 	if isTrue(current.Enabled) && (isFalse(desired.Enabled) || selectedPolicyBroadens(desired, current)) {
-		return map[string]any{"enabled": false}, "disable actions for selected policy update"
+		return map[string]any{"enabled": false}, Op(OpDisableActionsForPolicyUpdate)
 	}
-	return nil, ""
+	return nil, Operation{}
 }
 
 // applySelectedThenCore writes the selected policy before the final core
@@ -176,8 +176,8 @@ func applySelectedThenCore(client *api.RESTClient, base string, desired, current
 			return result, err
 		}
 		if !applied {
-			appendSkippedDependency(result, OpSetSelectedActionsPermissions)
-			appendSkippedDependency(result, OpSetActionsPermissions)
+			appendSkippedDependency(result, Op(OpSetSelectedActionsPermissions))
+			appendSkippedDependency(result, Op(OpSetActionsPermissions))
 			return result, nil
 		}
 		actionsDisabled = true
@@ -186,8 +186,8 @@ func applySelectedThenCore(client *api.RESTClient, base string, desired, current
 		if actionsDisabled {
 			return nil, fmt.Errorf("setting selected actions permissions failed while actions are disabled: %w", err)
 		}
-		if recordAccessError(result, OpSetSelectedActionsPermissions, err) {
-			appendSkippedDependency(result, OpSetActionsPermissions)
+		if recordAccessError(result, Op(OpSetSelectedActionsPermissions), err) {
+			appendSkippedDependency(result, Op(OpSetActionsPermissions))
 			return result, nil
 		}
 		return nil, fmt.Errorf("setting selected actions permissions: %w", err)
@@ -198,7 +198,7 @@ func applySelectedThenCore(client *api.RESTClient, base string, desired, current
 		}
 		return result, nil
 	}
-	_, err := applyActionsWrite(client, base, coreBody, OpSetActionsPermissions, result)
+	_, err := applyActionsWrite(client, base, coreBody, Op(OpSetActionsPermissions), result)
 	return result, err
 }
 
@@ -208,17 +208,17 @@ func applyCoreThenSelected(client *api.RESTClient, base string, coreBody, select
 	coreApplied := true
 	if core {
 		var err error
-		coreApplied, err = applyActionsWrite(client, base, coreBody, OpSetActionsPermissions, result)
+		coreApplied, err = applyActionsWrite(client, base, coreBody, Op(OpSetActionsPermissions), result)
 		if err != nil {
 			return nil, err
 		}
 		if !coreApplied && selected {
-			appendSkippedDependency(result, OpSetSelectedActionsPermissions)
+			appendSkippedDependency(result, Op(OpSetSelectedActionsPermissions))
 		}
 	}
 	if selected && coreApplied {
 		if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
-			if !recordAccessError(result, OpSetSelectedActionsPermissions, err) {
+			if !recordAccessError(result, Op(OpSetSelectedActionsPermissions), err) {
 				return nil, fmt.Errorf("setting selected actions permissions: %w", err)
 			}
 		}
@@ -311,7 +311,7 @@ func actionsSelectedBody(desired *model.ActionsSettings) map[string]any {
 	return body
 }
 
-func applyActionsWrite(client *api.RESTClient, path string, body map[string]any, operation string, result *ApplyResult) (bool, error) {
+func applyActionsWrite(client *api.RESTClient, path string, body map[string]any, operation Operation, result *ApplyResult) (bool, error) {
 	if err := putActionsPolicy(client, path, body); err != nil {
 		if recordAccessError(result, operation, err) {
 			return false, nil

@@ -558,8 +558,8 @@ func TestApplyLabelsCreate403SkipsAndContinues(t *testing.T) {
 	if len(result.Skipped) != 1 {
 		t.Fatalf("expected 1 skipped, got %d", len(result.Skipped))
 	}
-	if result.Skipped[0].Operation != `create label "alpha"` {
-		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, `create label "alpha"`)
+	if result.Skipped[0].Operation.String() != `create label "alpha"` {
+		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation.String(), `create label "alpha"`)
 	}
 	if !isAccessError(result.Skipped[0].Err) {
 		t.Errorf("skipped error is not an access error: %v", result.Skipped[0].Err)
@@ -605,8 +605,8 @@ func TestApplyLabelsUpdate403SkipsAndContinues(t *testing.T) {
 	if len(result.Skipped) != 1 {
 		t.Fatalf("expected 1 skipped, got %d", len(result.Skipped))
 	}
-	if result.Skipped[0].Operation != `update label "alpha"` {
-		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation, `update label "alpha"`)
+	if result.Skipped[0].Operation.String() != `update label "alpha"` {
+		t.Errorf("skipped operation = %q, want %q", result.Skipped[0].Operation.String(), `update label "alpha"`)
 	}
 	if !isAccessError(result.Skipped[0].Err) {
 		t.Errorf("skipped error is not an access error: %v", result.Skipped[0].Err)
@@ -674,7 +674,7 @@ func TestApplyLabelsMixed403AndSuccess(t *testing.T) {
 	if len(result.Skipped) != 1 {
 		t.Fatalf("expected 1 skipped, got %d", len(result.Skipped))
 	}
-	if result.Skipped[0].Operation != `create label "new-label"` {
-		t.Errorf("skipped = %q, want %q", result.Skipped[0].Operation, `create label "new-label"`)
+	if result.Skipped[0].Operation.String() != `create label "new-label"` {
+		t.Errorf("skipped = %q, want %q", result.Skipped[0].Operation.String(), `create label "new-label"`)
 	}
 }

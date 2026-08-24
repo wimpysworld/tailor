@@ -22,13 +22,15 @@ const (
 )
 
 // LabelResult records the label name, category, and display value for one
-// label entry. Annotation carries optional context for skip categories,
-// embedded in the label (e.g. "token missing required scope").
+// label entry. Skip results leave Name empty and carry the skipped Operation
+// instead. Annotation carries optional context for skip categories, embedded
+// in the label (e.g. "token missing required scope").
 type LabelResult struct {
 	Name       string
 	Category   LabelCategory
 	Value      string
 	Annotation string
+	Operation  gh.Operation
 }
 
 // ProcessLabels compares declared labels against live labels and optionally
@@ -70,7 +72,7 @@ func labelSkippedToResults(ar *gh.ApplyResult) []LabelResult {
 	var results []LabelResult
 	for _, sk := range ar.Skipped {
 		results = append(results, LabelResult{
-			Name:       sk.Operation,
+			Operation:  sk.Operation,
 			Category:   LabelSkipScope,
 			Annotation: skipAnnotation,
 		})
