@@ -1607,7 +1607,7 @@ swatches:
 	}
 	// After recut, the merge step rewrites .tailor.yml.
 	if len(data) == 0 {
-		t.Error("config.yml is empty after recut")
+		t.Error(".tailor.yml is empty after recut")
 	}
 }
 
@@ -2072,10 +2072,10 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 	// The merge step writes the config file.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
-		t.Fatalf("config.yml not found after apply: %v", err)
+		t.Fatalf(".tailor.yml not found after apply: %v", err)
 	}
 	if len(data) == 0 {
-		t.Error("config.yml is empty after apply")
+		t.Error(".tailor.yml is empty after apply")
 	}
 }
 
@@ -2109,7 +2109,7 @@ func TestConfigMergeAllPresentApply(t *testing.T) {
 	// swatch processing skips the .tailor.yml entry. The file keeps its
 	// original content, without a "Refitted" header.
 	if strings.Contains(string(afterData), "Refitted by tailor on") {
-		t.Error("config.yml contains 'Refitted' header despite no entries being merged")
+		t.Error(".tailor.yml contains 'Refitted' header despite no entries being merged")
 	}
 }
 
@@ -2138,12 +2138,12 @@ func TestConfigMergeFirstFitApplySkips(t *testing.T) {
 	}
 
 	if !bytes.Equal(originalData, afterData) {
-		t.Error("config.yml was rewritten despite first-fit alteration in Apply mode")
+		t.Error(".tailor.yml was rewritten despite first-fit alteration in Apply mode")
 	}
 
 	// First-fit config mode skips the merge, so SUPPORT.md remains absent.
 	if strings.Contains(string(afterData), "SUPPORT.md") {
-		t.Error("config.yml contains SUPPORT.md despite first-fit skipping merge")
+		t.Error(".tailor.yml contains SUPPORT.md despite first-fit skipping merge")
 	}
 }
 
@@ -2173,10 +2173,10 @@ func TestConfigMergeFirstFitRecutAppends(t *testing.T) {
 	// Recut rewrites .tailor.yml through the config write step.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
-		t.Fatalf("config.yml not found after recut: %v", err)
+		t.Fatalf(".tailor.yml not found after recut: %v", err)
 	}
 	if len(data) == 0 {
-		t.Error("config.yml is empty after recut")
+		t.Error(".tailor.yml is empty after recut")
 	}
 }
 
@@ -2206,7 +2206,7 @@ func TestConfigMergeDryRunNoRewrite(t *testing.T) {
 	}
 
 	if !bytes.Equal(originalData, afterData) {
-		t.Error("config.yml was rewritten during dry-run despite ShouldWrite() being false")
+		t.Error(".tailor.yml was rewritten during dry-run despite ShouldWrite() being false")
 	}
 	if calls := tc.MutatingCalls(); len(calls) != 0 {
 		t.Fatalf("dry run made mutating calls: %v", calls)
