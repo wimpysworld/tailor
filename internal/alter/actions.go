@@ -110,16 +110,13 @@ func suppressActionsReadWarnings(results []RepoSettingResult, warnings []error, 
 			}
 		}
 		for _, field := range fields {
-			if !actionFieldDeclared(declared, field) {
+			index := slices.IndexFunc(results, func(result RepoSettingResult) bool {
+				return result.Field == field
+			})
+			if index == -1 {
 				continue
 			}
-			filtered := results[:0]
-			for _, result := range results {
-				if result.Field != field {
-					filtered = append(filtered, result)
-				}
-			}
-			results = filtered
+			results = slices.Delete(results, index, index+1)
 			results = append(results, RepoSettingResult{Section: "actions", Field: field, Category: WouldSkipScope, Value: warning.Error(), Annotation: skipAnnotation(warning)})
 		}
 	}
@@ -136,25 +133,6 @@ func actionsCoreBroadening(result RepoSettingResult, declared, live *model.Actio
 	case "sha_pinning_required":
 		return declared.SHAPinningRequired != nil && !*declared.SHAPinningRequired &&
 			live.SHAPinningRequired != nil && *live.SHAPinningRequired
-	default:
-		return false
-	}
-}
-
-func actionFieldDeclared(a *model.ActionsSettings, field string) bool {
-	switch field {
-	case "enabled":
-		return a.Enabled != nil
-	case "allowed_actions":
-		return a.AllowedActions != nil
-	case "sha_pinning_required":
-		return a.SHAPinningRequired != nil
-	case "github_owned_allowed":
-		return a.GitHubOwnedAllowed != nil
-	case "verified_allowed":
-		return a.VerifiedAllowed != nil
-	case "patterns_allowed":
-		return a.PatternsAllowed != nil
 	default:
 		return false
 	}
