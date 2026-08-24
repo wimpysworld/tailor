@@ -670,6 +670,20 @@ func TestBuildSettingsPayloadNilFieldsStayNil(t *testing.T) {
 	}
 }
 
+func TestBuildSettingsPayloadNilSettings(t *testing.T) {
+	p := buildSettingsPayload(nil)
+
+	if p.Body == nil || len(p.Body) != 0 {
+		t.Errorf("Body = %v, want non-nil empty map", p.Body)
+	}
+	if p.PrivateVulnerabilityReporting != nil || p.VulnerabilityAlerts != nil || p.AutomatedSecurityFixes != nil {
+		t.Error("security feature payloads are non-nil for nil settings")
+	}
+	if p.Topics != nil || p.DefaultWorkflowPermissions != nil || p.CanApprovePullRequestReviews != nil {
+		t.Error("dedicated endpoint payloads are non-nil for nil settings")
+	}
+}
+
 func TestBuildSettingsPayloadEmptyTopics(t *testing.T) {
 	topics := []string{}
 	settings := &model.RepositorySettings{
