@@ -107,13 +107,12 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 // only when both endpoint groups are written and the target policy, desired or
 // carried over from current, is "selected".
 func planActionsWriteOrder(desired, current *model.ActionsSettings, core, selected bool, coreBody map[string]any) actionsWriteOrder {
-	targetsSelected := desired.AllowedActions != nil && *desired.AllowedActions == "selected" ||
-		desired.AllowedActions == nil && current.AllowedActions != nil && *current.AllowedActions == "selected"
+	targetsSelected := strEq(desired.AllowedActions, "selected") ||
+		desired.AllowedActions == nil && strEq(current.AllowedActions, "selected")
 	if !targetsSelected || !core || !selected {
 		return coreThenSelected
 	}
-	enabledAllPolicy := current.Enabled != nil && *current.Enabled &&
-		current.AllowedActions != nil && *current.AllowedActions == "all"
+	enabledAllPolicy := isTrue(current.Enabled) && strEq(current.AllowedActions, "all")
 	if enabledAllPolicy && coreBody["enabled"] == true {
 		return restrictAllThenSelected
 	}
@@ -126,8 +125,7 @@ func planActionsWriteOrder(desired, current *model.ActionsSettings, core, select
 // required and a final core write relaxes it after the selected policy exists.
 func applyRestrictAllThenSelected(client *api.RESTClient, base string, desired, current *model.ActionsSettings, coreBody, selectedBody map[string]any, result *ApplyResult) (*ApplyResult, error) {
 	initialCoreBody := coreBody
-	relaxesSHAPinning := current.SHAPinningRequired != nil && *current.SHAPinningRequired &&
-		desired.SHAPinningRequired != nil && !*desired.SHAPinningRequired
+	relaxesSHAPinning := isTrue(current.SHAPinningRequired) && isFalse(desired.SHAPinningRequired)
 	if relaxesSHAPinning {
 		initialCoreBody = maps.Clone(coreBody)
 		initialCoreBody["sha_pinning_required"] = true
@@ -161,9 +159,7 @@ func disableActionsStep(desired, current *model.ActionsSettings) (map[string]any
 			"allowed_actions": "selected",
 		}, "disable actions for selected policy transition"
 	}
-	currentlyEnabled := current.Enabled != nil && *current.Enabled
-	desiredDisabled := desired.Enabled != nil && !*desired.Enabled
-	if currentlyEnabled && (desiredDisabled || selectedPolicyBroadens(desired, current)) {
+	if isTrue(current.Enabled) && (isFalse(desired.Enabled) || selectedPolicyBroadens(desired, current)) {
 		return map[string]any{"enabled": false}, "disable actions for selected policy update"
 	}
 	return nil, ""
@@ -173,7 +169,7 @@ func disableActionsStep(desired, current *model.ActionsSettings) (map[string]any
 // policy. When the update could widen access, a disable write runs first so a
 // partial failure leaves Actions disabled rather than over-permitted.
 func applySelectedThenCore(client *api.RESTClient, base string, desired, current *model.ActionsSettings, coreBody, selectedBody map[string]any, result *ApplyResult) (*ApplyResult, error) {
-	actionsDisabled := current.Enabled != nil && !*current.Enabled
+	actionsDisabled := isFalse(current.Enabled)
 	if disableBody, disableOp := disableActionsStep(desired, current); disableBody != nil {
 		applied, err := applyActionsWrite(client, base, disableBody, disableOp, result)
 		if err != nil {
@@ -235,12 +231,10 @@ func applyCoreThenSelected(client *api.RESTClient, base string, coreBody, select
 // exclusion pattern. ApplyActionsPolicy disables Actions before a broadening
 // update so a partial write cannot widen the policy while Actions run.
 func selectedPolicyBroadens(desired, current *model.ActionsSettings) bool {
-	if desired.GitHubOwnedAllowed != nil && *desired.GitHubOwnedAllowed &&
-		current.GitHubOwnedAllowed != nil && !*current.GitHubOwnedAllowed {
+	if isTrue(desired.GitHubOwnedAllowed) && isFalse(current.GitHubOwnedAllowed) {
 		return true
 	}
-	if desired.VerifiedAllowed != nil && *desired.VerifiedAllowed &&
-		current.VerifiedAllowed != nil && !*current.VerifiedAllowed {
+	if isTrue(desired.VerifiedAllowed) && isFalse(current.VerifiedAllowed) {
 		return true
 	}
 	if desired.PatternsAllowed == nil || current.PatternsAllowed == nil {

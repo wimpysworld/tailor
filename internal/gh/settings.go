@@ -261,15 +261,15 @@ func applyPrivateVulnerabilityReporting(client *api.RESTClient, owner, name stri
 func applyVulnerabilityAlertsAndFixes(client *api.RESTClient, owner, name string, p settingsPayload, current *model.RepositorySettings, result *ApplyResult) error {
 	alertsPath := fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name)
 	fixesPath := fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name)
-	fixesDisabled := current != nil && current.AutomatedSecurityFixesEnabled != nil && !*current.AutomatedSecurityFixesEnabled
-	if p.AutomatedSecurityFixes != nil && !*p.AutomatedSecurityFixes && !fixesDisabled {
+	fixesDisabled := current != nil && isFalse(current.AutomatedSecurityFixesEnabled)
+	if isFalse(p.AutomatedSecurityFixes) && !fixesDisabled {
 		var err error
 		fixesDisabled, err = applySecuritySetting(client, fixesPath, false, FeatureAutomatedSecurityFixes, result)
 		if err != nil {
 			return err
 		}
 	}
-	if !fixesDisabled && p.VulnerabilityAlerts != nil && !*p.VulnerabilityAlerts {
+	if !fixesDisabled && isFalse(p.VulnerabilityAlerts) {
 		if p.AutomatedSecurityFixes == nil {
 			return fmt.Errorf("cannot disable vulnerability alerts while automated security fixes are unmanaged")
 		}
@@ -282,11 +282,11 @@ func applyVulnerabilityAlertsAndFixes(client *api.RESTClient, owner, name string
 		if err != nil {
 			return err
 		}
-		if !alertsApplied && p.AutomatedSecurityFixes != nil && *p.AutomatedSecurityFixes {
+		if !alertsApplied && isTrue(p.AutomatedSecurityFixes) {
 			appendSkippedDependency(result, SecurityFeatureOp(true, FeatureAutomatedSecurityFixes))
 		}
 	}
-	if p.AutomatedSecurityFixes != nil && *p.AutomatedSecurityFixes && alertsApplied {
+	if isTrue(p.AutomatedSecurityFixes) && alertsApplied {
 		if _, err := applySecuritySetting(client, fixesPath, true, FeatureAutomatedSecurityFixes, result); err != nil {
 			return err
 		}
