@@ -71,12 +71,8 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 }
 
 func isActionsPolicyField(field string) bool {
-	switch field {
-	case "enabled", "allowed_actions", "sha_pinning_required", "github_owned_allowed", "verified_allowed", "patterns_allowed":
-		return true
-	default:
-		return false
-	}
+	_, ok := actionsFieldGroupFor(field)
+	return ok
 }
 
 func removeSkippedRepoResults(results []RepoSettingResult) []RepoSettingResult {
@@ -101,11 +97,8 @@ func removeSkippedRepoResults(results []RepoSettingResult) []RepoSettingResult {
 
 func repoSettingOperation(result RepoSettingResult) string {
 	if result.Section == "actions" {
-		switch result.Field {
-		case "enabled", "allowed_actions", "sha_pinning_required":
-			return gh.OpSetActionsPermissions
-		case "github_owned_allowed", "verified_allowed", "patterns_allowed":
-			return gh.OpSetSelectedActionsPermissions
+		if group, ok := actionsFieldGroupFor(result.Field); ok {
+			return group.writeOperation()
 		}
 	}
 	switch result.Field {

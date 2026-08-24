@@ -12,6 +12,129 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
+// actionsFieldGroup identifies the endpoint group an Actions policy field
+// belongs to: core fields write through the actions permissions endpoint,
+// selected fields through the selected-actions endpoint.
+type actionsFieldGroup int
+
+const (
+	actionsCore actionsFieldGroup = iota
+	actionsSelected
+)
+
+// writeOperation returns the gh write operation for the group.
+func (g actionsFieldGroup) writeOperation() string {
+	if g == actionsSelected {
+		return gh.OpSetSelectedActionsPermissions
+	}
+	return gh.OpSetActionsPermissions
+}
+
+// actionsFieldSpec ties one Actions policy field name to its endpoint group
+// and the logic that reads the field from an ActionsSettings value.
+type actionsFieldSpec struct {
+	name    string
+	group   actionsFieldGroup
+	set     func(*model.ActionsSettings) bool
+	compare func(declared, live *model.ActionsSettings) (display string, equal bool)
+}
+
+// actionsFieldTable is the single source of Actions field-to-group knowledge.
+// Entry order sets the comparison and skip output order.
+var actionsFieldTable = []actionsFieldSpec{
+	{
+		name:  "enabled",
+		group: actionsCore,
+		set:   func(a *model.ActionsSettings) bool { return a.Enabled != nil },
+		compare: func(declared, live *model.ActionsSettings) (string, bool) {
+			return fmt.Sprint(*declared.Enabled), live.Enabled != nil && *declared.Enabled == *live.Enabled
+		},
+	},
+	{
+		name:  "allowed_actions",
+		group: actionsCore,
+		set:   func(a *model.ActionsSettings) bool { return a.AllowedActions != nil },
+		compare: func(declared, live *model.ActionsSettings) (string, bool) {
+			return *declared.AllowedActions, live.AllowedActions != nil && *declared.AllowedActions == *live.AllowedActions
+		},
+	},
+	{
+		name:  "sha_pinning_required",
+		group: actionsCore,
+		set:   func(a *model.ActionsSettings) bool { return a.SHAPinningRequired != nil },
+		compare: func(declared, live *model.ActionsSettings) (string, bool) {
+			return fmt.Sprint(*declared.SHAPinningRequired), live.SHAPinningRequired != nil && *declared.SHAPinningRequired == *live.SHAPinningRequired
+		},
+	},
+	{
+		name:  "github_owned_allowed",
+		group: actionsSelected,
+		set:   func(a *model.ActionsSettings) bool { return a.GitHubOwnedAllowed != nil },
+		compare: func(declared, live *model.ActionsSettings) (string, bool) {
+			return fmt.Sprint(*declared.GitHubOwnedAllowed), live.GitHubOwnedAllowed != nil && *declared.GitHubOwnedAllowed == *live.GitHubOwnedAllowed
+		},
+	},
+	{
+		name:  "verified_allowed",
+		group: actionsSelected,
+		set:   func(a *model.ActionsSettings) bool { return a.VerifiedAllowed != nil },
+		compare: func(declared, live *model.ActionsSettings) (string, bool) {
+			return fmt.Sprint(*declared.VerifiedAllowed), live.VerifiedAllowed != nil && *declared.VerifiedAllowed == *live.VerifiedAllowed
+		},
+	},
+	{
+		name:  "patterns_allowed",
+		group: actionsSelected,
+		set:   func(a *model.ActionsSettings) bool { return a.PatternsAllowed != nil },
+		compare: func(declared, live *model.ActionsSettings) (string, bool) {
+			desired := slices.Clone(*declared.PatternsAllowed)
+			slices.Sort(desired)
+			equal := false
+			if live.PatternsAllowed != nil {
+				actual := slices.Clone(*live.PatternsAllowed)
+				slices.Sort(actual)
+				equal = slices.Equal(desired, actual)
+			}
+			display := strings.Join(desired, ", ")
+			if len(desired) == 0 {
+				display = "[]"
+			}
+			return display, equal
+		},
+	},
+}
+
+// actionsFieldGroupFor looks up the endpoint group for an Actions field name.
+func actionsFieldGroupFor(field string) (actionsFieldGroup, bool) {
+	for _, spec := range actionsFieldTable {
+		if spec.name == field {
+			return spec.group, true
+		}
+	}
+	return 0, false
+}
+
+// actionsFieldNames returns the field names in the given groups, in table order.
+func actionsFieldNames(groups ...actionsFieldGroup) []string {
+	var names []string
+	for _, spec := range actionsFieldTable {
+		if slices.Contains(groups, spec.group) {
+			names = append(names, spec.name)
+		}
+	}
+	return names
+}
+
+// actionsGroupSet reports whether any field in the group is declared.
+func actionsGroupSet(a *model.ActionsSettings, group actionsFieldGroup) bool {
+	for _, spec := range actionsFieldTable {
+		if spec.group == group && spec.set(a) {
+			return true
+		}
+	}
+	return false
+}
+
 // ProcessActions compares the declared Actions policy against GitHub and
 // applies only endpoint groups that differ.
 func ProcessActions(cfg *config.Config, mode ApplyMode, client *api.RESTClient, owner, name string, hasRepo bool) ([]RepoSettingResult, error) {
@@ -22,7 +145,7 @@ func ProcessActions(cfg *config.Config, mode ApplyMode, client *api.RESTClient, 
 		return nil, nil
 	}
 
-	selected := cfg.Actions.GitHubOwnedAllowed != nil || cfg.Actions.VerifiedAllowed != nil || cfg.Actions.PatternsAllowed != nil
+	selected := actionsGroupSet(cfg.Actions, actionsSelected)
 	live, warnings, err := gh.ReadActionsPolicy(client, owner, name, selected)
 	if err != nil {
 		return nil, err
@@ -45,48 +168,21 @@ func ProcessActions(cfg *config.Config, mode ApplyMode, client *api.RESTClient, 
 }
 
 func actionsConfigured(a *model.ActionsSettings) bool {
-	return a.Enabled != nil || a.AllowedActions != nil || a.SHAPinningRequired != nil ||
-		a.GitHubOwnedAllowed != nil || a.VerifiedAllowed != nil || a.PatternsAllowed != nil
+	return actionsGroupSet(a, actionsCore) || actionsGroupSet(a, actionsSelected)
 }
 
 func compareActions(declared, live *model.ActionsSettings) []RepoSettingResult {
 	var results []RepoSettingResult
-	add := func(field, display string, equal bool) {
+	for _, spec := range actionsFieldTable {
+		if !spec.set(declared) {
+			continue
+		}
+		display, equal := spec.compare(declared, live)
 		category := WouldSet
 		if equal {
 			category = RepoNoChange
 		}
-		results = append(results, RepoSettingResult{Section: "actions", Field: field, Category: category, Value: display})
-	}
-	if declared.Enabled != nil {
-		add("enabled", fmt.Sprint(*declared.Enabled), live.Enabled != nil && *declared.Enabled == *live.Enabled)
-	}
-	if declared.AllowedActions != nil {
-		add("allowed_actions", *declared.AllowedActions, live.AllowedActions != nil && *declared.AllowedActions == *live.AllowedActions)
-	}
-	if declared.SHAPinningRequired != nil {
-		add("sha_pinning_required", fmt.Sprint(*declared.SHAPinningRequired), live.SHAPinningRequired != nil && *declared.SHAPinningRequired == *live.SHAPinningRequired)
-	}
-	if declared.GitHubOwnedAllowed != nil {
-		add("github_owned_allowed", fmt.Sprint(*declared.GitHubOwnedAllowed), live.GitHubOwnedAllowed != nil && *declared.GitHubOwnedAllowed == *live.GitHubOwnedAllowed)
-	}
-	if declared.VerifiedAllowed != nil {
-		add("verified_allowed", fmt.Sprint(*declared.VerifiedAllowed), live.VerifiedAllowed != nil && *declared.VerifiedAllowed == *live.VerifiedAllowed)
-	}
-	if declared.PatternsAllowed != nil {
-		desired := slices.Clone(*declared.PatternsAllowed)
-		slices.Sort(desired)
-		equal := false
-		if live.PatternsAllowed != nil {
-			actual := slices.Clone(*live.PatternsAllowed)
-			slices.Sort(actual)
-			equal = slices.Equal(desired, actual)
-		}
-		display := strings.Join(desired, ", ")
-		if len(desired) == 0 {
-			display = "[]"
-		}
-		add("patterns_allowed", display, equal)
+		results = append(results, RepoSettingResult{Section: "actions", Field: spec.name, Category: category, Value: display})
 	}
 	return results
 }
@@ -97,12 +193,12 @@ func suppressActionsReadWarnings(results []RepoSettingResult, warnings []error, 
 		if !errors.As(warning, &scopeErr) {
 			continue
 		}
-		fields := []string{"enabled", "allowed_actions", "sha_pinning_required"}
+		fields := actionsFieldNames(actionsCore)
 		switch scopeErr.Operation {
 		case gh.OpFetchActionsPermissions:
-			fields = []string{"enabled", "allowed_actions", "sha_pinning_required", "github_owned_allowed", "verified_allowed", "patterns_allowed"}
+			fields = actionsFieldNames(actionsCore, actionsSelected)
 		case gh.OpFetchSelectedActionsPermissions:
-			fields = []string{"github_owned_allowed", "verified_allowed", "patterns_allowed"}
+			fields = actionsFieldNames(actionsSelected)
 			for _, result := range results {
 				if actionsCoreBroadening(result, declared, live) {
 					fields = append(fields, result.Field)
@@ -143,10 +239,14 @@ func actionsChanges(results []RepoSettingResult) (core, selected bool) {
 		if result.Category != WouldSet {
 			continue
 		}
-		switch result.Field {
-		case "enabled", "allowed_actions", "sha_pinning_required":
+		group, ok := actionsFieldGroupFor(result.Field)
+		if !ok {
+			continue
+		}
+		switch group {
+		case actionsCore:
 			core = true
-		case "github_owned_allowed", "verified_allowed", "patterns_allowed":
+		case actionsSelected:
 			selected = true
 		}
 	}
