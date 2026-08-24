@@ -99,9 +99,9 @@ func suppressActionsReadWarnings(results []RepoSettingResult, warnings []error, 
 		}
 		fields := []string{"enabled", "allowed_actions", "sha_pinning_required"}
 		switch scopeErr.Operation {
-		case "fetch actions permissions":
+		case gh.OpFetchActionsPermissions:
 			fields = []string{"enabled", "allowed_actions", "sha_pinning_required", "github_owned_allowed", "verified_allowed", "patterns_allowed"}
-		case "fetch selected actions permissions":
+		case gh.OpFetchSelectedActionsPermissions:
 			fields = []string{"github_owned_allowed", "verified_allowed", "patterns_allowed"}
 			for _, result := range results {
 				if actionsCoreBroadening(result, declared, live) {

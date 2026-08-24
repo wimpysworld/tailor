@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+
+	"github.com/wimpysworld/tailor/internal/gh"
 )
 
 // defaultLabelWidth is the minimum column width for status labels in formatted
@@ -101,32 +103,25 @@ func repoSettingOperation(result RepoSettingResult) string {
 	if result.Section == "actions" {
 		switch result.Field {
 		case "enabled", "allowed_actions", "sha_pinning_required":
-			return "set actions permissions"
+			return gh.OpSetActionsPermissions
 		case "github_owned_allowed", "verified_allowed", "patterns_allowed":
-			return "set selected actions permissions"
+			return gh.OpSetSelectedActionsPermissions
 		}
 	}
 	switch result.Field {
 	case "private_vulnerability_reporting_enabled":
-		return operationForValue(result.Value, "private vulnerability reporting")
+		return gh.SecurityFeatureOp(result.Value == "true", gh.FeaturePrivateVulnerabilityReporting)
 	case "vulnerability_alerts_enabled":
-		return operationForValue(result.Value, "vulnerability alerts")
+		return gh.SecurityFeatureOp(result.Value == "true", gh.FeatureVulnerabilityAlerts)
 	case "automated_security_fixes_enabled":
-		return operationForValue(result.Value, "automated security fixes")
+		return gh.SecurityFeatureOp(result.Value == "true", gh.FeatureAutomatedSecurityFixes)
 	case "topics":
-		return "set topics"
+		return gh.OpSetTopics
 	case "default_workflow_permissions", "can_approve_pull_request_reviews":
-		return "set workflow permissions"
+		return gh.OpSetWorkflowPermissions
 	default:
-		return "patch repo settings"
+		return gh.OpPatchRepoSettings
 	}
-}
-
-func operationForValue(value, feature string) string {
-	if value == "true" {
-		return "enable " + feature
-	}
-	return "disable " + feature
 }
 
 func removeSkippedLabelResults(results []LabelResult) []LabelResult {
@@ -145,9 +140,9 @@ func removeSkippedLabelResults(results []LabelResult) []LabelResult {
 		operation := ""
 		switch result.Category {
 		case WouldCreate:
-			operation = fmt.Sprintf("create label %q", result.Name)
+			operation = gh.CreateLabelOp(result.Name)
 		case WouldUpdate:
-			operation = fmt.Sprintf("update label %q", result.Name)
+			operation = gh.UpdateLabelOp(result.Name)
 		}
 		if !skipped[operation] {
 			filtered = append(filtered, result)

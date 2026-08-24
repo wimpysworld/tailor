@@ -181,10 +181,10 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 // readWarningOperationFields maps read-path operation names from
 // ErrInsufficientScope to the config field names they affect.
 var readWarningOperationFields = map[string][]string{
-	"fetch vulnerability alerts":            {"vulnerability_alerts_enabled"},
-	"fetch automated security fixes":        {"automated_security_fixes_enabled"},
-	"fetch private vulnerability reporting": {"private_vulnerability_reporting_enabled"},
-	"fetch workflow permissions":            {"default_workflow_permissions", "can_approve_pull_request_reviews"},
+	gh.OpFetchVulnerabilityAlerts:           {"vulnerability_alerts_enabled"},
+	gh.OpFetchAutomatedSecurityFixes:        {"automated_security_fixes_enabled"},
+	gh.OpFetchPrivateVulnerabilityReporting: {"private_vulnerability_reporting_enabled"},
+	gh.OpFetchWorkflowPermissions:           {"default_workflow_permissions", "can_approve_pull_request_reviews"},
 }
 
 // readWarningsToResults converts read-path access-error warnings into
@@ -227,10 +227,10 @@ func readWarningsToResults(warnings []error, declared, live *model.RepositorySet
 
 		dependent := ""
 		switch {
-		case op == "fetch vulnerability alerts" && declared.AutomatedSecurityFixesEnabled != nil && *declared.AutomatedSecurityFixesEnabled &&
+		case op == gh.OpFetchVulnerabilityAlerts && declared.AutomatedSecurityFixesEnabled != nil && *declared.AutomatedSecurityFixesEnabled &&
 			live.AutomatedSecurityFixesEnabled != nil && !*live.AutomatedSecurityFixesEnabled:
 			dependent = "automated_security_fixes_enabled"
-		case op == "fetch automated security fixes" && declared.VulnerabilityAlertsEnabled != nil && !*declared.VulnerabilityAlertsEnabled &&
+		case op == gh.OpFetchAutomatedSecurityFixes && declared.VulnerabilityAlertsEnabled != nil && !*declared.VulnerabilityAlertsEnabled &&
 			live.VulnerabilityAlertsEnabled != nil && *live.VulnerabilityAlertsEnabled:
 			dependent = "vulnerability_alerts_enabled"
 		}
