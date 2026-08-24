@@ -238,18 +238,12 @@ func labelWidth(repos []RepoSettingResult, labels []LabelResult, swatches []Swat
 // sortRepoResults returns a sorted copy: actionable (WouldSet) before
 // informational (RepoNoChange), lexicographic by field within each group.
 func sortRepoResults(results []RepoSettingResult) []RepoSettingResult {
-	if len(results) == 0 {
-		return nil
-	}
-	sorted := make([]RepoSettingResult, len(results))
-	copy(sorted, results)
-	slices.SortStableFunc(sorted, func(a, b RepoSettingResult) int {
+	return slices.SortedStableFunc(slices.Values(results), func(a, b RepoSettingResult) int {
 		if c := cmp.Compare(repoOrder(a.Category), repoOrder(b.Category)); c != 0 {
 			return c
 		}
 		return cmp.Compare(a.Field, b.Field)
 	})
-	return sorted
 }
 
 // repoOrder returns the sort priority for a RepoSettingCategory.
@@ -269,35 +263,23 @@ func repoOrder(c RepoSettingCategory) int {
 // sortSwatchResults returns a sorted copy with actionable results before
 // informational results and paths sorted within each category.
 func sortSwatchResults(results []SwatchResult) []SwatchResult {
-	if len(results) == 0 {
-		return nil
-	}
-	sorted := make([]SwatchResult, len(results))
-	copy(sorted, results)
-	slices.SortStableFunc(sorted, func(a, b SwatchResult) int {
+	return slices.SortedStableFunc(slices.Values(results), func(a, b SwatchResult) int {
 		if c := cmp.Compare(swatchOrder(a), swatchOrder(b)); c != 0 {
 			return c
 		}
 		return cmp.Compare(a.Path, b.Path)
 	})
-	return sorted
 }
 
 // sortLabelResults returns a sorted copy: actionable (WouldCreate, WouldUpdate)
 // before informational (LabelNoChange), lexicographic by name within each group.
 func sortLabelResults(results []LabelResult) []LabelResult {
-	if len(results) == 0 {
-		return nil
-	}
-	sorted := make([]LabelResult, len(results))
-	copy(sorted, results)
-	slices.SortStableFunc(sorted, func(a, b LabelResult) int {
+	return slices.SortedStableFunc(slices.Values(results), func(a, b LabelResult) int {
 		if c := cmp.Compare(labelOrder(a.Category), labelOrder(b.Category)); c != 0 {
 			return c
 		}
 		return cmp.Compare(a.Name, b.Name)
 	})
-	return sorted
 }
 
 // labelOrder returns the sort priority for a LabelCategory.
