@@ -69,12 +69,10 @@ func labelSkippedToResults(ar *gh.ApplyResult) []LabelResult {
 	}
 	var results []LabelResult
 	for _, sk := range ar.Skipped {
-		cat := LabelCategory(classifySkipCategory(sk.Err))
 		results = append(results, LabelResult{
 			Name:       sk.Operation,
-			Category:   cat,
-			Value:      sk.Err.Error(),
-			Annotation: skipAnnotation(sk.Err),
+			Category:   LabelSkipScope,
+			Annotation: skipAnnotation,
 		})
 	}
 	return results

@@ -117,7 +117,7 @@ func suppressActionsReadWarnings(results []RepoSettingResult, warnings []error, 
 				continue
 			}
 			results = slices.Delete(results, index, index+1)
-			results = append(results, RepoSettingResult{Section: "actions", Field: field, Category: WouldSkipScope, Value: warning.Error(), Annotation: skipAnnotation(warning)})
+			results = append(results, RepoSettingResult{Section: "actions", Field: field, Category: WouldSkipScope, Annotation: skipAnnotation})
 		}
 	}
 	return results
