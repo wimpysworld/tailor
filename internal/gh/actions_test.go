@@ -218,6 +218,8 @@ func TestSelectedPolicyBroadensPatterns(t *testing.T) {
 		{name: "positive removal", desired: []string{"acme/*"}, current: []string{"acme/*", "octo/*"}},
 		{name: "exclusion addition", desired: []string{"*", "!evil/*"}, current: []string{"*"}},
 		{name: "exclusion removal", desired: []string{"*"}, current: []string{"*", "!evil/*"}, want: true},
+		{name: "broader exclusion replacement", desired: []string{"*", "!evil/*"}, current: []string{"*", "!evil/tool@*"}},
+		{name: "narrower exclusion replacement", desired: []string{"*", "!evil/tool@*"}, current: []string{"*", "!evil/*"}, want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
