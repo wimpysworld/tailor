@@ -124,12 +124,10 @@ func skippedToResults(ar *gh.ApplyResult) []RepoSettingResult {
 	}
 	var results []RepoSettingResult
 	for _, sk := range ar.Skipped {
-		cat := classifySkipCategory(sk.Err)
 		results = append(results, RepoSettingResult{
 			Field:      sk.Operation,
-			Category:   cat,
-			Value:      sk.Err.Error(),
-			Annotation: skipAnnotation(sk.Err),
+			Category:   WouldSkipScope,
+			Annotation: skipAnnotation,
 		})
 	}
 	return results
@@ -216,9 +214,6 @@ func readWarningsToResults(warnings []error, declared, live *model.RepositorySet
 			continue
 		}
 
-		cat := classifySkipCategory(w)
-		ann := skipAnnotation(w)
-
 		for _, f := range fields {
 			if !declaredFields[f] {
 				continue
@@ -229,9 +224,8 @@ func readWarningsToResults(warnings []error, declared, live *model.RepositorySet
 			skippedFields[f] = true
 			results = append(results, RepoSettingResult{
 				Field:      f,
-				Category:   cat,
-				Value:      w.Error(),
-				Annotation: ann,
+				Category:   WouldSkipScope,
+				Annotation: skipAnnotation,
 			})
 		}
 
@@ -248,9 +242,8 @@ func readWarningsToResults(warnings []error, declared, live *model.RepositorySet
 			skippedFields[dependent] = true
 			results = append(results, RepoSettingResult{
 				Field:      dependent,
-				Category:   cat,
-				Value:      w.Error(),
-				Annotation: ann,
+				Category:   WouldSkipScope,
+				Annotation: skipAnnotation,
 			})
 		}
 	}
