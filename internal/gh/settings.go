@@ -9,7 +9,6 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
 // repoResponse holds the subset of GitHub repository fields read from the API.
@@ -62,24 +61,24 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 	}
 
 	s := &model.RepositorySettings{
-		Description:              ptr.Ptr(repo.Description),
-		Homepage:                 ptr.Ptr(repo.Homepage),
-		HasWiki:                  ptr.Ptr(repo.HasWiki),
-		HasDiscussions:           ptr.Ptr(repo.HasDiscussions),
-		HasProjects:              ptr.Ptr(repo.HasProjects),
-		HasIssues:                ptr.Ptr(repo.HasIssues),
-		AllowMergeCommit:         ptr.Ptr(repo.AllowMergeCommit),
-		AllowSquashMerge:         ptr.Ptr(repo.AllowSquashMerge),
-		AllowRebaseMerge:         ptr.Ptr(repo.AllowRebaseMerge),
-		SquashMergeCommitTitle:   ptr.Ptr(repo.SquashMergeCommitTitle),
-		SquashMergeCommitMessage: ptr.Ptr(repo.SquashMergeCommitMessage),
-		MergeCommitTitle:         ptr.Ptr(repo.MergeCommitTitle),
-		MergeCommitMessage:       ptr.Ptr(repo.MergeCommitMessage),
-		DeleteBranchOnMerge:      ptr.Ptr(repo.DeleteBranchOnMerge),
-		AllowUpdateBranch:        ptr.Ptr(repo.AllowUpdateBranch),
-		AllowAutoMerge:           ptr.Ptr(repo.AllowAutoMerge),
+		Description:              new(repo.Description),
+		Homepage:                 new(repo.Homepage),
+		HasWiki:                  new(repo.HasWiki),
+		HasDiscussions:           new(repo.HasDiscussions),
+		HasProjects:              new(repo.HasProjects),
+		HasIssues:                new(repo.HasIssues),
+		AllowMergeCommit:         new(repo.AllowMergeCommit),
+		AllowSquashMerge:         new(repo.AllowSquashMerge),
+		AllowRebaseMerge:         new(repo.AllowRebaseMerge),
+		SquashMergeCommitTitle:   new(repo.SquashMergeCommitTitle),
+		SquashMergeCommitMessage: new(repo.SquashMergeCommitMessage),
+		MergeCommitTitle:         new(repo.MergeCommitTitle),
+		MergeCommitMessage:       new(repo.MergeCommitMessage),
+		DeleteBranchOnMerge:      new(repo.DeleteBranchOnMerge),
+		AllowUpdateBranch:        new(repo.AllowUpdateBranch),
+		AllowAutoMerge:           new(repo.AllowAutoMerge),
 		Topics:                   &repo.Topics,
-		WebCommitSignoffRequired: ptr.Ptr(repo.WebCommitSignoffRequired),
+		WebCommitSignoffRequired: new(repo.WebCommitSignoffRequired),
 	}
 
 	var warnings []error
@@ -94,8 +93,8 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 		}
 	} else {
 		adminRead = true
-		s.DefaultWorkflowPermissions = ptr.Ptr(wfPerms.DefaultWorkflowPermissions)
-		s.CanApprovePullRequestReviews = ptr.Ptr(wfPerms.CanApprovePullRequestReviews)
+		s.DefaultWorkflowPermissions = new(wfPerms.DefaultWorkflowPermissions)
+		s.CanApprovePullRequestReviews = new(wfPerms.CanApprovePullRequestReviews)
 	}
 
 	securityFeatures := []struct {
@@ -108,20 +107,20 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 		{
 			path:      fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name),
 			operation: "fetch private vulnerability reporting",
-			set:       func(enabled bool) { s.PrivateVulnerabilityReportEnabled = ptr.Ptr(enabled) },
+			set:       func(enabled bool) { s.PrivateVulnerabilityReportEnabled = new(enabled) },
 		},
 		{
 			path:             fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name),
 			operation:        "fetch vulnerability alerts",
 			statusOnly:       true,
 			allow404Disabled: adminRead && repo.Permissions.Admin,
-			set:              func(enabled bool) { s.VulnerabilityAlertsEnabled = ptr.Ptr(enabled) },
+			set:              func(enabled bool) { s.VulnerabilityAlertsEnabled = new(enabled) },
 		},
 		{
 			path:             fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name),
 			operation:        "fetch automated security fixes",
 			allow404Disabled: adminRead && repo.Permissions.Admin,
-			set:              func(enabled bool) { s.AutomatedSecurityFixesEnabled = ptr.Ptr(enabled) },
+			set:              func(enabled bool) { s.AutomatedSecurityFixesEnabled = new(enabled) },
 		},
 	}
 	for _, feature := range securityFeatures {

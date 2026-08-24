@@ -10,7 +10,6 @@ import (
 
 	"github.com/wimpysworld/tailor"
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -175,64 +174,64 @@ func TestMergeRepoSettings(t *testing.T) {
 		{
 			name: "live settings override defaults entirely",
 			live: &model.RepositorySettings{
-				Description: ptr.Ptr("live desc"),
-				Homepage:    ptr.Ptr("https://live.example.com"),
-				HasWiki:     ptr.Ptr(true),
-				HasIssues:   ptr.Ptr(false),
+				Description: new("live desc"),
+				Homepage:    new("https://live.example.com"),
+				HasWiki:     new(true),
+				HasIssues:   new(false),
 			},
 			description: "",
-			wantDesc:    ptr.Ptr("live desc"),
-			wantHome:    ptr.Ptr("https://live.example.com"),
+			wantDesc:    new("live desc"),
+			wantHome:    new("https://live.example.com"),
 		},
 		{
 			name: "description flag overrides live description",
 			live: &model.RepositorySettings{
-				Description: ptr.Ptr("live desc"),
-				Homepage:    ptr.Ptr("https://live.example.com"),
+				Description: new("live desc"),
+				Homepage:    new("https://live.example.com"),
 			},
 			description: "flag desc",
-			wantDesc:    ptr.Ptr("flag desc"),
-			wantHome:    ptr.Ptr("https://live.example.com"),
+			wantDesc:    new("flag desc"),
+			wantHome:    new("https://live.example.com"),
 		},
 		{
 			name: "empty description from live produces nil",
 			live: &model.RepositorySettings{
-				Description: ptr.Ptr(""),
-				Homepage:    ptr.Ptr("https://live.example.com"),
+				Description: new(""),
+				Homepage:    new("https://live.example.com"),
 			},
 			description: "",
 			wantDesc:    nil,
-			wantHome:    ptr.Ptr("https://live.example.com"),
+			wantHome:    new("https://live.example.com"),
 		},
 		{
 			name: "empty homepage from live produces nil",
 			live: &model.RepositorySettings{
-				Description: ptr.Ptr("live desc"),
-				Homepage:    ptr.Ptr(""),
+				Description: new("live desc"),
+				Homepage:    new(""),
 			},
 			description: "",
-			wantDesc:    ptr.Ptr("live desc"),
+			wantDesc:    new("live desc"),
 			wantHome:    nil,
 		},
 		{
 			name: "non-empty description flag with empty live description sets flag value",
 			live: &model.RepositorySettings{
-				Description: ptr.Ptr(""),
-				Homepage:    ptr.Ptr("https://live.example.com"),
+				Description: new(""),
+				Homepage:    new("https://live.example.com"),
 			},
 			description: "flag desc",
-			wantDesc:    ptr.Ptr("flag desc"),
-			wantHome:    ptr.Ptr("https://live.example.com"),
+			wantDesc:    new("flag desc"),
+			wantHome:    new("https://live.example.com"),
 		},
 		{
 			name: "empty description flag with non-empty live description preserves live value",
 			live: &model.RepositorySettings{
-				Description: ptr.Ptr("live desc"),
-				Homepage:    ptr.Ptr("https://live.example.com"),
+				Description: new("live desc"),
+				Homepage:    new("https://live.example.com"),
 			},
 			description: "",
-			wantDesc:    ptr.Ptr("live desc"),
-			wantHome:    ptr.Ptr("https://live.example.com"),
+			wantDesc:    new("live desc"),
+			wantHome:    new("https://live.example.com"),
 		},
 	}
 
@@ -241,8 +240,8 @@ func TestMergeRepoSettings(t *testing.T) {
 			cfg := &Config{
 				License: "BlueOak-1.0.0",
 				Repository: &model.RepositorySettings{
-					HasWiki:   ptr.Ptr(false),
-					HasIssues: ptr.Ptr(true),
+					HasWiki:   new(false),
+					HasIssues: new(true),
 				},
 			}
 
@@ -278,8 +277,8 @@ func TestMergeRepoSettingsPreservesMergeCommitFields(t *testing.T) {
 	mergeTitle := "PR_TITLE"
 	mergeMessage := "PR_BODY"
 	live := &model.RepositorySettings{
-		Description:        ptr.Ptr("desc"),
-		AllowMergeCommit:   ptr.Ptr(false),
+		Description:        new("desc"),
+		AllowMergeCommit:   new(false),
 		MergeCommitTitle:   &mergeTitle,
 		MergeCommitMessage: &mergeMessage,
 	}

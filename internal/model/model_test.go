@@ -2,8 +2,6 @@ package model
 
 import (
 	"testing"
-
-	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
 func TestRepositorySettingFieldsMetadata(t *testing.T) {
@@ -57,8 +55,8 @@ func TestRepositorySettingFieldsMetadata(t *testing.T) {
 func TestRepositorySettingFieldsValues(t *testing.T) {
 	topics := []string{"go", "cli"}
 	settings := &RepositorySettings{
-		Description: ptr.Ptr("test"),
-		HasWiki:     ptr.Ptr(false),
+		Description: new("test"),
+		HasWiki:     new(false),
 		Topics:      &topics,
 	}
 

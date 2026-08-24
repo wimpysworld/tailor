@@ -7,7 +7,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -229,7 +228,7 @@ func TestOptionalRepositoryFieldsOmitted(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -324,8 +323,8 @@ func TestNewFieldsRoundTrip(t *testing.T) {
 		License: "MIT",
 		Repository: &model.RepositorySettings{
 			Topics:                       &topics,
-			DefaultWorkflowPermissions:   ptr.Ptr("write"),
-			CanApprovePullRequestReviews: ptr.Ptr(true),
+			DefaultWorkflowPermissions:   new("write"),
+			CanApprovePullRequestReviews: new(true),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},
@@ -359,7 +358,7 @@ func TestNewFieldsOmittedInMarshal(t *testing.T) {
 	cfg := Config{
 		License: "MIT",
 		Repository: &model.RepositorySettings{
-			HasWiki: ptr.Ptr(false),
+			HasWiki: new(false),
 		},
 		Swatches: []SwatchEntry{
 			{Path: "justfile", Alteration: swatch.FirstFit},

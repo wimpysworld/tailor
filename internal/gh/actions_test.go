@@ -14,7 +14,6 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 )
 
 func TestReadActionsPolicy(t *testing.T) {
@@ -111,8 +110,8 @@ func TestApplyActionsPolicyPayloads(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	patterns := []string{"z/*", "a/*"}
-	desired := &model.ActionsSettings{AllowedActions: ptr.Ptr("selected"), PatternsAllowed: &patterns}
-	current := &model.ActionsSettings{Enabled: ptr.Ptr(true)}
+	desired := &model.ActionsSettings{AllowedActions: new("selected"), PatternsAllowed: &patterns}
+	current := &model.ActionsSettings{Enabled: new(true)}
 	if _, err := ApplyActionsPolicy(newTestClient(t, server), "acme", "widget", desired, current, true, true); err != nil {
 		t.Fatal(err)
 	}
@@ -149,12 +148,12 @@ func TestApplyActionsPolicyEmptyPatternsPayload(t *testing.T) {
 
 	patterns := []string{}
 	desired := &model.ActionsSettings{
-		AllowedActions:     ptr.Ptr("selected"),
-		GitHubOwnedAllowed: ptr.Ptr(true),
-		VerifiedAllowed:    ptr.Ptr(true),
+		AllowedActions:     new("selected"),
+		GitHubOwnedAllowed: new(true),
+		VerifiedAllowed:    new(true),
 		PatternsAllowed:    &patterns,
 	}
-	current := &model.ActionsSettings{Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected")}
+	current := &model.ActionsSettings{Enabled: new(true), AllowedActions: new("selected")}
 	if _, err := ApplyActionsPolicy(newTestClient(t, server), "acme", "widget", desired, current, false, true); err != nil {
 		t.Fatal(err)
 	}
@@ -173,17 +172,17 @@ func TestApplyActionsPolicyRestrictsEnabledAllToSelected(t *testing.T) {
 		"nick-fields/retry@*",
 	}
 	desired := &model.ActionsSettings{
-		Enabled:            ptr.Ptr(true),
-		AllowedActions:     ptr.Ptr("selected"),
-		SHAPinningRequired: ptr.Ptr(false),
-		GitHubOwnedAllowed: ptr.Ptr(true),
-		VerifiedAllowed:    ptr.Ptr(true),
+		Enabled:            new(true),
+		AllowedActions:     new("selected"),
+		SHAPinningRequired: new(false),
+		GitHubOwnedAllowed: new(true),
+		VerifiedAllowed:    new(true),
 		PatternsAllowed:    &patterns,
 	}
 	current := &model.ActionsSettings{
-		Enabled:            ptr.Ptr(true),
-		AllowedActions:     ptr.Ptr("all"),
-		SHAPinningRequired: ptr.Ptr(false),
+		Enabled:            new(true),
+		AllowedActions:     new("all"),
+		SHAPinningRequired: new(false),
 	}
 
 	var calls []string
@@ -332,21 +331,21 @@ func TestApplyActionsPolicySelectedTransitionPayloadsAndFailures(t *testing.T) {
 				patterns := []string{"z/*", "a/*"}
 				currentPatterns := []string{"a/*"}
 				desired := &model.ActionsSettings{
-					Enabled:            ptr.Ptr(transition.enabled),
-					AllowedActions:     ptr.Ptr("selected"),
-					SHAPinningRequired: ptr.Ptr(false),
-					GitHubOwnedAllowed: ptr.Ptr(true),
-					VerifiedAllowed:    ptr.Ptr(false),
+					Enabled:            new(transition.enabled),
+					AllowedActions:     new("selected"),
+					SHAPinningRequired: new(false),
+					GitHubOwnedAllowed: new(true),
+					VerifiedAllowed:    new(false),
 					PatternsAllowed:    &patterns,
 				}
 				current := &model.ActionsSettings{
-					Enabled:            ptr.Ptr(transition.enabled),
-					AllowedActions:     ptr.Ptr(transition.policy),
-					SHAPinningRequired: ptr.Ptr(false),
+					Enabled:            new(transition.enabled),
+					AllowedActions:     new(transition.policy),
+					SHAPinningRequired: new(false),
 				}
 				if transition.policy == "selected" {
-					current.GitHubOwnedAllowed = ptr.Ptr(false)
-					current.VerifiedAllowed = ptr.Ptr(false)
+					current.GitHubOwnedAllowed = new(false)
+					current.VerifiedAllowed = new(false)
 					current.PatternsAllowed = &currentPatterns
 				}
 
@@ -431,11 +430,11 @@ func TestApplyActionsPolicyAllToSelectedDefersSHAPinningRelaxation(t *testing.T)
 
 			patterns := []string{"acme/*"}
 			desired := &model.ActionsSettings{
-				Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected"), SHAPinningRequired: ptr.Ptr(false),
-				GitHubOwnedAllowed: ptr.Ptr(true), VerifiedAllowed: ptr.Ptr(false), PatternsAllowed: &patterns,
+				Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(false),
+				GitHubOwnedAllowed: new(true), VerifiedAllowed: new(false), PatternsAllowed: &patterns,
 			}
 			current := &model.ActionsSettings{
-				Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("all"), SHAPinningRequired: ptr.Ptr(true),
+				Enabled: new(true), AllowedActions: new("all"), SHAPinningRequired: new(true),
 			}
 			_, err := ApplyActionsPolicy(newTestClient(t, server), "acme", "widget", desired, current, true, true)
 			if (err != nil) != tt.wantError {
@@ -485,9 +484,9 @@ func TestApplyActionsPolicyAllToSelectedStopsAfterInitialCoreFailure(t *testing.
 
 	patterns := []string{"acme/*"}
 	desired := &model.ActionsSettings{
-		Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected"), PatternsAllowed: &patterns,
+		Enabled: new(true), AllowedActions: new("selected"), PatternsAllowed: &patterns,
 	}
-	current := &model.ActionsSettings{Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("all")}
+	current := &model.ActionsSettings{Enabled: new(true), AllowedActions: new("all")}
 	_, err := ApplyActionsPolicy(newTestClient(t, server), "acme", "widget", desired, current, true, true)
 	if err == nil || !strings.Contains(err.Error(), "The repository policy could not be changed") {
 		t.Fatalf("ApplyActionsPolicy() error = %v, want GitHub error detail", err)
@@ -517,9 +516,9 @@ func TestApplyActionsPolicyAllToSelectedFailureLeavesSelectedRestriction(t *test
 
 	patterns := []string{"acme/*"}
 	desired := &model.ActionsSettings{
-		Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected"), PatternsAllowed: &patterns,
+		Enabled: new(true), AllowedActions: new("selected"), PatternsAllowed: &patterns,
 	}
-	current := &model.ActionsSettings{Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("all")}
+	current := &model.ActionsSettings{Enabled: new(true), AllowedActions: new("all")}
 	_, err := ApplyActionsPolicy(newTestClient(t, server), "acme", "widget", desired, current, true, true)
 	if err == nil || !strings.Contains(err.Error(), "Selected actions policy update is in progress") {
 		t.Fatalf("ApplyActionsPolicy() error = %v, want selected-policy error detail", err)
@@ -641,19 +640,19 @@ func TestApplyActionsPolicyDisablesBeforeSelectedBroadeningAndSHAPinning(t *test
 			t.Cleanup(server.Close)
 
 			desired := &model.ActionsSettings{
-				Enabled:            ptr.Ptr(true),
-				AllowedActions:     ptr.Ptr("selected"),
-				SHAPinningRequired: ptr.Ptr(true),
-				GitHubOwnedAllowed: ptr.Ptr(tt.desiredGitHub),
-				VerifiedAllowed:    ptr.Ptr(tt.desiredVerified),
+				Enabled:            new(true),
+				AllowedActions:     new("selected"),
+				SHAPinningRequired: new(true),
+				GitHubOwnedAllowed: new(tt.desiredGitHub),
+				VerifiedAllowed:    new(tt.desiredVerified),
 				PatternsAllowed:    &tt.desiredPatterns,
 			}
 			current := &model.ActionsSettings{
-				Enabled:            ptr.Ptr(true),
-				AllowedActions:     ptr.Ptr("selected"),
-				SHAPinningRequired: ptr.Ptr(false),
-				GitHubOwnedAllowed: ptr.Ptr(tt.currentGitHub),
-				VerifiedAllowed:    ptr.Ptr(tt.currentVerified),
+				Enabled:            new(true),
+				AllowedActions:     new("selected"),
+				SHAPinningRequired: new(false),
+				GitHubOwnedAllowed: new(tt.currentGitHub),
+				VerifiedAllowed:    new(tt.currentVerified),
 				PatternsAllowed:    &tt.currentPatterns,
 			}
 			if _, err := ApplyActionsPolicy(newTestClient(t, server), "acme", "widget", desired, current, true, true); err != nil {
@@ -767,12 +766,12 @@ func TestApplyActionsPolicyMixedTighteningFailureLeavesActionsDisabled(t *testin
 			t.Cleanup(server.Close)
 
 			desired := &model.ActionsSettings{
-				Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected"), SHAPinningRequired: ptr.Ptr(tt.desiredSHAPin),
-				GitHubOwnedAllowed: ptr.Ptr(false), VerifiedAllowed: ptr.Ptr(false), PatternsAllowed: &tt.desiredPatterns,
+				Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(tt.desiredSHAPin),
+				GitHubOwnedAllowed: new(false), VerifiedAllowed: new(false), PatternsAllowed: &tt.desiredPatterns,
 			}
 			current := &model.ActionsSettings{
-				Enabled: ptr.Ptr(true), AllowedActions: ptr.Ptr("selected"), SHAPinningRequired: ptr.Ptr(tt.currentSHAPin),
-				GitHubOwnedAllowed: ptr.Ptr(false), VerifiedAllowed: ptr.Ptr(false), PatternsAllowed: &tt.currentPatterns,
+				Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(tt.currentSHAPin),
+				GitHubOwnedAllowed: new(false), VerifiedAllowed: new(false), PatternsAllowed: &tt.currentPatterns,
 			}
 			_, err := ApplyActionsPolicy(newTestClient(t, server), "acme", "widget", desired, current, true, true)
 			if err == nil || !strings.Contains(err.Error(), "while actions are disabled") {

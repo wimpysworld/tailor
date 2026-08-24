@@ -8,7 +8,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/ptr"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -98,9 +97,9 @@ func TestValidateDuplicatePathsRejectsDuplicate(t *testing.T) {
 func TestValidateRepoSettingsAcceptsValidConfig(t *testing.T) {
 	cfg := &Config{
 		Repository: &model.RepositorySettings{
-			HasWiki:   ptr.Ptr(false),
-			HasIssues: ptr.Ptr(true),
-			Homepage:  ptr.Ptr("https://example.com"),
+			HasWiki:   new(false),
+			HasIssues: new(true),
+			Homepage:  new("https://example.com"),
 		},
 	}
 	if err := ValidateRepoSettings(cfg); err != nil {
@@ -117,8 +116,8 @@ func TestValidateRepoSettingsAcceptsNilRepository(t *testing.T) {
 
 func TestValidateRepoSettingsAcceptsNormalisableSecuritySettings(t *testing.T) {
 	cfg := &Config{Repository: &model.RepositorySettings{
-		VulnerabilityAlertsEnabled:    ptr.Ptr(false),
-		AutomatedSecurityFixesEnabled: ptr.Ptr(true),
+		VulnerabilityAlertsEnabled:    new(false),
+		AutomatedSecurityFixesEnabled: new(true),
 	}}
 	if err := ValidateRepoSettings(cfg); err != nil {
 		t.Fatalf("ValidateRepoSettings() returned unexpected error: %v", err)
@@ -186,14 +185,14 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 }
 
 func TestValidateWorkflowPermissionsAcceptsRead(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("read")}}
+	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: new("read")}}
 	if err := ValidateWorkflowPermissions(cfg); err != nil {
 		t.Fatalf("ValidateWorkflowPermissions(read): %v", err)
 	}
 }
 
 func TestValidateWorkflowPermissionsAcceptsWrite(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("write")}}
+	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: new("write")}}
 	if err := ValidateWorkflowPermissions(cfg); err != nil {
 		t.Fatalf("ValidateWorkflowPermissions(write): %v", err)
 	}
@@ -214,7 +213,7 @@ func TestValidateWorkflowPermissionsAcceptsNilRepository(t *testing.T) {
 }
 
 func TestValidateWorkflowPermissionsRejectsInvalid(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: ptr.Ptr("admin")}}
+	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: new("admin")}}
 	err := ValidateWorkflowPermissions(cfg)
 	if err == nil {
 		t.Fatal("ValidateWorkflowPermissions(admin) expected error, got nil")
