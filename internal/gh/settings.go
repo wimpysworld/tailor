@@ -395,37 +395,23 @@ var nonPatchFields = map[string]bool{
 // appear in the PATCH body.
 func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 	p := settingsPayload{Body: make(map[string]any)}
+	if settings == nil {
+		return p
+	}
+
+	p.PrivateVulnerabilityReporting = settings.PrivateVulnerabilityReportEnabled
+	p.VulnerabilityAlerts = settings.VulnerabilityAlertsEnabled
+	p.AutomatedSecurityFixes = settings.AutomatedSecurityFixesEnabled
+	p.Topics = settings.Topics
+	p.DefaultWorkflowPermissions = settings.DefaultWorkflowPermissions
+	p.CanApprovePullRequestReviews = settings.CanApprovePullRequestReviews
 
 	for _, field := range model.RepositorySettingFields(settings) {
-		if !field.Set {
+		if !field.Set || nonPatchFields[field.YAMLKey] {
 			continue
 		}
 
 		fv := field.Value
-		if nonPatchFields[field.YAMLKey] {
-			switch field.YAMLKey {
-			case "private_vulnerability_reporting_enabled":
-				b := fv.Elem().Bool()
-				p.PrivateVulnerabilityReporting = &b
-			case "vulnerability_alerts_enabled":
-				b := fv.Elem().Bool()
-				p.VulnerabilityAlerts = &b
-			case "automated_security_fixes_enabled":
-				b := fv.Elem().Bool()
-				p.AutomatedSecurityFixes = &b
-			case "topics":
-				s := fv.Elem().Interface().([]string)
-				p.Topics = &s
-			case "default_workflow_permissions":
-				s := fv.Elem().String()
-				p.DefaultWorkflowPermissions = &s
-			case "can_approve_pull_request_reviews":
-				b := fv.Elem().Bool()
-				p.CanApprovePullRequestReviews = &b
-			}
-			continue
-		}
-
 		p.Body[field.YAMLKey] = fv.Elem().Interface()
 	}
 
