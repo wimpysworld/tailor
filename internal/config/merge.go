@@ -17,21 +17,20 @@ var repoSettingsSkipFields = map[string]bool{
 	"Topics":      true,
 }
 
-// MergeDefaults calls DefaultConfig once and delegates to the four merge
-// functions, avoiding redundant YAML parses. Returns the newly added swatch
-// entries and whether repo settings, Actions settings, or labels were merged.
-func MergeDefaults(cfg *Config) (swatchesAdded []SwatchEntry, repoMerged, actionsMerged, labelsMerged bool) {
-	swatchesAdded = MergeDefaultSwatches(cfg)
+// MergeDefaults calls DefaultConfig once and reports whether any defaults were
+// merged into the config.
+func MergeDefaults(cfg *Config) bool {
+	swatchesChanged := len(MergeDefaultSwatches(cfg)) > 0
 
 	defaults, err := DefaultConfig("_")
 	if err != nil {
-		return swatchesAdded, false, false, false
+		return swatchesChanged
 	}
 
-	repoMerged = mergeRepoSettingsFrom(cfg, defaults)
-	actionsMerged = mergeActionsFrom(cfg, defaults)
-	labelsMerged = mergeLabelsFrom(cfg, defaults)
-	return swatchesAdded, repoMerged, actionsMerged, labelsMerged
+	repoChanged := mergeRepoSettingsFrom(cfg, defaults)
+	actionsChanged := mergeActionsFrom(cfg, defaults)
+	labelsChanged := mergeLabelsFrom(cfg, defaults)
+	return swatchesChanged || repoChanged || actionsChanged || labelsChanged
 }
 
 // mergeRepoSettingsFrom fills nil pointer fields in cfg.Repository from the
