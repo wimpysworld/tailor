@@ -332,7 +332,7 @@ func TestIntegrationLicenseWithPlaceholders(t *testing.T) {
 func TestIntegrationLicenseWithMarkdownLinkIsPresent(t *testing.T) {
 	dir := t.TempDir()
 
-	content := "The licensee must comply with [Notices](#notices).\n"
+	content := "Copyright (c) [year](#year) The Authors.\n"
 	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
