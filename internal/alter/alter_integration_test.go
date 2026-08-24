@@ -1410,7 +1410,7 @@ swatches:
 
 // Non-substituted always swatches use SHA-256 content comparison and are left
 // alone when content matches the embedded swatch.
-func TestAlterRunApplyAlwaysSwatchNoWriteOnMD5Match(t *testing.T) {
+func TestAlterRunApplyAlwaysSwatchNoWriteOnSHA256Match(t *testing.T) {
 	configYAML := `license: none
 swatches:
   - path: CODE_OF_CONDUCT.md
@@ -1439,7 +1439,7 @@ swatches:
 		t.Fatal(err)
 	}
 	if !bytes.Equal(data, original) {
-		t.Error("CODE_OF_CONDUCT.md content changed despite MD5 match")
+		t.Error("CODE_OF_CONDUCT.md content changed despite SHA-256 match")
 	}
 
 	// Matching content is not rewritten.

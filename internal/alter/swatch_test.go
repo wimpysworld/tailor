@@ -121,7 +121,7 @@ func TestFirstFitApplyWritesFile(t *testing.T) {
 	}
 }
 
-func TestAlwaysNoChangeWhenMD5Matches(t *testing.T) {
+func TestAlwaysNoChangeWhenSHA256Matches(t *testing.T) {
 	dir := t.TempDir()
 	content := mustContent(t, "CODE_OF_CONDUCT.md")
 	writeOnDisk(t, dir, "CODE_OF_CONDUCT.md", content)
@@ -136,7 +136,7 @@ func TestAlwaysNoChangeWhenMD5Matches(t *testing.T) {
 	}
 }
 
-func TestAlwaysWouldOverwriteWhenMD5Differs(t *testing.T) {
+func TestAlwaysWouldOverwriteWhenSHA256Differs(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, "CODE_OF_CONDUCT.md", []byte("old content"))
 
