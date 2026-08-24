@@ -3,9 +3,13 @@ package gh
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
@@ -32,7 +36,7 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 
 	var permissions actionsPermissionsResponse
 	coreKnown := false
-	if err := client.Get(base, &permissions); err != nil {
+	if err := boundedActionsHTTPError(client.Get(base, &permissions)); err != nil {
 		classified := classifyHTTPError(err, "fetch actions permissions")
 		if isAccessError(classified) {
 			warnings = append(warnings, classified)
@@ -47,10 +51,10 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 	}
 
 	// GitHub rejects the selected-actions read while another policy is active.
-	// Leave those live values unknown so apply can use the disabled transition.
+	// Leave those live values unknown so apply can use the policy transition.
 	if selected && coreKnown && permissions.AllowedActions == "selected" {
 		var policy selectedActionsResponse
-		if err := client.Get(base+"/selected-actions", &policy); err != nil {
+		if err := boundedActionsHTTPError(client.Get(base+"/selected-actions", &policy)); err != nil {
 			classified := classifyHTTPError(err, "fetch selected actions permissions")
 			if isAccessError(classified) {
 				warnings = append(warnings, classified)
@@ -80,6 +84,35 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 	policyTransition := desiredSelected && selected && current.AllowedActions != nil && *current.AllowedActions != "selected"
 	orderedUpdate := desiredSelected && selected && core
 	if orderedUpdate {
+		restrictAllToSelected := policyTransition && current.Enabled != nil && *current.Enabled &&
+			current.AllowedActions != nil && *current.AllowedActions == "all" && coreBody["enabled"] == true
+		if restrictAllToSelected {
+			initialCoreBody := coreBody
+			relaxesSHAPinning := current.SHAPinningRequired != nil && *current.SHAPinningRequired &&
+				desired.SHAPinningRequired != nil && !*desired.SHAPinningRequired
+			if relaxesSHAPinning {
+				initialCoreBody = maps.Clone(coreBody)
+				initialCoreBody["sha_pinning_required"] = true
+			}
+			applied, err := applyActionsWrite(client, base, initialCoreBody, "set actions permissions", result)
+			if err != nil {
+				return nil, err
+			}
+			if !applied {
+				appendSkippedDependency(result, "set selected actions permissions")
+				return result, nil
+			}
+			if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
+				return nil, fmt.Errorf("setting selected actions permissions failed after actions were restricted to selected: %w", err)
+			}
+			if relaxesSHAPinning {
+				if err := putActionsPolicy(client, base, coreBody); err != nil {
+					return nil, fmt.Errorf("relaxing SHA pinning failed after selected actions restrictions were applied: %w", err)
+				}
+			}
+			return result, nil
+		}
+
 		actionsDisabled := current.Enabled != nil && !*current.Enabled
 		disableBeforeUpdate := current.Enabled != nil && *current.Enabled &&
 			desired.Enabled != nil && !*desired.Enabled
@@ -254,5 +287,71 @@ func putActionsPolicy(client *api.RESTClient, path string, body map[string]any) 
 	if err != nil {
 		return fmt.Errorf("marshalling actions permissions: %w", err)
 	}
-	return client.Put(path, bytes.NewReader(payload), nil)
+	return boundedActionsHTTPError(client.Put(path, bytes.NewReader(payload), nil))
+}
+
+// boundedActionsHTTPError limits the text that Tailor can render. go-gh reads
+// the complete response body before it returns, so this is not an allocation
+// limit for the response body.
+func boundedActionsHTTPError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var httpErr *api.HTTPError
+	if !errors.As(err, &httpErr) {
+		return err
+	}
+
+	const maxDetails = 3
+	const maxTextLength = 256
+	bounded := &api.HTTPError{
+		Headers:    httpErr.Headers.Clone(),
+		Message:    boundedSanitisedText(httpErr.Message, maxTextLength, true),
+		RequestURL: httpErr.RequestURL,
+		StatusCode: httpErr.StatusCode,
+	}
+	details := make([]string, 0, min(len(httpErr.Errors), maxDetails))
+	for _, item := range httpErr.Errors {
+		detail := boundedSanitisedText(item.Message, maxTextLength, false)
+		if detail == "" {
+			continue
+		}
+		details = append(details, detail)
+		item.Message = detail
+		bounded.Errors = append(bounded.Errors, item)
+		if len(details) == maxDetails {
+			break
+		}
+	}
+	if len(details) != 0 {
+		if bounded.Message == "" {
+			bounded.Message = "GitHub API request failed"
+		}
+		bounded.Message += ": " + strings.Join(details, "; ")
+	}
+	return bounded
+}
+
+func boundedSanitisedText(input string, limit int, firstLineOnly bool) string {
+	var output strings.Builder
+	truncated := false
+	for _, r := range input {
+		if firstLineOnly && r == '\n' {
+			break
+		}
+		if unicode.IsControl(r) {
+			r = ' '
+		}
+		if output.Len()+utf8.RuneLen(r) > limit {
+			truncated = true
+			break
+		}
+		output.WriteRune(r)
+	}
+	text := strings.TrimSpace(output.String())
+	if truncated {
+		text += "..."
+	}
+	return text
 }
