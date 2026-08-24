@@ -4,20 +4,73 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"text/template"
+
+	"github.com/wimpysworld/tailor/internal/model"
 )
 
 // yamlSpecial lists characters that require quoting in YAML values.
 const yamlSpecial = ":{}[]#&*!|>'\"%@`\n"
 
+// yamlVal quotes v when it contains YAML special characters, surrounding
+// whitespace, or is empty.
+func yamlVal(v string) string {
+	if strings.ContainsAny(v, yamlSpecial) || v != strings.TrimSpace(v) || v == "" {
+		return fmt.Sprintf("%q", v)
+	}
+	return v
+}
+
+// settingLines renders one "  key: value" line per set field. Scalar fields
+// keep struct order; list fields follow them, preserving the output order
+// that places topics last. Homepage stays unquoted because yamlVal would
+// quote the ":" in URLs.
+func settingLines(fields []model.RepositorySettingField) []string {
+	var lines, lists []string
+	for _, field := range fields {
+		if !field.Set {
+			continue
+		}
+		v := field.Value.Elem()
+		switch v.Kind() {
+		case reflect.String:
+			val := v.String()
+			if field.YAMLKey != "homepage" {
+				val = yamlVal(val)
+			}
+			lines = append(lines, fmt.Sprintf("  %s: %s", field.YAMLKey, val))
+		case reflect.Bool:
+			lines = append(lines, fmt.Sprintf("  %s: %t", field.YAMLKey, v.Bool()))
+		case reflect.Slice:
+			lists = append(lists, listLines(field.YAMLKey, v))
+		}
+	}
+	return append(lines, lists...)
+}
+
+// listLines renders a string-list field as a block sequence, or [] when empty.
+func listLines(key string, v reflect.Value) string {
+	if v.Len() == 0 {
+		return fmt.Sprintf("  %s: []", key)
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "  %s:", key)
+	for i := range v.Len() {
+		fmt.Fprintf(&b, "\n    - %s", yamlVal(v.Index(i).String()))
+	}
+	return b.String()
+}
+
 // templateFuncs provides helpers for the config template.
 var templateFuncs = template.FuncMap{
-	"yamlVal": func(v string) string {
-		if strings.ContainsAny(v, yamlSpecial) || v != strings.TrimSpace(v) || v == "" {
-			return fmt.Sprintf("%q", v)
-		}
-		return v
+	"yamlVal": yamlVal,
+	"repositoryLines": func(r *model.RepositorySettings) []string {
+		return settingLines(model.RepositorySettingFields(r))
+	},
+	"actionsLines": func(a *model.ActionsSettings) []string {
+		return settingLines(model.ActionsSettingFields(a))
 	},
 }
 
@@ -31,102 +84,15 @@ license: {{ .License }}
 {{- if .Repository }}
 
 repository:
-{{- if .Repository.Description }}
-  description: {{ yamlVal .Repository.Description }}
-{{- end }}
-{{- if .Repository.Homepage }}
-  homepage: {{ .Repository.Homepage }}
-{{- end }}
-{{- if .Repository.HasWiki }}
-  has_wiki: {{ .Repository.HasWiki }}
-{{- end }}
-{{- if .Repository.HasDiscussions }}
-  has_discussions: {{ .Repository.HasDiscussions }}
-{{- end }}
-{{- if .Repository.HasProjects }}
-  has_projects: {{ .Repository.HasProjects }}
-{{- end }}
-{{- if .Repository.HasIssues }}
-  has_issues: {{ .Repository.HasIssues }}
-{{- end }}
-{{- if .Repository.AllowMergeCommit }}
-  allow_merge_commit: {{ .Repository.AllowMergeCommit }}
-{{- end }}
-{{- if .Repository.AllowSquashMerge }}
-  allow_squash_merge: {{ .Repository.AllowSquashMerge }}
-{{- end }}
-{{- if .Repository.AllowRebaseMerge }}
-  allow_rebase_merge: {{ .Repository.AllowRebaseMerge }}
-{{- end }}
-{{- if .Repository.SquashMergeCommitTitle }}
-  squash_merge_commit_title: {{ yamlVal .Repository.SquashMergeCommitTitle }}
-{{- end }}
-{{- if .Repository.SquashMergeCommitMessage }}
-  squash_merge_commit_message: {{ yamlVal .Repository.SquashMergeCommitMessage }}
-{{- end }}
-{{- if .Repository.MergeCommitTitle }}
-  merge_commit_title: {{ yamlVal .Repository.MergeCommitTitle }}
-{{- end }}
-{{- if .Repository.MergeCommitMessage }}
-  merge_commit_message: {{ yamlVal .Repository.MergeCommitMessage }}
-{{- end }}
-{{- if .Repository.DeleteBranchOnMerge }}
-  delete_branch_on_merge: {{ .Repository.DeleteBranchOnMerge }}
-{{- end }}
-{{- if .Repository.AllowUpdateBranch }}
-  allow_update_branch: {{ .Repository.AllowUpdateBranch }}
-{{- end }}
-{{- if .Repository.AllowAutoMerge }}
-  allow_auto_merge: {{ .Repository.AllowAutoMerge }}
-{{- end }}
-{{- if .Repository.WebCommitSignoffRequired }}
-  web_commit_signoff_required: {{ .Repository.WebCommitSignoffRequired }}
-{{- end }}
-{{- if .Repository.PrivateVulnerabilityReportEnabled }}
-  private_vulnerability_reporting_enabled: {{ .Repository.PrivateVulnerabilityReportEnabled }}
-{{- end }}
-{{- if .Repository.VulnerabilityAlertsEnabled }}
-  vulnerability_alerts_enabled: {{ .Repository.VulnerabilityAlertsEnabled }}
-{{- end }}
-{{- if .Repository.AutomatedSecurityFixesEnabled }}
-  automated_security_fixes_enabled: {{ .Repository.AutomatedSecurityFixesEnabled }}
-{{- end }}
-{{- if .Repository.DefaultWorkflowPermissions }}
-  default_workflow_permissions: {{ .Repository.DefaultWorkflowPermissions }}
-{{- end }}
-{{- if .Repository.CanApprovePullRequestReviews }}
-  can_approve_pull_request_reviews: {{ .Repository.CanApprovePullRequestReviews }}
-{{- end }}
-{{- if .Repository.Topics }}
-  topics:{{ if eq (len .Repository.Topics) 0 }} []{{ else }}
-{{- range .Repository.Topics }}
-    - {{ yamlVal . }}
-{{- end }}{{ end }}
+{{- range repositoryLines .Repository }}
+{{ . }}
 {{- end }}
 {{- end }}
 {{- if .Actions }}
 
 actions:
-{{- if .Actions.Enabled }}
-  enabled: {{ .Actions.Enabled }}
-{{- end }}
-{{- if .Actions.AllowedActions }}
-  allowed_actions: {{ .Actions.AllowedActions }}
-{{- end }}
-{{- if .Actions.SHAPinningRequired }}
-  sha_pinning_required: {{ .Actions.SHAPinningRequired }}
-{{- end }}
-{{- if .Actions.GitHubOwnedAllowed }}
-  github_owned_allowed: {{ .Actions.GitHubOwnedAllowed }}
-{{- end }}
-{{- if .Actions.VerifiedAllowed }}
-  verified_allowed: {{ .Actions.VerifiedAllowed }}
-{{- end }}
-{{- if .Actions.PatternsAllowed }}
-  patterns_allowed:{{ if eq (len .Actions.PatternsAllowed) 0 }} []{{ else }}
-{{- range .Actions.PatternsAllowed }}
-    - {{ yamlVal . }}
-{{- end }}{{ end }}
+{{- range actionsLines .Actions }}
+{{ . }}
 {{- end }}
 {{- end }}
 {{- if .Labels }}

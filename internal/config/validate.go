@@ -80,7 +80,9 @@ func ValidateActions(cfg *Config) error {
 	}
 	if len(cfg.Actions.Extra) > 0 {
 		keys := slices.Sorted(maps.Keys(cfg.Actions.Extra))
-		return fmt.Errorf("unrecognised actions setting %q in config; valid settings: allowed_actions, enabled, github_owned_allowed, patterns_allowed, sha_pinning_required, verified_allowed", keys[0])
+		valid := settingNames(model.ActionsSettingFields(nil))
+		return fmt.Errorf("unrecognised actions setting %q in config; valid settings: %s",
+			keys[0], strings.Join(valid, ", "))
 	}
 
 	a := cfg.Actions
@@ -167,7 +169,11 @@ func ValidateLabels(cfg *Config) error {
 // repoSettingNames returns the sorted list of recognised yaml tag names from
 // RepositorySettings, excluding the inline Extra field.
 func repoSettingNames() []string {
-	fields := model.RepositorySettingFields(nil)
+	return settingNames(model.RepositorySettingFields(nil))
+}
+
+// settingNames returns the sorted yaml tag names for fields.
+func settingNames(fields []model.RepositorySettingField) []string {
 	names := make([]string, 0, len(fields))
 	for _, field := range fields {
 		names = append(names, field.YAMLKey)
