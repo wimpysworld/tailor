@@ -46,7 +46,6 @@
                 gocyclo
                 golangci-lint
                 goreleaser
-                ineffassign
                 just
               ]
               ++ (if tailorPkgs ? tailor then [ tailorPkgs.tailor ] else [ ]);
