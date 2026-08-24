@@ -36,7 +36,7 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 	var permissions actionsPermissionsResponse
 	coreKnown := false
 	if err := boundedActionsHTTPError(client.Get(base, &permissions)); err != nil {
-		classified := classifyHTTPError(err, "fetch actions permissions")
+		classified := classifyHTTPError(err, OpFetchActionsPermissions)
 		if isAccessError(classified) {
 			warnings = append(warnings, classified)
 		} else {
@@ -55,7 +55,7 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 	if selected && coreKnown && permissions.AllowedActions == "selected" {
 		var policy selectedActionsResponse
 		if err := boundedActionsHTTPError(client.Get(base+"/selected-actions", &policy)); err != nil {
-			classified := classifyHTTPError(err, "fetch selected actions permissions")
+			classified := classifyHTTPError(err, OpFetchSelectedActionsPermissions)
 			if isAccessError(classified) {
 				warnings = append(warnings, classified)
 			} else {
@@ -94,12 +94,12 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 				initialCoreBody = maps.Clone(coreBody)
 				initialCoreBody["sha_pinning_required"] = true
 			}
-			applied, err := applyActionsWrite(client, base, initialCoreBody, "set actions permissions", result)
+			applied, err := applyActionsWrite(client, base, initialCoreBody, OpSetActionsPermissions, result)
 			if err != nil {
 				return nil, err
 			}
 			if !applied {
-				appendSkippedDependency(result, "set selected actions permissions")
+				appendSkippedDependency(result, OpSetSelectedActionsPermissions)
 				return result, nil
 			}
 			if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
@@ -127,8 +127,8 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 				return result, err
 			}
 			if !applied {
-				appendSkippedDependency(result, "set selected actions permissions")
-				appendSkippedDependency(result, "set actions permissions")
+				appendSkippedDependency(result, OpSetSelectedActionsPermissions)
+				appendSkippedDependency(result, OpSetActionsPermissions)
 				return result, nil
 			}
 			actionsDisabled = true
@@ -138,8 +138,8 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 				return result, err
 			}
 			if !applied {
-				appendSkippedDependency(result, "set selected actions permissions")
-				appendSkippedDependency(result, "set actions permissions")
+				appendSkippedDependency(result, OpSetSelectedActionsPermissions)
+				appendSkippedDependency(result, OpSetActionsPermissions)
 				return result, nil
 			}
 			actionsDisabled = true
@@ -148,8 +148,8 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 			if actionsDisabled {
 				return nil, fmt.Errorf("setting selected actions permissions failed while actions are disabled: %w", err)
 			}
-			if recordAccessError(result, "set selected actions permissions", err) {
-				appendSkippedDependency(result, "set actions permissions")
+			if recordAccessError(result, OpSetSelectedActionsPermissions, err) {
+				appendSkippedDependency(result, OpSetActionsPermissions)
 				return result, nil
 			}
 			return nil, fmt.Errorf("setting selected actions permissions: %w", err)
@@ -160,23 +160,23 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 			}
 			return result, nil
 		}
-		_, err := applyActionsWrite(client, base, coreBody, "set actions permissions", result)
+		_, err := applyActionsWrite(client, base, coreBody, OpSetActionsPermissions, result)
 		return result, err
 	}
 
 	coreApplied := true
 	if core {
-		coreApplied, err = applyActionsWrite(client, base, coreBody, "set actions permissions", result)
+		coreApplied, err = applyActionsWrite(client, base, coreBody, OpSetActionsPermissions, result)
 		if err != nil {
 			return nil, err
 		}
 		if !coreApplied && selected {
-			appendSkippedDependency(result, "set selected actions permissions")
+			appendSkippedDependency(result, OpSetSelectedActionsPermissions)
 		}
 	}
 	if selected && coreApplied {
 		if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
-			if !recordAccessError(result, "set selected actions permissions", err) {
+			if !recordAccessError(result, OpSetSelectedActionsPermissions, err) {
 				return nil, fmt.Errorf("setting selected actions permissions: %w", err)
 			}
 		}

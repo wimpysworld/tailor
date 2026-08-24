@@ -85,7 +85,7 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 	adminRead := false
 	var wfPerms workflowPermissionsResponse
 	if err := client.Get(fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name), &wfPerms); err != nil {
-		classified := classifyHTTPError(err, "fetch workflow permissions")
+		classified := classifyHTTPError(err, OpFetchWorkflowPermissions)
 		if isAccessError(classified) {
 			warnings = append(warnings, classified)
 		} else {
@@ -106,19 +106,19 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 	}{
 		{
 			path:      fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name),
-			operation: "fetch private vulnerability reporting",
+			operation: OpFetchPrivateVulnerabilityReporting,
 			set:       func(enabled bool) { s.PrivateVulnerabilityReportEnabled = new(enabled) },
 		},
 		{
 			path:             fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name),
-			operation:        "fetch vulnerability alerts",
+			operation:        OpFetchVulnerabilityAlerts,
 			statusOnly:       true,
 			allow404Disabled: adminRead && repo.Permissions.Admin,
 			set:              func(enabled bool) { s.VulnerabilityAlertsEnabled = new(enabled) },
 		},
 		{
 			path:             fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name),
-			operation:        "fetch automated security fixes",
+			operation:        OpFetchAutomatedSecurityFixes,
 			allow404Disabled: adminRead && repo.Permissions.Admin,
 			set:              func(enabled bool) { s.AutomatedSecurityFixesEnabled = new(enabled) },
 		},
@@ -216,7 +216,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 			return nil, fmt.Errorf("marshalling repo settings: %w", err)
 		}
 		if err := client.Patch(fmt.Sprintf("repos/%s/%s", owner, name), bytes.NewReader(payload), nil); err != nil {
-			if !recordAccessError(result, "patch repo settings", err) {
+			if !recordAccessError(result, OpPatchRepoSettings, err) {
 				return nil, fmt.Errorf("patching repo settings: %w", err)
 			}
 		}
@@ -224,7 +224,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 
 	if p.PrivateVulnerabilityReporting != nil {
 		path := fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name)
-		if _, err := applySecuritySetting(client, path, *p.PrivateVulnerabilityReporting, "private vulnerability reporting", result); err != nil {
+		if _, err := applySecuritySetting(client, path, *p.PrivateVulnerabilityReporting, FeaturePrivateVulnerabilityReporting, result); err != nil {
 			return nil, err
 		}
 	}
@@ -234,7 +234,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 	fixesDisabled := current != nil && current.AutomatedSecurityFixesEnabled != nil && !*current.AutomatedSecurityFixesEnabled
 	if p.AutomatedSecurityFixes != nil && !*p.AutomatedSecurityFixes && !fixesDisabled {
 		var err error
-		fixesDisabled, err = applySecuritySetting(client, fixesPath, false, "automated security fixes", result)
+		fixesDisabled, err = applySecuritySetting(client, fixesPath, false, FeatureAutomatedSecurityFixes, result)
 		if err != nil {
 			return nil, err
 		}
@@ -243,28 +243,28 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 		if p.AutomatedSecurityFixes == nil {
 			return nil, fmt.Errorf("cannot disable vulnerability alerts while automated security fixes are unmanaged")
 		}
-		appendSkippedDependency(result, "disable vulnerability alerts")
+		appendSkippedDependency(result, SecurityFeatureOp(false, FeatureVulnerabilityAlerts))
 	}
 	alertsApplied := true
 	if p.VulnerabilityAlerts != nil && (*p.VulnerabilityAlerts || fixesDisabled) {
 		var err error
-		alertsApplied, err = applySecuritySetting(client, alertsPath, *p.VulnerabilityAlerts, "vulnerability alerts", result)
+		alertsApplied, err = applySecuritySetting(client, alertsPath, *p.VulnerabilityAlerts, FeatureVulnerabilityAlerts, result)
 		if err != nil {
 			return nil, err
 		}
 		if !alertsApplied && p.AutomatedSecurityFixes != nil && *p.AutomatedSecurityFixes {
-			appendSkippedDependency(result, "enable automated security fixes")
+			appendSkippedDependency(result, SecurityFeatureOp(true, FeatureAutomatedSecurityFixes))
 		}
 	}
 	if p.AutomatedSecurityFixes != nil && *p.AutomatedSecurityFixes && alertsApplied {
-		if _, err := applySecuritySetting(client, fixesPath, true, "automated security fixes", result); err != nil {
+		if _, err := applySecuritySetting(client, fixesPath, true, FeatureAutomatedSecurityFixes, result); err != nil {
 			return nil, err
 		}
 	}
 
 	if p.DefaultWorkflowPermissions != nil || p.CanApprovePullRequestReviews != nil {
 		if err := applyWorkflowPermissions(client, owner, name, p); err != nil {
-			if !recordAccessError(result, "set workflow permissions", err) {
+			if !recordAccessError(result, OpSetWorkflowPermissions, err) {
 				return nil, err
 			}
 		}
@@ -279,7 +279,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 			return nil, fmt.Errorf("marshalling topics: %w", err)
 		}
 		if err := client.Put(fmt.Sprintf("repos/%s/%s/topics", owner, name), bytes.NewReader(payload), nil); err != nil {
-			if !recordAccessError(result, "set topics", err) {
+			if !recordAccessError(result, OpSetTopics, err) {
 				return nil, fmt.Errorf("setting topics: %w", err)
 			}
 		}
@@ -289,10 +289,8 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 }
 
 func applySecuritySetting(client *api.RESTClient, path string, enabled bool, feature string, result *ApplyResult) (bool, error) {
-	action := "disable"
 	var err error
 	if enabled {
-		action = "enable"
 		err = client.Put(path, bytes.NewReader([]byte("{}")), nil)
 	} else {
 		err = client.Delete(path, nil)
@@ -300,7 +298,7 @@ func applySecuritySetting(client *api.RESTClient, path string, enabled bool, fea
 	if err == nil {
 		return true, nil
 	}
-	operation := action + " " + feature
+	operation := SecurityFeatureOp(enabled, feature)
 	if recordAccessError(result, operation, err) {
 		return false, nil
 	}
