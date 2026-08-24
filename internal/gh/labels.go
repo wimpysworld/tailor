@@ -30,7 +30,7 @@ func ReadLabels(client *api.RESTClient, owner, repo string) ([]model.LabelEntry,
 		path := fmt.Sprintf("repos/%s/%s/labels?per_page=100&page=%d", owner, repo, page)
 		resp, err := client.RequestWithContext(context.Background(), http.MethodGet, path, nil)
 		if err != nil {
-			return nil, fmt.Errorf("fetching labels page %d: %w", page, err)
+			return nil, fmt.Errorf("fetching labels page %d: %w", page, boundedHTTPError(err))
 		}
 
 		body, err := io.ReadAll(resp.Body)
@@ -129,7 +129,7 @@ func createLabel(client *api.RESTClient, owner, repo string, label model.LabelEn
 	}
 
 	path := fmt.Sprintf("repos/%s/%s/labels", owner, repo)
-	if err := client.Post(path, bytes.NewReader(payload), nil); err != nil {
+	if err := boundedHTTPError(client.Post(path, bytes.NewReader(payload), nil)); err != nil {
 		return fmt.Errorf("creating label %q: %w", label.Name, err)
 	}
 	return nil
@@ -149,7 +149,7 @@ func updateLabel(client *api.RESTClient, owner, repo, name string, label model.L
 	}
 
 	path := fmt.Sprintf("repos/%s/%s/labels/%s", owner, repo, url.PathEscape(name))
-	if err := client.Patch(path, bytes.NewReader(payload), nil); err != nil {
+	if err := boundedHTTPError(client.Patch(path, bytes.NewReader(payload), nil)); err != nil {
 		return fmt.Errorf("updating label %q: %w", name, err)
 	}
 	return nil

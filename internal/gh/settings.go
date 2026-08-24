@@ -56,7 +56,7 @@ type workflowPermissionsResponse struct {
 // log these warnings or ignore them.
 func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.RepositorySettings, []error, error) {
 	var repo repoResponse
-	if err := client.Get(fmt.Sprintf("repos/%s/%s", owner, name), &repo); err != nil {
+	if err := boundedHTTPError(client.Get(fmt.Sprintf("repos/%s/%s", owner, name), &repo)); err != nil {
 		return nil, nil, fmt.Errorf("fetching repo settings: %w", err)
 	}
 
@@ -84,7 +84,7 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 	var warnings []error
 	adminRead := false
 	var wfPerms workflowPermissionsResponse
-	if err := client.Get(fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name), &wfPerms); err != nil {
+	if err := boundedHTTPError(client.Get(fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name), &wfPerms)); err != nil {
 		classified := classifyHTTPError(err, OpFetchWorkflowPermissions)
 		if isAccessError(classified) {
 			warnings = append(warnings, classified)
@@ -151,7 +151,7 @@ func readSecurityFeature(client *api.RESTClient, path string, statusOnly, allow4
 	if !statusOnly {
 		response = &feature
 	}
-	if err := client.Get(path, response); err != nil {
+	if err := boundedHTTPError(client.Get(path, response)); err != nil {
 		var httpErr *api.HTTPError
 		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound && allow404Disabled {
 			return false, true, nil
@@ -215,7 +215,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 		if err != nil {
 			return nil, fmt.Errorf("marshalling repo settings: %w", err)
 		}
-		if err := client.Patch(fmt.Sprintf("repos/%s/%s", owner, name), bytes.NewReader(payload), nil); err != nil {
+		if err := boundedHTTPError(client.Patch(fmt.Sprintf("repos/%s/%s", owner, name), bytes.NewReader(payload), nil)); err != nil {
 			if !recordAccessError(result, OpPatchRepoSettings, err) {
 				return nil, fmt.Errorf("patching repo settings: %w", err)
 			}
@@ -278,7 +278,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 		if err != nil {
 			return nil, fmt.Errorf("marshalling topics: %w", err)
 		}
-		if err := client.Put(fmt.Sprintf("repos/%s/%s/topics", owner, name), bytes.NewReader(payload), nil); err != nil {
+		if err := boundedHTTPError(client.Put(fmt.Sprintf("repos/%s/%s/topics", owner, name), bytes.NewReader(payload), nil)); err != nil {
 			if !recordAccessError(result, OpSetTopics, err) {
 				return nil, fmt.Errorf("setting topics: %w", err)
 			}
@@ -291,9 +291,9 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 func applySecuritySetting(client *api.RESTClient, path string, enabled bool, feature string, result *ApplyResult) (bool, error) {
 	var err error
 	if enabled {
-		err = client.Put(path, bytes.NewReader([]byte("{}")), nil)
+		err = boundedHTTPError(client.Put(path, bytes.NewReader([]byte("{}")), nil))
 	} else {
-		err = client.Delete(path, nil)
+		err = boundedHTTPError(client.Delete(path, nil))
 	}
 	if err == nil {
 		return true, nil
@@ -332,7 +332,7 @@ func applyWorkflowPermissions(client *api.RESTClient, owner, name string, p sett
 	// PUT body is always complete.
 	if perms == nil || approve == nil {
 		var current workflowPermissionsResponse
-		if err := client.Get(wfpPath, &current); err != nil {
+		if err := boundedHTTPError(client.Get(wfpPath, &current)); err != nil {
 			return fmt.Errorf("fetching current workflow permissions: %w", err)
 		}
 		if perms == nil {
@@ -351,7 +351,7 @@ func applyWorkflowPermissions(client *api.RESTClient, owner, name string, p sett
 	if err != nil {
 		return fmt.Errorf("marshalling workflow permissions: %w", err)
 	}
-	if err := client.Put(wfpPath, bytes.NewReader(payload), nil); err != nil {
+	if err := boundedHTTPError(client.Put(wfpPath, bytes.NewReader(payload), nil)); err != nil {
 		return fmt.Errorf("setting workflow permissions: %w", err)
 	}
 	return nil
