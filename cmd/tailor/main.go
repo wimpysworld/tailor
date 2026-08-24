@@ -168,11 +168,13 @@ func (m *MeasureCmd) Run() error {
 }
 
 // DocketCmd displays GitHub authentication state and repository context.
-type DocketCmd struct{}
+type DocketCmd struct {
+	client *api.RESTClient
+}
 
 // Run executes the docket command.
 func (d *DocketCmd) Run() error {
-	result, err := docket.Run(nil)
+	result, err := docket.Run(d.client)
 	if err != nil {
 		return err
 	}

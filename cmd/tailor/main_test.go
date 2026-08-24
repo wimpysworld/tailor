@@ -13,6 +13,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/ghfake"
 	"github.com/wimpysworld/tailor/internal/swatch"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
 func TestFitNewDirectoryDefaultConfig(t *testing.T) {
@@ -256,20 +257,6 @@ func requireFileContent(t *testing.T, path, want string) {
 	}
 }
 
-// redirectTransport sends all requests to the test server, preserving the
-// original path and query but rewriting scheme and host.
-type redirectTransport struct {
-	target   string // test server URL, e.g. "http://127.0.0.1:PORT"
-	delegate http.RoundTripper
-}
-
-func (rt *redirectTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req = req.Clone(req.Context())
-	req.URL.Scheme = "http"
-	req.URL.Host = strings.TrimPrefix(rt.target, "http://")
-	return rt.delegate.RoundTrip(req)
-}
-
 func TestBasteCmdRun(t *testing.T) {
 	dir, output, run := setupSwatchCommandTest(t)
 	cmd := BasteCmd{run: run}
@@ -353,16 +340,7 @@ func TestDocketAuthenticated(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	oldTransport := http.DefaultTransport
-	http.DefaultTransport = &redirectTransport{
-		target:   srv.URL,
-		delegate: oldTransport,
-	}
-	t.Cleanup(func() { http.DefaultTransport = oldTransport })
-
-	t.Setenv("GH_TOKEN", "gho_test")
-
-	cmd := DocketCmd{}
+	cmd := DocketCmd{client: testutil.NewTestClient(t, srv)}
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("DocketCmd.Run() error: %v", err)
 	}
