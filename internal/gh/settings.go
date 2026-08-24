@@ -280,37 +280,23 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 	return result, nil
 }
 
-func operationName(enabled bool, feature string) string {
-	if enabled {
-		return "enable " + feature
-	}
-	return "disable " + feature
-}
-
-func applyBooleanEndpoint(client *api.RESTClient, path string, enabled bool, feature string) error {
-	operation := operationName(enabled, feature)
-	if enabled {
-		if err := client.Put(path, bytes.NewReader([]byte("{}")), nil); err != nil {
-			return fmt.Errorf("%s: %w", operation, err)
-		}
-		return nil
-	}
-	if err := client.Delete(path, nil); err != nil {
-		return fmt.Errorf("%s: %w", operation, err)
-	}
-	return nil
-}
-
 func applySecuritySetting(client *api.RESTClient, path string, enabled bool, feature string, result *ApplyResult) (bool, error) {
-	operation := operationName(enabled, feature)
-	err := applyBooleanEndpoint(client, path, enabled, feature)
+	action := "disable"
+	var err error
+	if enabled {
+		action = "enable"
+		err = client.Put(path, bytes.NewReader([]byte("{}")), nil)
+	} else {
+		err = client.Delete(path, nil)
+	}
 	if err == nil {
 		return true, nil
 	}
+	operation := action + " " + feature
 	if recordAccessError(result, operation, err) {
 		return false, nil
 	}
-	return false, err
+	return false, fmt.Errorf("%s: %w", operation, err)
 }
 
 func appendSkippedDependency(result *ApplyResult, operation string) {
