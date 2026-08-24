@@ -70,7 +70,6 @@ type RepositorySettings struct {
 // RepositorySettingField describes one supported repository setting.
 type RepositorySettingField struct {
 	YAMLKey string
-	GoName  string
 	Index   int
 	Value   reflect.Value
 	Set     bool
@@ -99,7 +98,6 @@ func RepositorySettingFields(settings *RepositorySettings) []RepositorySettingFi
 
 		field := RepositorySettingField{
 			YAMLKey: key,
-			GoName:  sf.Name,
 			Index:   i,
 		}
 		if v.IsValid() {

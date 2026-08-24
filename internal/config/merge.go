@@ -8,13 +8,13 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// repoSettingsSkipFields lists RepositorySettings field names excluded from
+// repoSettingsSkipFields lists RepositorySettings YAML keys excluded from
 // default merging. Description and Homepage are project-specific (nil'd by
 // DefaultConfig). Topics are project-specific per spec.
 var repoSettingsSkipFields = map[string]bool{
-	"Description": true,
-	"Homepage":    true,
-	"Topics":      true,
+	"description": true,
+	"homepage":    true,
+	"topics":      true,
 }
 
 // MergeDefaults calls DefaultConfig once and reports whether any defaults were
@@ -49,7 +49,7 @@ func mergeRepoSettingsFrom(cfg *Config, defaults *Config) bool {
 	changed := false
 
 	for _, field := range model.RepositorySettingFields(defaults.Repository) {
-		if repoSettingsSkipFields[field.GoName] {
+		if repoSettingsSkipFields[field.YAMLKey] {
 			continue
 		}
 		if !field.Set {

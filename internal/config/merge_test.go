@@ -215,7 +215,7 @@ func countMergeableFields(t *testing.T) int {
 	def := defaultRepoDefaults(t)
 	count := 0
 	for _, field := range model.RepositorySettingFields(def) {
-		if _, skip := repoSettingsSkipFields[field.GoName]; skip {
+		if _, skip := repoSettingsSkipFields[field.YAMLKey]; skip {
 			continue
 		}
 		if field.Set {
@@ -238,30 +238,23 @@ func TestMergeRepoSettingsNilRepository(t *testing.T) {
 	}
 
 	def := defaultRepoDefaults(t)
-	dv := reflect.ValueOf(def).Elem()
 	cv := reflect.ValueOf(cfg.Repository).Elem()
-	dt := dv.Type()
 
 	merged := 0
-	for i := range dt.NumField() {
-		f := dt.Field(i)
-		if _, skip := repoSettingsSkipFields[f.Name]; skip {
+	for _, field := range model.RepositorySettingFields(def) {
+		if _, skip := repoSettingsSkipFields[field.YAMLKey]; skip {
 			continue
 		}
-		if f.Tag.Get("yaml") == "" || f.Tag.Get("yaml") == ",inline" {
+		if !field.Set {
 			continue
 		}
-		dfv := dv.Field(i)
-		if dfv.Kind() != reflect.Pointer || dfv.IsNil() {
-			continue
-		}
-		cfv := cv.Field(i)
+		cfv := cv.Field(field.Index)
 		if cfv.IsNil() {
-			t.Errorf("field %s should be set from defaults", f.Name)
+			t.Errorf("field %s should be set from defaults", field.YAMLKey)
 			continue
 		}
-		if !reflect.DeepEqual(cfv.Elem().Interface(), dfv.Elem().Interface()) {
-			t.Errorf("field %s: got %v, want %v", f.Name, cfv.Elem().Interface(), dfv.Elem().Interface())
+		if !reflect.DeepEqual(cfv.Elem().Interface(), field.Value.Elem().Interface()) {
+			t.Errorf("field %s: got %v, want %v", field.YAMLKey, cfv.Elem().Interface(), field.Value.Elem().Interface())
 		}
 		merged++
 	}
@@ -302,25 +295,18 @@ func TestMergeRepoSettingsPartialRepository(t *testing.T) {
 
 	// Nil fields receive values from defaults.
 	def := defaultRepoDefaults(t)
-	dv := reflect.ValueOf(def).Elem()
 	cv := reflect.ValueOf(cfg.Repository).Elem()
-	dt := dv.Type()
 
-	for i := range dt.NumField() {
-		f := dt.Field(i)
-		if _, skip := repoSettingsSkipFields[f.Name]; skip {
+	for _, field := range model.RepositorySettingFields(def) {
+		if _, skip := repoSettingsSkipFields[field.YAMLKey]; skip {
 			continue
 		}
-		if f.Tag.Get("yaml") == "" || f.Tag.Get("yaml") == ",inline" {
+		if !field.Set {
 			continue
 		}
-		dfv := dv.Field(i)
-		if dfv.Kind() != reflect.Pointer || dfv.IsNil() {
-			continue
-		}
-		cfv := cv.Field(i)
+		cfv := cv.Field(field.Index)
 		if cfv.IsNil() {
-			t.Errorf("field %s should be set from defaults", f.Name)
+			t.Errorf("field %s should be set from defaults", field.YAMLKey)
 		}
 	}
 }
