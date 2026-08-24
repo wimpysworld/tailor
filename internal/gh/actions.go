@@ -67,6 +67,23 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 	return settings, warnings, nil
 }
 
+// actionsWriteOrder names the write-ordering strategy for one Actions policy
+// update. The fail-closed orderings keep a partial write from widening the
+// policy while Actions can run.
+type actionsWriteOrder int
+
+const (
+	// coreThenSelected writes the core policy, then the selected policy, with
+	// no fail-closed ordering.
+	coreThenSelected actionsWriteOrder = iota
+	// restrictAllThenSelected narrows an enabled "all" policy to "selected"
+	// through the core endpoint before the selected policy exists.
+	restrictAllThenSelected
+	// selectedThenCore writes the selected policy before the final core
+	// policy, disabling Actions first when the update could widen access.
+	selectedThenCore
+)
+
 // ApplyActionsPolicy writes only the Actions policy endpoint groups that differ.
 func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, current *model.ActionsSettings, core, selected bool) (*ApplyResult, error) {
 	base := fmt.Sprintf("repos/%s/%s/actions/permissions", owner, name)
@@ -76,93 +93,125 @@ func ApplyActionsPolicy(client *api.RESTClient, owner, name string, desired, cur
 		return nil, err
 	}
 	selectedBody := actionsSelectedBody(desired)
-	desiredSelected := desired.AllowedActions != nil && *desired.AllowedActions == "selected" ||
-		desired.AllowedActions == nil && current.AllowedActions != nil && *current.AllowedActions == "selected"
-	policyTransition := desiredSelected && selected && current.AllowedActions != nil && *current.AllowedActions != "selected"
-	orderedUpdate := desiredSelected && selected && core
-	if orderedUpdate {
-		restrictAllToSelected := policyTransition && current.Enabled != nil && *current.Enabled &&
-			current.AllowedActions != nil && *current.AllowedActions == "all" && coreBody["enabled"] == true
-		if restrictAllToSelected {
-			initialCoreBody := coreBody
-			relaxesSHAPinning := current.SHAPinningRequired != nil && *current.SHAPinningRequired &&
-				desired.SHAPinningRequired != nil && !*desired.SHAPinningRequired
-			if relaxesSHAPinning {
-				initialCoreBody = maps.Clone(coreBody)
-				initialCoreBody["sha_pinning_required"] = true
-			}
-			applied, err := applyActionsWrite(client, base, initialCoreBody, OpSetActionsPermissions, result)
-			if err != nil {
-				return nil, err
-			}
-			if !applied {
-				appendSkippedDependency(result, OpSetSelectedActionsPermissions)
-				return result, nil
-			}
-			if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
-				return nil, fmt.Errorf("setting selected actions permissions failed after actions were restricted to selected: %w", err)
-			}
-			if relaxesSHAPinning {
-				if err := putActionsPolicy(client, base, coreBody); err != nil {
-					return nil, fmt.Errorf("relaxing SHA pinning failed after selected actions restrictions were applied: %w", err)
-				}
-			}
-			return result, nil
-		}
-
-		actionsDisabled := current.Enabled != nil && !*current.Enabled
-		disableBeforeUpdate := current.Enabled != nil && *current.Enabled &&
-			desired.Enabled != nil && !*desired.Enabled
-		failClosedUpdate := current.Enabled != nil && *current.Enabled &&
-			selectedPolicyBroadens(desired, current)
-		if policyTransition {
-			applied, err := applyActionsWrite(client, base, map[string]any{
-				"enabled":         false,
-				"allowed_actions": "selected",
-			}, "disable actions for selected policy transition", result)
-			if err != nil {
-				return result, err
-			}
-			if !applied {
-				appendSkippedDependency(result, OpSetSelectedActionsPermissions)
-				appendSkippedDependency(result, OpSetActionsPermissions)
-				return result, nil
-			}
-			actionsDisabled = true
-		} else if disableBeforeUpdate || failClosedUpdate {
-			applied, err := applyActionsWrite(client, base, map[string]any{"enabled": false}, "disable actions for selected policy update", result)
-			if err != nil {
-				return result, err
-			}
-			if !applied {
-				appendSkippedDependency(result, OpSetSelectedActionsPermissions)
-				appendSkippedDependency(result, OpSetActionsPermissions)
-				return result, nil
-			}
-			actionsDisabled = true
-		}
-		if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
-			if actionsDisabled {
-				return nil, fmt.Errorf("setting selected actions permissions failed while actions are disabled: %w", err)
-			}
-			if recordAccessError(result, OpSetSelectedActionsPermissions, err) {
-				appendSkippedDependency(result, OpSetActionsPermissions)
-				return result, nil
-			}
-			return nil, fmt.Errorf("setting selected actions permissions: %w", err)
-		}
-		if actionsDisabled {
-			if err := putActionsPolicy(client, base, coreBody); err != nil {
-				return nil, fmt.Errorf("setting final actions permissions failed while actions are disabled: %w", err)
-			}
-			return result, nil
-		}
-		_, err := applyActionsWrite(client, base, coreBody, OpSetActionsPermissions, result)
-		return result, err
+	switch planActionsWriteOrder(desired, current, core, selected, coreBody) {
+	case restrictAllThenSelected:
+		return applyRestrictAllThenSelected(client, base, desired, current, coreBody, selectedBody, result)
+	case selectedThenCore:
+		return applySelectedThenCore(client, base, desired, current, coreBody, selectedBody, result)
+	default:
+		return applyCoreThenSelected(client, base, coreBody, selectedBody, core, selected, result)
 	}
+}
 
+// planActionsWriteOrder picks the write ordering. Fail-closed orderings apply
+// only when both endpoint groups are written and the target policy, desired or
+// carried over from current, is "selected".
+func planActionsWriteOrder(desired, current *model.ActionsSettings, core, selected bool, coreBody map[string]any) actionsWriteOrder {
+	targetsSelected := desired.AllowedActions != nil && *desired.AllowedActions == "selected" ||
+		desired.AllowedActions == nil && current.AllowedActions != nil && *current.AllowedActions == "selected"
+	if !targetsSelected || !core || !selected {
+		return coreThenSelected
+	}
+	enabledAllPolicy := current.Enabled != nil && *current.Enabled &&
+		current.AllowedActions != nil && *current.AllowedActions == "all"
+	if enabledAllPolicy && coreBody["enabled"] == true {
+		return restrictAllThenSelected
+	}
+	return selectedThenCore
+}
+
+// applyRestrictAllThenSelected narrows an enabled "all" policy: the core write
+// switches to "selected" first, then the selected policy lands. When the
+// update also relaxes SHA pinning, the initial core write keeps pinning
+// required and a final core write relaxes it after the selected policy exists.
+func applyRestrictAllThenSelected(client *api.RESTClient, base string, desired, current *model.ActionsSettings, coreBody, selectedBody map[string]any, result *ApplyResult) (*ApplyResult, error) {
+	initialCoreBody := coreBody
+	relaxesSHAPinning := current.SHAPinningRequired != nil && *current.SHAPinningRequired &&
+		desired.SHAPinningRequired != nil && !*desired.SHAPinningRequired
+	if relaxesSHAPinning {
+		initialCoreBody = maps.Clone(coreBody)
+		initialCoreBody["sha_pinning_required"] = true
+	}
+	applied, err := applyActionsWrite(client, base, initialCoreBody, OpSetActionsPermissions, result)
+	if err != nil {
+		return nil, err
+	}
+	if !applied {
+		appendSkippedDependency(result, OpSetSelectedActionsPermissions)
+		return result, nil
+	}
+	if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
+		return nil, fmt.Errorf("setting selected actions permissions failed after actions were restricted to selected: %w", err)
+	}
+	if relaxesSHAPinning {
+		if err := putActionsPolicy(client, base, coreBody); err != nil {
+			return nil, fmt.Errorf("relaxing SHA pinning failed after selected actions restrictions were applied: %w", err)
+		}
+	}
+	return result, nil
+}
+
+// disableActionsStep returns the pre-update disable write and its operation
+// name, or nil when the selected policy can change while Actions keep their
+// current state.
+func disableActionsStep(desired, current *model.ActionsSettings) (map[string]any, string) {
+	if current.AllowedActions != nil && *current.AllowedActions != "selected" {
+		return map[string]any{
+			"enabled":         false,
+			"allowed_actions": "selected",
+		}, "disable actions for selected policy transition"
+	}
+	currentlyEnabled := current.Enabled != nil && *current.Enabled
+	desiredDisabled := desired.Enabled != nil && !*desired.Enabled
+	if currentlyEnabled && (desiredDisabled || selectedPolicyBroadens(desired, current)) {
+		return map[string]any{"enabled": false}, "disable actions for selected policy update"
+	}
+	return nil, ""
+}
+
+// applySelectedThenCore writes the selected policy before the final core
+// policy. When the update could widen access, a disable write runs first so a
+// partial failure leaves Actions disabled rather than over-permitted.
+func applySelectedThenCore(client *api.RESTClient, base string, desired, current *model.ActionsSettings, coreBody, selectedBody map[string]any, result *ApplyResult) (*ApplyResult, error) {
+	actionsDisabled := current.Enabled != nil && !*current.Enabled
+	if disableBody, disableOp := disableActionsStep(desired, current); disableBody != nil {
+		applied, err := applyActionsWrite(client, base, disableBody, disableOp, result)
+		if err != nil {
+			return result, err
+		}
+		if !applied {
+			appendSkippedDependency(result, OpSetSelectedActionsPermissions)
+			appendSkippedDependency(result, OpSetActionsPermissions)
+			return result, nil
+		}
+		actionsDisabled = true
+	}
+	if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
+		if actionsDisabled {
+			return nil, fmt.Errorf("setting selected actions permissions failed while actions are disabled: %w", err)
+		}
+		if recordAccessError(result, OpSetSelectedActionsPermissions, err) {
+			appendSkippedDependency(result, OpSetActionsPermissions)
+			return result, nil
+		}
+		return nil, fmt.Errorf("setting selected actions permissions: %w", err)
+	}
+	if actionsDisabled {
+		if err := putActionsPolicy(client, base, coreBody); err != nil {
+			return nil, fmt.Errorf("setting final actions permissions failed while actions are disabled: %w", err)
+		}
+		return result, nil
+	}
+	_, err := applyActionsWrite(client, base, coreBody, OpSetActionsPermissions, result)
+	return result, err
+}
+
+// applyCoreThenSelected writes the requested endpoint groups in the plain
+// order: core first, then the selected policy if the core write applied.
+func applyCoreThenSelected(client *api.RESTClient, base string, coreBody, selectedBody map[string]any, core, selected bool, result *ApplyResult) (*ApplyResult, error) {
 	coreApplied := true
 	if core {
+		var err error
 		coreApplied, err = applyActionsWrite(client, base, coreBody, OpSetActionsPermissions, result)
 		if err != nil {
 			return nil, err
