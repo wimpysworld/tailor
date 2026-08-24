@@ -108,6 +108,11 @@ func settingsForApply(declared *model.RepositorySettings, results []RepoSettingR
 	if !changed["automated_security_fixes_enabled"] {
 		apply.AutomatedSecurityFixesEnabled = nil
 	}
+	if changed["vulnerability_alerts_enabled"] &&
+		declared.VulnerabilityAlertsEnabled != nil && !*declared.VulnerabilityAlertsEnabled &&
+		declared.AutomatedSecurityFixesEnabled != nil && !*declared.AutomatedSecurityFixesEnabled {
+		apply.AutomatedSecurityFixesEnabled = declared.AutomatedSecurityFixesEnabled
+	}
 	return &apply
 }
 

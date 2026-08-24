@@ -209,16 +209,19 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *mod
 
 	alertsPath := fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name)
 	fixesPath := fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name)
-	fixesDisabled := true
+	fixesDisabled := false
 	if p.AutomatedSecurityFixes != nil && !*p.AutomatedSecurityFixes {
 		var err error
 		fixesDisabled, err = applySecuritySetting(client, fixesPath, false, "automated security fixes", result)
 		if err != nil {
 			return nil, err
 		}
-		if !fixesDisabled && p.VulnerabilityAlerts != nil && !*p.VulnerabilityAlerts {
-			appendSkippedDependency(result, "disable vulnerability alerts")
+	}
+	if !fixesDisabled && p.VulnerabilityAlerts != nil && !*p.VulnerabilityAlerts {
+		if p.AutomatedSecurityFixes == nil {
+			return nil, fmt.Errorf("cannot disable vulnerability alerts while automated security fixes are unmanaged")
 		}
+		appendSkippedDependency(result, "disable vulnerability alerts")
 	}
 	alertsApplied := true
 	if p.VulnerabilityAlerts != nil && (*p.VulnerabilityAlerts || fixesDisabled) {
