@@ -94,18 +94,17 @@ func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode
 
 	switch entry.Alteration {
 	case swatch.FirstFit:
-		return processFirstFit(root, entry, content, exists, mode)
+		if exists {
+			return SwatchResult{Path: entry.Path, Category: Skipped, Reason: SkipFirstFitExists}, nil
+		}
 	case swatch.Always:
-		return processAlways(root, entry, content, exists, mode)
+		if exists {
+			return processAlways(root, entry, content, mode)
+		}
 	default:
 		return SwatchResult{}, fmt.Errorf("unknown alteration mode %q for swatch %q", entry.Alteration, entry.Path)
 	}
-}
 
-func processFirstFit(root *os.Root, entry config.SwatchEntry, content []byte, exists bool, mode ApplyMode) (SwatchResult, error) {
-	if exists {
-		return SwatchResult{Path: entry.Path, Category: Skipped, Reason: SkipFirstFitExists}, nil
-	}
 	if mode.ShouldWrite() {
 		if err := writeFile(root, entry.Path, content); err != nil {
 			return SwatchResult{}, err
@@ -114,16 +113,7 @@ func processFirstFit(root *os.Root, entry config.SwatchEntry, content []byte, ex
 	return SwatchResult{Path: entry.Path, Category: WouldCopy}, nil
 }
 
-func processAlways(root *os.Root, entry config.SwatchEntry, content []byte, exists bool, mode ApplyMode) (SwatchResult, error) {
-	if !exists {
-		if mode.ShouldWrite() {
-			if err := writeFile(root, entry.Path, content); err != nil {
-				return SwatchResult{}, err
-			}
-		}
-		return SwatchResult{Path: entry.Path, Category: WouldCopy}, nil
-	}
-
+func processAlways(root *os.Root, entry config.SwatchEntry, content []byte, mode ApplyMode) (SwatchResult, error) {
 	onDisk, err := contentHashFile(root, entry.Path)
 	if err != nil {
 		return SwatchResult{}, fmt.Errorf("hashing on-disk file %q: %w", entry.Path, err)
