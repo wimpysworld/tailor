@@ -3,13 +3,10 @@ package gh
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"maps"
 	"slices"
 	"strings"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
@@ -35,7 +32,7 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 
 	var permissions actionsPermissionsResponse
 	coreKnown := false
-	if err := boundedActionsHTTPError(client.Get(base, &permissions)); err != nil {
+	if err := boundedHTTPError(client.Get(base, &permissions)); err != nil {
 		classified := classifyHTTPError(err, OpFetchActionsPermissions)
 		if isAccessError(classified) {
 			warnings = append(warnings, classified)
@@ -54,7 +51,7 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 	// policy transition path.
 	if selected && coreKnown && permissions.AllowedActions == "selected" {
 		var policy selectedActionsResponse
-		if err := boundedActionsHTTPError(client.Get(base+"/selected-actions", &policy)); err != nil {
+		if err := boundedHTTPError(client.Get(base+"/selected-actions", &policy)); err != nil {
 			classified := classifyHTTPError(err, OpFetchSelectedActionsPermissions)
 			if isAccessError(classified) {
 				warnings = append(warnings, classified)
@@ -286,71 +283,5 @@ func putActionsPolicy(client *api.RESTClient, path string, body map[string]any) 
 	if err != nil {
 		return fmt.Errorf("marshalling actions permissions: %w", err)
 	}
-	return boundedActionsHTTPError(client.Put(path, bytes.NewReader(payload), nil))
-}
-
-// boundedActionsHTTPError limits the text that Tailor can render. go-gh reads
-// the complete response body before it returns, so this is not an allocation
-// limit for the response body.
-func boundedActionsHTTPError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	var httpErr *api.HTTPError
-	if !errors.As(err, &httpErr) {
-		return err
-	}
-
-	const maxDetails = 3
-	const maxTextLength = 256
-	bounded := &api.HTTPError{
-		Headers:    httpErr.Headers.Clone(),
-		Message:    boundedSanitisedText(httpErr.Message, maxTextLength, true),
-		RequestURL: httpErr.RequestURL,
-		StatusCode: httpErr.StatusCode,
-	}
-	details := make([]string, 0, min(len(httpErr.Errors), maxDetails))
-	for _, item := range httpErr.Errors {
-		detail := boundedSanitisedText(item.Message, maxTextLength, false)
-		if detail == "" {
-			continue
-		}
-		details = append(details, detail)
-		item.Message = detail
-		bounded.Errors = append(bounded.Errors, item)
-		if len(details) == maxDetails {
-			break
-		}
-	}
-	if len(details) != 0 {
-		if bounded.Message == "" {
-			bounded.Message = "GitHub API request failed"
-		}
-		bounded.Message += ": " + strings.Join(details, "; ")
-	}
-	return bounded
-}
-
-func boundedSanitisedText(input string, limit int, firstLineOnly bool) string {
-	var output strings.Builder
-	truncated := false
-	for _, r := range input {
-		if firstLineOnly && r == '\n' {
-			break
-		}
-		if unicode.IsControl(r) {
-			r = ' '
-		}
-		if output.Len()+utf8.RuneLen(r) > limit {
-			truncated = true
-			break
-		}
-		output.WriteRune(r)
-	}
-	text := strings.TrimSpace(output.String())
-	if truncated {
-		text += "..."
-	}
-	return text
+	return boundedHTTPError(client.Put(path, bytes.NewReader(payload), nil))
 }

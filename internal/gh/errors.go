@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 )
@@ -83,4 +85,70 @@ func classifyHTTPError(err error, operation string) error {
 		Message:    httpErr.Message,
 		Operation:  operation,
 	}
+}
+
+// boundedHTTPError limits the text that Tailor can render. go-gh reads
+// the complete response body before it returns, so this is not an allocation
+// limit for the response body.
+func boundedHTTPError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	var httpErr *api.HTTPError
+	if !errors.As(err, &httpErr) {
+		return err
+	}
+
+	const maxDetails = 3
+	const maxTextLength = 256
+	bounded := &api.HTTPError{
+		Headers:    httpErr.Headers.Clone(),
+		Message:    boundedSanitisedText(httpErr.Message, maxTextLength, true),
+		RequestURL: httpErr.RequestURL,
+		StatusCode: httpErr.StatusCode,
+	}
+	details := make([]string, 0, min(len(httpErr.Errors), maxDetails))
+	for _, item := range httpErr.Errors {
+		detail := boundedSanitisedText(item.Message, maxTextLength, false)
+		if detail == "" {
+			continue
+		}
+		details = append(details, detail)
+		item.Message = detail
+		bounded.Errors = append(bounded.Errors, item)
+		if len(details) == maxDetails {
+			break
+		}
+	}
+	if len(details) != 0 {
+		if bounded.Message == "" {
+			bounded.Message = "GitHub API request failed"
+		}
+		bounded.Message += ": " + strings.Join(details, "; ")
+	}
+	return bounded
+}
+
+func boundedSanitisedText(input string, limit int, firstLineOnly bool) string {
+	var output strings.Builder
+	truncated := false
+	for _, r := range input {
+		if firstLineOnly && r == '\n' {
+			break
+		}
+		if unicode.IsControl(r) {
+			r = ' '
+		}
+		if output.Len()+utf8.RuneLen(r) > limit {
+			truncated = true
+			break
+		}
+		output.WriteRune(r)
+	}
+	text := strings.TrimSpace(output.String())
+	if truncated {
+		text += "..."
+	}
+	return text
 }
