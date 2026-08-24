@@ -94,27 +94,16 @@ func compareLabels(desired, current []model.LabelEntry) []LabelResult {
 
 		display := formatLabelValue(d)
 
-		if !found {
-			results = append(results, LabelResult{
-				Name:     d.Name,
-				Category: WouldCreate,
-				Value:    display,
-			})
-			continue
+		category := LabelNoChange
+		switch {
+		case !found:
+			category = WouldCreate
+		case model.LabelNeedsUpdate(existing, d):
+			category = WouldUpdate
 		}
-
-		if model.LabelNeedsUpdate(existing, d) {
-			results = append(results, LabelResult{
-				Name:     d.Name,
-				Category: WouldUpdate,
-				Value:    display,
-			})
-			continue
-		}
-
 		results = append(results, LabelResult{
 			Name:     d.Name,
-			Category: LabelNoChange,
+			Category: category,
 			Value:    display,
 		})
 	}

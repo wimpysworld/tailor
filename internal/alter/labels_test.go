@@ -357,22 +357,18 @@ func TestProcessLabelsMixedResults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(results) != 3 {
-		t.Fatalf("got %d results, want 3", len(results))
+	want := []alter.LabelResult{
+		{Name: "bug", Category: alter.LabelNoChange, Value: "#d73a4a \"Something isn't working\""},
+		{Name: "enhancement", Category: alter.WouldUpdate, Value: "#a2eeef \"New feature\""},
+		{Name: "documentation", Category: alter.WouldCreate, Value: "#0075ca \"Docs improvements\""},
 	}
-
-	counts := map[alter.LabelCategory]int{}
-	for _, r := range results {
-		counts[r.Category]++
+	if len(results) != len(want) {
+		t.Fatalf("got %d results, want %d", len(results), len(want))
 	}
-	if counts[alter.LabelNoChange] != 1 {
-		t.Errorf("LabelNoChange count = %d, want 1", counts[alter.LabelNoChange])
-	}
-	if counts[alter.WouldUpdate] != 1 {
-		t.Errorf("WouldUpdate count = %d, want 1", counts[alter.WouldUpdate])
-	}
-	if counts[alter.WouldCreate] != 1 {
-		t.Errorf("WouldCreate count = %d, want 1", counts[alter.WouldCreate])
+	for i := range want {
+		if results[i] != want[i] {
+			t.Errorf("result %d = %#v, want %#v", i, results[i], want[i])
+		}
 	}
 }
 
