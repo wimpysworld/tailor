@@ -6,7 +6,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/model"
@@ -137,16 +136,16 @@ func actionsGroupSet(a *model.ActionsSettings, group actionsFieldGroup) bool {
 
 // ProcessActions compares the declared Actions policy against GitHub and
 // applies only endpoint groups that differ.
-func ProcessActions(cfg *config.Config, mode ApplyMode, client *api.RESTClient, owner, name string, hasRepo bool) ([]RepoSettingResult, error) {
+func ProcessActions(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]RepoSettingResult, error) {
 	if cfg.Actions == nil || !actionsConfigured(cfg.Actions) {
 		return nil, nil
 	}
-	if !hasRepo {
+	if !target.HasRepo {
 		return nil, nil
 	}
 
 	selected := actionsGroupSet(cfg.Actions, actionsSelected)
-	live, warnings, err := gh.ReadActionsPolicy(client, owner, name, selected)
+	live, warnings, err := gh.ReadActionsPolicy(target.Client, target.Owner, target.Name, selected)
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +154,7 @@ func ProcessActions(cfg *config.Config, mode ApplyMode, client *api.RESTClient, 
 
 	coreChanged, selectedChanged := actionsChanges(results)
 	if mode.ShouldWrite() && (coreChanged || selectedChanged) {
-		applied, err := gh.ApplyActionsPolicy(client, owner, name, cfg.Actions, live, coreChanged, selectedChanged)
+		applied, err := gh.ApplyActionsPolicy(target.Client, target.Owner, target.Name, cfg.Actions, live, coreChanged, selectedChanged)
 		if err != nil {
 			return nil, err
 		}

@@ -39,7 +39,7 @@ func actionsServer(t *testing.T, writes *atomic.Int32, forbidden bool) *httptest
 }
 
 func TestProcessActionsAbsentMakesNoCalls(t *testing.T) {
-	results, err := alter.ProcessActions(&config.Config{}, alter.Apply, nil, "acme", "widget", true)
+	results, err := alter.ProcessActions(&config.Config{}, alter.Apply, repoTarget(nil, "acme", "widget", true))
 	if err != nil || results != nil {
 		t.Fatalf("ProcessActions() = %v, %v", results, err)
 	}
@@ -54,7 +54,7 @@ func TestProcessActionsCanonicalNoChange(t *testing.T) {
 		Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(true),
 		GitHubOwnedAllowed: new(true), VerifiedAllowed: new(false), PatternsAllowed: &patterns,
 	}}
-	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
+	results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -74,11 +74,11 @@ func TestProcessActionsDryRunAndApply(t *testing.T) {
 	t.Cleanup(server.Close)
 	cfg := &config.Config{Actions: &model.ActionsSettings{Enabled: new(false)}}
 	client := testutil.NewTestClient(t, server)
-	results, err := alter.ProcessActions(cfg, alter.DryRun, client, "acme", "widget", true)
+	results, err := alter.ProcessActions(cfg, alter.DryRun, repoTarget(client, "acme", "widget", true))
 	if err != nil || len(results) != 1 || results[0].Category != alter.WouldSet || writes.Load() != 0 {
 		t.Fatalf("dry run = %+v, %v, writes %d", results, err, writes.Load())
 	}
-	if _, err := alter.ProcessActions(cfg, alter.Apply, client, "acme", "widget", true); err != nil {
+	if _, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(client, "acme", "widget", true)); err != nil {
 		t.Fatal(err)
 	}
 	if writes.Load() != 1 {
@@ -118,7 +118,7 @@ func TestProcessActionsTransitionsToSelectedInOneApply(t *testing.T) {
 		AllowedActions:  new("selected"),
 		PatternsAllowed: &patterns,
 	}}
-	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
+	results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -140,7 +140,7 @@ func TestProcessActionsAccessErrorProducesSkip(t *testing.T) {
 	server := actionsServer(t, &writes, true)
 	t.Cleanup(server.Close)
 	cfg := &config.Config{Actions: &model.ActionsSettings{Enabled: new(true)}}
-	results, err := alter.ProcessActions(cfg, alter.DryRun, testutil.NewTestClient(t, server), "acme", "widget", true)
+	results, err := alter.ProcessActions(cfg, alter.DryRun, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestProcessActionsUnknownCoreSkipsAllDeclaredPolicyFields(t *testing.T) {
 	cfg := &config.Config{Actions: &model.ActionsSettings{
 		AllowedActions: new("selected"), PatternsAllowed: &patterns,
 	}}
-	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
+	results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -198,7 +198,7 @@ func TestProcessActionsUnknownSelectedPolicyBlocksEnable(t *testing.T) {
 		Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(false),
 		GitHubOwnedAllowed: new(true), VerifiedAllowed: new(true), PatternsAllowed: &patterns,
 	}}
-	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
+	results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -243,7 +243,7 @@ func TestProcessActionsDisablesBeforeChangingSelectedPolicyAndRelaxingSHAPinning
 		Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(false),
 		GitHubOwnedAllowed: new(true), VerifiedAllowed: new(true), PatternsAllowed: &patterns,
 	}}
-	if _, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true); err != nil {
+	if _, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true)); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
@@ -285,7 +285,7 @@ func TestProcessActionsSelectedOnlyWriteAccessError(t *testing.T) {
 		Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(false),
 		GitHubOwnedAllowed: new(true), VerifiedAllowed: new(true), PatternsAllowed: &patterns,
 	}}
-	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
+	results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -318,7 +318,7 @@ func TestProcessActionsWriteAccessErrorProducesClearOutput(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	cfg := &config.Config{Actions: &model.ActionsSettings{Enabled: new(false)}}
-	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
+	results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +352,7 @@ func TestProcessActionsStopsSelectedWriteAfterCoreFailure(t *testing.T) {
 			cfg := &config.Config{Actions: &model.ActionsSettings{
 				Enabled: new(false), AllowedActions: new("selected"), PatternsAllowed: &patterns,
 			}}
-			results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
+			results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
 			if status == http.StatusForbidden && err != nil {
 				t.Fatalf("ProcessActions() error = %v, want access skip", err)
 			}
@@ -392,7 +392,7 @@ func TestProcessActionsTightensSelectedPolicyBeforeEnabling(t *testing.T) {
 	cfg := &config.Config{Actions: &model.ActionsSettings{
 		Enabled: new(true), AllowedActions: new("selected"), PatternsAllowed: &patterns,
 	}}
-	if _, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true); err != nil {
+	if _, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true)); err != nil {
 		t.Fatal(err)
 	}
 	want := []string{
@@ -422,7 +422,7 @@ func TestProcessActionsInitialTransitionSkipSuppressesUnattemptedWrites(t *testi
 	cfg := &config.Config{Actions: &model.ActionsSettings{
 		AllowedActions: new("selected"), PatternsAllowed: &patterns,
 	}}
-	results, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
+	results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -472,7 +472,7 @@ func TestProcessActionsLocalOnlyTransitionFailsClosed(t *testing.T) {
 				t.Cleanup(server.Close)
 				patterns := []string{"acme/*"}
 				cfg := &config.Config{Actions: &model.ActionsSettings{AllowedActions: new("selected"), PatternsAllowed: &patterns}}
-				_, err := alter.ProcessActions(cfg, alter.Apply, testutil.NewTestClient(t, server), "acme", "widget", true)
+				_, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
 				if err == nil || !strings.Contains(err.Error(), "while actions are disabled") {
 					t.Fatalf("ProcessActions() error = %v, want explicit disabled transition failure", err)
 				}
@@ -495,7 +495,7 @@ func TestProcessActionsSelectedTransitionDryRunIsReadOnly(t *testing.T) {
 	t.Cleanup(server.Close)
 	patterns := []string{"acme/*"}
 	cfg := &config.Config{Actions: &model.ActionsSettings{AllowedActions: new("selected"), PatternsAllowed: &patterns}}
-	if _, err := alter.ProcessActions(cfg, alter.DryRun, testutil.NewTestClient(t, server), "acme", "widget", true); err != nil {
+	if _, err := alter.ProcessActions(cfg, alter.DryRun, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true)); err != nil {
 		t.Fatal(err)
 	}
 	if writes.Load() != 0 {

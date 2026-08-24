@@ -84,18 +84,19 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		Owner:          owner,
 		Name:           name,
 	}
+	target := RepoTarget{Client: client, Owner: owner, Name: name, HasRepo: hasRepo}
 
-	repoResults, err := ProcessRepoSettings(cfg, mode, client, owner, name, hasRepo)
+	repoResults, err := ProcessRepoSettings(cfg, mode, target)
 	if err != nil {
 		return err
 	}
-	actionsResults, err := ProcessActions(cfg, mode, client, owner, name, hasRepo)
+	actionsResults, err := ProcessActions(cfg, mode, target)
 	if err != nil {
 		return err
 	}
 	repoResults = append(repoResults, actionsResults...)
 
-	labelResults, err := ProcessLabels(cfg, mode, client, owner, name, hasRepo)
+	labelResults, err := ProcessLabels(cfg, mode, target)
 	if err != nil {
 		return err
 	}
