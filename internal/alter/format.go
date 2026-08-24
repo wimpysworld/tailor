@@ -39,7 +39,7 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 		case RepoNoChange:
 			fmt.Fprintf(&b, "%-*s%s.%s (already %s)\n", width, label, section, r.Field, r.Value)
 		case WouldSkipScope:
-			if r.Section == "actions" && !strings.HasPrefix(r.Field, "set ") {
+			if r.Section == "actions" && isActionsPolicyField(r.Field) {
 				fmt.Fprintf(&b, "%-*sactions.%s\n", width, label, r.Field)
 			} else {
 				fmt.Fprintf(&b, "%-*s%s\n", width, label, r.Field)
@@ -65,6 +65,15 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 	}
 
 	return b.String()
+}
+
+func isActionsPolicyField(field string) bool {
+	switch field {
+	case "enabled", "allowed_actions", "sha_pinning_required", "github_owned_allowed", "verified_allowed", "patterns_allowed":
+		return true
+	default:
+		return false
+	}
 }
 
 func removeSkippedRepoResults(results []RepoSettingResult) []RepoSettingResult {
