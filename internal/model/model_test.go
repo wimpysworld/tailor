@@ -49,6 +49,31 @@ func TestRepositorySettingFieldsMetadata(t *testing.T) {
 	}
 }
 
+func TestActionsSettingFieldsMetadata(t *testing.T) {
+	fields := ActionsSettingFields(nil)
+
+	wantKeys := []string{
+		"enabled",
+		"allowed_actions",
+		"sha_pinning_required",
+		"github_owned_allowed",
+		"verified_allowed",
+		"patterns_allowed",
+	}
+
+	if len(fields) != len(wantKeys) {
+		t.Fatalf("got %d fields, want %d", len(fields), len(wantKeys))
+	}
+	for i, want := range wantKeys {
+		if fields[i].YAMLKey != want {
+			t.Errorf("field %d YAMLKey = %q, want %q", i, fields[i].YAMLKey, want)
+		}
+		if fields[i].Set {
+			t.Errorf("field %s Set = true for nil settings", fields[i].YAMLKey)
+		}
+	}
+}
+
 func TestRepositorySettingFieldsValues(t *testing.T) {
 	topics := []string{"go", "cli"}
 	settings := &RepositorySettings{

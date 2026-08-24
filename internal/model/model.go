@@ -69,7 +69,8 @@ type RepositorySettings struct {
 	Extra map[string]interface{} `yaml:",inline"`
 }
 
-// RepositorySettingField describes one supported repository setting.
+// RepositorySettingField describes one supported setting field, keyed by its
+// yaml tag. ActionsSettingFields reuses this type for Actions settings.
 type RepositorySettingField struct {
 	YAMLKey string
 	Index   int
@@ -80,7 +81,18 @@ type RepositorySettingField struct {
 // RepositorySettingFields returns supported repository settings in struct order.
 // Extra is excluded because it stores unknown YAML keys.
 func RepositorySettingFields(settings *RepositorySettings) []RepositorySettingField {
-	t := reflect.TypeOf(RepositorySettings{})
+	return settingFields(settings)
+}
+
+// ActionsSettingFields returns supported Actions settings in struct order.
+// Extra is excluded because it stores unknown YAML keys.
+func ActionsSettingFields(settings *ActionsSettings) []RepositorySettingField {
+	return settingFields(settings)
+}
+
+// settingFields walks the yaml-tagged pointer fields of a settings struct.
+func settingFields[T any](settings *T) []RepositorySettingField {
+	t := reflect.TypeFor[T]()
 	var v reflect.Value
 	if settings != nil {
 		v = reflect.ValueOf(settings).Elem()
