@@ -36,12 +36,6 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	if err := validateConfig(cfg); err != nil {
 		return err
 	}
-	if err := config.ValidateRepoSettings(cfg); err != nil {
-		return err
-	}
-	if err := config.ValidateActions(cfg); err != nil {
-		return err
-	}
 
 	// Keep the local config aligned with built-in defaults only when the
 	// config swatch mode allows tailor to rewrite it.
@@ -50,12 +44,6 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		configChanged = configChanged || len(added) > 0 || repoMerged || actionsMerged || labelsMerged
 		// Re-validate after merge as a safety check.
 		if err := validateConfig(cfg); err != nil {
-			return err
-		}
-		if err := config.ValidateRepoSettings(cfg); err != nil {
-			return err
-		}
-		if err := config.ValidateActions(cfg); err != nil {
 			return err
 		}
 	}
@@ -136,7 +124,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	return nil
 }
 
-// validateConfig runs path and duplicate-path validation in sequence.
+// validateConfig runs the repeated config validation pass in sequence.
 func validateConfig(cfg *config.Config) error {
 	if err := config.ValidateSwatches(cfg); err != nil {
 		return err
@@ -144,7 +132,13 @@ func validateConfig(cfg *config.Config) error {
 	if err := config.ValidatePaths(cfg); err != nil {
 		return err
 	}
-	return config.ValidateDuplicatePaths(cfg)
+	if err := config.ValidateDuplicatePaths(cfg); err != nil {
+		return err
+	}
+	if err := config.ValidateRepoSettings(cfg); err != nil {
+		return err
+	}
+	return config.ValidateActions(cfg)
 }
 
 // shouldMerge reports whether the config merge step should run. It looks up
