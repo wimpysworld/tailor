@@ -13,54 +13,11 @@ const yamlSpecial = ":{}[]#&*!|>'\"%@`\n"
 
 // templateFuncs provides helpers for the config template.
 var templateFuncs = template.FuncMap{
-	"deref": func(p *string) string {
-		if p == nil {
-			return ""
-		}
-		return *p
-	},
-	"yamlString": func(p *string) string {
-		if p == nil {
-			return "\"\""
-		}
-		v := *p
-		if strings.ContainsAny(v, yamlSpecial) || v != strings.TrimSpace(v) || v == "" {
-			return fmt.Sprintf("%q", v)
-		}
-		return v
-	},
 	"yamlVal": func(v string) string {
 		if strings.ContainsAny(v, yamlSpecial) || v != strings.TrimSpace(v) || v == "" {
 			return fmt.Sprintf("%q", v)
 		}
 		return v
-	},
-	"derefSlice": func(p *[]string) []string {
-		if p == nil {
-			return nil
-		}
-		return *p
-	},
-	"derefBool": func(p *bool) string {
-		if p == nil {
-			return ""
-		}
-		if *p {
-			return "true"
-		}
-		return "false"
-	},
-	"set": func(p any) bool {
-		switch v := p.(type) {
-		case *string:
-			return v != nil
-		case *bool:
-			return v != nil
-		case *[]string:
-			return v != nil
-		default:
-			return false
-		}
 	},
 }
 
@@ -74,75 +31,75 @@ license: {{ .License }}
 {{- if .Repository }}
 
 repository:
-{{- if set .Repository.Description }}
-  description: {{ yamlString .Repository.Description }}
+{{- if .Repository.Description }}
+  description: {{ yamlVal .Repository.Description }}
 {{- end }}
-{{- if set .Repository.Homepage }}
-  homepage: {{ deref .Repository.Homepage }}
+{{- if .Repository.Homepage }}
+  homepage: {{ .Repository.Homepage }}
 {{- end }}
-{{- if set .Repository.HasWiki }}
-  has_wiki: {{ derefBool .Repository.HasWiki }}
+{{- if .Repository.HasWiki }}
+  has_wiki: {{ .Repository.HasWiki }}
 {{- end }}
-{{- if set .Repository.HasDiscussions }}
-  has_discussions: {{ derefBool .Repository.HasDiscussions }}
+{{- if .Repository.HasDiscussions }}
+  has_discussions: {{ .Repository.HasDiscussions }}
 {{- end }}
-{{- if set .Repository.HasProjects }}
-  has_projects: {{ derefBool .Repository.HasProjects }}
+{{- if .Repository.HasProjects }}
+  has_projects: {{ .Repository.HasProjects }}
 {{- end }}
-{{- if set .Repository.HasIssues }}
-  has_issues: {{ derefBool .Repository.HasIssues }}
+{{- if .Repository.HasIssues }}
+  has_issues: {{ .Repository.HasIssues }}
 {{- end }}
-{{- if set .Repository.AllowMergeCommit }}
-  allow_merge_commit: {{ derefBool .Repository.AllowMergeCommit }}
+{{- if .Repository.AllowMergeCommit }}
+  allow_merge_commit: {{ .Repository.AllowMergeCommit }}
 {{- end }}
-{{- if set .Repository.AllowSquashMerge }}
-  allow_squash_merge: {{ derefBool .Repository.AllowSquashMerge }}
+{{- if .Repository.AllowSquashMerge }}
+  allow_squash_merge: {{ .Repository.AllowSquashMerge }}
 {{- end }}
-{{- if set .Repository.AllowRebaseMerge }}
-  allow_rebase_merge: {{ derefBool .Repository.AllowRebaseMerge }}
+{{- if .Repository.AllowRebaseMerge }}
+  allow_rebase_merge: {{ .Repository.AllowRebaseMerge }}
 {{- end }}
-{{- if set .Repository.SquashMergeCommitTitle }}
-  squash_merge_commit_title: {{ yamlString .Repository.SquashMergeCommitTitle }}
+{{- if .Repository.SquashMergeCommitTitle }}
+  squash_merge_commit_title: {{ yamlVal .Repository.SquashMergeCommitTitle }}
 {{- end }}
-{{- if set .Repository.SquashMergeCommitMessage }}
-  squash_merge_commit_message: {{ yamlString .Repository.SquashMergeCommitMessage }}
+{{- if .Repository.SquashMergeCommitMessage }}
+  squash_merge_commit_message: {{ yamlVal .Repository.SquashMergeCommitMessage }}
 {{- end }}
-{{- if set .Repository.MergeCommitTitle }}
-  merge_commit_title: {{ yamlString .Repository.MergeCommitTitle }}
+{{- if .Repository.MergeCommitTitle }}
+  merge_commit_title: {{ yamlVal .Repository.MergeCommitTitle }}
 {{- end }}
-{{- if set .Repository.MergeCommitMessage }}
-  merge_commit_message: {{ yamlString .Repository.MergeCommitMessage }}
+{{- if .Repository.MergeCommitMessage }}
+  merge_commit_message: {{ yamlVal .Repository.MergeCommitMessage }}
 {{- end }}
-{{- if set .Repository.DeleteBranchOnMerge }}
-  delete_branch_on_merge: {{ derefBool .Repository.DeleteBranchOnMerge }}
+{{- if .Repository.DeleteBranchOnMerge }}
+  delete_branch_on_merge: {{ .Repository.DeleteBranchOnMerge }}
 {{- end }}
-{{- if set .Repository.AllowUpdateBranch }}
-  allow_update_branch: {{ derefBool .Repository.AllowUpdateBranch }}
+{{- if .Repository.AllowUpdateBranch }}
+  allow_update_branch: {{ .Repository.AllowUpdateBranch }}
 {{- end }}
-{{- if set .Repository.AllowAutoMerge }}
-  allow_auto_merge: {{ derefBool .Repository.AllowAutoMerge }}
+{{- if .Repository.AllowAutoMerge }}
+  allow_auto_merge: {{ .Repository.AllowAutoMerge }}
 {{- end }}
-{{- if set .Repository.WebCommitSignoffRequired }}
-  web_commit_signoff_required: {{ derefBool .Repository.WebCommitSignoffRequired }}
+{{- if .Repository.WebCommitSignoffRequired }}
+  web_commit_signoff_required: {{ .Repository.WebCommitSignoffRequired }}
 {{- end }}
-{{- if set .Repository.PrivateVulnerabilityReportEnabled }}
-  private_vulnerability_reporting_enabled: {{ derefBool .Repository.PrivateVulnerabilityReportEnabled }}
+{{- if .Repository.PrivateVulnerabilityReportEnabled }}
+  private_vulnerability_reporting_enabled: {{ .Repository.PrivateVulnerabilityReportEnabled }}
 {{- end }}
-{{- if set .Repository.VulnerabilityAlertsEnabled }}
-  vulnerability_alerts_enabled: {{ derefBool .Repository.VulnerabilityAlertsEnabled }}
+{{- if .Repository.VulnerabilityAlertsEnabled }}
+  vulnerability_alerts_enabled: {{ .Repository.VulnerabilityAlertsEnabled }}
 {{- end }}
-{{- if set .Repository.AutomatedSecurityFixesEnabled }}
-  automated_security_fixes_enabled: {{ derefBool .Repository.AutomatedSecurityFixesEnabled }}
+{{- if .Repository.AutomatedSecurityFixesEnabled }}
+  automated_security_fixes_enabled: {{ .Repository.AutomatedSecurityFixesEnabled }}
 {{- end }}
-{{- if set .Repository.DefaultWorkflowPermissions }}
-  default_workflow_permissions: {{ deref .Repository.DefaultWorkflowPermissions }}
+{{- if .Repository.DefaultWorkflowPermissions }}
+  default_workflow_permissions: {{ .Repository.DefaultWorkflowPermissions }}
 {{- end }}
-{{- if set .Repository.CanApprovePullRequestReviews }}
-  can_approve_pull_request_reviews: {{ derefBool .Repository.CanApprovePullRequestReviews }}
+{{- if .Repository.CanApprovePullRequestReviews }}
+  can_approve_pull_request_reviews: {{ .Repository.CanApprovePullRequestReviews }}
 {{- end }}
-{{- if set .Repository.Topics }}
-  topics:{{ if eq (len (derefSlice .Repository.Topics)) 0 }} []{{ else }}
-{{- range derefSlice .Repository.Topics }}
+{{- if .Repository.Topics }}
+  topics:{{ if eq (len .Repository.Topics) 0 }} []{{ else }}
+{{- range .Repository.Topics }}
     - {{ yamlVal . }}
 {{- end }}{{ end }}
 {{- end }}
@@ -150,24 +107,24 @@ repository:
 {{- if .Actions }}
 
 actions:
-{{- if set .Actions.Enabled }}
-  enabled: {{ derefBool .Actions.Enabled }}
+{{- if .Actions.Enabled }}
+  enabled: {{ .Actions.Enabled }}
 {{- end }}
-{{- if set .Actions.AllowedActions }}
-  allowed_actions: {{ deref .Actions.AllowedActions }}
+{{- if .Actions.AllowedActions }}
+  allowed_actions: {{ .Actions.AllowedActions }}
 {{- end }}
-{{- if set .Actions.SHAPinningRequired }}
-  sha_pinning_required: {{ derefBool .Actions.SHAPinningRequired }}
+{{- if .Actions.SHAPinningRequired }}
+  sha_pinning_required: {{ .Actions.SHAPinningRequired }}
 {{- end }}
-{{- if set .Actions.GitHubOwnedAllowed }}
-  github_owned_allowed: {{ derefBool .Actions.GitHubOwnedAllowed }}
+{{- if .Actions.GitHubOwnedAllowed }}
+  github_owned_allowed: {{ .Actions.GitHubOwnedAllowed }}
 {{- end }}
-{{- if set .Actions.VerifiedAllowed }}
-  verified_allowed: {{ derefBool .Actions.VerifiedAllowed }}
+{{- if .Actions.VerifiedAllowed }}
+  verified_allowed: {{ .Actions.VerifiedAllowed }}
 {{- end }}
-{{- if set .Actions.PatternsAllowed }}
-  patterns_allowed:{{ if eq (len (derefSlice .Actions.PatternsAllowed)) 0 }} []{{ else }}
-{{- range derefSlice .Actions.PatternsAllowed }}
+{{- if .Actions.PatternsAllowed }}
+  patterns_allowed:{{ if eq (len .Actions.PatternsAllowed) 0 }} []{{ else }}
+{{- range .Actions.PatternsAllowed }}
     - {{ yamlVal . }}
 {{- end }}{{ end }}
 {{- end }}
