@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/alter"
@@ -146,6 +147,22 @@ func TestAlwaysWouldOverwriteWhenMD5Differs(t *testing.T) {
 	}
 	if results[0].Category != alter.WouldOverwrite {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
+	}
+}
+
+func TestAlwaysReturnsOnDiskReadError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "CODE_OF_CONDUCT.md"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := newConfig(entry("CODE_OF_CONDUCT.md", swatch.Always))
+	_, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	if err == nil {
+		t.Fatal("ProcessSwatches() error = nil, want read error")
+	}
+	if !strings.Contains(err.Error(), `hashing on-disk file "CODE_OF_CONDUCT.md"`) {
+		t.Errorf("error = %q, want on-disk hash context", err)
 	}
 }
 

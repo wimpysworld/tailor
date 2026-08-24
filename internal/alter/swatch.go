@@ -2,7 +2,6 @@ package alter
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -119,7 +118,7 @@ func processAlways(root *os.Root, entry config.SwatchEntry, content []byte, mode
 		return SwatchResult{}, fmt.Errorf("hashing on-disk file %q: %w", entry.Path, err)
 	}
 
-	if contentHash(content) == onDisk {
+	if sha256.Sum256(content) == onDisk {
 		return SwatchResult{Path: entry.Path, Category: NoChange}, nil
 	}
 
@@ -163,17 +162,11 @@ func writeFile(root *os.Root, path string, data []byte) error {
 	return nil
 }
 
-// contentHash returns the hex-encoded SHA-256 digest of data.
-func contentHash(data []byte) string {
-	h := sha256.Sum256(data)
-	return hex.EncodeToString(h[:])
-}
-
-// contentHashFile returns the hex-encoded SHA-256 digest of the root-relative file at path.
-func contentHashFile(root *os.Root, path string) (string, error) {
+// contentHashFile returns the SHA-256 digest of the root-relative file at path.
+func contentHashFile(root *os.Root, path string) ([sha256.Size]byte, error) {
 	data, err := root.ReadFile(path)
 	if err != nil {
-		return "", err
+		return [sha256.Size]byte{}, err
 	}
-	return contentHash(data), nil
+	return sha256.Sum256(data), nil
 }
