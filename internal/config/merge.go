@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"reflect"
 	"slices"
 
@@ -20,18 +21,18 @@ var repoSettingsSkipFields = map[string]bool{
 // MergeDefaults merges missing swatch entries, repository settings, Actions
 // policy fields, and labels from the embedded defaults into cfg. It reports
 // whether anything changed.
-func MergeDefaults(cfg *Config) bool {
+func MergeDefaults(cfg *Config) (bool, error) {
 	swatchesChanged := len(MergeDefaultSwatches(cfg)) > 0
 
 	defaults, err := DefaultConfig("_")
 	if err != nil {
-		return swatchesChanged
+		return swatchesChanged, fmt.Errorf("loading default config: %w", err)
 	}
 
 	repoChanged := mergeRepoSettingsFrom(cfg, defaults)
 	actionsChanged := mergeActionsFrom(cfg, defaults)
 	labelsChanged := mergeLabelsFrom(cfg, defaults)
-	return swatchesChanged || repoChanged || actionsChanged || labelsChanged
+	return swatchesChanged || repoChanged || actionsChanged || labelsChanged, nil
 }
 
 // mergeRepoSettingsFrom fills nil pointer fields in cfg.Repository from the

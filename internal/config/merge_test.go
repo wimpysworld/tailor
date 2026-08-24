@@ -165,10 +165,18 @@ func TestMergeDefaultsChangedByEachSection(t *testing.T) {
 			cfg := defaultConfig(t)
 			tt.alter(cfg)
 
-			if !MergeDefaults(cfg) {
+			changed, err := MergeDefaults(cfg)
+			if err != nil {
+				t.Fatalf("MergeDefaults() error = %v", err)
+			}
+			if !changed {
 				t.Fatal("MergeDefaults() changed = false, want true")
 			}
-			if MergeDefaults(cfg) {
+			changed, err = MergeDefaults(cfg)
+			if err != nil {
+				t.Fatalf("second MergeDefaults() error = %v", err)
+			}
+			if changed {
 				t.Fatal("second MergeDefaults() changed = true, want false")
 			}
 		})
