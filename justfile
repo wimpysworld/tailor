@@ -6,9 +6,12 @@ default:
 alter:
     @go run ./cmd/tailor alter
 
-# Build tailor binary and snapshot release packages
+# Build tailor binary
 build:
     @go build -ldflags "-s -w" -o tailor ./cmd/tailor
+
+# Build snapshot release packages
+snapshot:
     @goreleaser release --snapshot --clean --skip=sign
 
 # Check goreleaser config and nix flake
