@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -54,11 +55,7 @@ func ValidateRepoSettings(cfg *Config) error {
 	}
 
 	if len(cfg.Repository.Extra) > 0 {
-		keys := make([]string, 0, len(cfg.Repository.Extra))
-		for key := range cfg.Repository.Extra {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
+		keys := slices.Sorted(maps.Keys(cfg.Repository.Extra))
 		valid := repoSettingNames()
 		return fmt.Errorf("unrecognised repository setting %q in config; valid settings: %s",
 			keys[0], strings.Join(valid, ", "))
@@ -86,11 +83,7 @@ func ValidateActions(cfg *Config) error {
 		return nil
 	}
 	if len(cfg.Actions.Extra) > 0 {
-		keys := make([]string, 0, len(cfg.Actions.Extra))
-		for key := range cfg.Actions.Extra {
-			keys = append(keys, key)
-		}
-		slices.Sort(keys)
+		keys := slices.Sorted(maps.Keys(cfg.Actions.Extra))
 		return fmt.Errorf("unrecognised actions setting %q in config; valid settings: allowed_actions, enabled, github_owned_allowed, patterns_allowed, sha_pinning_required, verified_allowed", keys[0])
 	}
 
