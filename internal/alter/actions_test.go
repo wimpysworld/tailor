@@ -89,7 +89,6 @@ func TestProcessActionsDryRunAndApply(t *testing.T) {
 
 func TestProcessActionsTransitionsToSelectedInOneApply(t *testing.T) {
 	var calls []string
-	var coreWrites int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls = append(calls, r.Method+" "+r.URL.Path)
 		switch {
@@ -99,16 +98,12 @@ func TestProcessActionsTransitionsToSelectedInOneApply(t *testing.T) {
 			t.Error("selected-actions was read before the selected policy was active")
 			w.WriteHeader(http.StatusConflict)
 		case r.Method == http.MethodPut && r.URL.Path == "/repos/acme/widget/actions/permissions":
-			coreWrites++
 			var body map[string]any
 			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 				t.Errorf("decode core body: %v", err)
 			}
-			if coreWrites == 1 && (body["enabled"] != false || body["allowed_actions"] != "selected") {
-				t.Errorf("transition body = %v, want disabled selected policy", body)
-			}
-			if coreWrites == 2 && body["allowed_actions"] != "selected" {
-				t.Errorf("final allowed_actions = %v, want selected", body["allowed_actions"])
+			if len(body) != 2 || body["enabled"] != true || body["allowed_actions"] != "selected" {
+				t.Errorf("core body = %v, want enabled selected policy", body)
 			}
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPut && r.URL.Path == "/repos/acme/widget/actions/permissions/selected-actions":
@@ -135,7 +130,6 @@ func TestProcessActionsTransitionsToSelectedInOneApply(t *testing.T) {
 		"GET /repos/acme/widget/actions/permissions",
 		"PUT /repos/acme/widget/actions/permissions",
 		"PUT /repos/acme/widget/actions/permissions/selected-actions",
-		"PUT /repos/acme/widget/actions/permissions",
 	}
 	if !slices.Equal(calls, wantCalls) {
 		t.Fatalf("calls = %v, want %v", calls, wantCalls)
@@ -434,7 +428,7 @@ func TestProcessActionsInitialTransitionSkipSuppressesUnattemptedWrites(t *testi
 		t.Fatal(err)
 	}
 	if puts.Load() != 1 {
-		t.Fatalf("PUT calls = %d, want only the initial disable", puts.Load())
+		t.Fatalf("PUT calls = %d, want only the final core policy", puts.Load())
 	}
 	output := alter.FormatOutput(results, nil, nil, alter.Apply)
 	if strings.Contains(output, "set:") || !strings.Contains(output, "set selected actions permissions") || !strings.Contains(output, "set actions permissions") {
@@ -442,7 +436,7 @@ func TestProcessActionsInitialTransitionSkipSuppressesUnattemptedWrites(t *testi
 	}
 }
 
-func TestProcessActionsSelectedTransitionFailsClosed(t *testing.T) {
+func TestProcessActionsLocalOnlyTransitionFailsClosed(t *testing.T) {
 	for _, status := range []int{http.StatusInternalServerError, http.StatusForbidden, http.StatusNotFound} {
 		for _, failStep := range []string{"selected", "final"} {
 			t.Run(fmt.Sprintf("%d/%s", status, failStep), func(t *testing.T) {
@@ -451,7 +445,7 @@ func TestProcessActionsSelectedTransitionFailsClosed(t *testing.T) {
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					switch {
 					case r.Method == http.MethodGet:
-						fmt.Fprint(w, `{"enabled":true,"allowed_actions":"all","sha_pinning_required":false}`)
+						fmt.Fprint(w, `{"enabled":true,"allowed_actions":"local_only","sha_pinning_required":false}`)
 					case r.Method == http.MethodPut && r.URL.Path == "/repos/acme/widget/actions/permissions/selected-actions":
 						if failStep == "selected" {
 							w.WriteHeader(status)
