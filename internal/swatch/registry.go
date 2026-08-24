@@ -56,9 +56,7 @@ var registry = []Swatch{
 
 // All returns every registered swatch in definition order.
 func All() []Swatch {
-	out := make([]Swatch, len(registry))
-	copy(out, registry)
-	return out
+	return slices.Clone(registry)
 }
 
 // Paths returns the paths of all registered swatches, sorted
