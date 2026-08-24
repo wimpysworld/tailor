@@ -329,6 +329,18 @@ func TestIntegrationLicenseWithPlaceholders(t *testing.T) {
 	}
 }
 
+func TestIntegrationRepositoryLicenseIsPresent(t *testing.T) {
+	health := CheckHealth(filepath.Join("..", ".."))
+	got := FormatOutput(health, nil, false)
+
+	if strings.Contains(got, "warning:        LICENSE") {
+		t.Errorf("repository LICENSE should not appear as warning:\n%s", got)
+	}
+	if !strings.Contains(got, "present:        LICENSE") {
+		t.Errorf("repository LICENSE should appear as present:\n%s", got)
+	}
+}
+
 // TestIntegrationReadmePresent verifies that no README.md warning appears
 // when README.md exists.
 func TestIntegrationReadmePresent(t *testing.T) {
