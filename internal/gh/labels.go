@@ -94,9 +94,7 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 		if !found {
 			if err := createLabel(client, owner, repo, d); err != nil {
 				opName := fmt.Sprintf("create label %q", d.Name)
-				classified := classifyHTTPError(err, opName)
-				if isAccessError(classified) {
-					result.Skipped = append(result.Skipped, SkippedOperation{Operation: opName, Err: classified})
+				if recordAccessError(result, opName, err) {
 					continue
 				}
 				return nil, err
@@ -107,9 +105,7 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 		if model.LabelNeedsUpdate(existing, d) {
 			if err := updateLabel(client, owner, repo, existing.Name, d); err != nil {
 				opName := fmt.Sprintf("update label %q", d.Name)
-				classified := classifyHTTPError(err, opName)
-				if isAccessError(classified) {
-					result.Skipped = append(result.Skipped, SkippedOperation{Operation: opName, Err: classified})
+				if recordAccessError(result, opName, err) {
 					continue
 				}
 				return nil, err

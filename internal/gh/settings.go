@@ -175,6 +175,15 @@ type ApplyResult struct {
 	Skipped []SkippedOperation
 }
 
+func recordAccessError(result *ApplyResult, operation string, err error) bool {
+	classified := classifyHTTPError(err, operation)
+	if !isAccessError(classified) {
+		return false
+	}
+	result.Skipped = append(result.Skipped, SkippedOperation{Operation: operation, Err: classified})
+	return true
+}
+
 // ApplyRepoSettings sends a PATCH /repos/{owner}/{repo} with the declared
 // settings. It also handles fields that require separate API endpoints:
 // security features, topics, and Actions workflow permissions. Access errors
@@ -199,10 +208,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 			return nil, fmt.Errorf("marshalling repo settings: %w", err)
 		}
 		if err := client.Patch(fmt.Sprintf("repos/%s/%s", owner, name), bytes.NewReader(payload), nil); err != nil {
-			classified := classifyHTTPError(err, "patch repo settings")
-			if isAccessError(classified) {
-				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "patch repo settings", Err: classified})
-			} else {
+			if !recordAccessError(result, "patch repo settings", err) {
 				return nil, fmt.Errorf("patching repo settings: %w", err)
 			}
 		}
@@ -250,10 +256,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 
 	if p.DefaultWorkflowPermissions != nil || p.CanApprovePullRequestReviews != nil {
 		if err := applyWorkflowPermissions(client, owner, name, p); err != nil {
-			classified := classifyHTTPError(err, "set workflow permissions")
-			if isAccessError(classified) {
-				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "set workflow permissions", Err: classified})
-			} else {
+			if !recordAccessError(result, "set workflow permissions", err) {
 				return nil, err
 			}
 		}
@@ -268,10 +271,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 			return nil, fmt.Errorf("marshalling topics: %w", err)
 		}
 		if err := client.Put(fmt.Sprintf("repos/%s/%s/topics", owner, name), bytes.NewReader(payload), nil); err != nil {
-			classified := classifyHTTPError(err, "set topics")
-			if isAccessError(classified) {
-				result.Skipped = append(result.Skipped, SkippedOperation{Operation: "set topics", Err: classified})
-			} else {
+			if !recordAccessError(result, "set topics", err) {
 				return nil, fmt.Errorf("setting topics: %w", err)
 			}
 		}
@@ -307,9 +307,7 @@ func applySecuritySetting(client *api.RESTClient, path string, enabled bool, fea
 	if err == nil {
 		return true, nil
 	}
-	classified := classifyHTTPError(err, operation)
-	if isAccessError(classified) {
-		result.Skipped = append(result.Skipped, SkippedOperation{Operation: operation, Err: classified})
+	if recordAccessError(result, operation, err) {
 		return false, nil
 	}
 	return false, err
