@@ -402,7 +402,7 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 			wantStatus: Missing,
 		},
 		{
-			name: "over-limit licence skips the placeholder check",
+			name: "over-limit licence warns as not inspected",
 			setup: func(t *testing.T, dir string) {
 				content := make([]byte, 1<<20+1)
 				copy(content, placeholderContent)
@@ -410,7 +410,8 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 					t.Fatalf("WriteFile: %v", err)
 				}
 			},
-			wantStatus: Present,
+			wantStatus: Warning,
+			wantDetail: "(not inspected: exceeds 1 MiB)",
 		},
 		{
 			name: "licence with placeholders warns",

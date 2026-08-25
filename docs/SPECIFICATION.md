@@ -445,7 +445,7 @@ mode-differs:   SECURITY.md          (config: first-fit, default: always)
 
 Category definitions:
 - `missing` - health file does not exist on disk
-- `warning` - health diagnostic that requires attention but is not a missing swatch. Two cases are recognised: `LICENSE` exists but contains known unresolved placeholder tokens (e.g. `[year]`, `[fullname]`, `{project}`), and `README.md` is absent from the project root. A warned path appears once in the output and does not also appear as `present`
+- `warning` - health diagnostic that requires attention but is not a missing swatch. Three cases are recognised: `LICENSE` exists but contains known unresolved placeholder tokens (e.g. `[year]`, `[fullname]`, `{project}`), `LICENSE` exists but was not inspected because it exceeds 1 MiB or could not be read (annotated `(not inspected: exceeds 1 MiB)` or `(not inspected: read failed)`), and `README.md` is absent from the project root. A warned path appears once in the output and does not also appear as `present`
 - `present` - health file exists on disk
 - `not-configured` - default swatch whose destination is not covered by any entry in `.tailor.yml`; the default swatch will not be applied until added
 - `config-only` - swatch in `.tailor.yml` whose destination is not covered by any entry in the built-in default set. This arises when a swatch is removed from the built-in defaults in a newer tailor release but the project's `.tailor.yml` still references it. `alter` rejects unrecognised paths, except that it automatically migrates the two fixed retired workflow paths
