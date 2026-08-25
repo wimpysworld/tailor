@@ -23,10 +23,8 @@ func SetNewRESTClientFunc(fn func(string) (*api.RESTClient, error)) func() {
 
 // SetCurrentRepoFunc replaces repository discovery for testing.
 // It returns a restore function for t.Cleanup.
-func SetCurrentRepoFunc(fn func() (repository.Repository, error)) func() {
+func SetCurrentRepoFunc(fn func(string) (repository.Repository, error)) func() {
 	old := currentRepoAt
-	currentRepoAt = func(string) (repository.Repository, error) {
-		return fn()
-	}
+	currentRepoAt = fn
 	return func() { currentRepoAt = old }
 }

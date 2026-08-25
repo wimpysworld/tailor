@@ -11,7 +11,10 @@ import (
 )
 
 func TestRepoContext(t *testing.T) {
-	restore := SetCurrentRepoFunc(func() (repository.Repository, error) {
+	restore := SetCurrentRepoFunc(func(dir string) (repository.Repository, error) {
+		if dir != "." {
+			t.Errorf("repository discovery directory = %q, want %q", dir, ".")
+		}
 		return repository.Repository{Host: "github.com", Owner: "wimpysworld", Name: "tailor"}, nil
 	})
 	t.Cleanup(restore)
@@ -25,7 +28,7 @@ func TestRepoContext(t *testing.T) {
 }
 
 func TestRepoContextError(t *testing.T) {
-	restore := SetCurrentRepoFunc(func() (repository.Repository, error) {
+	restore := SetCurrentRepoFunc(func(string) (repository.Repository, error) {
 		return repository.Repository{}, errors.New("no repo")
 	})
 	t.Cleanup(restore)
