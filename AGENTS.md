@@ -30,7 +30,7 @@ tailor/
 
 - Build: `just build` (or `go build -ldflags "-s -w" -o tailor ./cmd/tailor`)
 - Run tests: `just test` (or `go test ./...`)
-- Run linters: `just lint` (or `go vet ./... && golangci-lint run`)
+- Run linters: `just lint` (or `gocyclo -top 20 -avg -ignore '_test\.go$' . && golangci-lint run && actionlint`)
 - Enter dev shell: `nix develop` or `direnv allow`
 - Task runner: `just` (lists available recipes)
 - Create release: `just release 0.1.0`
