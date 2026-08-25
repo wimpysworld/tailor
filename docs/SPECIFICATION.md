@@ -11,7 +11,7 @@ Tailor requires a valid GitHub authentication token. This can be provided in two
 1. **Environment variable**: Set `GH_TOKEN` or `GITHUB_TOKEN`. This works without the `gh` binary installed.
 2. **GitHub CLI**: Install and authenticate the [GitHub CLI](https://cli.github.com/) (`gh`). Run `gh auth login` to authenticate. The `gh` binary is also used as a fallback for keyring-based token access when no environment variable is set.
 
-The `fit`, `alter`, and `baste` commands verify the authentication token at startup: a token must exist and the effective host must accept it (`GET /user`). If the token is missing or rejected, the command exits with an error before any local file change.
+The `fit`, `alter`, and `baste` commands require a valid authentication token: a token must exist and the effective host must accept it (`GET /user`). `fit` verifies the token at startup. `alter` and `baste` check token presence at startup and perform the `GET /user` verification after config parsing, before any write. If the token is missing or rejected, the command exits with an error before any local file change.
 
 `measure` and `docket` are exempt from the authentication requirement. `measure` performs purely local file inspection and needs no network access or authentication. `docket` can report unauthenticated state without erroring - it displays the auth state rather than requiring it.
 
@@ -158,7 +158,7 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 **Swatch Categories**: Each swatch is designated either `health` or `development`. This designation is an internal attribute used by `measure` to scope its file presence checks.
 
 **Health swatches** (community health files tracked by GitHub):
-- `LICENSE` (fetched via `gh`, not an embedded swatch)
+- `LICENSE` (fetched via the GitHub REST API `GET /licenses/{id}`, not an embedded swatch)
 - `SECURITY.md`
 - `CODE_OF_CONDUCT.md`
 - `CONTRIBUTING.md`
@@ -243,7 +243,7 @@ Generates:
 
 Applies swatch alterations to the local project.
 
-`alter` verifies the authentication token at startup and exits with an error if the token is missing or the effective host rejects it. The API verification happens before any local file change. It then reads `.tailor.yml` in the current working directory. No upward traversal is performed.
+`alter` checks at startup that an authentication token is present for the effective host and exits with an error if the token is missing. It then reads `.tailor.yml` in the current working directory. No upward traversal is performed. The API verification of the token (`GET /user`) happens after config parsing and normalisation, before the config write and any other local file change; if the effective host rejects the token, `alter` exits with the API error. Implementation Note 9 gives the full execution order.
 
 ```bash
 tailor alter              # Apply changes
@@ -280,7 +280,7 @@ Behaviour:
 
 Previews what `alter` would do without making any changes.
 
-`baste` verifies the authentication token at startup and exits with an error if the token is missing or the effective host rejects it. It then reads `.tailor.yml` in the current working directory. No upward traversal is performed.
+`baste` checks at startup that an authentication token is present for the effective host and exits with an error if the token is missing. It then reads `.tailor.yml` in the current working directory. No upward traversal is performed. The API verification of the token (`GET /user`) happens after config parsing and normalisation, in the same order as `alter`; if the effective host rejects the token, `baste` exits with the API error. `baste` writes nothing in any case.
 
 ```bash
 tailor baste
