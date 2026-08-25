@@ -56,7 +56,10 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 		return repository.Repository{}, err
 	}
 
-	knownHosts := auth.KnownHosts()
+	// Accept the default host and github.com even when no host is
+	// authenticated, so repository detection works without credentials.
+	defaultHost, _ := auth.DefaultHost()
+	acceptedHosts := append(auth.KnownHosts(), "github.com", defaultHost)
 	translator := ssh.NewTranslator()
 	bestPriority := -1
 	var best repository.Repository
@@ -78,7 +81,7 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 			remoteURL.Scheme = "ssh"
 		}
 		repo, parseErr := repository.Parse(translator.Translate(remoteURL).String())
-		if parseErr != nil || !isKnownHost(repo.Host, knownHosts) {
+		if parseErr != nil || !isKnownHost(repo.Host, acceptedHosts) {
 			continue
 		}
 		priority := remotePriority(fields[0])

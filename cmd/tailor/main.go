@@ -51,7 +51,8 @@ func (f *FitCmd) Run() error {
 		}
 	}
 
-	if err := gh.CheckAuth(repo.Host); err != nil {
+	host := gh.ResolveHost(repo.Host)
+	if err := gh.CheckAuth(host); err != nil {
 		return err
 	}
 
@@ -69,7 +70,7 @@ func (f *FitCmd) Run() error {
 	}
 
 	if ok {
-		client, err := gh.NewRESTClient(repo.Host)
+		client, err := gh.NewRESTClient(host)
 		if err != nil {
 			return err
 		}

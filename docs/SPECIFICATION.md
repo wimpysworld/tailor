@@ -494,7 +494,7 @@ auth:           not authenticated
 Behaviour:
 - `user` is resolved via `GET /user` if authenticated. It displays `(none)` if not authenticated.
 - `repository` displays the `owner/repo` derived from the GitHub remote in the current directory; displays `(none)` if no GitHub remote exists.
-- `auth` displays `authenticated` or `not authenticated` based on whether a valid token can be resolved for the host of the detected repository, or for `github.com` when no repository context exists.
+- `auth` displays `authenticated` or `not authenticated` based on whether a valid token can be resolved for the host of the detected repository, or for the `go-gh` default host (`GH_HOST`, falling back to `github.com`) when no repository context exists.
 - Does not read `.tailor.yml` and does not require it to be present.
 
 ## Error Handling
@@ -517,7 +517,7 @@ Behaviour:
 
 **Duplicate path in `.tailor.yml`**: `alter` and `baste` remove retired entries before duplicate validation. If active entries share a path, the command identifies the conflict and exits before disk changes.
 
-**Not authenticated**: if no valid authentication token can be resolved for the host of the detected repository, or for `github.com` when no repository context exists (neither `GH_TOKEN`/`GITHUB_TOKEN` environment variable, `gh` config file, nor `gh` keyring), `fit`, `alter`, and `baste` exit with: "tailor requires GitHub authentication. Set the GH_TOKEN or GITHUB_TOKEN environment variable, or run `gh auth login`."
+**Not authenticated**: if no valid authentication token can be resolved for the host of the detected repository, or for the `go-gh` default host (`GH_HOST`, falling back to `github.com`) when no repository context exists (neither `GH_TOKEN`/`GITHUB_TOKEN` environment variable, `gh` config file, nor `gh` keyring), `fit`, `alter`, and `baste` exit with: "tailor requires GitHub authentication. Set the GH_TOKEN or GITHUB_TOKEN environment variable, or run `gh auth login`."
 
 **`{{GITHUB_USERNAME}}` resolution failed**: `{{GITHUB_USERNAME}}` is resolved via `GET /user`. If this call fails, `alter` exits with the API error. Unlike repo-context tokens, `{{GITHUB_USERNAME}}` depends on the authenticated user, not the repository, so it cannot be deferred.
 

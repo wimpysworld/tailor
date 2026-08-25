@@ -71,7 +71,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	}
 
 	if client == nil {
-		client, err = gh.NewRESTClient(repo.Host)
+		client, err = gh.NewRESTClient(gh.ResolveHost(repo.Host))
 		if err != nil {
 			return fmt.Errorf("creating GitHub API client: %w", err)
 		}
