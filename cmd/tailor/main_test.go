@@ -331,6 +331,28 @@ func TestAlterCmdRunRecut(t *testing.T) {
 	requireFileContent(t, filepath.Join(dir, "SUPPORT.md"), string(wantSupport))
 }
 
+func TestRunAlterMalformedConfigError(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeNoRepo(t)
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte("unknown: true\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	t.Chdir(dir)
+
+	err := runAlter(alter.DryRun)
+	if err == nil {
+		t.Fatal("runAlter() expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), `unrecognised top-level setting "unknown"`) {
+		t.Errorf("error = %q, want underlying config error", err.Error())
+	}
+	if !strings.Contains(err.Error(), "Run 'tailor fit <path>' to create a valid configuration") {
+		t.Errorf("error = %q, want fit guidance", err.Error())
+	}
+}
+
 func TestDocketAuthenticated(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeRepo(t, "octocat", "my-project")

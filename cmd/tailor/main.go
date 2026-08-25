@@ -147,7 +147,7 @@ func runAlter(mode alter.ApplyMode) error {
 
 	cfg, err := config.Load(dir)
 	if err != nil {
-		return fmt.Errorf(".tailor.yml is missing or malformed. Run 'tailor fit <path>' to create a valid configuration, or edit .tailor.yml directly to correct it")
+		return fmt.Errorf(".tailor.yml is missing or malformed: %w. Run 'tailor fit <path>' to create a valid configuration, or edit .tailor.yml directly to correct it", err)
 	}
 
 	return alter.Run(cfg, dir, mode, nil)
