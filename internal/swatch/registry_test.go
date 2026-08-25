@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/swatch"
+	"gopkg.in/yaml.v3"
 )
 
 func TestAllReturns16Swatches(t *testing.T) {
@@ -72,6 +73,54 @@ func TestSwatchAttributes(t *testing.T) {
 				t.Errorf("Category = %q, want %q", s.Category, tt.category)
 			}
 		})
+	}
+}
+
+func TestEmbeddedConfigSwatchesMatchRegistry(t *testing.T) {
+	data, err := swatch.Content(".tailor.yml")
+	if err != nil {
+		t.Fatalf("Content(%q) returned error: %v", ".tailor.yml", err)
+	}
+
+	var config struct {
+		Swatches []struct {
+			Path       string                `yaml:"path"`
+			Alteration swatch.AlterationMode `yaml:"alteration"`
+		} `yaml:"swatches"`
+	}
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		t.Fatalf("unmarshalling embedded .tailor.yml: %v", err)
+	}
+
+	registry := make(map[string]swatch.AlterationMode)
+	for _, entry := range swatch.All() {
+		if _, exists := registry[entry.Path]; exists {
+			t.Fatalf("registry contains duplicate path %q", entry.Path)
+		}
+		registry[entry.Path] = entry.DefaultAlteration
+	}
+
+	configured := make(map[string]bool)
+	for _, entry := range config.Swatches {
+		if configured[entry.Path] {
+			t.Fatalf("embedded .tailor.yml contains duplicate path %q", entry.Path)
+		}
+		configured[entry.Path] = true
+
+		mode, exists := registry[entry.Path]
+		if !exists {
+			t.Errorf("embedded .tailor.yml contains unregistered path %q", entry.Path)
+			continue
+		}
+		if entry.Alteration != mode {
+			t.Errorf("embedded .tailor.yml mode for %q = %q, want %q", entry.Path, entry.Alteration, mode)
+		}
+	}
+
+	for path := range registry {
+		if !configured[path] {
+			t.Errorf("embedded .tailor.yml is missing registered path %q", path)
+		}
 	}
 }
 
