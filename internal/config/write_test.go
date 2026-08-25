@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -73,7 +74,7 @@ labels:
     description: Good for newcomers
 
   - name: help wanted
-    color: 179299
+    color: "179299"
     description: Extra attention needed
 
   - name: invalid
@@ -420,6 +421,51 @@ func TestWriteYAMLSpecialCharactersQuoted(t *testing.T) {
 	}
 	if *parsed.Repository.Description != desc {
 		t.Errorf("round-tripped Description = %q, want %q", *parsed.Repository.Description, desc)
+	}
+}
+
+func TestWriteDynamicScalarsRoundTrip(t *testing.T) {
+	topics := []string{"? topic"}
+	patterns := []string{"- actions pattern"}
+	cfg := &Config{
+		License: "- licence",
+		Repository: &model.RepositorySettings{
+			Description: new("- repository description"),
+			Homepage:    new("? repository homepage"),
+			Topics:      &topics,
+		},
+		Actions: &model.ActionsSettings{
+			AllowedActions:  new("? actions policy"),
+			PatternsAllowed: &patterns,
+		},
+		Labels: []model.LabelEntry{
+			{
+				Name:        "- label name",
+				Color:       "? label colour",
+				Description: "- label description",
+			},
+		},
+		Swatches: []SwatchEntry{
+			{Path: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+
+	dir := t.TempDir()
+	if err := Write(dir, cfg, "2026-08-25", "Refitted"); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	written, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+
+	var parsed Config
+	if err := yaml.Unmarshal(written, &parsed); err != nil {
+		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, written)
+	}
+	if !reflect.DeepEqual(parsed, *cfg) {
+		t.Errorf("round-tripped config = %#v, want %#v", parsed, *cfg)
 	}
 }
 
