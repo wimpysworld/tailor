@@ -53,7 +53,7 @@ func labelsServer(current []model.LabelEntry, writeCalled *atomic.Int32) *httpte
 // pathIsLabel reports whether the path matches /repos/testowner/testrepo/labels/*.
 func pathIsLabel(path string) bool {
 	const prefix = "/repos/testowner/testrepo/labels/"
-	return len(path) > len(prefix) && path[:len(prefix)] == prefix
+	return len(path) > len(prefix) && strings.HasPrefix(path, prefix)
 }
 
 func failingLabelsServer() *httptest.Server {
@@ -623,18 +623,4 @@ func TestProcessLabelsSkipDoesNotAbort(t *testing.T) {
 	if !hasSkip {
 		t.Error("expected at least one LabelSkipScope result")
 	}
-}
-
-// containsSubstring is a test helper for substring matching.
-func containsSubstring(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsSubstringSearch(s, substr))
-}
-
-func containsSubstringSearch(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
