@@ -16,31 +16,38 @@ import (
 
 var currentRepoAt = repositoryFromRemotes
 
+// Repo identifies a GitHub repository and the host that serves it.
+type Repo struct {
+	Host  string
+	Owner string
+	Name  string
+}
+
 // RepoContext detects the GitHub repository for the current directory.
-// It returns the owner and name if a GitHub remote is found.
+// It returns the host, owner, and name if a GitHub remote is found.
 // When no remote is configured, it returns ok=false.
-func RepoContext() (owner string, name string, ok bool) {
-	owner, name, ok, _ = RepoContextAt(".")
-	return owner, name, ok
+func RepoContext() (repo Repo, ok bool) {
+	repo, ok, _ = RepoContextAt(".")
+	return repo, ok
 }
 
 // RepoContextAt detects the GitHub repository for the given directory.
-// It returns the owner and name if a GitHub remote is found; ok=false
-// otherwise.
-func RepoContextAt(dir string) (owner string, name string, ok bool, err error) {
+// It returns the host, owner, and name if a GitHub remote is found;
+// ok=false otherwise.
+func RepoContextAt(dir string) (repo Repo, ok bool, err error) {
 	info, err := os.Stat(dir)
 	if err != nil {
-		return "", "", false, fmt.Errorf("accessing directory %q: %w", dir, err)
+		return Repo{}, false, fmt.Errorf("accessing directory %q: %w", dir, err)
 	}
 	if !info.IsDir() {
-		return "", "", false, fmt.Errorf("accessing directory %q: not a directory", dir)
+		return Repo{}, false, fmt.Errorf("accessing directory %q: not a directory", dir)
 	}
 
-	repo, repoErr := currentRepoAt(dir)
+	found, repoErr := currentRepoAt(dir)
 	if repoErr != nil {
-		return "", "", false, nil
+		return Repo{}, false, nil
 	}
-	return repo.Owner, repo.Name, true, nil
+	return Repo{Host: found.Host, Owner: found.Owner, Name: found.Name}, true, nil
 }
 
 func repositoryFromRemotes(dir string) (repository.Repository, error) {

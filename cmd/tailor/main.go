@@ -38,7 +38,20 @@ type FitCmd struct {
 
 // Run executes the fit command.
 func (f *FitCmd) Run() error {
-	if err := gh.CheckAuth(); err != nil {
+	// Resolve the repository context before the auth check so the check
+	// verifies a token for the host that will be written to. The path may
+	// not exist yet; a fresh directory has no repository context.
+	var repo gh.Repo
+	var ok bool
+	if info, statErr := os.Stat(f.Path); statErr == nil && info.IsDir() {
+		var err error
+		repo, ok, err = gh.RepoContextAt(f.Path)
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := gh.CheckAuth(repo.Host); err != nil {
 		return err
 	}
 
@@ -55,17 +68,12 @@ func (f *FitCmd) Run() error {
 		return err
 	}
 
-	owner, name, ok, err := gh.RepoContextAt(f.Path)
-	if err != nil {
-		return err
-	}
-
 	if ok {
-		client, err := api.DefaultRESTClient()
+		client, err := gh.NewRESTClient(repo.Host)
 		if err != nil {
 			return err
 		}
-		live, warnings, err := gh.ReadRepoSettings(client, owner, name)
+		live, warnings, err := gh.ReadRepoSettings(client, repo.Owner, repo.Name)
 		if err != nil {
 			return err
 		}
@@ -123,13 +131,19 @@ func (b *BasteCmd) Run() error {
 // runAlter performs auth check, resolves the working directory, loads the
 // tailor config, and runs alter with the given mode.
 func runAlter(mode alter.ApplyMode) error {
-	if err := gh.CheckAuth(); err != nil {
-		return err
-	}
-
 	dir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("getting working directory: %w", err)
+	}
+
+	// Check auth for the host of the detected repository so writes cannot
+	// go through a token for a different authenticated host.
+	repo, _, err := gh.RepoContextAt(dir)
+	if err != nil {
+		return err
+	}
+	if err := gh.CheckAuth(repo.Host); err != nil {
+		return err
 	}
 
 	cfg, err := config.Load(dir)

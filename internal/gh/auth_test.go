@@ -4,29 +4,53 @@ import "testing"
 
 func TestCheckAuth(t *testing.T) {
 	tests := []struct {
-		name    string
-		token   string
-		wantErr string
+		name     string
+		host     string
+		token    string
+		wantHost string
+		wantErr  string
 	}{
 		{
-			name:  "valid token returns nil",
-			token: "test-valid-token",
+			name:     "valid token returns nil",
+			host:     "github.com",
+			token:    "test-valid-token",
+			wantHost: "github.com",
 		},
 		{
-			name:    "empty token returns error",
-			token:   "",
-			wantErr: "tailor requires GitHub authentication. Set the GH_TOKEN or GITHUB_TOKEN environment variable, or run 'gh auth login'",
+			name:     "empty host falls back to github.com",
+			host:     "",
+			token:    "test-valid-token",
+			wantHost: "github.com",
+		},
+		{
+			name:     "enterprise host is checked as given",
+			host:     "ghe.example.com",
+			token:    "test-valid-token",
+			wantHost: "ghe.example.com",
+		},
+		{
+			name:     "empty token returns error",
+			host:     "github.com",
+			token:    "",
+			wantHost: "github.com",
+			wantErr:  "tailor requires GitHub authentication. Set the GH_TOKEN or GITHUB_TOKEN environment variable, or run 'gh auth login'",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			restore := SetTokenForHostFunc(func(string) (string, string) {
+			var gotHost string
+			restore := SetTokenForHostFunc(func(host string) (string, string) {
+				gotHost = host
 				return tt.token, "oauth_token"
 			})
 			t.Cleanup(restore)
 
-			err := CheckAuth()
+			err := CheckAuth(tt.host)
+
+			if gotHost != tt.wantHost {
+				t.Errorf("CheckAuth(%q) checked host %q, want %q", tt.host, gotHost, tt.wantHost)
+			}
 
 			if tt.wantErr == "" {
 				if err != nil {
