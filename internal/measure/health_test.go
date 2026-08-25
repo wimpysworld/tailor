@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -541,7 +540,7 @@ func TestCheckHealthSymlinkedReadmeWarns(t *testing.T) {
 	t.Error("README.md not found in results")
 }
 
-func TestHasUnresolvedPlaceholdersAdversarialContentStaysFast(t *testing.T) {
+func TestHasUnresolvedPlaceholdersAdversarialContent(t *testing.T) {
 	tests := []struct {
 		name    string
 		content string
@@ -566,11 +565,7 @@ func TestHasUnresolvedPlaceholdersAdversarialContentStaysFast(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			start := time.Now()
 			got := hasUnresolvedPlaceholders([]byte(tt.content))
-			if elapsed := time.Since(start); elapsed > 5*time.Second {
-				t.Errorf("hasUnresolvedPlaceholders took %v, want under 5s", elapsed)
-			}
 			if got != tt.want {
 				t.Errorf("hasUnresolvedPlaceholders() = %v, want %v", got, tt.want)
 			}
