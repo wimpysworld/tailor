@@ -508,6 +508,51 @@ func TestValidateLabelsAcceptsMaxDescription(t *testing.T) {
 	}
 }
 
+func TestValidateLabelsMultibyteLimits(t *testing.T) {
+	tests := []struct {
+		name    string
+		label   model.LabelEntry
+		wantErr string
+	}{
+		{
+			name:  "multibyte name at limit",
+			label: model.LabelEntry{Name: strings.Repeat("é", 50), Color: "d73a4a", Description: "desc"},
+		},
+		{
+			name:    "multibyte name over limit",
+			label:   model.LabelEntry{Name: strings.Repeat("é", 51), Color: "d73a4a", Description: "desc"},
+			wantErr: "exceeds 50 characters",
+		},
+		{
+			name:  "multibyte description at limit",
+			label: model.LabelEntry{Name: "bug", Color: "d73a4a", Description: strings.Repeat("界", 100)},
+		},
+		{
+			name:    "multibyte description over limit",
+			label:   model.LabelEntry{Name: "bug", Color: "d73a4a", Description: strings.Repeat("界", 101)},
+			wantErr: "description exceeds 100 characters",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{Labels: []model.LabelEntry{tt.label}}
+			err := ValidateLabels(cfg)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateLabels(%s): %v", tt.name, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ValidateLabels(%s) expected error, got nil", tt.name)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error = %q, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestValidateLabelsRejectsDuplicateNames(t *testing.T) {
 	cfg := &Config{
 		Labels: []model.LabelEntry{
