@@ -8,6 +8,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/gh"
+	"github.com/wimpysworld/tailor/internal/termtext"
 )
 
 // Result holds the diagnostic information gathered by Run.
@@ -68,8 +69,8 @@ const labelWidth = 16
 // FormatOutput produces the docket command output from a Result.
 func FormatOutput(r *Result) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "%-*s%s\n", labelWidth, "user:", r.User)
-	fmt.Fprintf(&b, "%-*s%s\n", labelWidth, "repository:", r.Repository)
-	fmt.Fprintf(&b, "%-*s%s\n", labelWidth, "auth:", r.Auth)
+	fmt.Fprintf(&b, "%-*s%s\n", labelWidth, "user:", termtext.EscapeControlText(r.User))
+	fmt.Fprintf(&b, "%-*s%s\n", labelWidth, "repository:", termtext.EscapeControlText(r.Repository))
+	fmt.Fprintf(&b, "%-*s%s\n", labelWidth, "auth:", termtext.EscapeControlText(r.Auth))
 	return b.String()
 }

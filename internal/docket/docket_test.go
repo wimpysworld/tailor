@@ -248,6 +248,17 @@ func TestFormatOutput(t *testing.T) {
 				"repository:     (none)\n" +
 				"auth:           not authenticated\n",
 		},
+		{
+			name: "control characters escaped",
+			result: &Result{
+				User:       "octo\ncat",
+				Repository: "octocat/project\x1b[2J",
+				Auth:       "auth\u202eenticated",
+			},
+			want: "user:           octo\\x0acat\n" +
+				"repository:     octocat/project\\x1b[2J\n" +
+				"auth:           auth\\u202eenticated\n",
+		},
 	}
 
 	for _, tt := range tests {
