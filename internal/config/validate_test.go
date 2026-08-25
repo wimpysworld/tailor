@@ -184,42 +184,34 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 	}
 }
 
-func TestValidateWorkflowPermissionsAcceptsRead(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: new("read")}}
-	if err := ValidateWorkflowPermissions(cfg); err != nil {
-		t.Fatalf("ValidateWorkflowPermissions(read): %v", err)
+func TestValidateWorkflowPermissions(t *testing.T) {
+	tests := []struct {
+		name    string
+		cfg     *Config
+		wantErr string
+	}{
+		{name: "accepts read", cfg: &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: new("read")}}},
+		{name: "accepts write", cfg: &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: new("write")}}},
+		{name: "accepts nil", cfg: &Config{Repository: &model.RepositorySettings{}}},
+		{name: "accepts nil repository", cfg: &Config{}},
+		{name: "rejects invalid", cfg: &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: new("admin")}}, wantErr: `"admin"`},
 	}
-}
-
-func TestValidateWorkflowPermissionsAcceptsWrite(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: new("write")}}
-	if err := ValidateWorkflowPermissions(cfg); err != nil {
-		t.Fatalf("ValidateWorkflowPermissions(write): %v", err)
-	}
-}
-
-func TestValidateWorkflowPermissionsAcceptsNil(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{}}
-	if err := ValidateWorkflowPermissions(cfg); err != nil {
-		t.Fatalf("ValidateWorkflowPermissions(nil): %v", err)
-	}
-}
-
-func TestValidateWorkflowPermissionsAcceptsNilRepository(t *testing.T) {
-	cfg := &Config{}
-	if err := ValidateWorkflowPermissions(cfg); err != nil {
-		t.Fatalf("ValidateWorkflowPermissions(nil repo): %v", err)
-	}
-}
-
-func TestValidateWorkflowPermissionsRejectsInvalid(t *testing.T) {
-	cfg := &Config{Repository: &model.RepositorySettings{DefaultWorkflowPermissions: new("admin")}}
-	err := ValidateWorkflowPermissions(cfg)
-	if err == nil {
-		t.Fatal("ValidateWorkflowPermissions(admin) expected error, got nil")
-	}
-	if !strings.Contains(err.Error(), `"admin"`) {
-		t.Errorf("error = %q, want it to mention the invalid value", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := ValidateWorkflowPermissions(tt.cfg)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateWorkflowPermissions() returned unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("ValidateWorkflowPermissions() returned nil, want error")
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error = %q, want it to contain %q", err, tt.wantErr)
+			}
+		})
 	}
 }
 
