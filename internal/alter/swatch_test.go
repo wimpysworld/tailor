@@ -368,3 +368,41 @@ func TestSwatchSymlinkParentEscapeRejectsWrite(t *testing.T) {
 		t.Fatalf("outside file changed to %q", string(data))
 	}
 }
+
+func TestSwatchRejectsInRootRelativeParentSymlink(t *testing.T) {
+	tests := []struct {
+		name       string
+		alteration swatch.AlterationMode
+		mode       alter.ApplyMode
+	}{
+		{name: "always", alteration: swatch.Always, mode: alter.Apply},
+		{name: "first-fit", alteration: swatch.FirstFit, mode: alter.Apply},
+		{name: "recut", alteration: swatch.FirstFit, mode: alter.Recut},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			target := "managed/ISSUE_TEMPLATE/bug_report.yml"
+			writeOnDisk(t, dir, target, []byte("unchanged"))
+			symlinkOrSkip(t, "managed", filepath.Join(dir, ".github"))
+
+			cfg := newConfig(entry(".github/ISSUE_TEMPLATE/bug_report.yml", test.alteration))
+			_, err := alter.ProcessSwatches(cfg, dir, test.mode, &alter.TokenContext{})
+			if err == nil {
+				t.Fatal("ProcessSwatches() error = nil, want parent symlink error")
+			}
+			if !strings.Contains(err.Error(), `swatch parent ".github" is a symlink`) {
+				t.Errorf("error = %q, want parent symlink error", err)
+			}
+
+			data, readErr := os.ReadFile(filepath.Join(dir, target))
+			if readErr != nil {
+				t.Fatal(readErr)
+			}
+			if string(data) != "unchanged" {
+				t.Fatalf("target file changed to %q", data)
+			}
+		})
+	}
+}

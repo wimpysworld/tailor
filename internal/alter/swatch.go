@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -82,6 +83,10 @@ func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode
 		return SwatchResult{Path: entry.Path, Category: Skipped, Reason: SkipModeNever}, nil
 	}
 
+	if err := validateSwatchParents(root, entry.Path); err != nil {
+		return SwatchResult{}, err
+	}
+
 	exists, err := rootFileExists(root, entry.Path)
 	if err != nil {
 		return SwatchResult{}, fmt.Errorf("checking swatch %q: %w", entry.Path, err)
@@ -110,6 +115,32 @@ func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode
 		}
 	}
 	return SwatchResult{Path: entry.Path, Category: WouldCopy}, nil
+}
+
+func validateSwatchParents(root *os.Root, path string) error {
+	parent := filepath.Dir(path)
+	if parent == "." {
+		return nil
+	}
+
+	current := ""
+	for _, component := range strings.Split(parent, string(filepath.Separator)) {
+		current = filepath.Join(current, component)
+		info, err := root.Lstat(current)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				return nil
+			}
+			return fmt.Errorf("checking swatch parent %q: %w", current, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("swatch parent %q is a symlink", current)
+		}
+		if !info.IsDir() {
+			return fmt.Errorf("swatch parent %q is not a directory", current)
+		}
+	}
+	return nil
 }
 
 func processAlways(root *os.Root, entry config.SwatchEntry, content []byte, mode ApplyMode) (SwatchResult, error) {
