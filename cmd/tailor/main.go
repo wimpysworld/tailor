@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"io"
 	"os"
 	"time"
 
@@ -20,7 +20,8 @@ import (
 // version is set at release time by GoReleaser via -X main.version.
 var version = "dev"
 
-var cli struct {
+// CLI is the root command structure parsed by Kong.
+type CLI struct {
 	Version kong.VersionFlag `help:"Show version."`
 	Fit     FitCmd           `cmd:"" help:"Create a new project with default configuration."`
 	Alter   AlterCmd         `cmd:"" help:"Apply swatch templates to the current project."`
@@ -34,6 +35,8 @@ type FitCmd struct {
 	Path        string `arg:"" help:"Project directory to create."`
 	License     string `help:"Licence identifier." default:"BlueOak-1.0.0"`
 	Description string `help:"Repository description."`
+
+	stderr io.Writer
 }
 
 // Run executes the fit command.
@@ -76,8 +79,12 @@ func (f *FitCmd) Run() error {
 		if err != nil {
 			return err
 		}
+		stderr := f.stderr
+		if stderr == nil {
+			stderr = os.Stderr
+		}
 		for _, w := range warnings {
-			log.Printf("warning: %v", w)
+			fmt.Fprintf(stderr, "warning: %v\n", w)
 		}
 		config.MergeRepoSettings(cfg, live, f.Description)
 	} else if f.Description != "" {
@@ -195,14 +202,49 @@ func (d *DocketCmd) Run() error {
 	return nil
 }
 
-func main() {
-	ctx := kong.Parse(&cli,
+// exitStatus carries an exit code through a panic raised by Kong's Exit
+// function, so run can unwind mid-parse (help, version, usage errors) and
+// return the code instead of terminating the process.
+type exitStatus int
+
+// run parses args with Kong, executes the selected command, and returns the
+// process exit code. Help, usage, and error output go to the given writers.
+func run(args []string, stdout, stderr io.Writer) (code int) {
+	defer func() {
+		if r := recover(); r != nil {
+			status, ok := r.(exitStatus)
+			if !ok {
+				panic(r)
+			}
+			code = int(status)
+		}
+	}()
+
+	var cli CLI
+	parser, err := kong.New(&cli,
 		kong.Name("tailor"),
 		kong.Description("Bespoke project templates for GitHub repositories."),
 		kong.UsageOnError(),
 		kong.Vars{"version": version},
+		kong.Writers(stdout, stderr),
+		kong.Exit(func(c int) { panic(exitStatus(c)) }),
 	)
+	if err != nil {
+		// A construction error is a programming error in the CLI grammar,
+		// matching kong.Parse behaviour.
+		panic(err)
+	}
 
-	err := ctx.Run()
+	cli.Fit.stderr = stderr
+
+	ctx, err := parser.Parse(args)
+	parser.FatalIfErrorf(err)
+
+	err = ctx.Run()
 	ctx.FatalIfErrorf(err)
+	return 0
+}
+
+func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
 }
