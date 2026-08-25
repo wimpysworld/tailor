@@ -39,10 +39,10 @@ func DefaultConfig(license string) (*Config, error) {
 	return cfg, nil
 }
 
-// MergeRepoSettings replaces cfg.Repository with the live settings retrieved
-// from the GitHub API. The description flag, when non-empty, overrides
-// whatever the live settings carried. Empty string pointer fields for
-// Description and Homepage are normalised to nil so they are omitted from YAML.
+// MergeRepoSettings assigns live to cfg.Repository and mutates live in place.
+// The description flag, when non-empty, overrides whatever the live settings
+// carried. Empty string pointer fields for Description and Homepage are
+// normalised to nil so they are omitted from YAML.
 func MergeRepoSettings(cfg *Config, live *model.RepositorySettings, description string) {
 	cfg.Repository = live
 
