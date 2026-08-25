@@ -20,11 +20,11 @@ It grants the same core freedoms as MIT and BSD: use, copy, modify, merge, publi
 
 MIT and BSD have served the open-source ecosystem well for decades, but their texts were written before modern software distribution patterns and carry ambiguities that have required decades of case law and community interpretation to manage. Blue Oak addresses these gaps directly in the licence text itself.
 
-The explicit patent grant closes the gap that has always existed in MIT and BSD: contributors cannot grant a copyright licence and then assert a patent claim over the same code. The explicit irrevocability clause means contributors cannot later withdraw permission. The 30-day cure period protects users who make an honest mistake with attribution from immediate licence termination. The notice requirement acknowledges that embedding a full licence file is often impractical and accepts a URL as sufficient.
+The explicit patent grant closes the gap that has always existed in MIT and BSD: contributors cannot grant a copyright licence and then assert a patent claim over the same code. The explicit irrevocability clause means contributors cannot later withdraw permission. The 30-day cure period protects users who make an honest mistake with the notices requirement from immediate licence termination. The notice requirement acknowledges that embedding a full licence file is often impractical and accepts a URL as sufficient.
 
 ## What This Means for Users
 
-Nothing changes in practice. Blue Oak 1.0.0 is a permissive licence. You can use `tailor` in proprietary software, modify it, redistribute it, and sublicence it. The only obligations are attribution and preserving the licence notice - identical in substance to what MIT and BSD require, and easier to satisfy.
+Nothing changes in practice. Blue Oak 1.0.0 is a permissive licence. You can use `tailor` in proprietary software, modify it, redistribute it, and sublicence it. The only obligation is to pass on the licence text or a link to https://blueoakcouncil.org/license/1.0.0 to everyone who receives a copy - lighter than what MIT and BSD require, and easier to satisfy.
 
 ## Further Reading
 
