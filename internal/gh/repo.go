@@ -4,12 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
+	"github.com/cli/go-gh/v2/pkg/ssh"
 )
 
 var currentRepoAt = repositoryFromRemotes
@@ -48,6 +50,7 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 	}
 
 	knownHosts := auth.KnownHosts()
+	translator := ssh.NewTranslator()
 	bestPriority := -1
 	var best repository.Repository
 	for line := range strings.Lines(string(output)) {
@@ -55,7 +58,18 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 		if len(fields) != 3 || fields[2] != "(fetch)" {
 			continue
 		}
-		repo, parseErr := repository.Parse(fields[1])
+		rawURL := fields[1]
+		if strings.HasPrefix(rawURL, "git@") {
+			rawURL = "ssh://" + strings.Replace(rawURL, ":", "/", 1)
+		}
+		remoteURL, parseErr := url.Parse(rawURL)
+		if parseErr != nil {
+			continue
+		}
+		if remoteURL.Scheme == "git+ssh" {
+			remoteURL.Scheme = "ssh"
+		}
+		repo, parseErr := repository.Parse(translator.Translate(remoteURL).String())
 		if parseErr != nil || !isKnownHost(repo.Host, knownHosts) {
 			continue
 		}
