@@ -27,18 +27,18 @@ func Run(client *api.RESTClient) (*Result, error) {
 		Auth:       "not authenticated",
 	}
 
-	owner, name, ok := gh.RepoContext()
+	repo, ok := gh.RepoContext()
 	if ok {
-		r.Repository = owner + "/" + name
+		r.Repository = repo.Owner + "/" + repo.Name
 	}
 
-	if err := gh.CheckAuth(); err != nil {
+	if err := gh.CheckAuth(repo.Host); err != nil {
 		return r, nil
 	}
 
 	if client == nil {
 		var err error
-		client, err = api.DefaultRESTClient()
+		client, err = gh.NewRESTClient(repo.Host)
 		if err != nil {
 			return nil, err
 		}

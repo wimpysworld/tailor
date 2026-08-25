@@ -16,10 +16,11 @@ func TestRepoContext(t *testing.T) {
 	})
 	t.Cleanup(restore)
 
-	owner, name, ok := RepoContext()
+	repo, ok := RepoContext()
 
-	if owner != "wimpysworld" || name != "tailor" || !ok {
-		t.Errorf("RepoContext() = %q, %q, %v, want %q, %q, true", owner, name, ok, "wimpysworld", "tailor")
+	want := Repo{Host: "github.com", Owner: "wimpysworld", Name: "tailor"}
+	if repo != want || !ok {
+		t.Errorf("RepoContext() = %+v, %v, want %+v, true", repo, ok, want)
 	}
 }
 
@@ -29,10 +30,10 @@ func TestRepoContextError(t *testing.T) {
 	})
 	t.Cleanup(restore)
 
-	owner, name, ok := RepoContext()
+	repo, ok := RepoContext()
 
-	if owner != "" || name != "" || ok {
-		t.Errorf("RepoContext() = %q, %q, %v, want empty context", owner, name, ok)
+	if repo != (Repo{}) || ok {
+		t.Errorf("RepoContext() = %+v, %v, want empty context", repo, ok)
 	}
 }
 
@@ -40,12 +41,13 @@ func TestRepoContextAtUsesSuppliedDirectory(t *testing.T) {
 	configureGitHubHost(t)
 	dir := initGitRepository(t, "https://github.com/supplied/project.git")
 
-	owner, name, ok, err := RepoContextAt(dir)
+	repo, ok, err := RepoContextAt(dir)
 	if err != nil {
 		t.Fatalf("RepoContextAt() error = %v", err)
 	}
-	if owner != "supplied" || name != "project" || !ok {
-		t.Errorf("RepoContextAt() = %q, %q, %v, want %q, %q, true", owner, name, ok, "supplied", "project")
+	want := Repo{Host: "github.com", Owner: "supplied", Name: "project"}
+	if repo != want || !ok {
+		t.Errorf("RepoContextAt() = %+v, %v, want %+v, true", repo, ok, want)
 	}
 }
 
@@ -54,12 +56,13 @@ func TestRepoContextAtIgnoresGHRepo(t *testing.T) {
 	t.Setenv("GH_REPO", "wrong/override")
 	dir := initGitRepository(t, "https://github.com/remote/checkout.git")
 
-	owner, name, ok, err := RepoContextAt(dir)
+	repo, ok, err := RepoContextAt(dir)
 	if err != nil {
 		t.Fatalf("RepoContextAt() error = %v", err)
 	}
-	if owner != "remote" || name != "checkout" || !ok {
-		t.Errorf("RepoContextAt() = %q, %q, %v, want %q, %q, true", owner, name, ok, "remote", "checkout")
+	want := Repo{Host: "github.com", Owner: "remote", Name: "checkout"}
+	if repo != want || !ok {
+		t.Errorf("RepoContextAt() = %+v, %v, want %+v, true", repo, ok, want)
 	}
 }
 
@@ -79,14 +82,31 @@ func TestRepoContextAtParsesRemoteURLs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := initGitRepository(t, tt.remote)
 
-			owner, name, ok, err := RepoContextAt(dir)
+			repo, ok, err := RepoContextAt(dir)
 			if err != nil {
 				t.Fatalf("RepoContextAt() error = %v", err)
 			}
-			if owner != "wimpysworld" || name != "tailor" || !ok {
-				t.Errorf("RepoContextAt() = %q, %q, %v, want %q, %q, true", owner, name, ok, "wimpysworld", "tailor")
+			want := Repo{Host: "github.com", Owner: "wimpysworld", Name: "tailor"}
+			if repo != want || !ok {
+				t.Errorf("RepoContextAt() = %+v, %v, want %+v, true", repo, ok, want)
 			}
 		})
+	}
+}
+
+func TestRepoContextAtReturnsEnterpriseHost(t *testing.T) {
+	t.Setenv("GH_CONFIG_DIR", t.TempDir())
+	t.Setenv("GH_HOST", "ghe.example.com")
+	t.Setenv("GH_TOKEN", "test-token")
+	dir := initGitRepository(t, "https://ghe.example.com/acme/widgets.git")
+
+	repo, ok, err := RepoContextAt(dir)
+	if err != nil {
+		t.Fatalf("RepoContextAt() error = %v", err)
+	}
+	want := Repo{Host: "ghe.example.com", Owner: "acme", Name: "widgets"}
+	if repo != want || !ok {
+		t.Errorf("RepoContextAt() = %+v, %v, want %+v, true", repo, ok, want)
 	}
 }
 
@@ -100,12 +120,13 @@ func TestRepoContextAtResolvesSSHAlias(t *testing.T) {
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
 	dir := initGitRepository(t, "git@github-work:wimpysworld/tailor.git")
 
-	owner, name, ok, err := RepoContextAt(dir)
+	repo, ok, err := RepoContextAt(dir)
 	if err != nil {
 		t.Fatalf("RepoContextAt() error = %v", err)
 	}
-	if owner != "wimpysworld" || name != "tailor" || !ok {
-		t.Errorf("RepoContextAt() = %q, %q, %v, want %q, %q, true", owner, name, ok, "wimpysworld", "tailor")
+	want := Repo{Host: "github.com", Owner: "wimpysworld", Name: "tailor"}
+	if repo != want || !ok {
+		t.Errorf("RepoContextAt() = %+v, %v, want %+v, true", repo, ok, want)
 	}
 }
 
@@ -113,17 +134,17 @@ func TestRepoContextAtNoRemote(t *testing.T) {
 	configureGitHubHost(t)
 	dir := initGitRepository(t, "")
 
-	owner, name, ok, err := RepoContextAt(dir)
+	repo, ok, err := RepoContextAt(dir)
 	if err != nil {
 		t.Fatalf("RepoContextAt() error = %v", err)
 	}
-	if owner != "" || name != "" || ok {
-		t.Errorf("RepoContextAt() = %q, %q, %v, want empty context", owner, name, ok)
+	if repo != (Repo{}) || ok {
+		t.Errorf("RepoContextAt() = %+v, %v, want empty context", repo, ok)
 	}
 }
 
 func TestRepoContextAtBadDir(t *testing.T) {
-	_, _, _, err := RepoContextAt(filepath.Join(t.TempDir(), "missing"))
+	_, _, err := RepoContextAt(filepath.Join(t.TempDir(), "missing"))
 	if err == nil {
 		t.Fatal("RepoContextAt() error = nil, want an error")
 	}

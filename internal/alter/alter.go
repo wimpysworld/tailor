@@ -65,9 +65,13 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		return err
 	}
 
+	repo, hasRepo, err := gh.RepoContextAt(dir)
+	if err != nil {
+		return err
+	}
+
 	if client == nil {
-		var err error
-		client, err = api.DefaultRESTClient()
+		client, err = gh.NewRESTClient(repo.Host)
 		if err != nil {
 			return fmt.Errorf("creating GitHub API client: %w", err)
 		}
@@ -78,16 +82,12 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		return fmt.Errorf("fetching GitHub username: %w", err)
 	}
 
-	owner, name, hasRepo, err := gh.RepoContextAt(dir)
-	if err != nil {
-		return err
-	}
 	tokens := TokenContext{
 		GitHubUsername: username,
-		Owner:          owner,
-		Name:           name,
+		Owner:          repo.Owner,
+		Name:           repo.Name,
 	}
-	target := RepoTarget{Client: client, Owner: owner, Name: name, HasRepo: hasRepo}
+	target := RepoTarget{Client: client, Owner: repo.Owner, Name: repo.Name, HasRepo: hasRepo}
 
 	repoResults, err := ProcessRepoSettings(cfg, mode, target)
 	if err != nil {
