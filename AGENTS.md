@@ -63,7 +63,7 @@ tailor/
 - Swatches are embedded at build time via `//go:embed swatches/*`
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
-- Run `alter` stages in this order: config migration and update, retired workflow cleanup, repository settings, labels, licence, then swatches
+- Run `alter` stages in this order: config migration and update, retired workflow cleanup, repository settings, Actions policy, labels, licence, then swatches
 - Before strict path and mode validation, prune `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml` from config
 - Accept legacy `triggered` only for these retired entries during migration
 - Always check both fixed retired paths, regardless of config or mode
