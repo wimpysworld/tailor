@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
@@ -112,17 +111,19 @@ const readmeFile = "README.md"
 // .tailor.yml limit in the config package.
 const maxLicenceSize = 1 << 20
 
-// readLicence reads the licence file at path for the placeholder check. It
-// returns an error when the file is not regular or exceeds maxLicenceSize.
-func readLicence(path string) ([]byte, error) {
-	file, err := os.Open(path)
+// readLicence reads the licence file at path inside root for the
+// placeholder check. It returns an error when the file is not regular or
+// exceeds maxLicenceSize.
+func readLicence(root *os.Root, path string) ([]byte, error) {
+	file, err := root.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("opening licence: %w", err)
 	}
 	defer file.Close()
 
 	// Check the open handle: the path can change to a non-regular file
-	// between the caller's Lstat and Open.
+	// between the caller's Lstat and Open. The rooted open also refuses a
+	// swap to a symlink that resolves outside the project.
 	info, err := file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("reading licence metadata: %w", err)
@@ -185,7 +186,7 @@ func CheckHealth(dir string) []HealthResult {
 			continue
 		}
 		if p == swatch.LicenseDestination {
-			data, err := readLicence(filepath.Join(dir, p))
+			data, err := readLicence(root, p)
 			if err == nil && hasUnresolvedPlaceholders(data) {
 				warning = append(warning, HealthResult{
 					Path:   p,

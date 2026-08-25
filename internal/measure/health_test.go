@@ -457,6 +457,32 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 	}
 }
 
+func TestReadLicenceRejectsSymlinkOutsideProject(t *testing.T) {
+	base := t.TempDir()
+	target := filepath.Join(base, "target.txt")
+	if err := os.WriteFile(target, []byte("MIT License\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	dir := filepath.Join(base, "project")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, "LICENSE")); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatalf("OpenRoot: %v", err)
+	}
+	defer root.Close()
+
+	if _, err := readLicence(root, "LICENSE"); err == nil {
+		t.Error("readLicence() error = nil, want error for symlink outside the project")
+	}
+}
+
 func TestCheckHealthSymlinkedParentEscapingProjectIsMissing(t *testing.T) {
 	base := t.TempDir()
 
