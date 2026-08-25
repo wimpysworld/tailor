@@ -132,12 +132,13 @@ func ValidateCompleteActions(cfg *Config) error {
 }
 
 // ValidateTopics checks that every topic, if set, starts with a lowercase
-// letter or number, contains only lowercase alphanumerics and hyphens, and
-// does not exceed 50 characters.
+// letter or number, contains only lowercase alphanumerics and hyphens, does
+// not exceed 50 characters, and appears only once.
 func ValidateTopics(cfg *Config) error {
 	if cfg.Repository == nil || cfg.Repository.Topics == nil {
 		return nil
 	}
+	seen := make(map[string]bool, len(*cfg.Repository.Topics))
 	for _, topic := range *cfg.Repository.Topics {
 		if len(topic) > 50 {
 			return fmt.Errorf("topic %q exceeds 50 characters", topic)
@@ -145,6 +146,10 @@ func ValidateTopics(cfg *Config) error {
 		if !topicRegexp.MatchString(topic) {
 			return fmt.Errorf("topic %q is invalid; must start with a lowercase letter or number and contain only lowercase alphanumerics and hyphens", topic)
 		}
+		if seen[topic] {
+			return fmt.Errorf("duplicate topic %q in config", topic)
+		}
+		seen[topic] = true
 	}
 	return nil
 }

@@ -435,6 +435,36 @@ func TestProcessRepoSettingsTopicsNoChange(t *testing.T) {
 	}
 }
 
+func TestProcessRepoSettingsTopicsOrderIgnored(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	live := repoJSON{Topics: []string{"cli", "go"}}
+	server := settingsServer(live, nil)
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	topics := []string{"go", "cli"}
+	cfg := &config.Config{
+		Repository: &model.RepositorySettings{
+			Topics: &topics,
+		},
+	}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, repoTarget(client, "testowner", "testrepo", true))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("got %d results, want 1", len(results))
+	}
+	if results[0].Category != alter.RepoNoChange {
+		t.Errorf("category = %q, want %q", results[0].Category, alter.RepoNoChange)
+	}
+	if results[0].Value != "go, cli" {
+		t.Errorf("value = %q, want declared order %q", results[0].Value, "go, cli")
+	}
+}
+
 func TestProcessRepoSettingsTopicsWouldSet(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
@@ -478,7 +508,7 @@ func TestProcessRepoSettingsTopicsEmptyVsNil(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	// Declared: empty slice (clear all topics)
-	// slices.Equal treats nil and empty as equal, so this is no change
+	// The set comparison treats nil and empty as equal, so this is no change
 	topics := []string{}
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{

@@ -157,7 +157,7 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 			displayVal = strings.Join(dSlice, ", ")
 			if !lfv.IsNil() {
 				lSlice := lfv.Elem().Interface().([]string)
-				equal = slices.Equal(dSlice, lSlice)
+				equal = equalStringSets(dSlice, lSlice)
 			}
 		} else {
 			displayVal = fmt.Sprintf("%v", declaredVal)
@@ -176,6 +176,17 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 	}
 
 	return results
+}
+
+// equalStringSets reports whether a and b contain the same elements regardless
+// of order. GitHub imposes no meaning on list order for topics or
+// patterns_allowed. Sorts copies; neither input is mutated.
+func equalStringSets(a, b []string) bool {
+	as := slices.Clone(a)
+	bs := slices.Clone(b)
+	slices.Sort(as)
+	slices.Sort(bs)
+	return slices.Equal(as, bs)
 }
 
 // readWarningOperationFields maps read-path operation kinds from

@@ -88,12 +88,7 @@ var actionsFieldTable = []actionsFieldSpec{
 		compare: func(declared, live *model.ActionsSettings) (string, bool) {
 			desired := slices.Clone(*declared.PatternsAllowed)
 			slices.Sort(desired)
-			equal := false
-			if live.PatternsAllowed != nil {
-				actual := slices.Clone(*live.PatternsAllowed)
-				slices.Sort(actual)
-				equal = slices.Equal(desired, actual)
-			}
+			equal := live.PatternsAllowed != nil && equalStringSets(desired, *live.PatternsAllowed)
 			display := strings.Join(desired, ", ")
 			if len(desired) == 0 {
 				display = "[]"
