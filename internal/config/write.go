@@ -15,12 +15,13 @@ import (
 const yamlSpecial = "{}[]#&*!|>'\"%@`\n"
 
 // yamlVal quotes v when it contains YAML special characters, a ":" that
-// reads as a mapping indicator (followed by whitespace or at the end),
+// reads as a mapping indicator (followed by a space or tab, or at the end),
 // surrounding whitespace, or is empty. A ":" inside a word, as in URLs,
 // needs no quoting.
 func yamlVal(v string) string {
 	if strings.ContainsAny(v, yamlSpecial) || strings.Contains(v, ": ") ||
-		strings.HasSuffix(v, ":") || v != strings.TrimSpace(v) || v == "" {
+		strings.Contains(v, ":\t") || strings.HasSuffix(v, ":") ||
+		v != strings.TrimSpace(v) || v == "" {
 		return fmt.Sprintf("%q", v)
 	}
 	return v
