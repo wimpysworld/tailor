@@ -51,8 +51,10 @@ func (f *FitCmd) Run() error {
 		}
 	}
 
-	host := gh.ResolveHost(repo.Host)
-	if err := gh.CheckAuth(host); err != nil {
+	// Verify the token against the API before creating the project
+	// directory, so an invalid token cannot leave a partial fit behind.
+	client, _, err := gh.VerifyAuth(repo.Host)
+	if err != nil {
 		return err
 	}
 
@@ -70,10 +72,6 @@ func (f *FitCmd) Run() error {
 	}
 
 	if ok {
-		client, err := gh.NewRESTClient(host)
-		if err != nil {
-			return err
-		}
 		live, warnings, err := gh.ReadRepoSettings(client, repo.Owner, repo.Name)
 		if err != nil {
 			return err

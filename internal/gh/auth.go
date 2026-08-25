@@ -2,6 +2,7 @@ package gh
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/auth"
@@ -41,4 +42,25 @@ func CheckAuth(host string) error {
 // Callers must resolve an empty host with ResolveHost first.
 func NewRESTClient(host string) (*api.RESTClient, error) {
 	return newRESTClient(host)
+}
+
+// VerifyAuth checks that a token is present for the given host and verifies
+// it against the API with a single GET /user request. It returns the REST
+// client and the authenticated username so callers can reuse both without a
+// second request. An empty host falls back to the default host (see
+// ResolveHost).
+func VerifyAuth(host string) (*api.RESTClient, string, error) {
+	resolved := ResolveHost(host)
+	if err := CheckAuth(resolved); err != nil {
+		return nil, "", err
+	}
+	client, err := NewRESTClient(resolved)
+	if err != nil {
+		return nil, "", fmt.Errorf("creating GitHub API client: %w", err)
+	}
+	username, err := FetchUsername(client)
+	if err != nil {
+		return nil, "", fmt.Errorf("verifying GitHub authentication: %w", err)
+	}
+	return client, username, nil
 }

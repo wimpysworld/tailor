@@ -1761,8 +1761,8 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	err := runAlterExpectError(t, cfg, tc.Dir, tc.Client)
 
-	if !strings.Contains(err.Error(), "username") && !strings.Contains(err.Error(), "user") {
-		t.Errorf("error = %q, want substring containing 'username' or 'user'", err)
+	if !strings.Contains(err.Error(), "verifying GitHub authentication") {
+		t.Errorf("error = %q, want substring 'verifying GitHub authentication'", err)
 	}
 
 	// No swatch files are written.
@@ -1773,6 +1773,46 @@ swatches:
 	// No mutating API calls are made.
 	if mc := tc.MutatingCalls(); len(mc) != 0 {
 		t.Errorf("expected no mutating calls, got %d: %v", len(mc), mc)
+	}
+}
+
+// TestAlterRunInvalidTokenExitsBeforeLocalChanges verifies that a present but
+// invalid token stops alter before config migration writes and retired
+// workflow cleanup touch any local file.
+func TestAlterRunInvalidTokenExitsBeforeLocalChanges(t *testing.T) {
+	configYAML := `license: none
+swatches:
+  - path: .github/workflows/tailor.yml
+    alteration: never
+  - path: .gitignore
+    alteration: first-fit
+`
+	tc := setupAlterTest(t, configYAML,
+		WithUserError(http.StatusUnauthorized),
+	)
+	retiredPath := filepath.Join(tc.Dir, ".github/workflows/tailor.yml")
+	writeOnDisk(t, tc.Dir, ".github/workflows/tailor.yml", []byte("retired"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+	_ = runAlterExpectError(t, cfg, tc.Dir, tc.Client)
+
+	// The retired entry migration is not written back to .tailor.yml.
+	configData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatalf("ReadFile(.tailor.yml): %v", err)
+	}
+	if string(configData) != configYAML {
+		t.Errorf(".tailor.yml was rewritten despite invalid token:\n%s", configData)
+	}
+
+	// The retired workflow file is not removed.
+	if _, statErr := os.Stat(retiredPath); statErr != nil {
+		t.Errorf("retired workflow file was removed despite invalid token: %v", statErr)
+	}
+
+	// No swatch files are written.
+	if _, statErr := os.Stat(filepath.Join(tc.Dir, ".gitignore")); statErr == nil {
+		t.Error(".gitignore was written despite invalid token")
 	}
 }
 
