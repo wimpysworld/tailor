@@ -9,37 +9,11 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-// testTransport redirects all requests to the test server, preserving the
-// original request path so the test handler can route by path.
-type testTransport struct {
-	server *httptest.Server
-}
-
-func (t *testTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.URL.Scheme = "http"
-	req.URL.Host = t.server.Listener.Addr().String()
-	return http.DefaultTransport.RoundTrip(req)
-}
-
-// newTestClient creates an api.RESTClient that sends all requests to the
-// given test server.
-func newTestClient(t *testing.T, server *httptest.Server) *api.RESTClient {
-	t.Helper()
-	client, err := api.NewRESTClient(api.ClientOptions{
-		Host:      "github.com",
-		AuthToken: "test-token",
-		Transport: &testTransport{server: server},
-	})
-	if err != nil {
-		t.Fatalf("NewRESTClient: %v", err)
-	}
-	return client
-}
+var newTestClient = testutil.NewTestClient
 
 const fullRepoJSON = `{
 	"description": "A tailor for your repos",
@@ -181,7 +155,7 @@ func TestReadRepoSettings(t *testing.T) {
 			}))
 			t.Cleanup(server.Close)
 
-			client := newTestClient(t, server)
+			client := testutil.NewTestClient(t, server)
 			settings, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 			if err != nil {
 				t.Fatalf("ReadRepoSettings() error: %v", err)
@@ -262,7 +236,7 @@ func TestReadRepoSettingsIgnoresGitHubActionsEnvironment(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings, warnings, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() error: %v", err)
@@ -290,7 +264,7 @@ func TestReadRepoSettingsRepoAPIError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	_, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err == nil {
 		t.Fatal("ReadRepoSettings() expected error, got nil")
@@ -311,7 +285,7 @@ func TestReadRepoSettingsWFPerms403GracefulDegradation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
@@ -340,7 +314,7 @@ func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings, warnings, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
@@ -379,7 +353,7 @@ func TestReadRepoSettingsNon403StillFails(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	_, _, err := ReadRepoSettings(client, "testowner", "testrepo")
 	if err == nil {
 		t.Fatal("ReadRepoSettings() expected error for 500, got nil")
@@ -405,7 +379,7 @@ func TestReadRepoSettingsSecurityFeatures(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	settings, warnings, err := ReadRepoSettings(newTestClient(t, server), "testowner", "testrepo")
+	settings, warnings, err := ReadRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() error: %v", err)
 	}
@@ -431,7 +405,7 @@ func TestReadRepoSettingsSecurityFeature404HandlingForAdmin(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	settings, warnings, err := ReadRepoSettings(newTestClient(t, server), "testowner", "testrepo")
+	settings, warnings, err := ReadRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo")
 	if err != nil {
 		t.Fatalf("ReadRepoSettings() error: %v", err)
 	}
@@ -474,7 +448,7 @@ func TestReadRepoSettingsSecurityFeature404UnknownWithoutConfirmedAdminAccess(t 
 			}))
 			t.Cleanup(server.Close)
 
-			settings, warnings, err := ReadRepoSettings(newTestClient(t, server), "testowner", "testrepo")
+			settings, warnings, err := ReadRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo")
 			if err != nil {
 				t.Fatalf("ReadRepoSettings() error: %v", err)
 			}
@@ -499,7 +473,7 @@ func TestReadRepoSettingsSecurityFeatureHardError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	if _, _, err := ReadRepoSettings(newTestClient(t, server), "testowner", "testrepo"); err == nil {
+	if _, _, err := ReadRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo"); err == nil {
 		t.Fatal("ReadRepoSettings() error = nil, want hard error")
 	}
 }
@@ -512,7 +486,7 @@ func TestReadSecurityFeatureRejectsEmptyJSONSuccess(t *testing.T) {
 
 	for _, feature := range []string{"private vulnerability reporting", "automated security fixes"} {
 		t.Run(feature, func(t *testing.T) {
-			_, known, err := readSecurityFeature(newTestClient(t, server), "feature", false, false)
+			_, known, err := readSecurityFeature(testutil.NewTestClient(t, server), "feature", false, false)
 			if err == nil || known {
 				t.Fatalf("readSecurityFeature() known = %t, error = %v, want protocol error", known, err)
 			}
@@ -534,7 +508,7 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		Description:    new("new desc"),
 		HasWiki:        new(true),
@@ -710,7 +684,7 @@ func TestApplyRepoSettingsPatchError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		HasWiki: new(true),
 	}
@@ -728,7 +702,7 @@ func TestApplyRepoSettingsPatch403Skipped(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		HasWiki: new(true),
 	}
@@ -759,7 +733,7 @@ func TestApplyRepoSettingsWorkflowPermsBothFields(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		DefaultWorkflowPermissions:   new("read"),
 		CanApprovePullRequestReviews: new(false),
@@ -807,7 +781,7 @@ func TestApplyRepoSettingsWorkflowPermsPartialFetchesCurrent(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		DefaultWorkflowPermissions: new("read"),
 	}
@@ -837,7 +811,7 @@ func TestApplyRepoSettingsWorkflowPermsSkippedWhenBothNil(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		HasWiki: new(true),
 	}
@@ -867,7 +841,7 @@ func TestApplyRepoSettingsWorkflowPermsGetError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		CanApprovePullRequestReviews: new(true),
 	}
@@ -891,7 +865,7 @@ func TestApplyRepoSettingsWorkflowPermsPutError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		DefaultWorkflowPermissions:   new("read"),
 		CanApprovePullRequestReviews: new(false),
@@ -917,7 +891,7 @@ func TestApplyRepoSettingsTopicsPut(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	topics := []string{"go", "cli-tool"}
 	settings := &model.RepositorySettings{
 		Topics: &topics,
@@ -961,7 +935,7 @@ func TestApplyRepoSettingsTopicsPutEmpty(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	topics := []string{}
 	settings := &model.RepositorySettings{
 		Topics: &topics,
@@ -997,7 +971,7 @@ func TestApplyRepoSettingsTopicsSkippedWhenNil(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		HasWiki: new(true),
 	}
@@ -1023,7 +997,7 @@ func TestApplyRepoSettingsTopicsError(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	topics := []string{"go"}
 	settings := &model.RepositorySettings{
 		Topics: &topics,
@@ -1046,7 +1020,7 @@ func TestApplyRepoSettingsPartialTopics403(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	topics := []string{"go"}
 	settings := &model.RepositorySettings{
 		HasWiki: new(true),
@@ -1069,7 +1043,7 @@ func TestApplyRepoSettingsAllSkipped(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		HasWiki: new(true),
 	}
@@ -1089,7 +1063,7 @@ func TestApplyRepoSettingsApplyResultPopulatedOnSuccess(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	client := newTestClient(t, server)
+	client := testutil.NewTestClient(t, server)
 	settings := &model.RepositorySettings{
 		HasWiki: new(true),
 	}
@@ -1120,7 +1094,7 @@ func TestApplyRepoSettingsSecurityFeatureMethodsAndEnableOrder(t *testing.T) {
 		VulnerabilityAlertsEnabled:        new(true),
 		AutomatedSecurityFixesEnabled:     new(true),
 	}
-	if _, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings); err != nil {
+	if _, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings); err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
 
@@ -1154,7 +1128,7 @@ func TestApplyRepoSettingsSecurityFeatureDisableOrder(t *testing.T) {
 		VulnerabilityAlertsEnabled:    new(false),
 		AutomatedSecurityFixesEnabled: new(false),
 	}
-	if _, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings); err != nil {
+	if _, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings); err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
 
@@ -1176,7 +1150,7 @@ func TestApplyRepoSettingsDoesNotDisableAlertsWhenFixesAreUnmanaged(t *testing.T
 	t.Cleanup(server.Close)
 
 	settings := &model.RepositorySettings{VulnerabilityAlertsEnabled: new(false)}
-	_, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings)
 	if err == nil || err.Error() != "cannot disable vulnerability alerts while automated security fixes are unmanaged" {
 		t.Fatalf("ApplyRepoSettings() error = %v, want unmanaged fixes error", err)
 	}
@@ -1193,7 +1167,7 @@ func TestApplyRepoSettingsSecurityFeatureAccessErrorIsSkipped(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	settings := &model.RepositorySettings{VulnerabilityAlertsEnabled: new(true)}
-	result, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings)
+	result, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1236,7 +1210,7 @@ func TestApplyRepoSettingsSecurityPrerequisiteStopsDependentWrite(t *testing.T) 
 				}))
 				t.Cleanup(server.Close)
 
-				result, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", tt.settings)
+				result, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", tt.settings)
 				if status == http.StatusForbidden {
 					if err != nil || len(result.Skipped) != 2 {
 						t.Fatalf("ApplyRepoSettings() = %+v, %v, want skipped prerequisite and dependent", result, err)
@@ -1263,7 +1237,7 @@ func TestApplyRepoSettingsSecurityFeatureHardErrorStops(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	settings := &model.RepositorySettings{AutomatedSecurityFixesEnabled: new(true)}
-	if _, err := ApplyRepoSettings(newTestClient(t, server), "testowner", "testrepo", settings); err == nil {
+	if _, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings); err == nil {
 		t.Fatal("ApplyRepoSettings() error = nil, want hard error")
 	}
 }
