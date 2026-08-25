@@ -3,9 +3,11 @@ package config
 import (
 	"fmt"
 	"maps"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -142,8 +144,33 @@ func ValidateTopics(cfg *Config) error {
 	return nil
 }
 
+// containsControl reports whether s contains any control character, including
+// C0 controls, DEL, and C1 controls.
+func containsControl(s string) bool {
+	return strings.ContainsFunc(s, unicode.IsControl)
+}
+
+// ValidateRepoStringSettings checks that repository string settings contain no
+// control characters, which could inject terminal control sequences into
+// output. Topics carry their own stricter format validation in ValidateTopics.
+func ValidateRepoStringSettings(cfg *Config) error {
+	if cfg.Repository == nil {
+		return nil
+	}
+	for _, field := range model.RepositorySettingFields(cfg.Repository) {
+		if !field.Set || field.Value.Elem().Kind() != reflect.String {
+			continue
+		}
+		if containsControl(field.Value.Elem().String()) {
+			return fmt.Errorf("repository setting %s contains control characters", field.YAMLKey)
+		}
+	}
+	return nil
+}
+
 // ValidateLabels checks that every label entry has valid name, color, and
-// description fields. Rejects duplicate names (case-insensitive).
+// description fields. Rejects control characters in names and descriptions
+// and duplicate names (case-insensitive).
 func ValidateLabels(cfg *Config) error {
 	if cfg.Labels == nil {
 		return nil
@@ -156,6 +183,9 @@ func ValidateLabels(cfg *Config) error {
 		if len(l.Name) > 50 {
 			return fmt.Errorf("label[%d]: name %q exceeds 50 characters", i, l.Name)
 		}
+		if containsControl(l.Name) {
+			return fmt.Errorf("label[%d]: name %q contains control characters", i, l.Name)
+		}
 		if l.Color == "" {
 			return fmt.Errorf("label[%d]: color must not be empty", i)
 		}
@@ -167,6 +197,9 @@ func ValidateLabels(cfg *Config) error {
 		}
 		if len(l.Description) > 100 {
 			return fmt.Errorf("label[%d]: description exceeds 100 characters", i)
+		}
+		if containsControl(l.Description) {
+			return fmt.Errorf("label[%d]: description contains control characters", i)
 		}
 		key := strings.ToLower(l.Name)
 		if seen[key] {

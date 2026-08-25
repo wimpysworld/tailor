@@ -2,7 +2,9 @@ package alter
 
 import (
 	"fmt"
+	"strings"
 	"testing"
+	"unicode"
 
 	"github.com/wimpysworld/tailor/internal/gh"
 )
@@ -519,6 +521,59 @@ func TestFormatOutputWriteModesOmitSkippedSecuritySettings(t *testing.T) {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			if got := FormatOutput(repos, nil, nil, mode); got != want {
 				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, want)
+			}
+		})
+	}
+}
+
+func TestFormatOutputEscapesControlCharacters(t *testing.T) {
+	tests := []struct {
+		name         string
+		repos        []RepoSettingResult
+		labels       []LabelResult
+		wantContains string
+	}{
+		{
+			name:         "ANSI CSI in repository description",
+			repos:        []RepoSettingResult{{Field: "description", Category: WouldSet, Value: "\x1b[31mred\x1b[0m"}},
+			wantContains: `repository.description = \x1b[31mred\x1b[0m`,
+		},
+		{
+			name:         "OSC 8 hyperlink in label name",
+			labels:       []LabelResult{{Name: "\x1b]8;;https://evil.example\x07bug", Category: WouldCreate, Value: "#d73a4a"}},
+			wantContains: `label.\x1b]8;;https://evil.example\x07bug = #d73a4a`,
+		},
+		{
+			name:         "OSC 52 clipboard write in label name",
+			labels:       []LabelResult{{Name: "\x1b]52;c;Zm9v\x07bug", Category: WouldCreate, Value: "#d73a4a"}},
+			wantContains: `label.\x1b]52;c;Zm9v\x07bug = #d73a4a`,
+		},
+		{
+			name:         "carriage return in repository description",
+			repos:        []RepoSettingResult{{Field: "description", Category: WouldSet, Value: "safe\rspoofed"}},
+			wantContains: `repository.description = safe\x0dspoofed`,
+		},
+		{
+			name:         "line feed in repository description",
+			repos:        []RepoSettingResult{{Field: "description", Category: WouldSet, Value: "safe\nwould set: injected"}},
+			wantContains: `repository.description = safe\x0awould set: injected`,
+		},
+		{
+			name:         "C1 CSI in label name",
+			labels:       []LabelResult{{Name: "\u009b31mbug", Category: WouldCreate, Value: "#d73a4a"}},
+			wantContains: `label.\u009b31mbug = #d73a4a`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := FormatOutput(tt.repos, tt.labels, nil, DryRun)
+			if !strings.Contains(got, tt.wantContains) {
+				t.Errorf("FormatOutput() =\n%s\nwant substring %q", got, tt.wantContains)
+			}
+			for _, r := range got {
+				if r != '\n' && unicode.IsControl(r) {
+					t.Errorf("FormatOutput() contains raw control character %U:\n%q", r, got)
+				}
 			}
 		})
 	}
