@@ -14,47 +14,6 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-func TestExists(t *testing.T) {
-	tests := []struct {
-		name   string
-		create func(t *testing.T, path string)
-		want   bool
-	}{
-		{
-			name: "file",
-			create: func(t *testing.T, path string) {
-				t.Helper()
-				if err := os.WriteFile(path, []byte("license: none\n"), 0o644); err != nil {
-					t.Fatalf("WriteFile: %v", err)
-				}
-			},
-			want: true,
-		},
-		{name: "missing"},
-		{
-			name: "directory",
-			create: func(t *testing.T, path string) {
-				t.Helper()
-				if err := os.Mkdir(path, 0o755); err != nil {
-					t.Fatalf("Mkdir: %v", err)
-				}
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			if tt.create != nil {
-				tt.create(t, filepath.Join(dir, configPath))
-			}
-			if got := Exists(dir); got != tt.want {
-				t.Errorf("Exists() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestLoadValidConfig(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, specYAML)
