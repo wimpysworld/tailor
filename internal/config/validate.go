@@ -236,7 +236,7 @@ func repoSettingNames() []string {
 }
 
 // settingNames returns the sorted yaml tag names for fields.
-func settingNames(fields []model.RepositorySettingField) []string {
+func settingNames(fields []model.SettingField) []string {
 	names := make([]string, 0, len(fields))
 	for _, field := range fields {
 		names = append(names, field.YAMLKey)

@@ -123,7 +123,7 @@ func TestRepositorySettingFieldsValues(t *testing.T) {
 	}
 
 	fields := RepositorySettingFields(settings)
-	seen := map[string]RepositorySettingField{}
+	seen := map[string]SettingField{}
 	for _, field := range fields {
 		seen[field.YAMLKey] = field
 	}

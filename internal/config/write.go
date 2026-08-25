@@ -38,7 +38,7 @@ func yamlVal(v string) (string, error) {
 // settingLines renders one "  key: value" line per set field. Scalar fields
 // keep struct order; list fields follow them, preserving the output order
 // that places topics last.
-func settingLines(fields []model.RepositorySettingField) ([]string, error) {
+func settingLines(fields []model.SettingField) ([]string, error) {
 	var lines, lists []string
 	for _, field := range fields {
 		if !field.Set {
