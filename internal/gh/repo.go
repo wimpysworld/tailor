@@ -1,43 +1,94 @@
 package gh
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
+	"strings"
 
+	"github.com/cli/go-gh/v2/pkg/auth"
 	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
-// currentRepo wraps repository.Current for testability.
-var currentRepo = repository.Current
+var currentRepoAt = repositoryFromRemotes
 
 // RepoContext detects the GitHub repository for the current directory.
 // It returns the owner and name if a GitHub remote is found.
 // When no remote is configured, it returns ok=false.
 func RepoContext() (owner string, name string, ok bool) {
-	repo, repoErr := currentRepo()
-	if repoErr != nil {
-		return "", "", false
-	}
-	return repo.Owner, repo.Name, true
+	owner, name, ok, _ = RepoContextAt(".")
+	return owner, name, ok
 }
 
 // RepoContextAt detects the GitHub repository for the given directory.
-// It temporarily changes the working directory to dir before querying
-// git remotes, then restores the original directory. Returns the owner
-// and name if a GitHub remote is found; ok=false otherwise.
+// It returns the owner and name if a GitHub remote is found; ok=false
+// otherwise.
 func RepoContextAt(dir string) (owner string, name string, ok bool, err error) {
-	orig, err := os.Getwd()
+	info, err := os.Stat(dir)
 	if err != nil {
-		return "", "", false, fmt.Errorf("getting working directory: %w", err)
+		return "", "", false, fmt.Errorf("accessing directory %q: %w", dir, err)
 	}
-	if err := os.Chdir(dir); err != nil {
-		return "", "", false, fmt.Errorf("changing to directory %q: %w", dir, err)
+	if !info.IsDir() {
+		return "", "", false, fmt.Errorf("accessing directory %q: not a directory", dir)
 	}
-	defer os.Chdir(orig) //nolint:errcheck
 
-	repo, repoErr := currentRepo()
+	repo, repoErr := currentRepoAt(dir)
 	if repoErr != nil {
 		return "", "", false, nil
 	}
 	return repo.Owner, repo.Name, true, nil
+}
+
+func repositoryFromRemotes(dir string) (repository.Repository, error) {
+	output, err := exec.CommandContext(context.Background(), "git", "-C", dir, "remote", "-v").Output()
+	if err != nil {
+		return repository.Repository{}, err
+	}
+
+	knownHosts := auth.KnownHosts()
+	bestPriority := -1
+	var best repository.Repository
+	for line := range strings.Lines(string(output)) {
+		fields := strings.Fields(line)
+		if len(fields) != 3 || fields[2] != "(fetch)" {
+			continue
+		}
+		repo, parseErr := repository.Parse(fields[1])
+		if parseErr != nil || !isKnownHost(repo.Host, knownHosts) {
+			continue
+		}
+		priority := remotePriority(fields[0])
+		if priority > bestPriority {
+			best = repo
+			bestPriority = priority
+		}
+	}
+	if bestPriority < 0 {
+		return repository.Repository{}, errors.New("unable to determine current repository")
+	}
+	return best, nil
+}
+
+func isKnownHost(host string, knownHosts []string) bool {
+	for _, knownHost := range knownHosts {
+		if strings.EqualFold(host, knownHost) {
+			return true
+		}
+	}
+	return false
+}
+
+func remotePriority(name string) int {
+	switch strings.ToLower(name) {
+	case "upstream":
+		return 3
+	case "github":
+		return 2
+	case "origin":
+		return 1
+	default:
+		return 0
+	}
 }

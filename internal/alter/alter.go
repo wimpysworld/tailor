@@ -78,7 +78,10 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		return fmt.Errorf("fetching GitHub username: %w", err)
 	}
 
-	owner, name, hasRepo := gh.RepoContext()
+	owner, name, hasRepo, err := gh.RepoContextAt(dir)
+	if err != nil {
+		return err
+	}
 	tokens := TokenContext{
 		GitHubUsername: username,
 		Owner:          owner,
