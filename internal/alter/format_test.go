@@ -421,6 +421,14 @@ func TestFormatOutputSkipWithoutAnnotation(t *testing.T) {
 	}
 }
 
+func TestResultLabelSkipAnnotationDoesNotDependOnCategorySpelling(t *testing.T) {
+	got := resultLabel("scope skip", "token missing required scope", true, DryRun)
+	want := "would skip (insufficient scope: token missing required scope):"
+	if got != want {
+		t.Errorf("resultLabel() = %q, want %q", got, want)
+	}
+}
+
 func TestFormatOutputApplyModes(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},
