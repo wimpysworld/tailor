@@ -33,14 +33,6 @@ func (tc *TokenContext) SupportURL() string {
 	return fmt.Sprintf("https://github.com/%s/%s/blob/HEAD/SUPPORT.md", tc.Owner, tc.Name)
 }
 
-// HomepageURL returns the constructed homepage URL, or the raw token if no repo context.
-func (tc *TokenContext) HomepageURL() string {
-	if !tc.HasRepoContext() {
-		return "{{HOMEPAGE_URL}}"
-	}
-	return fmt.Sprintf("https://github.com/%s/%s", tc.Owner, tc.Name)
-}
-
 // Substitute replaces tokens in content based on the swatch path.
 func (tc *TokenContext) Substitute(content []byte, path string) []byte {
 	switch path {
@@ -50,8 +42,6 @@ func (tc *TokenContext) Substitute(content []byte, path string) []byte {
 		return bytes.ReplaceAll(content, []byte("{{ADVISORY_URL}}"), []byte(tc.AdvisoryURL()))
 	case ".github/ISSUE_TEMPLATE/config.yml":
 		return bytes.ReplaceAll(content, []byte("{{SUPPORT_URL}}"), []byte(tc.SupportURL()))
-	case ".tailor.yml":
-		return bytes.ReplaceAll(content, []byte("{{HOMEPAGE_URL}}"), []byte(tc.HomepageURL()))
 	default:
 		return content
 	}

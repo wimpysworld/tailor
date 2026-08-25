@@ -112,14 +112,13 @@ Edit `.tailor.yml` to add swatches or change alteration modes, then run `alter`.
 
 ### Swatches
 
-Swatches are complete template files embedded in the tailor binary. Most are copied verbatim. Four have tokens substituted at `alter` time:
+Swatches are complete template files embedded in the tailor binary. Most are copied verbatim. Three have tokens substituted at `alter` time:
 
 | File | Token | Resolved from |
 |------|-------|---------------|
 | `.github/FUNDING.yml` | `{{GITHUB_USERNAME}}` | Authenticated user from `GET /user` |
 | `SECURITY.md` | `{{ADVISORY_URL}}` | GitHub repository context |
 | `.github/ISSUE_TEMPLATE/config.yml` | `{{SUPPORT_URL}}` | GitHub repository context |
-| `.tailor.yml` | `{{HOMEPAGE_URL}}` | GitHub repository context |
 
 Licences are not swatches. They are fetched from the GitHub REST API (`GET /licenses/{id}`) at `alter` time and written to `LICENSE`.
 

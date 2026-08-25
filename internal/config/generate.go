@@ -29,11 +29,8 @@ func DefaultConfig(license string) (*Config, error) {
 		return nil, fmt.Errorf("license must not be empty")
 	}
 
-	// Nil out description and homepage parsed from the embedded swatch.
-	// The swatch carries placeholder values ("" and "{{HOMEPAGE_URL}}")
-	// that are only meaningful after token substitution (alter path) or
-	// live GitHub data overlay (MergeRepoSettings). Leaving them set
-	// would leak raw tokens into fit output.
+	// Nil out the project-specific description and homepage defaults.
+	// MergeRepoSettings replaces them with live GitHub values when available.
 	if cfg.Repository != nil {
 		cfg.Repository.Description = nil
 		cfg.Repository.Homepage = nil
