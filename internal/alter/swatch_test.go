@@ -121,6 +121,42 @@ func TestFirstFitApplyWritesFile(t *testing.T) {
 	}
 }
 
+func TestFirstFitRejectsDirectoryDestination(t *testing.T) {
+	tests := []struct {
+		name string
+		mode alter.ApplyMode
+	}{
+		{name: "dry-run", mode: alter.DryRun},
+		{name: "apply", mode: alter.Apply},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, ".gitignore")
+			if err := os.Mkdir(path, 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			cfg := newConfig(entry(".gitignore", swatch.FirstFit))
+			_, err := alter.ProcessSwatches(cfg, dir, test.mode, &alter.TokenContext{})
+			if err == nil {
+				t.Fatal("ProcessSwatches() error = nil, want directory error")
+			}
+			if !strings.Contains(err.Error(), `swatch destination ".gitignore" is a directory`) {
+				t.Errorf("error = %q, want directory error", err)
+			}
+			info, statErr := os.Stat(path)
+			if statErr != nil {
+				t.Fatal(statErr)
+			}
+			if !info.IsDir() {
+				t.Error("destination is not a directory")
+			}
+		})
+	}
+}
+
 func TestAlwaysNoChangeWhenSHA256Matches(t *testing.T) {
 	dir := t.TempDir()
 	content := mustContent(t, "CODE_OF_CONDUCT.md")
@@ -150,7 +186,7 @@ func TestAlwaysWouldOverwriteWhenSHA256Differs(t *testing.T) {
 	}
 }
 
-func TestAlwaysReturnsOnDiskReadError(t *testing.T) {
+func TestAlwaysRejectsDirectoryDestination(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.Mkdir(filepath.Join(dir, "CODE_OF_CONDUCT.md"), 0o755); err != nil {
 		t.Fatal(err)
@@ -159,10 +195,10 @@ func TestAlwaysReturnsOnDiskReadError(t *testing.T) {
 	cfg := newConfig(entry("CODE_OF_CONDUCT.md", swatch.Always))
 	_, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err == nil {
-		t.Fatal("ProcessSwatches() error = nil, want read error")
+		t.Fatal("ProcessSwatches() error = nil, want directory error")
 	}
-	if !strings.Contains(err.Error(), `hashing on-disk file "CODE_OF_CONDUCT.md"`) {
-		t.Errorf("error = %q, want on-disk hash context", err)
+	if !strings.Contains(err.Error(), `swatch destination "CODE_OF_CONDUCT.md" is a directory`) {
+		t.Errorf("error = %q, want directory error", err)
 	}
 }
 

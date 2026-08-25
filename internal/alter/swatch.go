@@ -151,6 +151,9 @@ func prepareSwatchDestination(root *os.Root, path string, shouldWrite bool) (boo
 		}
 		return false, err
 	}
+	if info.IsDir() {
+		return false, fmt.Errorf("swatch destination %q is a directory", path)
+	}
 	if info.Mode()&os.ModeSymlink == 0 {
 		return true, nil
 	}
