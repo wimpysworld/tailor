@@ -98,7 +98,7 @@ func (f *FitCmd) Run() error {
 
 // AlterCmd applies swatch templates to the current project.
 type AlterCmd struct {
-	Recut bool `help:"Overwrite all files regardless of mode or existence." name:"recut"`
+	Recut bool `help:"Overwrite existing first-fit swatches and merge missing .tailor.yml defaults (never swatches and the licence stay untouched)." name:"recut"`
 	run   func(alter.ApplyMode) error
 }
 
