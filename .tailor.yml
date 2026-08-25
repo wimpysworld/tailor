@@ -39,7 +39,7 @@ repository:
 actions:
   enabled: true
   allowed_actions: selected
-  sha_pinning_required: false
+  sha_pinning_required: true
   github_owned_allowed: true
   verified_allowed: true
   patterns_allowed:
