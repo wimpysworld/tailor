@@ -423,6 +423,53 @@ func TestWriteYAMLSpecialCharactersQuoted(t *testing.T) {
 	}
 }
 
+func TestWriteHomepageRoundTrips(t *testing.T) {
+	tests := []struct {
+		name     string
+		homepage string
+	}{
+		{"plain URL", "https://example.com"},
+		{"contains space", "https://example.com/my page"},
+		{"contains space hash", "https://example.com #fragment"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &Config{
+				License: "MIT",
+				Repository: &model.RepositorySettings{
+					Homepage: &tc.homepage,
+					HasWiki:  new(false),
+				},
+				Swatches: []SwatchEntry{
+					{Path: "justfile", Alteration: swatch.FirstFit},
+				},
+			}
+
+			dir := t.TempDir()
+			if err := Write(dir, cfg, "2026-03-04", "Initially fitted"); err != nil {
+				t.Fatalf("Write: %v", err)
+			}
+
+			got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+			if err != nil {
+				t.Fatalf("ReadFile: %v", err)
+			}
+
+			var parsed Config
+			if err := yaml.Unmarshal(got, &parsed); err != nil {
+				t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, got)
+			}
+
+			if parsed.Repository == nil || parsed.Repository.Homepage == nil {
+				t.Fatal("parsed Repository.Homepage is nil")
+			}
+			if *parsed.Repository.Homepage != tc.homepage {
+				t.Errorf("round-tripped Homepage = %q, want %q", *parsed.Repository.Homepage, tc.homepage)
+			}
+		})
+	}
+}
+
 func TestWriteTopicsPreserved(t *testing.T) {
 	topics := []string{"go", "cli", "template"}
 	cfg := &Config{
