@@ -2,7 +2,7 @@
 
 ## Overview
 
-Tailor's golangci-lint configuration targets three goals: catch real bugs (resource leaks, error handling, security), prevent duplicate words, hardcoded constants, stale idioms, and keep contributor friction low. With 14 explicitly enabled linters and selective govet/revive rules, the config sits in the moderate tier of the Go ecosystem, comparable to Prometheus in philosophy but leaner in total linter count. Projects at the strict end (Traefik, Gitea, Moby) enable 25-50 linters; projects at the lenient end (GitHub CLI, Kubernetes) enable 14-19 but disable many sub-checks.
+Tailor's golangci-lint configuration targets three goals: catch real bugs (resource leaks, error handling, security), prevent code quality issues (duplicate words, hardcoded constants, stale idioms), and keep contributor friction low. With 14 explicitly enabled linters and selective govet/revive rules, the config sits in the moderate tier of the Go ecosystem, comparable to Prometheus in philosophy but leaner in total linter count. Projects at the strict end (Traefik, Gitea, Moby) enable 25-50 linters; projects at the lenient end (GitHub CLI, Kubernetes) enable 14-19 but disable many sub-checks.
 
 ## Enabled Linters
 
