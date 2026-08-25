@@ -1,7 +1,6 @@
 package alter_test
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -115,12 +114,10 @@ func TestProcessRepoSettingsNoRepoContext(t *testing.T) {
 		},
 	}
 
-	var results []alter.RepoSettingResult
-	var err error
-
-	output := captureStderr(t, func() {
-		results, err = alter.ProcessRepoSettings(cfg, alter.DryRun, repoTarget(nil, "", "", false))
-	})
+	var stderr strings.Builder
+	target := repoTarget(nil, "", "", false)
+	target.Stderr = &stderr
+	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, target)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -130,8 +127,8 @@ func TestProcessRepoSettingsNoRepoContext(t *testing.T) {
 	}
 
 	want := "No GitHub repository context found."
-	if !bytes.Contains([]byte(output), []byte(want)) {
-		t.Errorf("stderr = %q, want substring %q", output, want)
+	if !strings.Contains(stderr.String(), want) {
+		t.Errorf("stderr = %q, want substring %q", stderr.String(), want)
 	}
 }
 
@@ -768,15 +765,15 @@ func TestProcessRepoSettingsAutomatedFixesPrerequisiteWarning(t *testing.T) {
 				VulnerabilityAlertsEnabled:    tt.alertsDesired,
 				AutomatedSecurityFixesEnabled: new(true),
 			}}
-			var err error
-			output := captureStderr(t, func() {
-				_, err = alter.ProcessRepoSettings(cfg, alter.DryRun, repoTarget(testutil.NewTestClient(t, server), "testowner", "testrepo", true))
-			})
+			var stderr strings.Builder
+			target := repoTarget(testutil.NewTestClient(t, server), "testowner", "testrepo", true)
+			target.Stderr = &stderr
+			_, err := alter.ProcessRepoSettings(cfg, alter.DryRun, target)
 			if err != nil {
 				t.Fatal(err)
 			}
-			if strings.Contains(output, "warning: automated_security_fixes_enabled") != tt.wantWarning {
-				t.Fatalf("stderr = %q, want warning %t", output, tt.wantWarning)
+			if strings.Contains(stderr.String(), "warning: automated_security_fixes_enabled") != tt.wantWarning {
+				t.Fatalf("stderr = %q, want warning %t", stderr.String(), tt.wantWarning)
 			}
 		})
 	}

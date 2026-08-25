@@ -315,29 +315,14 @@ func loadTestConfig(t *testing.T, dir string) *config.Config {
 func captureAlterRun(t *testing.T, cfg *config.Config, dir string, mode alter.ApplyMode, client *api.RESTClient) string {
 	t.Helper()
 
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	// Suppress stderr (licence warnings).
-	oldStderr := os.Stderr
-	_, wErr, _ := os.Pipe()
-	os.Stderr = wErr
-
-	err := alter.Run(cfg, dir, mode, client)
-
-	w.Close()
-	wErr.Close()
-	os.Stdout = oldStdout
-	os.Stderr = oldStderr
+	var stdout strings.Builder
+	err := alter.Run(cfg, dir, mode, client, &stdout, io.Discard)
 
 	if err != nil {
 		t.Fatalf("alter.Run() error: %v", err)
 	}
 
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	return buf.String()
+	return stdout.String()
 }
 
 // runAlterExpectError runs alter.Run in Apply mode and returns the error.
@@ -345,20 +330,7 @@ func captureAlterRun(t *testing.T, cfg *config.Config, dir string, mode alter.Ap
 func runAlterExpectError(t *testing.T, cfg *config.Config, dir string, client *api.RESTClient) error {
 	t.Helper()
 
-	oldStdout := os.Stdout
-	_, wOut, _ := os.Pipe()
-	os.Stdout = wOut
-
-	oldStderr := os.Stderr
-	_, wErr, _ := os.Pipe()
-	os.Stderr = wErr
-
-	err := alter.Run(cfg, dir, alter.Apply, client)
-
-	wOut.Close()
-	wErr.Close()
-	os.Stdout = oldStdout
-	os.Stderr = oldStderr
+	err := alter.Run(cfg, dir, alter.Apply, client, io.Discard, io.Discard)
 
 	if err == nil {
 		t.Fatal("expected alter.Run() to return an error, got nil")
@@ -373,26 +345,10 @@ func runAlterExpectError(t *testing.T, cfg *config.Config, dir string, client *a
 func captureAlterRunWithStderr(t *testing.T, cfg *config.Config, dir string, mode alter.ApplyMode, client *api.RESTClient) (string, string, error) {
 	t.Helper()
 
-	oldStdout := os.Stdout
-	rOut, wOut, _ := os.Pipe()
-	os.Stdout = wOut
+	var stdout, stderr strings.Builder
+	err := alter.Run(cfg, dir, mode, client, &stdout, &stderr)
 
-	oldStderr := os.Stderr
-	rErr, wErr, _ := os.Pipe()
-	os.Stderr = wErr
-
-	err := alter.Run(cfg, dir, mode, client)
-
-	wOut.Close()
-	wErr.Close()
-	os.Stdout = oldStdout
-	os.Stderr = oldStderr
-
-	var bufOut, bufErr bytes.Buffer
-	_, _ = bufOut.ReadFrom(rOut)
-	_, _ = bufErr.ReadFrom(rErr)
-
-	return bufOut.String(), bufErr.String(), err
+	return stdout.String(), stderr.String(), err
 }
 
 // requireContains fails if output does not contain substr.
@@ -529,22 +485,7 @@ swatches:
 	tc := setupAlterTest(t, configYAML)
 	cfg := loadTestConfig(t, tc.Dir)
 
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	err := alter.Run(cfg, tc.Dir, alter.DryRun, tc.Client)
-
-	w.Close()
-	os.Stdout = oldStdout
-
-	if err != nil {
-		t.Fatalf("alter.Run() error: %v", err)
-	}
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
+	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 
 	// Dry-run output reports the swatch and licence copies.
 	if !strings.Contains(output, "would copy:") {
@@ -683,22 +624,7 @@ swatches:
 
 	cfg := loadTestConfig(t, tc.Dir)
 
-	oldStdout := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	err := alter.Run(cfg, tc.Dir, alter.DryRun, tc.Client)
-
-	w.Close()
-	os.Stdout = oldStdout
-
-	if err != nil {
-		t.Fatalf("alter.Run() error: %v", err)
-	}
-
-	var buf bytes.Buffer
-	_, _ = buf.ReadFrom(r)
-	output := buf.String()
+	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 
 	if !strings.Contains(output, "would set:") {
 		t.Errorf("expected output to contain 'would set:', got:\n%s", output)
@@ -724,18 +650,7 @@ swatches:
 	tc := setupAlterTest(t, configYAML)
 	cfg := loadTestConfig(t, tc.Dir)
 
-	oldStdout := os.Stdout
-	_, w, _ := os.Pipe()
-	os.Stdout = w
-
-	err := alter.Run(cfg, tc.Dir, alter.Apply, tc.Client)
-
-	w.Close()
-	os.Stdout = oldStdout
-
-	if err != nil {
-		t.Fatalf("alter.Run() error: %v", err)
-	}
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
 	data, err := os.ReadFile(filepath.Join(tc.Dir, ".gitignore"))
 	if err != nil {

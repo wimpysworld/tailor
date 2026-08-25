@@ -105,8 +105,10 @@ func (f *FitCmd) Run() error {
 
 // AlterCmd applies swatch templates to the current project.
 type AlterCmd struct {
-	Recut bool `help:"Overwrite existing first-fit swatches and merge missing .tailor.yml defaults (never swatches and the licence stay untouched)." name:"recut"`
-	run   func(alter.ApplyMode) error
+	Recut  bool `help:"Overwrite existing first-fit swatches and merge missing .tailor.yml defaults (never swatches and the licence stay untouched)." name:"recut"`
+	run    func(alter.ApplyMode) error
+	stdout io.Writer
+	stderr io.Writer
 }
 
 // Run executes the alter command.
@@ -118,12 +120,14 @@ func (a *AlterCmd) Run() error {
 	if a.run != nil {
 		return a.run(mode)
 	}
-	return runAlter(mode)
+	return runAlter(mode, a.stdout, a.stderr)
 }
 
 // BasteCmd previews what alter would do without making any changes.
 type BasteCmd struct {
-	run func(alter.ApplyMode) error
+	run    func(alter.ApplyMode) error
+	stdout io.Writer
+	stderr io.Writer
 }
 
 // Run executes the baste command.
@@ -131,12 +135,19 @@ func (b *BasteCmd) Run() error {
 	if b.run != nil {
 		return b.run(alter.DryRun)
 	}
-	return runAlter(alter.DryRun)
+	return runAlter(alter.DryRun, b.stdout, b.stderr)
 }
 
 // runAlter performs auth check, resolves the working directory, loads the
 // tailor config, and runs alter with the given mode.
-func runAlter(mode alter.ApplyMode) error {
+func runAlter(mode alter.ApplyMode, stdout, stderr io.Writer) error {
+	if stdout == nil {
+		stdout = os.Stdout
+	}
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+
 	dir, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("getting working directory: %w", err)
@@ -157,7 +168,7 @@ func runAlter(mode alter.ApplyMode) error {
 		return fmt.Errorf(".tailor.yml is missing or malformed: %w. Run 'tailor fit <path>' to create a valid configuration, or edit .tailor.yml directly to correct it", err)
 	}
 
-	return alter.Run(cfg, dir, mode, nil)
+	return alter.Run(cfg, dir, mode, nil, stdout, stderr)
 }
 
 // MeasureCmd checks community health files and, when a config is present,
@@ -236,6 +247,10 @@ func run(args []string, stdout, stderr io.Writer) (code int) {
 	}
 
 	cli.Fit.stderr = stderr
+	cli.Alter.stdout = stdout
+	cli.Alter.stderr = stderr
+	cli.Baste.stdout = stdout
+	cli.Baste.stderr = stderr
 
 	ctx, err := parser.Parse(args)
 	parser.FatalIfErrorf(err)

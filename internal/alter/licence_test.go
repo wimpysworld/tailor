@@ -3,6 +3,7 @@ package alter_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -37,7 +38,7 @@ func TestProcessLicenceWrittenWhenAbsent(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{License: "mit"}
-	result, err := alter.ProcessLicence(cfg, dir, alter.Apply, client)
+	result, err := alter.ProcessLicence(cfg, dir, alter.Apply, client, io.Discard)
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
 	}
@@ -64,7 +65,7 @@ func TestProcessLicenceDryRunDoesNotWrite(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{License: "mit"}
-	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client)
+	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client, io.Discard)
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestProcessLicenceSkippedWhenPresent(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{License: "mit"}
-	result, err := alter.ProcessLicence(cfg, dir, alter.Apply, client)
+	result, err := alter.ProcessLicence(cfg, dir, alter.Apply, client, io.Discard)
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
 	}
@@ -121,7 +122,7 @@ func TestProcessLicenceExemptFromRecut(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{License: "mit"}
-	result, err := alter.ProcessLicence(cfg, dir, alter.Recut, client)
+	result, err := alter.ProcessLicence(cfg, dir, alter.Recut, client, io.Discard)
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
 	}
@@ -147,13 +148,10 @@ func TestProcessLicenceWarningWhenNoneAndNoFile(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
-	var result *alter.SwatchResult
-	var err error
 	cfg := &config.Config{License: "none"}
 
-	output := captureStderr(t, func() {
-		result, err = alter.ProcessLicence(cfg, dir, alter.DryRun, client)
-	})
+	var stderr strings.Builder
+	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client, &stderr)
 
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
@@ -161,12 +159,12 @@ func TestProcessLicenceWarningWhenNoneAndNoFile(t *testing.T) {
 	if result != nil {
 		t.Errorf("expected nil result, got %+v", result)
 	}
-	if output == "" {
+	if stderr.Len() == 0 {
 		t.Error("expected warning on stderr, got nothing")
 	}
 	want := "No licence file found and no licence configured."
-	if !bytes.Contains([]byte(output), []byte(want)) {
-		t.Errorf("stderr = %q, want substring %q", output, want)
+	if !strings.Contains(stderr.String(), want) {
+		t.Errorf("stderr = %q, want substring %q", stderr.String(), want)
 	}
 }
 
@@ -176,13 +174,10 @@ func TestProcessLicenceWarningWhenEmptyAndNoFile(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
-	var result *alter.SwatchResult
-	var err error
 	cfg := &config.Config{License: ""}
 
-	output := captureStderr(t, func() {
-		result, err = alter.ProcessLicence(cfg, dir, alter.DryRun, client)
-	})
+	var stderr strings.Builder
+	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client, &stderr)
 
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
@@ -190,7 +185,7 @@ func TestProcessLicenceWarningWhenEmptyAndNoFile(t *testing.T) {
 	if result != nil {
 		t.Errorf("expected nil result, got %+v", result)
 	}
-	if output == "" {
+	if stderr.Len() == 0 {
 		t.Error("expected warning on stderr for empty licence, got nothing")
 	}
 }
@@ -201,18 +196,16 @@ func TestProcessLicenceNoWarningWhenConfigured(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
-	var err error
 	cfg := &config.Config{License: "mit"}
 
-	output := captureStderr(t, func() {
-		_, err = alter.ProcessLicence(cfg, dir, alter.DryRun, client)
-	})
+	var stderr strings.Builder
+	_, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client, &stderr)
 
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
 	}
-	if output != "" {
-		t.Errorf("expected no stderr output, got %q", output)
+	if stderr.Len() != 0 {
+		t.Errorf("expected no stderr output, got %q", stderr.String())
 	}
 }
 
@@ -224,13 +217,10 @@ func TestProcessLicenceNoWarningWhenFileExistsAndNone(t *testing.T) {
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
-	var result *alter.SwatchResult
-	var err error
 	cfg := &config.Config{License: "none"}
 
-	output := captureStderr(t, func() {
-		result, err = alter.ProcessLicence(cfg, dir, alter.DryRun, client)
-	})
+	var stderr strings.Builder
+	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client, &stderr)
 
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
@@ -238,8 +228,8 @@ func TestProcessLicenceNoWarningWhenFileExistsAndNone(t *testing.T) {
 	if result != nil {
 		t.Errorf("expected nil result, got %+v", result)
 	}
-	if output != "" {
-		t.Errorf("expected no stderr when LICENSE exists, got %q", output)
+	if stderr.Len() != 0 {
+		t.Errorf("expected no stderr when LICENSE exists, got %q", stderr.String())
 	}
 }
 
@@ -250,7 +240,7 @@ func TestProcessLicenceAPIErrorPropagated(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	cfg := &config.Config{License: "mit"}
-	_, err := alter.ProcessLicence(cfg, dir, alter.Apply, client)
+	_, err := alter.ProcessLicence(cfg, dir, alter.Apply, client, io.Discard)
 	if err == nil {
 		t.Fatal("expected error from API failure, got nil")
 	}
@@ -268,7 +258,7 @@ func TestProcessLicenceNilResultWhenNone(t *testing.T) {
 	for _, licence := range []string{"", "none"} {
 		t.Run(fmt.Sprintf("license=%q", licence), func(t *testing.T) {
 			cfg := &config.Config{License: licence}
-			result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client)
+			result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client, io.Discard)
 			if err != nil {
 				t.Fatalf("ProcessLicence() error: %v", err)
 			}
@@ -380,7 +370,7 @@ func TestProcessLicenceDestinationPolicy(t *testing.T) {
 			client := testutil.NewTestClient(t, server)
 
 			cfg := &config.Config{License: "mit"}
-			result, err := alter.ProcessLicence(cfg, dir, alter.Apply, client)
+			result, err := alter.ProcessLicence(cfg, dir, alter.Apply, client, io.Discard)
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("error = %v, want substring %q", err, tt.wantErr)
