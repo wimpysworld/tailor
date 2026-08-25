@@ -34,7 +34,7 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 	present := err == nil
 
 	if cfg.License == "" || cfg.License == "none" {
-		if !present {
+		if !present || !info.Mode().IsRegular() {
 			fmt.Fprintln(stderr, "No licence file found and no licence configured. Add 'license: BlueOak-1.0.0' (or another identifier) to '.tailor.yml' and run 'tailor alter'.")
 		}
 		return nil, nil

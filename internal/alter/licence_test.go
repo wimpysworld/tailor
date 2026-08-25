@@ -229,6 +229,57 @@ func TestProcessLicenceNoWarningWhenFileExistsAndNone(t *testing.T) {
 	}
 }
 
+func TestProcessLicenceWarningForNonRegularEntry(t *testing.T) {
+	tests := []struct {
+		name  string
+		setup func(t *testing.T, dir string)
+	}{
+		{
+			name: "directory",
+			setup: func(t *testing.T, dir string) {
+				if err := os.Mkdir(filepath.Join(dir, "LICENSE"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "symlink",
+			setup: func(t *testing.T, dir string) {
+				symlinkOrSkip(t, "missing", filepath.Join(dir, "LICENSE"))
+			},
+		},
+		{
+			name: "special file",
+			setup: func(t *testing.T, dir string) {
+				if err := syscall.Mkfifo(filepath.Join(dir, "LICENSE"), 0o644); err != nil {
+					t.Skipf("mkfifo unavailable: %v", err)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		for _, licence := range []string{"", "none"} {
+			t.Run(fmt.Sprintf("%s/license=%q", tt.name, licence), func(t *testing.T) {
+				dir := t.TempDir()
+				tt.setup(t, dir)
+
+				var stderr strings.Builder
+				result, err := alter.ProcessLicence(&config.Config{License: licence}, dir, alter.DryRun, nil, &stderr)
+				if err != nil {
+					t.Fatalf("ProcessLicence() error: %v", err)
+				}
+				if result != nil {
+					t.Errorf("expected nil result, got %+v", result)
+				}
+				if !strings.Contains(stderr.String(), "No licence file found and no licence configured.") {
+					t.Errorf("expected warning for non-regular LICENSE, got %q", stderr.String())
+				}
+			})
+		}
+	}
+}
+
 func TestProcessLicenceAPIErrorPropagated(t *testing.T) {
 	dir := t.TempDir()
 	server := failingLicenceServer()
