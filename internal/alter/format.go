@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/wimpysworld/tailor/internal/gh"
 )
@@ -33,6 +34,11 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 
 	lines := slices.Concat(repoLines(repoResults, mode), labelLines(labelResults, mode), swatchLines(swatchResults, mode))
 
+	for i := range lines {
+		lines[i].label = escapeControlText(lines[i].label)
+		lines[i].text = escapeControlText(lines[i].text)
+	}
+
 	width := defaultLabelWidth
 	for _, line := range lines {
 		if w := len(line.label) + 1; w > width {
@@ -43,6 +49,30 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 	var b strings.Builder
 	for _, line := range lines {
 		fmt.Fprintf(&b, "%-*s%s\n", width, line.label, line.text)
+	}
+	return b.String()
+}
+
+// escapeControlText renders control characters as visible escapes so that
+// values from config or the GitHub API cannot inject terminal control
+// sequences into output. C0 controls and DEL render as \xNN; C1 and other
+// Unicode controls render as \uNNNN. Text without control characters passes
+// through unchanged.
+func escapeControlText(input string) string {
+	if !strings.ContainsFunc(input, unicode.IsControl) {
+		return input
+	}
+	var b strings.Builder
+	b.Grow(len(input))
+	for _, r := range input {
+		switch {
+		case !unicode.IsControl(r):
+			b.WriteRune(r)
+		case r < 0x80:
+			fmt.Fprintf(&b, `\x%02x`, r)
+		default:
+			fmt.Fprintf(&b, `\u%04x`, r)
+		}
 	}
 	return b.String()
 }

@@ -514,3 +514,103 @@ func TestValidateAllPassesSpecYAML(t *testing.T) {
 		t.Errorf("ValidateRepoSettings: %v", err)
 	}
 }
+
+func TestValidateLabelsRejectsControlCharacters(t *testing.T) {
+	tests := []struct {
+		name  string
+		label model.LabelEntry
+		want  string
+	}{
+		{
+			name:  "ANSI CSI in name",
+			label: model.LabelEntry{Name: "\x1b[31mbug", Color: "d73a4a", Description: "Something is broken"},
+			want:  "name",
+		},
+		{
+			name:  "OSC 8 hyperlink in name",
+			label: model.LabelEntry{Name: "\x1b]8;;https://evil.example\x07bug", Color: "d73a4a", Description: "Something is broken"},
+			want:  "name",
+		},
+		{
+			name:  "OSC 52 clipboard write in name",
+			label: model.LabelEntry{Name: "\x1b]52;c;Zm9v\x07bug", Color: "d73a4a", Description: "Something is broken"},
+			want:  "name",
+		},
+		{
+			name:  "C1 CSI in name",
+			label: model.LabelEntry{Name: "\u009b31mbug", Color: "d73a4a", Description: "Something is broken"},
+			want:  "name",
+		},
+		{
+			name:  "carriage return in description",
+			label: model.LabelEntry{Name: "bug", Color: "d73a4a", Description: "safe\rspoofed"},
+			want:  "description",
+		},
+		{
+			name:  "line feed in description",
+			label: model.LabelEntry{Name: "bug", Color: "d73a4a", Description: "safe\ninjected"},
+			want:  "description",
+		},
+		{
+			name:  "C1 control in description",
+			label: model.LabelEntry{Name: "bug", Color: "d73a4a", Description: "safe\u009bspoofed"},
+			want:  "description",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{Labels: []model.LabelEntry{tt.label}}
+			err := ValidateLabels(cfg)
+			if err == nil {
+				t.Fatal("ValidateLabels() returned nil, want error")
+			}
+			if !strings.Contains(err.Error(), tt.want) || !strings.Contains(err.Error(), "control characters") {
+				t.Errorf("error = %q, want mention of %s control characters", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestValidateRepoStringSettingsRejectsControlCharacters(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+	}{
+		{"ANSI CSI", "\x1b[31mred\x1b[0m"},
+		{"OSC 8 hyperlink", "\x1b]8;;https://evil.example\x07link"},
+		{"OSC 52 clipboard write", "\x1b]52;c;Zm9v\x07"},
+		{"carriage return", "safe\rspoofed"},
+		{"line feed", "safe\ninjected"},
+		{"C1 CSI", "safe\u009b31m"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{Repository: &model.RepositorySettings{Description: &tt.description}}
+			err := ValidateRepoStringSettings(cfg)
+			if err == nil {
+				t.Fatal("ValidateRepoStringSettings() returned nil, want error")
+			}
+			if !strings.Contains(err.Error(), "description") || !strings.Contains(err.Error(), "control characters") {
+				t.Errorf("error = %q, want mention of description control characters", err)
+			}
+		})
+	}
+}
+
+func TestValidateRepoStringSettingsAcceptsBenignValues(t *testing.T) {
+	description := "A CLI for managing project templates"
+	homepage := "https://example.com"
+	cfg := &Config{Repository: &model.RepositorySettings{
+		Description: &description,
+		Homepage:    &homepage,
+	}}
+	if err := ValidateRepoStringSettings(cfg); err != nil {
+		t.Fatalf("ValidateRepoStringSettings() returned unexpected error: %v", err)
+	}
+}
+
+func TestValidateRepoStringSettingsAcceptsNilRepository(t *testing.T) {
+	if err := ValidateRepoStringSettings(&Config{}); err != nil {
+		t.Fatalf("ValidateRepoStringSettings() returned unexpected error: %v", err)
+	}
+}
