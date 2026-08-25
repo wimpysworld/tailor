@@ -1,6 +1,14 @@
 package gh
 
-import "testing"
+import (
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/cli/go-gh/v2/pkg/api"
+)
 
 func TestResolveHost(t *testing.T) {
 	tests := []struct {
@@ -90,6 +98,86 @@ func TestCheckAuth(t *testing.T) {
 			}
 			if err.Error() != tt.wantErr {
 				t.Errorf("CheckAuth() error = %q, want %q", err.Error(), tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestVerifyAuth(t *testing.T) {
+	tests := []struct {
+		name       string
+		token      string
+		userStatus int
+		wantUser   string
+		wantErr    string
+	}{
+		{
+			name:       "valid token returns client and username",
+			token:      "gho_test",
+			userStatus: http.StatusOK,
+			wantUser:   "octocat",
+		},
+		{
+			name:    "missing token fails before any request",
+			token:   "",
+			wantErr: "tailor requires GitHub authentication",
+		},
+		{
+			name:       "rejected token fails verification",
+			token:      "gho_invalid",
+			userStatus: http.StatusUnauthorized,
+			wantErr:    "verifying GitHub authentication",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GH_CONFIG_DIR", t.TempDir())
+			t.Setenv("GH_HOST", "")
+			restoreToken := SetTokenForHostFunc(func(string) (string, string) {
+				return tt.token, "oauth_token"
+			})
+			t.Cleanup(restoreToken)
+
+			var requests int
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				if tt.userStatus != http.StatusOK {
+					w.WriteHeader(tt.userStatus)
+					fmt.Fprint(w, `{"message":"Bad credentials"}`)
+					return
+				}
+				fmt.Fprintf(w, `{"login":%q}`, tt.wantUser)
+			}))
+			t.Cleanup(server.Close)
+			client := newTestClient(t, server)
+			restoreClient := SetNewRESTClientFunc(func(string) (*api.RESTClient, error) {
+				return client, nil
+			})
+			t.Cleanup(restoreClient)
+
+			gotClient, username, err := VerifyAuth("github.com")
+
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("VerifyAuth() error = %v, want substring %q", err, tt.wantErr)
+				}
+				if tt.token == "" && requests != 0 {
+					t.Errorf("requests = %d, want 0 when no token is present", requests)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("VerifyAuth() error: %v", err)
+			}
+			if username != tt.wantUser {
+				t.Errorf("username = %q, want %q", username, tt.wantUser)
+			}
+			if gotClient != client {
+				t.Error("VerifyAuth() did not return the created client")
+			}
+			if requests != 1 {
+				t.Errorf("requests = %d, want 1", requests)
 			}
 		})
 	}

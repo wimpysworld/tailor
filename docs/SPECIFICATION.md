@@ -11,7 +11,7 @@ Tailor requires a valid GitHub authentication token. This can be provided in two
 1. **Environment variable**: Set `GH_TOKEN` or `GITHUB_TOKEN`. This works without the `gh` binary installed.
 2. **GitHub CLI**: Install and authenticate the [GitHub CLI](https://cli.github.com/) (`gh`). Run `gh auth login` to authenticate. The `gh` binary is also used as a fallback for keyring-based token access when no environment variable is set.
 
-The `fit`, `alter`, and `baste` commands verify that a valid authentication token exists at startup and exit with an error if no token is available.
+The `fit`, `alter`, and `baste` commands verify the authentication token at startup: a token must exist and the effective host must accept it (`GET /user`). If the token is missing or rejected, the command exits with an error before any local file change.
 
 `measure` and `docket` are exempt from the authentication requirement. `measure` performs purely local file inspection and needs no network access or authentication. `docket` can report unauthenticated state without erroring - it displays the auth state rather than requiring it.
 
@@ -243,7 +243,7 @@ Generates:
 
 Applies swatch alterations to the local project.
 
-`alter` verifies that a valid authentication token exists at startup and exits with an error if no token is available. It then reads `.tailor.yml` in the current working directory. No upward traversal is performed.
+`alter` verifies the authentication token at startup and exits with an error if the token is missing or the effective host rejects it. The API verification happens before any local file change. It then reads `.tailor.yml` in the current working directory. No upward traversal is performed.
 
 ```bash
 tailor alter              # Apply changes
@@ -280,7 +280,7 @@ Behaviour:
 
 Previews what `alter` would do without making any changes.
 
-`baste` verifies that a valid authentication token exists at startup and exits with an error if no token is available. It then reads `.tailor.yml` in the current working directory. No upward traversal is performed.
+`baste` verifies the authentication token at startup and exits with an error if the token is missing or the effective host rejects it. It then reads `.tailor.yml` in the current working directory. No upward traversal is performed.
 
 ```bash
 tailor baste
@@ -517,7 +517,9 @@ Behaviour:
 
 **Duplicate path in `.tailor.yml`**: `alter` and `baste` remove retired entries before duplicate validation. If active entries share a path, the command identifies the conflict and exits before disk changes.
 
-**Not authenticated**: if no valid authentication token can be resolved for the host of the detected repository, or for the `go-gh` default host (`GH_HOST`, falling back to `github.com`) when no repository context exists (neither `GH_TOKEN`/`GITHUB_TOKEN` environment variable, `gh` config file, nor `gh` keyring), `fit`, `alter`, and `baste` exit with: "tailor requires GitHub authentication. Set the GH_TOKEN or GITHUB_TOKEN environment variable, or run `gh auth login`."
+**Not authenticated**: if no authentication token can be resolved for the host of the detected repository, or for the `go-gh` default host (`GH_HOST`, falling back to `github.com`) when no repository context exists (neither `GH_TOKEN`/`GITHUB_TOKEN` environment variable, `gh` config file, nor `gh` keyring), `fit`, `alter`, and `baste` exit with: "tailor requires GitHub authentication. Set the GH_TOKEN or GITHUB_TOKEN environment variable, or run `gh auth login`."
+
+**Token rejected**: if a token is present but the effective host rejects the `GET /user` verification request, `fit`, `alter`, and `baste` exit with the API error before any local file change.
 
 **`{{GITHUB_USERNAME}}` resolution failed**: `{{GITHUB_USERNAME}}` is resolved via `GET /user`. If this call fails, `alter` exits with the API error. Unlike repo-context tokens, `{{GITHUB_USERNAME}}` depends on the authenticated user, not the repository, so it cannot be deferred.
 
@@ -760,7 +762,7 @@ measure:
 3. **No versioning**: No swatch versions, always uses swatches from current tailor binary. Upgrading tailor will cause all `always` swatches to be re-evaluated against the new embedded content; files whose swatch content has changed will be overwritten on the next `alter` run.
 4. **No global state**: All state is per-project in `.tailor.yml`
 5. **No project registry**: Tailor has no awareness of its consumers. Projects pull from tailor, tailor does not track projects.
-6. **Authentication via `go-gh`**: All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions. Token resolution follows the `go-gh` precedence order: `GH_TOKEN` environment variable, `GITHUB_TOKEN` environment variable, `gh` config file, `gh` keyring (via the `gh` binary). When `GH_TOKEN` or `GITHUB_TOKEN` is set, the `gh` binary is not required. The `gh` binary is needed only for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access when no environment variable is set. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If no valid token can be resolved, `fit`, `alter`, and `baste` exit immediately with an error.
+6. **Authentication via `go-gh`**: All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions. Token resolution follows the `go-gh` precedence order: `GH_TOKEN` environment variable, `GITHUB_TOKEN` environment variable, `gh` config file, `gh` keyring (via the `gh` binary). When `GH_TOKEN` or `GITHUB_TOKEN` is set, the `gh` binary is not required. The `gh` binary is needed only for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access when no environment variable is set. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If no token can be resolved, or the effective host rejects the token, `fit`, `alter`, and `baste` exit immediately with an error.
 7. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
 8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `.tailor.yml`, plus separate API calls for security features, topics, and Actions workflow permissions. The top-level `actions` section uses the Actions permissions and selected-actions endpoints. Field names map directly to the GitHub REST API without translation. Current settings are read via `GET /repos/{owner}/{repo}` and the relevant separate endpoints for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client.
-9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisite and emits its warning before validation. Next, it writes the changed config once and removes present retired workflow files. It then applies repository settings, Actions policy, labels, the licence, and active swatches in that order. `baste` uses `DryRun`; it performs the same planning and validation but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.
+9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisite and emits its warning before validation. Next, it verifies the token with `GET /user`, writes the changed config once, and removes present retired workflow files. The same `GET /user` response resolves `{{GITHUB_USERNAME}}`, so verification adds no extra API call. It then applies repository settings, Actions policy, labels, the licence, and active swatches in that order. `baste` uses `DryRun`; it performs the same planning and validation but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.

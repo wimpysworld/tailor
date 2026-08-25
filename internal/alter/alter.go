@@ -23,8 +23,9 @@ const (
 // ShouldWrite reports whether the mode permits writing to disk.
 func (m ApplyMode) ShouldWrite() bool { return m == Apply || m == Recut }
 
-// Run executes the alter command. It validates the config, applies
-// repository settings, fetches the licence, and processes swatches.
+// Run executes the alter command. It validates the config, verifies the
+// token against the API before any local file change, applies repository
+// settings, fetches the licence, and processes swatches.
 // When client is nil, a default GitHub REST client is created.
 func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) error {
 	configChanged := config.RemoveRetiredWorkflowEntries(cfg)
@@ -53,17 +54,6 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 	if err := config.ValidateCompleteActions(cfg); err != nil {
 		return err
 	}
-	if configChanged && mode.ShouldWrite() {
-		todayDate := time.Now().Format("2006-01-02")
-		if err := config.Write(dir, cfg, todayDate, "Refitted"); err != nil {
-			return fmt.Errorf("writing refitted config: %w", err)
-		}
-	}
-
-	retiredResults, err := ProcessRetiredWorkflows(dir, mode)
-	if err != nil {
-		return err
-	}
 
 	repo, hasRepo, err := gh.RepoContextAt(dir)
 	if err != nil {
@@ -77,9 +67,23 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		}
 	}
 
+	// Verify the token against the API before any local file change. The
+	// same request resolves {{GITHUB_USERNAME}} for token substitution.
 	username, err := gh.FetchUsername(client)
 	if err != nil {
-		return fmt.Errorf("fetching GitHub username: %w", err)
+		return fmt.Errorf("verifying GitHub authentication: %w", err)
+	}
+
+	if configChanged && mode.ShouldWrite() {
+		todayDate := time.Now().Format("2006-01-02")
+		if err := config.Write(dir, cfg, todayDate, "Refitted"); err != nil {
+			return fmt.Errorf("writing refitted config: %w", err)
+		}
+	}
+
+	retiredResults, err := ProcessRetiredWorkflows(dir, mode)
+	if err != nil {
+		return err
 	}
 
 	tokens := TokenContext{

@@ -18,6 +18,7 @@ import (
 
 func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
 	ghfake.FakeNoRepo(t)
 
 	dir := filepath.Join(t.TempDir(), "new-project")
@@ -78,6 +79,7 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 
 func TestFitExistingDirectoryWithoutConfig(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
 	ghfake.FakeNoRepo(t)
 
 	dir := t.TempDir()
@@ -95,6 +97,7 @@ func TestFitExistingDirectoryWithoutConfig(t *testing.T) {
 
 func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
 	ghfake.FakeNoRepo(t)
 
 	dir := t.TempDir()
@@ -121,6 +124,7 @@ func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 
 func TestFitLicenseNone(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
 	ghfake.FakeNoRepo(t)
 
 	dir := filepath.Join(t.TempDir(), "license-none")
@@ -142,6 +146,7 @@ func TestFitLicenseNone(t *testing.T) {
 
 func TestFitDescriptionNoRepoContext(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
 	ghfake.FakeNoRepo(t)
 
 	dir := filepath.Join(t.TempDir(), "with-desc")
@@ -163,6 +168,7 @@ func TestFitDescriptionNoRepoContext(t *testing.T) {
 
 func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
 	ghfake.FakeNoRepo(t)
 
 	dir := filepath.Join(t.TempDir(), "defaults")
@@ -375,5 +381,26 @@ func TestFitAuthFailure(t *testing.T) {
 	// Auth failure stops before project directory creation.
 	if _, statErr := os.Stat(dir); statErr == nil {
 		t.Error("directory was created despite auth failure")
+	}
+}
+
+func TestFitInvalidTokenFailure(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_invalid")
+	ghfake.FakeUserAPI(t, http.StatusUnauthorized, "")
+
+	dir := filepath.Join(t.TempDir(), "invalid-token")
+
+	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0"}
+	err := cmd.Run()
+	if err == nil {
+		t.Fatal("Run() expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "verifying GitHub authentication") {
+		t.Errorf("error = %q, want substring %q", err.Error(), "verifying GitHub authentication")
+	}
+
+	// Token verification failure stops before project directory creation.
+	if _, statErr := os.Stat(dir); statErr == nil {
+		t.Error("directory was created despite invalid token")
 	}
 }
