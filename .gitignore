@@ -1,4 +1,5 @@
 .direnv/
+dist/
 result/
 /tailor
 # Override global gitignore `result*` pattern that excludes Go source files
