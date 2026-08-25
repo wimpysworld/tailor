@@ -378,6 +378,63 @@ func TestMergeRepoSettingsFullRepository(t *testing.T) {
 	}
 }
 
+func mergeActionsDefaultsForTest(t *testing.T, cfg *Config) bool {
+	t.Helper()
+	return mergeActionsFrom(cfg, defaultConfig(t))
+}
+
+func TestMergeActionsNilActions(t *testing.T) {
+	cfg := &Config{}
+
+	if !mergeActionsDefaultsForTest(t, cfg) {
+		t.Fatal("expected changed=true for nil Actions")
+	}
+
+	// The default policy is "selected", so selected-only fields merge too.
+	testutil.AssertPtr(t, cfg.Actions.Enabled, false, true, "enabled")
+	testutil.AssertPtr(t, cfg.Actions.AllowedActions, false, "selected", "allowed_actions")
+	testutil.AssertPtr(t, cfg.Actions.SHAPinningRequired, false, false, "sha_pinning_required")
+	testutil.AssertPtr(t, cfg.Actions.GitHubOwnedAllowed, false, true, "github_owned_allowed")
+	testutil.AssertPtr(t, cfg.Actions.VerifiedAllowed, false, true, "verified_allowed")
+	if cfg.Actions.PatternsAllowed == nil || len(*cfg.Actions.PatternsAllowed) == 0 {
+		t.Error("patterns_allowed should be set from defaults")
+	}
+}
+
+func TestMergeActionsSkipsSelectedFieldsForOtherPolicies(t *testing.T) {
+	policy := "all"
+	cfg := &Config{Actions: &model.ActionsSettings{AllowedActions: &policy}}
+
+	if !mergeActionsDefaultsForTest(t, cfg) {
+		t.Fatal("expected changed=true for missing non-selected fields")
+	}
+
+	testutil.AssertPtr(t, cfg.Actions.Enabled, false, true, "enabled")
+	testutil.AssertPtr(t, cfg.Actions.AllowedActions, false, "all", "allowed_actions")
+	testutil.AssertPtr(t, cfg.Actions.GitHubOwnedAllowed, true, false, "github_owned_allowed")
+	testutil.AssertPtr(t, cfg.Actions.VerifiedAllowed, true, false, "verified_allowed")
+	if cfg.Actions.PatternsAllowed != nil {
+		t.Error("patterns_allowed should remain nil for non-selected policy")
+	}
+}
+
+func TestMergeActionsClonesPatterns(t *testing.T) {
+	defaults := defaultConfig(t)
+	cfg := &Config{}
+
+	if !mergeActionsFrom(cfg, defaults) {
+		t.Fatal("expected changed=true for nil Actions")
+	}
+	if cfg.Actions.PatternsAllowed == nil || len(*cfg.Actions.PatternsAllowed) == 0 {
+		t.Fatal("patterns_allowed should be set from defaults")
+	}
+
+	(*cfg.Actions.PatternsAllowed)[0] = "mutated/*"
+	if (*defaults.Actions.PatternsAllowed)[0] == "mutated/*" {
+		t.Error("merged patterns_allowed shares a backing array with defaults")
+	}
+}
+
 // defaultLabelDefaults returns the default Labels from the embedded config.
 func defaultLabelDefaults(t *testing.T) []model.LabelEntry {
 	t.Helper()

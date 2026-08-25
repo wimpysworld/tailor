@@ -35,6 +35,14 @@ func MergeDefaults(cfg *Config) (bool, error) {
 	return swatchesChanged || repoChanged || actionsChanged || labelsChanged, nil
 }
 
+// actionsSelectedOnlyFields lists ActionsSettings YAML keys merged only when
+// the effective allowed_actions policy is "selected".
+var actionsSelectedOnlyFields = map[string]bool{
+	"github_owned_allowed": true,
+	"verified_allowed":     true,
+	"patterns_allowed":     true,
+}
+
 // mergeRepoSettingsFrom fills nil pointer fields in cfg.Repository from the
 // provided defaults.
 func mergeRepoSettingsFrom(cfg *Config, defaults *Config) bool {
@@ -54,28 +62,18 @@ func mergeRepoSettingsFrom(cfg *Config, defaults *Config) bool {
 		if repoSettingsSkipFields[field.YAMLKey] {
 			continue
 		}
-		if !field.Set {
-			continue
+		if mergeSettingField(cv.Field(field.Index), field) {
+			changed = true
 		}
-
-		dfv := field.Value
-		cfv := cv.Field(field.Index)
-		if !cfv.IsNil() {
-			continue
-		}
-
-		// Allocate a new value and copy from the default.
-		newVal := reflect.New(dfv.Elem().Type())
-		newVal.Elem().Set(dfv.Elem())
-		cfv.Set(newVal)
-		changed = true
 	}
 
 	return changed
 }
 
 // mergeActionsFrom fills missing Actions policy fields from the defaults.
-// Selected-action fields apply only when the effective policy is selected.
+// Selected-action fields apply only when the effective policy is selected;
+// allowed_actions precedes them in struct order, so the policy check sees
+// the merged value.
 func mergeActionsFrom(cfg *Config, defaults *Config) bool {
 	if defaults.Actions == nil {
 		return false
@@ -84,39 +82,44 @@ func mergeActionsFrom(cfg *Config, defaults *Config) bool {
 		cfg.Actions = &model.ActionsSettings{}
 	}
 
+	cv := reflect.ValueOf(cfg.Actions).Elem()
+
 	changed := false
-	mergeBool := func(current **bool, fallback *bool) {
-		if *current == nil && fallback != nil {
-			value := *fallback
-			*current = &value
+
+	for _, field := range model.ActionsSettingFields(defaults.Actions) {
+		if actionsSelectedOnlyFields[field.YAMLKey] {
+			policy := cfg.Actions.AllowedActions
+			if policy == nil || *policy != "selected" {
+				continue
+			}
+		}
+		if mergeSettingField(cv.Field(field.Index), field) {
 			changed = true
 		}
-	}
-	mergeString := func(current **string, fallback *string) {
-		if *current == nil && fallback != nil {
-			value := *fallback
-			*current = &value
-			changed = true
-		}
-	}
-
-	mergeBool(&cfg.Actions.Enabled, defaults.Actions.Enabled)
-	mergeString(&cfg.Actions.AllowedActions, defaults.Actions.AllowedActions)
-	mergeBool(&cfg.Actions.SHAPinningRequired, defaults.Actions.SHAPinningRequired)
-
-	if cfg.Actions.AllowedActions == nil || *cfg.Actions.AllowedActions != "selected" {
-		return changed
-	}
-
-	mergeBool(&cfg.Actions.GitHubOwnedAllowed, defaults.Actions.GitHubOwnedAllowed)
-	mergeBool(&cfg.Actions.VerifiedAllowed, defaults.Actions.VerifiedAllowed)
-	if cfg.Actions.PatternsAllowed == nil && defaults.Actions.PatternsAllowed != nil {
-		patterns := slices.Clone(*defaults.Actions.PatternsAllowed)
-		cfg.Actions.PatternsAllowed = &patterns
-		changed = true
 	}
 
 	return changed
+}
+
+// mergeSettingField copies a set default field into cfv when cfv is nil,
+// reporting whether it changed anything. Slice values are cloned so cfg does
+// not share a backing array with the defaults.
+func mergeSettingField(cfv reflect.Value, field model.RepositorySettingField) bool {
+	if !field.Set || !cfv.IsNil() {
+		return false
+	}
+
+	dfv := field.Value.Elem()
+	newVal := reflect.New(dfv.Type())
+	if dfv.Kind() == reflect.Slice {
+		cloned := reflect.MakeSlice(dfv.Type(), dfv.Len(), dfv.Len())
+		reflect.Copy(cloned, dfv)
+		newVal.Elem().Set(cloned)
+	} else {
+		newVal.Elem().Set(dfv)
+	}
+	cfv.Set(newVal)
+	return true
 }
 
 // mergeLabelsFrom populates cfg.Labels from the provided defaults when the
