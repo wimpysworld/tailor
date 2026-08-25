@@ -267,6 +267,18 @@ func TestValidateTopicsRejectsStartingWithHyphen(t *testing.T) {
 	}
 }
 
+func TestValidateTopicsRejectsDuplicate(t *testing.T) {
+	topics := []string{"go", "cli", "go"}
+	cfg := &Config{Repository: &model.RepositorySettings{Topics: &topics}}
+	err := ValidateTopics(cfg)
+	if err == nil {
+		t.Fatal("ValidateTopics(duplicate) expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), `duplicate topic "go"`) {
+		t.Errorf("error = %q, want it to mention the duplicate topic", err)
+	}
+}
+
 func TestValidateTopicsRejectsTooLong(t *testing.T) {
 	topics := []string{strings.Repeat("a", 51)}
 	cfg := &Config{Repository: &model.RepositorySettings{Topics: &topics}}
