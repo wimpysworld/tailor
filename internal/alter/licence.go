@@ -3,6 +3,7 @@ package alter
 import (
 	"errors"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -15,7 +16,11 @@ const licenceDestination = "LICENSE"
 // ProcessLicence evaluates and optionally writes the LICENSE file.
 // Returns a SwatchResult (reusing the same type for consistent formatting)
 // and an error.
-func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) (*SwatchResult, error) {
+func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer) (*SwatchResult, error) {
+	if stderr == nil {
+		stderr = io.Discard
+	}
+
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return nil, fmt.Errorf("opening project root %q: %w", dir, err)
@@ -30,7 +35,7 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 
 	if cfg.License == "" || cfg.License == "none" {
 		if !present {
-			fmt.Fprintln(os.Stderr, "No licence file found and no licence configured. Add 'license: BlueOak-1.0.0' (or another identifier) to '.tailor.yml' and run 'tailor alter'.")
+			fmt.Fprintln(stderr, "No licence file found and no licence configured. Add 'license: BlueOak-1.0.0' (or another identifier) to '.tailor.yml' and run 'tailor alter'.")
 		}
 		return nil, nil
 	}

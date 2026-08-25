@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -82,12 +83,10 @@ func TestProcessLabelsNoRepoContext(t *testing.T) {
 		},
 	}
 
-	var results []alter.LabelResult
-	var err error
-
-	output := captureStderr(t, func() {
-		results, err = alter.ProcessLabels(cfg, alter.DryRun, repoTarget(nil, "", "", false))
-	})
+	var stderr strings.Builder
+	target := repoTarget(nil, "", "", false)
+	target.Stderr = &stderr
+	results, err := alter.ProcessLabels(cfg, alter.DryRun, target)
 
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -97,8 +96,8 @@ func TestProcessLabelsNoRepoContext(t *testing.T) {
 	}
 
 	want := "No GitHub repository context found."
-	if output == "" || !containsSubstring(output, want) {
-		t.Errorf("stderr = %q, want substring %q", output, want)
+	if stderr.Len() == 0 || !strings.Contains(stderr.String(), want) {
+		t.Errorf("stderr = %q, want substring %q", stderr.String(), want)
 	}
 }
 

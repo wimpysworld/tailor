@@ -2,7 +2,7 @@ package alter
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -27,11 +27,18 @@ func (m ApplyMode) ShouldWrite() bool { return m == Apply || m == Recut }
 // token against the API before any local file change, applies repository
 // settings, fetches the licence, and processes swatches.
 // When client is nil, a default GitHub REST client is created.
-func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient) error {
+func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stdout, stderr io.Writer) error {
+	if stdout == nil {
+		stdout = io.Discard
+	}
+	if stderr == nil {
+		stderr = io.Discard
+	}
+
 	configChanged := config.RemoveRetiredWorkflowEntries(cfg)
 	securityNormalised := config.NormaliseSecurityPrerequisites(cfg)
 	if securityNormalised {
-		fmt.Fprintln(os.Stderr, "warning: set vulnerability_alerts_enabled to true because automated_security_fixes_enabled requires vulnerability alerts")
+		fmt.Fprintln(stderr, "warning: set vulnerability_alerts_enabled to true because automated_security_fixes_enabled requires vulnerability alerts")
 	}
 	configChanged = configChanged || securityNormalised
 	if err := validateConfig(cfg); err != nil {
@@ -91,7 +98,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		Owner:          repo.Owner,
 		Name:           repo.Name,
 	}
-	target := RepoTarget{Client: client, Owner: repo.Owner, Name: repo.Name, HasRepo: hasRepo}
+	target := RepoTarget{Client: client, Owner: repo.Owner, Name: repo.Name, HasRepo: hasRepo, Stderr: stderr}
 
 	repoResults, err := ProcessRepoSettings(cfg, mode, target)
 	if err != nil {
@@ -108,7 +115,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 		return err
 	}
 
-	licenceResult, err := ProcessLicence(cfg, dir, mode, client)
+	licenceResult, err := ProcessLicence(cfg, dir, mode, client, stderr)
 	if err != nil {
 		return err
 	}
@@ -129,7 +136,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient)
 
 	output := FormatOutput(repoResults, labelResults, swatchResults, mode)
 	if output != "" {
-		fmt.Print(output)
+		fmt.Fprint(stdout, output)
 	}
 
 	return nil

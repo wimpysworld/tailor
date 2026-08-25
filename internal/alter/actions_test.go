@@ -3,6 +3,7 @@ package alter_test
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -553,7 +554,7 @@ func TestRunRejectsInvalidActionsBeforeWrites(t *testing.T) {
 		AllowedActions:  new("all"),
 		VerifiedAllowed: new(true),
 	}}
-	err := alter.Run(cfg, dir, alter.Apply, nil)
+	err := alter.Run(cfg, dir, alter.Apply, nil, io.Discard, io.Discard)
 	if err == nil {
 		t.Fatal("Run() error = nil, want invalid selected-action combination")
 	}
@@ -562,7 +563,7 @@ func TestRunRejectsInvalidActionsBeforeWrites(t *testing.T) {
 func TestRunRejectsIncompleteSelectedActions(t *testing.T) {
 	dir := t.TempDir()
 	cfg := &config.Config{Actions: &model.ActionsSettings{AllowedActions: new("selected")}}
-	err := alter.Run(cfg, dir, alter.Apply, nil)
+	err := alter.Run(cfg, dir, alter.Apply, nil, io.Discard, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), "requires github_owned_allowed, verified_allowed, and patterns_allowed") {
 		t.Fatalf("Run() error = %v, want incomplete selected policy error", err)
 	}

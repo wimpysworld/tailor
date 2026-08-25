@@ -3,7 +3,6 @@ package alter
 import (
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"slices"
 	"strings"
@@ -60,7 +59,7 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 		(cfg.Repository.VulnerabilityAlertsEnabled == nil || !*cfg.Repository.VulnerabilityAlertsEnabled) &&
 		live.VulnerabilityAlertsEnabled != nil &&
 		!*live.VulnerabilityAlertsEnabled {
-		fmt.Fprintln(os.Stderr, "warning: automated_security_fixes_enabled is true but vulnerability alerts are disabled on GitHub; enable vulnerability_alerts_enabled first")
+		fmt.Fprintln(target.stderr(), "warning: automated_security_fixes_enabled is true but vulnerability alerts are disabled on GitHub; enable vulnerability_alerts_enabled first")
 	}
 
 	results := compareSettings(cfg.Repository, live)

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -344,7 +345,7 @@ func TestRunAlterMalformedConfigError(t *testing.T) {
 	}
 	t.Chdir(dir)
 
-	err := runAlter(alter.DryRun)
+	err := runAlter(alter.DryRun, io.Discard, io.Discard)
 	if err == nil {
 		t.Fatal("runAlter() expected error, got nil")
 	}
@@ -500,6 +501,44 @@ func TestRunFitWarningsToStderr(t *testing.T) {
 	}
 	if !strings.HasSuffix(stderr.String(), "\n") {
 		t.Errorf("stderr = %q, want trailing newline", stderr.String())
+	}
+}
+
+func TestRunBasteUsesCommandWriters(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeNoRepo(t)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/user") {
+			fmt.Fprint(w, `{"login":"octocat"}`)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(srv.Close)
+	restore := gh.SetNewRESTClientFunc(func(string) (*api.RESTClient, error) {
+		return testutil.NewTestClient(t, srv), nil
+	})
+	t.Cleanup(restore)
+
+	dir := t.TempDir()
+	configYAML := "license: none\nswatches:\n  - path: .gitignore\n    alteration: first-fit\n"
+	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte(configYAML), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	t.Chdir(dir)
+
+	var stdout, stderr strings.Builder
+	code := run([]string{"baste"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "would copy:                          .gitignore\n") {
+		t.Errorf("stdout = %q, want .gitignore preview", stdout.String())
+	}
+	if !strings.HasPrefix(stderr.String(), "No licence file found and no licence configured.") {
+		t.Errorf("stderr = %q, want missing licence warning", stderr.String())
 	}
 }
 
