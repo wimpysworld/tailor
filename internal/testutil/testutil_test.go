@@ -1,6 +1,8 @@
 package testutil
 
 import (
+	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -22,7 +24,7 @@ func TestNewTestClientRoutesToTestServer(t *testing.T) {
 			var gotPath string
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				gotPath = r.URL.Path
-				w.Write([]byte("{}"))
+				fmt.Fprint(w, "{}")
 			}))
 			defer server.Close()
 
@@ -41,14 +43,18 @@ func TestNewTestClientRoutesToTestServer(t *testing.T) {
 
 func TestTestTransportRedirectsArbitraryHost(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("reached"))
+		fmt.Fprint(w, "reached")
 	}))
 	defer server.Close()
 
-	httpClient := &http.Client{Transport: &TestTransport{Server: server}}
-	resp, err := httpClient.Get("https://example.invalid/some/path")
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.invalid/some/path", nil)
 	if err != nil {
-		t.Fatalf("Get: %v", err)
+		t.Fatalf("NewRequestWithContext: %v", err)
+	}
+	httpClient := &http.Client{Transport: &TestTransport{Server: server}}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		t.Fatalf("Do: %v", err)
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
@@ -62,13 +68,13 @@ func TestTestTransportRedirectsArbitraryHost(t *testing.T) {
 
 func TestTestTransportDoesNotMutateRequest(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("{}"))
+		fmt.Fprint(w, "{}")
 	}))
 	defer server.Close()
 
-	req, err := http.NewRequest(http.MethodGet, "https://api.github.com/user", nil)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://api.github.com/user", nil)
 	if err != nil {
-		t.Fatalf("NewRequest: %v", err)
+		t.Fatalf("NewRequestWithContext: %v", err)
 	}
 	req.Header.Set("Authorization", "token test-token")
 
@@ -137,11 +143,11 @@ func TestWriteConfigCreatesFile(t *testing.T) {
 func TestAssertPtrBool(t *testing.T) {
 	val := true
 	AssertPtr(t, &val, false, true, "bool_field")
-	AssertPtr[bool](t, nil, true, false, "bool_field")
+	AssertPtr(t, nil, true, false, "bool_field")
 }
 
 func TestAssertPtrString(t *testing.T) {
 	val := "read"
 	AssertPtr(t, &val, false, "read", "string_field")
-	AssertPtr[string](t, nil, true, "", "string_field")
+	AssertPtr(t, nil, true, "", "string_field")
 }
