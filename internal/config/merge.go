@@ -104,7 +104,7 @@ func mergeActionsFrom(cfg *Config, defaults *Config) bool {
 // mergeSettingField copies a set default field into cfv when cfv is nil,
 // reporting whether it changed anything. Slice values are cloned so cfg does
 // not share a backing array with the defaults.
-func mergeSettingField(cfv reflect.Value, field model.RepositorySettingField) bool {
+func mergeSettingField(cfv reflect.Value, field model.SettingField) bool {
 	if !field.Set || !cfv.IsNil() {
 		return false
 	}

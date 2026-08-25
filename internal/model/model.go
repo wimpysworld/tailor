@@ -69,9 +69,8 @@ type RepositorySettings struct {
 	Extra map[string]any `yaml:",inline"`
 }
 
-// RepositorySettingField describes one supported setting field, keyed by its
-// yaml tag. ActionsSettingFields reuses this type for Actions settings.
-type RepositorySettingField struct {
+// SettingField describes one supported setting field, keyed by its yaml tag.
+type SettingField struct {
 	YAMLKey string
 	Index   int
 	Value   reflect.Value
@@ -80,25 +79,25 @@ type RepositorySettingField struct {
 
 // RepositorySettingFields returns supported repository settings in struct order.
 // Extra is excluded because it stores unknown YAML keys.
-func RepositorySettingFields(settings *RepositorySettings) []RepositorySettingField {
+func RepositorySettingFields(settings *RepositorySettings) []SettingField {
 	return settingFields(settings)
 }
 
 // ActionsSettingFields returns supported Actions settings in struct order.
 // Extra is excluded because it stores unknown YAML keys.
-func ActionsSettingFields(settings *ActionsSettings) []RepositorySettingField {
+func ActionsSettingFields(settings *ActionsSettings) []SettingField {
 	return settingFields(settings)
 }
 
 // settingFields walks the yaml-tagged pointer fields of a settings struct.
-func settingFields[T any](settings *T) []RepositorySettingField {
+func settingFields[T any](settings *T) []SettingField {
 	t := reflect.TypeFor[T]()
 	var v reflect.Value
 	if settings != nil {
 		v = reflect.ValueOf(settings).Elem()
 	}
 
-	fields := make([]RepositorySettingField, 0, t.NumField())
+	fields := make([]SettingField, 0, t.NumField())
 	for i := range t.NumField() {
 		sf := t.Field(i)
 		tag := sf.Tag.Get("yaml")
@@ -110,7 +109,7 @@ func settingFields[T any](settings *T) []RepositorySettingField {
 			continue
 		}
 
-		field := RepositorySettingField{
+		field := SettingField{
 			YAMLKey: key,
 			Index:   i,
 		}
