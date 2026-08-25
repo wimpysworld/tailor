@@ -12,12 +12,15 @@ import (
 )
 
 // yamlSpecial lists characters that require quoting in YAML values.
-const yamlSpecial = ":{}[]#&*!|>'\"%@`\n"
+const yamlSpecial = "{}[]#&*!|>'\"%@`\n"
 
-// yamlVal quotes v when it contains YAML special characters, surrounding
-// whitespace, or is empty.
+// yamlVal quotes v when it contains YAML special characters, a ":" that
+// reads as a mapping indicator (followed by whitespace or at the end),
+// surrounding whitespace, or is empty. A ":" inside a word, as in URLs,
+// needs no quoting.
 func yamlVal(v string) string {
-	if strings.ContainsAny(v, yamlSpecial) || v != strings.TrimSpace(v) || v == "" {
+	if strings.ContainsAny(v, yamlSpecial) || strings.Contains(v, ": ") ||
+		strings.HasSuffix(v, ":") || v != strings.TrimSpace(v) || v == "" {
 		return fmt.Sprintf("%q", v)
 	}
 	return v
@@ -25,8 +28,7 @@ func yamlVal(v string) string {
 
 // settingLines renders one "  key: value" line per set field. Scalar fields
 // keep struct order; list fields follow them, preserving the output order
-// that places topics last. Homepage stays unquoted because yamlVal would
-// quote the ":" in URLs.
+// that places topics last.
 func settingLines(fields []model.RepositorySettingField) []string {
 	var lines, lists []string
 	for _, field := range fields {
@@ -36,11 +38,7 @@ func settingLines(fields []model.RepositorySettingField) []string {
 		v := field.Value.Elem()
 		switch v.Kind() {
 		case reflect.String:
-			val := v.String()
-			if field.YAMLKey != "homepage" {
-				val = yamlVal(val)
-			}
-			lines = append(lines, fmt.Sprintf("  %s: %s", field.YAMLKey, val))
+			lines = append(lines, fmt.Sprintf("  %s: %s", field.YAMLKey, yamlVal(v.String())))
 		case reflect.Bool:
 			lines = append(lines, fmt.Sprintf("  %s: %t", field.YAMLKey, v.Bool()))
 		case reflect.Slice:
