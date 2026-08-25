@@ -60,7 +60,7 @@ type RepositorySettings struct {
 	PrivateVulnerabilityReportEnabled *bool     `yaml:"private_vulnerability_reporting_enabled,omitempty"`
 	VulnerabilityAlertsEnabled        *bool     `yaml:"vulnerability_alerts_enabled,omitempty"`
 	AutomatedSecurityFixesEnabled     *bool     `yaml:"automated_security_fixes_enabled,omitempty"`
-	Topics                            *[]string `yaml:"topics,omitempty" json:"topics,omitempty"`
+	Topics                            *[]string `yaml:"topics,omitempty"`
 	DefaultWorkflowPermissions        *string   `yaml:"default_workflow_permissions,omitempty"`
 	CanApprovePullRequestReviews      *bool     `yaml:"can_approve_pull_request_reviews,omitempty"`
 
