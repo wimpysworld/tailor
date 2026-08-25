@@ -129,6 +129,7 @@ func TestValidateRepoSettingsRejectsUnknownSetting(t *testing.T) {
 	input := `repository:
   has_wiki: false
   bogus_setting: true
+  zzz_setting: false
 swatches: []
 `
 	var cfg Config
@@ -139,11 +140,10 @@ swatches: []
 	if err == nil {
 		t.Fatal("ValidateRepoSettings() expected error for unknown setting, got nil")
 	}
-	if !strings.Contains(err.Error(), `unrecognised repository setting "bogus_setting"`) {
-		t.Errorf("error = %q, want it to identify bogus_setting", err)
-	}
-	if !strings.Contains(err.Error(), "valid settings:") {
-		t.Errorf("error = %q, want it to list valid settings", err)
+	want := fmt.Sprintf("unrecognised repository setting %q in config; valid settings: %s",
+		"bogus_setting", strings.Join(repoSettingNames(), ", "))
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err, want)
 	}
 }
 
