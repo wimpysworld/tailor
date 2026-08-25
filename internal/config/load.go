@@ -8,7 +8,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wimpysworld/tailor/internal/fsutil"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -19,7 +18,8 @@ const (
 
 // Exists reports whether .tailor.yml is present in dir.
 func Exists(dir string) bool {
-	return fsutil.FileExists(filepath.Join(dir, configPath))
+	info, err := os.Stat(filepath.Join(dir, configPath))
+	return err == nil && !info.IsDir()
 }
 
 // Load reads and parses .tailor.yml from dir, returning the validated Config
