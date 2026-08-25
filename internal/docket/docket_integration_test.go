@@ -27,7 +27,7 @@ func TestRunFormatOutputIntegration(t *testing.T) {
 				"auth:",
 				"octocat",
 				"octocat/my-project",
-				"authenticated",
+				"auth:           authenticated",
 			},
 		},
 		{
