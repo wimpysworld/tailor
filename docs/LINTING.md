@@ -23,6 +23,8 @@ Tailor's golangci-lint configuration targets three goals: catch real bugs (resou
 | usestdlibvars | Flags hardcoded HTTP status codes and methods that should use `net/http` constants |
 | wastedassign | Detects assignments to variables that are never subsequently used |
 
+The configuration does not override the golangci-lint v2 default set, so the defaults `errcheck`, `govet`, `ineffassign`, `staticcheck`, and `unused` also run. In total 18 linters are enabled.
+
 ## Configuration Choices
 
 ### govet: enable-all minus fieldalignment and shadow
@@ -81,7 +83,6 @@ All configs examined were golangci-lint v2 format unless noted. "Linters enabled
 | testpackage, paralleltest, tparallel | Test structure linters. Traefik disables them ("Not relevant"). |
 | ireturn, wrapcheck, varnamelen | Traefik disables all three as too strict. |
 | modernize | Suggests modern Go idioms. Useful but flags existing code that contributors did not write, creating churn in unrelated PRs. |
-| errcheck | Most projects enable it with exclusions for common false positives. Tailor's govet and errorlint coverage catches the high-value error handling issues. |
 
 ## Dependency Review Security Gate
 
