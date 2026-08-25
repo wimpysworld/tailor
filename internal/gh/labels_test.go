@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -59,18 +60,14 @@ func TestReadLabelsSinglePage(t *testing.T) {
 }
 
 func TestReadLabelsPaginated(t *testing.T) {
-	// Build two pages: page 1 has 100 labels, page 2 has 3 labels.
-	page1 := make([]labelResponse, 100)
-	for i := range page1 {
-		page1[i] = labelResponse{
-			Name:  fmt.Sprintf("label-%03d", i),
-			Color: "aabbcc",
-		}
+	page1 := []labelResponse{
+		{Name: "label-000", Color: "aabbcc"},
+		{Name: "label-001", Color: "aabbcc"},
 	}
 	page2 := []labelResponse{
-		{Name: "label-100", Color: "aabbcc"},
-		{Name: "label-101", Color: "aabbcc"},
-		{Name: "label-102", Color: "aabbcc"},
+		{Name: "label-002", Color: "aabbcc"},
+		{Name: "label-003", Color: "aabbcc"},
+		{Name: "label-004", Color: "aabbcc"},
 	}
 
 	page1JSON, _ := json.Marshal(page1)
@@ -96,8 +93,15 @@ func TestReadLabelsPaginated(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadLabels() error: %v", err)
 	}
-	if len(labels) != 103 {
-		t.Errorf("ReadLabels() length = %d, want 103", len(labels))
+	want := []model.LabelEntry{
+		{Name: "label-000", Color: "aabbcc"},
+		{Name: "label-001", Color: "aabbcc"},
+		{Name: "label-002", Color: "aabbcc"},
+		{Name: "label-003", Color: "aabbcc"},
+		{Name: "label-004", Color: "aabbcc"},
+	}
+	if !slices.Equal(labels, want) {
+		t.Errorf("ReadLabels() = %+v, want %+v", labels, want)
 	}
 }
 

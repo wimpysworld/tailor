@@ -52,7 +52,7 @@ func ReadLabels(client *api.RESTClient, owner, repo string) ([]model.LabelEntry,
 			})
 		}
 
-		if len(labels) < 100 || !hasNextPage(resp.Header.Get("Link")) {
+		if !hasNextPage(resp.Header.Get("Link")) {
 			break
 		}
 	}
