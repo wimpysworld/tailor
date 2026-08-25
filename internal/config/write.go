@@ -9,28 +9,33 @@ import (
 	"text/template"
 
 	"github.com/wimpysworld/tailor/internal/model"
+	"gopkg.in/yaml.v3"
 )
 
-// yamlSpecial lists characters that require quoting in YAML values.
-const yamlSpecial = "{}[]#&*!|>'\"%@`\n"
+// yamlDoubleQuoted preserves the established style. yaml.v3 handles all
+// quoting that YAML syntax requires.
+const yamlDoubleQuoted = "{}[]#&*!|>'\"%@`"
 
-// yamlVal quotes v when it contains YAML special characters, a ":" that
-// reads as a mapping indicator (followed by a space or tab, or at the end),
-// surrounding whitespace, or is empty. A ":" inside a word, as in URLs,
-// needs no quoting.
-func yamlVal(v string) string {
-	if strings.ContainsAny(v, yamlSpecial) || strings.Contains(v, ": ") ||
-		strings.Contains(v, ":\t") || strings.HasSuffix(v, ":") ||
-		v != strings.TrimSpace(v) || v == "" {
-		return fmt.Sprintf("%q", v)
+// yamlVal encodes v as one YAML string scalar. Newlines use double quotes so
+// the result stays on one line when the template adds its indentation.
+func yamlVal(v string) (string, error) {
+	var node yaml.Node
+	node.SetString(v)
+	if strings.ContainsAny(v, yamlDoubleQuoted) || strings.Contains(v, "\n") {
+		node.Style = yaml.DoubleQuotedStyle
 	}
-	return v
+
+	encoded, err := yaml.Marshal(&node)
+	if err != nil {
+		return "", fmt.Errorf("encoding YAML scalar: %w", err)
+	}
+	return strings.TrimSuffix(string(encoded), "\n"), nil
 }
 
 // settingLines renders one "  key: value" line per set field. Scalar fields
 // keep struct order; list fields follow them, preserving the output order
 // that places topics last.
-func settingLines(fields []model.RepositorySettingField) []string {
+func settingLines(fields []model.RepositorySettingField) ([]string, error) {
 	var lines, lists []string
 	for _, field := range fields {
 		if !field.Set {
@@ -39,36 +44,48 @@ func settingLines(fields []model.RepositorySettingField) []string {
 		v := field.Value.Elem()
 		switch v.Kind() {
 		case reflect.String:
-			lines = append(lines, fmt.Sprintf("  %s: %s", field.YAMLKey, yamlVal(v.String())))
+			value, err := yamlVal(v.String())
+			if err != nil {
+				return nil, err
+			}
+			lines = append(lines, fmt.Sprintf("  %s: %s", field.YAMLKey, value))
 		case reflect.Bool:
 			lines = append(lines, fmt.Sprintf("  %s: %t", field.YAMLKey, v.Bool()))
 		case reflect.Slice:
-			lists = append(lists, listLines(field.YAMLKey, v))
+			list, err := listLines(field.YAMLKey, v)
+			if err != nil {
+				return nil, err
+			}
+			lists = append(lists, list)
 		}
 	}
-	return append(lines, lists...)
+	return append(lines, lists...), nil
 }
 
 // listLines renders a string-list field as a block sequence, or [] when empty.
-func listLines(key string, v reflect.Value) string {
+func listLines(key string, v reflect.Value) (string, error) {
 	if v.Len() == 0 {
-		return fmt.Sprintf("  %s: []", key)
+		return fmt.Sprintf("  %s: []", key), nil
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "  %s:", key)
 	for i := range v.Len() {
-		fmt.Fprintf(&b, "\n    - %s", yamlVal(v.Index(i).String()))
+		value, err := yamlVal(v.Index(i).String())
+		if err != nil {
+			return "", err
+		}
+		fmt.Fprintf(&b, "\n    - %s", value)
 	}
-	return b.String()
+	return b.String(), nil
 }
 
 // templateFuncs provides helpers for the config template.
 var templateFuncs = template.FuncMap{
 	"yamlVal": yamlVal,
-	"repositoryLines": func(r *model.RepositorySettings) []string {
+	"repositoryLines": func(r *model.RepositorySettings) ([]string, error) {
 		return settingLines(model.RepositorySettingFields(r))
 	},
-	"actionsLines": func(a *model.ActionsSettings) []string {
+	"actionsLines": func(a *model.ActionsSettings) ([]string, error) {
 		return settingLines(model.ActionsSettingFields(a))
 	},
 }
@@ -78,7 +95,7 @@ var templateFuncs = template.FuncMap{
 // between swatch entries, and omission of nil pointer fields.
 var configTemplate = template.Must(template.New("config").Funcs(templateFuncs).Parse(
 	`# {{ .Verb }} by tailor on {{ .Date }}
-license: {{ .License }}
+license: {{ yamlVal .License }}
 
 {{- if .Repository }}
 
