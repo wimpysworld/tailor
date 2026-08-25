@@ -12,6 +12,7 @@ import (
 
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -304,6 +305,49 @@ func TestProcessActionsSelectedOnlyWriteAccessError(t *testing.T) {
 	}
 	if corePuts.Load() != 0 || selectedPuts.Load() != 1 {
 		t.Fatalf("PUTs = core %d, selected %d", corePuts.Load(), selectedPuts.Load())
+	}
+}
+
+func TestProcessActionsPreDisabledSelectedWriteAccessErrorSkipsCore(t *testing.T) {
+	var corePuts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/selected-actions"):
+			fmt.Fprint(w, `{"github_owned_allowed":true,"verified_allowed":true,"patterns_allowed":[]}`)
+		case r.Method == http.MethodGet:
+			fmt.Fprint(w, `{"enabled":false,"allowed_actions":"selected","sha_pinning_required":false}`)
+		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/selected-actions"):
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
+		case r.Method == http.MethodPut:
+			corePuts.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	patterns := []string{"acme/*"}
+	cfg := &config.Config{Actions: &model.ActionsSettings{
+		Enabled: new(true), AllowedActions: new("selected"), SHAPinningRequired: new(false),
+		GitHubOwnedAllowed: new(true), VerifiedAllowed: new(true), PatternsAllowed: &patterns,
+	}}
+	results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
+	if err != nil {
+		t.Fatalf("ProcessActions() error = %v, want access skip", err)
+	}
+	selectedScopeSkip := false
+	for _, result := range results {
+		if result.Category == alter.WouldSkipScope && result.Operation.Kind == gh.OpSetSelectedActionsPermissions {
+			selectedScopeSkip = true
+		}
+	}
+	if !selectedScopeSkip {
+		t.Fatalf("ProcessActions() results = %+v, want selected-policy scope skip", results)
+	}
+	if corePuts.Load() != 0 {
+		t.Fatalf("core PUTs = %d, want 0", corePuts.Load())
 	}
 }
 

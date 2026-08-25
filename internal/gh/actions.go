@@ -170,6 +170,7 @@ func disableActionsStep(desired, current *model.ActionsSettings) (map[string]any
 // partial failure leaves Actions disabled rather than over-permitted.
 func applySelectedThenCore(client *api.RESTClient, base string, desired, current *model.ActionsSettings, coreBody, selectedBody map[string]any, result *ApplyResult) (*ApplyResult, error) {
 	actionsDisabled := isFalse(current.Enabled)
+	disabledByTailor := false
 	if disableBody, disableOp := disableActionsStep(desired, current); disableBody != nil {
 		applied, err := applyActionsWrite(client, base, disableBody, disableOp, result)
 		if err != nil {
@@ -181,9 +182,10 @@ func applySelectedThenCore(client *api.RESTClient, base string, desired, current
 			return result, nil
 		}
 		actionsDisabled = true
+		disabledByTailor = true
 	}
 	if err := putActionsPolicy(client, base+"/selected-actions", selectedBody); err != nil {
-		if actionsDisabled {
+		if disabledByTailor {
 			return nil, fmt.Errorf("setting selected actions permissions failed while actions are disabled: %w", err)
 		}
 		if recordAccessError(result, Op(OpSetSelectedActionsPermissions), err) {

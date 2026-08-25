@@ -531,6 +531,39 @@ func TestApplyActionsPolicyAllToSelectedFailureLeavesSelectedRestriction(t *test
 	}
 }
 
+func TestApplyActionsPolicyPreDisabledSelectedAccessErrorSkipsCore(t *testing.T) {
+	var coreWrites atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/selected-actions") {
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
+			return
+		}
+		coreWrites.Add(1)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+
+	patterns := []string{"acme/*"}
+	desired := &model.ActionsSettings{
+		Enabled: new(true), AllowedActions: new("selected"), PatternsAllowed: &patterns,
+	}
+	currentPatterns := []string{}
+	current := &model.ActionsSettings{
+		Enabled: new(false), AllowedActions: new("selected"), PatternsAllowed: &currentPatterns,
+	}
+	result, err := ApplyActionsPolicy(newTestClient(t, server), "acme", "widget", desired, current, true, true)
+	if err != nil {
+		t.Fatalf("ApplyActionsPolicy() error = %v, want access skip", err)
+	}
+	if len(result.Skipped) != 2 || result.Skipped[0].Operation.Kind != OpSetSelectedActionsPermissions || result.Skipped[1].Operation.Kind != OpSetActionsPermissions {
+		t.Fatalf("ApplyActionsPolicy() skips = %+v, want selected write and dependent core write", result.Skipped)
+	}
+	if coreWrites.Load() != 0 {
+		t.Fatalf("core writes = %d, want 0", coreWrites.Load())
+	}
+}
+
 func mapsEqual(got, want map[string]any) bool {
 	if len(got) != len(want) {
 		return false
