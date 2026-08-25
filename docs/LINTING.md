@@ -107,7 +107,7 @@ The dependency review step runs only on `pull_request` events (`if: github.event
 
 ### CI job: `lint-actions`
 
-The `lint-actions` job runs for every Builder workflow event on an `ubuntu-slim` runner. It checks out the repository, installs `actionlint` with `freerangebytes/setup-actionlint@v0.1.1`, then runs `actionlint -color` directly. The job does not need a Go toolchain.
+The `lint-actions` job runs for every Builder workflow event on an `ubuntu-slim` runner. It checks out the repository, installs `actionlint` with `freerangebytes/setup-actionlint@v0.1.2`, then runs `actionlint -color` directly. The job does not need a Go toolchain.
 
 `sentinel` depends on `lint-actions` alongside `lint-code`, `coverage`, `test`, and `security`. A failure blocks the `sentinel` job.
 
