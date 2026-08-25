@@ -1,6 +1,7 @@
 package alter
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -21,16 +22,38 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 	}
 	defer root.Close()
 
-	exists, err := rootFileExists(root, licenceDestination)
-	if err != nil {
+	info, err := root.Lstat(licenceDestination)
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return nil, fmt.Errorf("checking licence %q: %w", licenceDestination, err)
 	}
+	present := err == nil
 
 	if cfg.License == "" || cfg.License == "none" {
-		if !exists {
+		if !present {
 			fmt.Fprintln(os.Stderr, "No licence file found and no licence configured. Add 'license: BlueOak-1.0.0' (or another identifier) to '.tailor.yml' and run 'tailor alter'.")
 		}
 		return nil, nil
+	}
+
+	// Mirror the swatch destination policy: only a regular file counts as
+	// an existing licence, a destination symlink is removed without being
+	// followed before a write, and anything else is an error.
+	exists := false
+	if present {
+		switch {
+		case info.IsDir():
+			return nil, fmt.Errorf("licence destination %q is a directory", licenceDestination)
+		case info.Mode()&os.ModeSymlink != 0:
+			if mode.ShouldWrite() {
+				if err := root.Remove(licenceDestination); err != nil {
+					return nil, fmt.Errorf("removing destination symlink: %w", err)
+				}
+			}
+		case !info.Mode().IsRegular():
+			return nil, fmt.Errorf("licence destination %q is not a regular file", licenceDestination)
+		default:
+			exists = true
+		}
 	}
 
 	// Licence is exempt from recut: never overwrite an existing LICENSE.

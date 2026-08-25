@@ -194,16 +194,6 @@ func processRecut(root *os.Root, entry config.SwatchEntry, content []byte, exist
 	return SwatchResult{Path: entry.Path, Category: category}, nil
 }
 
-func rootFileExists(root *os.Root, path string) (bool, error) {
-	if _, err := root.Stat(path); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return false, nil
-		}
-		return false, err
-	}
-	return true, nil
-}
-
 // writeFile creates parent directories and writes data to a root-relative path.
 func writeFile(root *os.Root, path string, data []byte) error {
 	if err := root.MkdirAll(filepath.Dir(path), 0o755); err != nil {
