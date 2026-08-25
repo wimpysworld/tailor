@@ -28,10 +28,8 @@ func validateTopLevelSettings(cfg *Config) error {
 		return nil
 	}
 
-	keys := slices.Sorted(maps.Keys(cfg.Extra))
 	valid := []string{"actions", "labels", "license", "repository", "swatches"}
-	return fmt.Errorf("unrecognised top-level setting %q in config; valid settings: %s",
-		keys[0], strings.Join(valid, ", "))
+	return unrecognisedSettingError("top-level", cfg.Extra, valid)
 }
 
 // ValidatePaths checks that every swatch path in cfg matches a known embedded
@@ -69,10 +67,7 @@ func ValidateRepoSettings(cfg *Config) error {
 	}
 
 	if len(cfg.Repository.Extra) > 0 {
-		keys := slices.Sorted(maps.Keys(cfg.Repository.Extra))
-		valid := repoSettingNames()
-		return fmt.Errorf("unrecognised repository setting %q in config; valid settings: %s",
-			keys[0], strings.Join(valid, ", "))
+		return unrecognisedSettingError("repository", cfg.Repository.Extra, repoSettingNames())
 	}
 	return nil
 }
@@ -98,10 +93,7 @@ func ValidateActions(cfg *Config) error {
 		return nil
 	}
 	if len(cfg.Actions.Extra) > 0 {
-		keys := slices.Sorted(maps.Keys(cfg.Actions.Extra))
-		valid := settingNames(model.ActionsSettingFields(nil))
-		return fmt.Errorf("unrecognised actions setting %q in config; valid settings: %s",
-			keys[0], strings.Join(valid, ", "))
+		return unrecognisedSettingError("actions", cfg.Actions.Extra, settingNames(model.ActionsSettingFields(nil)))
 	}
 
 	a := cfg.Actions
@@ -123,6 +115,12 @@ func ValidateActions(cfg *Config) error {
 		}
 	}
 	return nil
+}
+
+func unrecognisedSettingError(section string, extra map[string]interface{}, valid []string) error {
+	keys := slices.Sorted(maps.Keys(extra))
+	return fmt.Errorf("unrecognised %s setting %q in config; valid settings: %s",
+		section, keys[0], strings.Join(valid, ", "))
 }
 
 // ValidateCompleteActions checks that a selected Actions policy includes the
