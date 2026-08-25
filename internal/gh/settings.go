@@ -167,31 +167,6 @@ func readSecurityFeature(client *api.RESTClient, path string, statusOnly, allow4
 	return *feature.Enabled, true, nil
 }
 
-// SkippedOperation records a sub-operation that was skipped due to
-// insufficient token scope.
-type SkippedOperation struct {
-	Operation Operation
-	Err       error // *ErrInsufficientScope
-}
-
-// ApplyResult collects the outcome of ApplyRepoSettings. Skipped lists
-// operations that failed with access errors and were gracefully skipped.
-type ApplyResult struct {
-	Skipped []SkippedOperation
-}
-
-// recordAccessError appends the operation to result.Skipped when err is an
-// access error, and reports whether it did. Other errors are left to the
-// caller to return as hard failures.
-func recordAccessError(result *ApplyResult, operation Operation, err error) bool {
-	classified := classifyHTTPError(err, operation)
-	if !isAccessError(classified) {
-		return false
-	}
-	result.Skipped = append(result.Skipped, SkippedOperation{Operation: operation, Err: classified})
-	return true
-}
-
 // ApplyRepoSettings sends a PATCH /repos/{owner}/{repo} with the declared
 // settings. It also handles fields that require separate API endpoints:
 // security features, topics, and Actions workflow permissions. Access errors

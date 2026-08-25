@@ -39,6 +39,31 @@ type Operation struct {
 	Label  string
 }
 
+// SkippedOperation records a sub-operation that was skipped due to
+// insufficient token scope.
+type SkippedOperation struct {
+	Operation Operation
+	Err       error // *ErrInsufficientScope
+}
+
+// ApplyResult collects the outcome of an apply operation. Skipped lists
+// operations that failed with access errors and were gracefully skipped.
+type ApplyResult struct {
+	Skipped []SkippedOperation
+}
+
+// recordAccessError appends the operation to result.Skipped when err is an
+// access error, and reports whether it did. Other errors are left to the
+// caller to return as hard failures.
+func recordAccessError(result *ApplyResult, operation Operation, err error) bool {
+	classified := classifyHTTPError(err, operation)
+	if !isAccessError(classified) {
+		return false
+	}
+	result.Skipped = append(result.Skipped, SkippedOperation{Operation: operation, Err: classified})
+	return true
+}
+
 // Op wraps a parameterless kind in an Operation.
 func Op(kind OperationKind) Operation {
 	return Operation{Kind: kind}
