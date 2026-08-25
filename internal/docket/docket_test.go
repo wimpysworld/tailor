@@ -98,11 +98,42 @@ func TestRun(t *testing.T) {
 			wantAuth: "not authenticated",
 		},
 		{
+			name: "token rejected as unauthenticated",
+			opts: docketTestOpts{
+				token:     "gho_expired",
+				repoOwner: "octocat",
+				repoName:  "my-project",
+				apiStatus: http.StatusUnauthorized,
+				apiBody:   `{"message":"Bad credentials"}`,
+			},
+			wantUser: "(none)",
+			wantRepo: "octocat/my-project",
+			wantAuth: "not authenticated",
+		},
+		{
+			name: "forbidden API response",
+			opts: docketTestOpts{
+				token:     "gho_test",
+				apiStatus: http.StatusForbidden,
+				apiBody:   `{"message":"Resource not accessible by integration"}`,
+			},
+			wantErr: true,
+		},
+		{
 			name: "authenticated but API failure",
 			opts: docketTestOpts{
 				token:     "gho_test",
 				apiStatus: http.StatusInternalServerError,
 				apiBody:   `{"message":"Internal Server Error"}`,
+			},
+			wantErr: true,
+		},
+		{
+			name: "malformed API response",
+			opts: docketTestOpts{
+				token:     "gho_test",
+				apiStatus: http.StatusOK,
+				apiBody:   `{"login":`,
 			},
 			wantErr: true,
 		},
@@ -133,6 +164,19 @@ func TestRun(t *testing.T) {
 				t.Errorf("Auth = %q, want %q", result.Auth, tt.wantAuth)
 			}
 		})
+	}
+}
+
+func TestRunTransportFailure(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeNoRepo(t)
+
+	server := httptest.NewServer(http.NotFoundHandler())
+	client := testutil.NewTestClient(t, server)
+	server.Close()
+
+	if _, err := Run(client); err == nil {
+		t.Fatal("Run() expected transport error, got nil")
 	}
 }
 

@@ -1,7 +1,9 @@
 package docket
 
 import (
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/api"
@@ -33,7 +35,6 @@ func Run(client *api.RESTClient) (*Result, error) {
 	if err := gh.CheckAuth(); err != nil {
 		return r, nil
 	}
-	r.Auth = "authenticated"
 
 	if client == nil {
 		var err error
@@ -45,9 +46,14 @@ func Run(client *api.RESTClient) (*Result, error) {
 
 	username, err := gh.FetchUsername(client)
 	if err != nil {
+		var httpErr *api.HTTPError
+		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusUnauthorized {
+			return r, nil
+		}
 		return nil, err
 	}
 	r.User = username
+	r.Auth = "authenticated"
 
 	return r, nil
 }
