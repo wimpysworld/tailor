@@ -1,8 +1,10 @@
 package measure
 
 import (
-	"bytes"
 	"cmp"
+	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -46,57 +48,59 @@ var (
 	}
 )
 
-// hasCompleteInlineLink reports whether offset starts a balanced Markdown
-// inline-link destination. Backslashes escape the following byte.
-func hasCompleteInlineLink(data []byte, offset int) bool {
-	if offset >= len(data) || data[offset] != '(' {
-		return false
-	}
-
-	depth := 0
-	for i := offset; i < len(data); i++ {
+// completeInlineLinks returns, for each '(' in data, whether it starts a
+// balanced Markdown inline-link destination. Backslashes escape the
+// following byte.
+func completeInlineLinks(data []byte) []bool {
+	complete := make([]bool, len(data))
+	var open []int
+	for i := 0; i < len(data); i++ {
 		switch data[i] {
 		case '\\':
 			i++
 		case '(':
-			depth++
+			open = append(open, i)
 		case ')':
-			depth--
-			if depth == 0 {
-				return true
+			if n := len(open); n > 0 {
+				complete[open[n-1]] = true
+				open = open[:n-1]
 			}
 		}
 	}
-	return false
+	return complete
 }
 
 // hasUnresolvedPlaceholders reports whether data contains a known unresolved
-// token inside matching square or curly delimiters.
+// token inside matching square or curly delimiters. A single forward pass
+// pairs each closing delimiter with the nearest unconsumed opener of its
+// kind; an earlier opener cannot match because its content contains another
+// opening delimiter, which no placeholder name allows.
 func hasUnresolvedPlaceholders(data []byte) bool {
-	for start, open := range data {
-		var closer byte
-		switch open {
-		case '[':
-			closer = ']'
-		case '{':
-			closer = '}'
-		default:
-			continue
-		}
+	inlineLinks := completeInlineLinks(data)
+	lastOpen := map[byte]int{'[': -1, '{': -1}
+	for end, b := range data {
+		switch b {
+		case '[', '{':
+			lastOpen[b] = end
+		case ']', '}':
+			opener := byte('[')
+			if b == '}' {
+				opener = '{'
+			}
+			start := lastOpen[opener]
+			if start < 0 {
+				continue
+			}
+			lastOpen[opener] = -1
+			if opener == '[' && end+1 < len(data) && inlineLinks[end+1] {
+				continue
+			}
 
-		end := bytes.IndexByte(data[start+1:], closer)
-		if end < 0 {
-			continue
-		}
-		end += start + 1
-		if open == '[' && hasCompleteInlineLink(data, end+1) {
-			continue
-		}
-
-		name := placeholderWhitespaceRe.ReplaceAllString(string(data[start+1:end]), " ")
-		name = strings.ToLower(strings.Trim(name, " "))
-		if _, ok := placeholderNames[name]; ok {
-			return true
+			name := placeholderWhitespaceRe.ReplaceAllString(string(data[start+1:end]), " ")
+			name = strings.ToLower(strings.Trim(name, " "))
+			if _, ok := placeholderNames[name]; ok {
+				return true
+			}
 		}
 	}
 	return false
@@ -105,8 +109,45 @@ func hasUnresolvedPlaceholders(data []byte) bool {
 // readmeFile is the exact filename checked as a local health diagnostic.
 const readmeFile = "README.md"
 
+// maxLicenceSize caps the licence placeholder read, matching the
+// .tailor.yml limit in the config package.
+const maxLicenceSize = 1 << 20
+
+// readLicence reads the licence file at path for the placeholder check. It
+// returns an error when the file is not regular or exceeds maxLicenceSize.
+func readLicence(path string) ([]byte, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("opening licence: %w", err)
+	}
+	defer file.Close()
+
+	// Check the open handle: the path can change to a non-regular file
+	// between the caller's Lstat and Open.
+	info, err := file.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("reading licence metadata: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.New("licence is not a regular file")
+	}
+	if info.Size() > maxLicenceSize {
+		return nil, errors.New("licence exceeds maximum size of 1 MiB")
+	}
+
+	data, err := io.ReadAll(io.LimitReader(file, maxLicenceSize+1))
+	if err != nil {
+		return nil, fmt.Errorf("reading licence: %w", err)
+	}
+	if len(data) > maxLicenceSize {
+		return nil, errors.New("licence exceeds maximum size of 1 MiB")
+	}
+	return data, nil
+}
+
 // CheckHealth checks whether each health swatch path, the LICENSE file, and
-// README.md exist in dir. LICENSE files containing unresolved placeholder
+// README.md exist in dir as regular files; symlinks and other non-regular
+// files count as absent. LICENSE files containing unresolved placeholder
 // tokens are reported as warnings rather than present. A missing README.md
 // is reported as a warning. Returns results sorted lexicographically by path
 // within each status group (missing, warning, present).
@@ -121,12 +162,12 @@ func CheckHealth(dir string) []HealthResult {
 	var missing, warning, present []HealthResult
 	for _, p := range paths {
 		fullPath := filepath.Join(dir, p)
-		if !fsutil.FileExists(fullPath) {
+		if !fsutil.IsRegularFile(fullPath) {
 			missing = append(missing, HealthResult{Path: p, Status: Missing})
 			continue
 		}
 		if p == swatch.LicenseDestination {
-			data, err := os.ReadFile(fullPath)
+			data, err := readLicence(fullPath)
 			if err == nil && hasUnresolvedPlaceholders(data) {
 				warning = append(warning, HealthResult{
 					Path:   p,
@@ -140,7 +181,7 @@ func CheckHealth(dir string) []HealthResult {
 	}
 
 	// README.md is a local diagnostic, not a swatch. Warn when absent.
-	if !fsutil.FileExists(filepath.Join(dir, readmeFile)) {
+	if !fsutil.IsRegularFile(filepath.Join(dir, readmeFile)) {
 		warning = append(warning, HealthResult{
 			Path:   readmeFile,
 			Status: Warning,

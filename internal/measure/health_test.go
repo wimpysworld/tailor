@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -375,6 +376,144 @@ func TestCheckHealthReadmePresent(t *testing.T) {
 		if r.Path == "README.md" {
 			t.Errorf("README.md should not appear in results when present, got status %q", r.Status)
 		}
+	}
+}
+
+func TestCheckHealthLicenseHardening(t *testing.T) {
+	placeholderContent := "MIT License\n\nCopyright (c) [year] [fullname]\n"
+
+	tests := []struct {
+		name       string
+		setup      func(t *testing.T, dir string)
+		wantStatus HealthStatus
+		wantDetail string
+	}{
+		{
+			name: "symlinked licence is missing",
+			setup: func(t *testing.T, dir string) {
+				target := filepath.Join(dir, "target.txt")
+				if err := os.WriteFile(target, []byte(placeholderContent), 0o644); err != nil {
+					t.Fatalf("WriteFile: %v", err)
+				}
+				if err := os.Symlink(target, filepath.Join(dir, "LICENSE")); err != nil {
+					t.Fatalf("Symlink: %v", err)
+				}
+			},
+			wantStatus: Missing,
+		},
+		{
+			name: "over-limit licence skips the placeholder check",
+			setup: func(t *testing.T, dir string) {
+				content := make([]byte, 1<<20+1)
+				copy(content, placeholderContent)
+				if err := os.WriteFile(filepath.Join(dir, "LICENSE"), content, 0o644); err != nil {
+					t.Fatalf("WriteFile: %v", err)
+				}
+			},
+			wantStatus: Present,
+		},
+		{
+			name: "licence with placeholders warns",
+			setup: func(t *testing.T, dir string) {
+				if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(placeholderContent), 0o644); err != nil {
+					t.Fatalf("WriteFile: %v", err)
+				}
+			},
+			wantStatus: Warning,
+			wantDetail: "(contains unresolved placeholders)",
+		},
+		{
+			name: "resolved licence is present",
+			setup: func(t *testing.T, dir string) {
+				content := "MIT License\n\nCopyright (c) 2024 Jane Smith\n"
+				if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
+					t.Fatalf("WriteFile: %v", err)
+				}
+			},
+			wantStatus: Present,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tt.setup(t, dir)
+
+			results := CheckHealth(dir)
+
+			for _, r := range results {
+				if r.Path == "LICENSE" {
+					if r.Status != tt.wantStatus {
+						t.Errorf("LICENSE status = %q, want %q", r.Status, tt.wantStatus)
+					}
+					if r.Detail != tt.wantDetail {
+						t.Errorf("LICENSE detail = %q, want %q", r.Detail, tt.wantDetail)
+					}
+					return
+				}
+			}
+			t.Error("LICENSE not found in results")
+		})
+	}
+}
+
+func TestCheckHealthSymlinkedReadmeWarns(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.md")
+	if err := os.WriteFile(target, []byte("# Project\n"), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.Symlink(target, filepath.Join(dir, "README.md")); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	results := CheckHealth(dir)
+
+	for _, r := range results {
+		if r.Path == "README.md" {
+			if r.Status != Warning {
+				t.Errorf("symlinked README.md: status = %q, want %q", r.Status, Warning)
+			}
+			return
+		}
+	}
+	t.Error("README.md not found in results")
+}
+
+func TestHasUnresolvedPlaceholdersAdversarialContentStaysFast(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{
+			name:    "many opens before one closer",
+			content: strings.Repeat("[", 1<<19) + "]",
+			want:    false,
+		},
+		{
+			name:    "repeated unbalanced links",
+			content: strings.Repeat("[a](", 1<<17),
+			want:    false,
+		},
+		{
+			name:    "unbalanced links before placeholder",
+			content: strings.Repeat("[a](", 1<<17) + "[year]",
+			want:    true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			start := time.Now()
+			got := hasUnresolvedPlaceholders([]byte(tt.content))
+			if elapsed := time.Since(start); elapsed > 5*time.Second {
+				t.Errorf("hasUnresolvedPlaceholders took %v, want under 5s", elapsed)
+			}
+			if got != tt.want {
+				t.Errorf("hasUnresolvedPlaceholders() = %v, want %v", got, tt.want)
+			}
+		})
 	}
 }
 
