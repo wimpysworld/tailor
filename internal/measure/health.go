@@ -11,7 +11,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/wimpysworld/tailor/internal/fsutil"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -145,12 +144,24 @@ func readLicence(path string) ([]byte, error) {
 	return data, nil
 }
 
+// isRegularFile reports whether path is a regular file inside root. The
+// leaf is not followed, so a symlink is never a regular file, and rooted
+// resolution rejects parent symlinks that leave the root.
+func isRegularFile(root *os.Root, path string) bool {
+	if root == nil {
+		return false
+	}
+	info, err := root.Lstat(path)
+	return err == nil && info.Mode().IsRegular()
+}
+
 // CheckHealth checks whether each health swatch path, the LICENSE file, and
-// README.md exist in dir as regular files; symlinks and other non-regular
-// files count as absent. LICENSE files containing unresolved placeholder
-// tokens are reported as warnings rather than present. A missing README.md
-// is reported as a warning. Returns results sorted lexicographically by path
-// within each status group (missing, warning, present).
+// README.md exist in dir as regular files; symlinks, paths whose parents
+// resolve outside dir, and other non-regular files count as absent. LICENSE
+// files containing unresolved placeholder tokens are reported as warnings
+// rather than present. A missing README.md is reported as a warning. Returns
+// results sorted lexicographically by path within each status group
+// (missing, warning, present).
 func CheckHealth(dir string) []HealthResult {
 	healthSwatches := swatch.HealthSwatches()
 	paths := make([]string, 0, len(healthSwatches)+1)
@@ -159,15 +170,22 @@ func CheckHealth(dir string) []HealthResult {
 	}
 	paths = append(paths, swatch.LicenseDestination)
 
+	// Rooted access confines path resolution to dir, so a symlinked parent
+	// such as .github cannot report files outside the project as present.
+	// When dir cannot be opened, every path counts as absent.
+	root, err := os.OpenRoot(dir)
+	if err == nil {
+		defer root.Close()
+	}
+
 	var missing, warning, present []HealthResult
 	for _, p := range paths {
-		fullPath := filepath.Join(dir, p)
-		if !fsutil.IsRegularFile(fullPath) {
+		if !isRegularFile(root, p) {
 			missing = append(missing, HealthResult{Path: p, Status: Missing})
 			continue
 		}
 		if p == swatch.LicenseDestination {
-			data, err := readLicence(fullPath)
+			data, err := readLicence(filepath.Join(dir, p))
 			if err == nil && hasUnresolvedPlaceholders(data) {
 				warning = append(warning, HealthResult{
 					Path:   p,
@@ -181,7 +199,7 @@ func CheckHealth(dir string) []HealthResult {
 	}
 
 	// README.md is a local diagnostic, not a swatch. Warn when absent.
-	if !fsutil.IsRegularFile(filepath.Join(dir, readmeFile)) {
+	if !isRegularFile(root, readmeFile) {
 		warning = append(warning, HealthResult{
 			Path:   readmeFile,
 			Status: Warning,
