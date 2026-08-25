@@ -713,7 +713,7 @@ swatches/
 ├── flake.nix
 ├── justfile
 ├── .github/
-│   ├── dependabot.yml  # includes GitHub Actions and Nix ecosystem updates
+│   ├── dependabot.yml  # includes GitHub Actions, Go modules, and Nix ecosystem updates
 │   ├── FUNDING.yml
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug_report.yml
