@@ -69,9 +69,9 @@ tailor/
 - Always check both fixed retired paths, regardless of config or mode
 - `baste` reports `would remove` without writes
 - `alter` and `alter --recut` report `removed` only after deletion succeeds
-- SHA-256 comparison applies to `always` swatches; substituted swatches (`.github/FUNDING.yml`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/config.yml`, `.tailor.yml`) compare the resolved content hash against the on-disk file
-- `--recut` overwrites everything except `LICENSE`; for `.tailor.yml`, recut overrides `first-fit` to `always` (append-only: missing default entries added, existing entries never modified)
-- Token substitution: `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, `{{SUPPORT_URL}}`, `{{HOMEPAGE_URL}}`
+- Apply SHA-256 comparison only to `always` swatches other than `.tailor.yml`; hash token-bearing content after substitution
+- Keep `.tailor.yml` updates append-only: add missing defaults, but never modify existing entries; `--recut` enables this merge for `first-fit`
+- Substitute `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, and `{{SUPPORT_URL}}` only in their registered embedded swatches
 - Licences fetched via GitHub REST API (`GET /licenses/{id}`), not embedded
 - Several repository settings use separate API endpoints rather than the main repo PATCH: `topics`, `default_workflow_permissions`, and `can_approve_pull_request_reviews`; see `internal/gh/settings.go` for implementation
 - `labels` is a top-level config section with its own API layer (`internal/gh/labels.go`) and alter layer (`internal/alter/labels.go`), separate from repository settings
