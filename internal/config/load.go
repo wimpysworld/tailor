@@ -86,6 +86,9 @@ func parseAndValidate(data []byte, context string) (*Config, error) {
 
 // validate checks the parsed config for structural correctness.
 func validate(cfg *Config) error {
+	if err := validateTopLevelSettings(cfg); err != nil {
+		return err
+	}
 	if err := validateSwatches(cfg, true); err != nil {
 		return err
 	}

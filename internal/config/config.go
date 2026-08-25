@@ -12,6 +12,10 @@ type Config struct {
 	Actions    *model.ActionsSettings    `yaml:"actions,omitempty"`
 	Labels     []model.LabelEntry        `yaml:"labels,omitempty"`
 	Swatches   []SwatchEntry             `yaml:"swatches"`
+
+	// Extra captures any YAML keys not mapped to fields above.
+	// validate rejects these unrecognised top-level settings.
+	Extra map[string]interface{} `yaml:",inline"`
 }
 
 // SwatchEntry describes a single swatch entry in the config file.
