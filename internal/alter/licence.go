@@ -44,16 +44,13 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 	// an existing licence, a destination symlink is removed without being
 	// followed before a write, and anything else is an error.
 	exists := false
+	symlink := false
 	if present {
 		switch {
 		case info.IsDir():
 			return nil, fmt.Errorf("licence destination %q is a directory", licenceDestination)
 		case info.Mode()&os.ModeSymlink != 0:
-			if mode.ShouldWrite() {
-				if err := root.Remove(licenceDestination); err != nil {
-					return nil, fmt.Errorf("removing destination symlink: %w", err)
-				}
-			}
+			symlink = true
 		case !info.Mode().IsRegular():
 			return nil, fmt.Errorf("licence destination %q is not a regular file", licenceDestination)
 		default:
@@ -72,6 +69,11 @@ func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.
 		body, err := gh.FetchLicence(client, cfg.License)
 		if err != nil {
 			return nil, err
+		}
+		if symlink {
+			if err := root.Remove(licenceDestination); err != nil {
+				return nil, fmt.Errorf("removing destination symlink: %w", err)
+			}
 		}
 		if err := writeFile(root, licenceDestination, []byte(body)); err != nil {
 			return nil, err

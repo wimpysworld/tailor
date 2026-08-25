@@ -293,6 +293,37 @@ func TestProcessLicenceAPIErrorPropagated(t *testing.T) {
 	}
 }
 
+func TestProcessLicenceAPIErrorPreservesSymlink(t *testing.T) {
+	dir := t.TempDir()
+	link := filepath.Join(dir, "LICENSE")
+	symlinkOrSkip(t, "target", link)
+
+	server := failingLicenceServer()
+	t.Cleanup(server.Close)
+	client := testutil.NewTestClient(t, server)
+
+	cfg := &config.Config{License: "mit"}
+	_, err := alter.ProcessLicence(cfg, dir, alter.Apply, client, io.Discard)
+	if err == nil {
+		t.Fatal("expected error from API failure, got nil")
+	}
+
+	info, err := os.Lstat(link)
+	if err != nil {
+		t.Fatalf("Lstat() error: %v", err)
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("LICENSE mode = %v, want symlink", info.Mode())
+	}
+	target, err := os.Readlink(link)
+	if err != nil {
+		t.Fatalf("Readlink() error: %v", err)
+	}
+	if target != "target" {
+		t.Errorf("symlink target = %q, want %q", target, "target")
+	}
+}
+
 func TestProcessLicenceNilResultWhenNone(t *testing.T) {
 	dir := t.TempDir()
 	// Put LICENSE on disk so no warning is emitted.
