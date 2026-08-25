@@ -193,7 +193,7 @@ func labelActionName(r LabelResult) (string, bool) {
 func resultLabel(category, annotation string, isSkip bool, mode ApplyMode) string {
 	category = outputCategory(category, mode)
 	if annotation != "" && isSkip {
-		return strings.TrimSuffix(category, ")") + ": " + annotation + "):"
+		return "would skip (insufficient scope: " + annotation + "):"
 	}
 	return category + ":"
 }
