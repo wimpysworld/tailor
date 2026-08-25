@@ -2,6 +2,7 @@ package gh
 
 import (
 	"errors"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"testing"
@@ -84,6 +85,25 @@ func TestRepoContextAtParsesRemoteURLs(t *testing.T) {
 				t.Errorf("RepoContextAt() = %q, %q, %v, want %q, %q, true", owner, name, ok, "wimpysworld", "tailor")
 			}
 		})
+	}
+}
+
+func TestRepoContextAtResolvesSSHAlias(t *testing.T) {
+	configureGitHubHost(t)
+	binDir := t.TempDir()
+	sshPath := filepath.Join(binDir, "ssh")
+	if err := os.WriteFile(sshPath, []byte("#!/bin/sh\nprintf 'hostname github.com\\n'\n"), 0o755); err != nil {
+		t.Fatalf("writing fake ssh: %v", err)
+	}
+	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))
+	dir := initGitRepository(t, "git@github-work:wimpysworld/tailor.git")
+
+	owner, name, ok, err := RepoContextAt(dir)
+	if err != nil {
+		t.Fatalf("RepoContextAt() error = %v", err)
+	}
+	if owner != "wimpysworld" || name != "tailor" || !ok {
+		t.Errorf("RepoContextAt() = %q, %q, %v, want %q, %q, true", owner, name, ok, "wimpysworld", "tailor")
 	}
 }
 
