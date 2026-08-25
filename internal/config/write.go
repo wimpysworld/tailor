@@ -2,7 +2,10 @@ package config
 
 import (
 	"bytes"
+	"crypto/rand"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"reflect"
 	"strings"
@@ -131,7 +134,7 @@ swatches:
 `))
 
 // Write renders cfg to <dir>/.tailor.yml with the given header date and verb.
-func Write(dir string, cfg *Config, date string, verb string) error {
+func Write(dir string, cfg *Config, date string, verb string) (retErr error) {
 	var buf bytes.Buffer
 	if err := configTemplate.Execute(&buf, struct {
 		Date string
@@ -151,8 +154,69 @@ func Write(dir string, cfg *Config, date string, verb string) error {
 	}
 	defer root.Close()
 
-	if err := root.WriteFile(configPath, buf.Bytes(), 0o644); err != nil {
-		return fmt.Errorf("writing config: %w", err)
+	mode := os.FileMode(0o644)
+	info, err := root.Lstat(configPath)
+	switch {
+	case err == nil:
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("writing config: %s is a symbolic link", configPath)
+		}
+		if info.Mode().IsRegular() {
+			mode = info.Mode().Perm()
+		}
+	case !errors.Is(err, fs.ErrNotExist):
+		return fmt.Errorf("inspecting config: %w", err)
+	}
+
+	tempPath := configPath + ".tmp-" + rand.Text()
+	temp, err := root.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	if err != nil {
+		return fmt.Errorf("creating temporary config: %w", err)
+	}
+	tempOpen := true
+	defer func() {
+		if tempOpen {
+			if err := temp.Close(); err != nil {
+				retErr = errors.Join(retErr, fmt.Errorf("closing temporary config: %w", err))
+			}
+		}
+		if tempPath != "" {
+			if err := root.Remove(tempPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				retErr = errors.Join(retErr, fmt.Errorf("removing temporary config: %w", err))
+			}
+		}
+	}()
+
+	if _, err := temp.Write(buf.Bytes()); err != nil {
+		return fmt.Errorf("writing temporary config: %w", err)
+	}
+	if err := temp.Chmod(mode); err != nil {
+		return fmt.Errorf("setting temporary config permissions: %w", err)
+	}
+	if err := temp.Sync(); err != nil {
+		return fmt.Errorf("syncing temporary config: %w", err)
+	}
+	if err := temp.Close(); err != nil {
+		tempOpen = false
+		return fmt.Errorf("closing temporary config: %w", err)
+	}
+	tempOpen = false
+
+	if err := root.Rename(tempPath, configPath); err != nil {
+		return fmt.Errorf("replacing config: %w", err)
+	}
+	tempPath = ""
+
+	rootDir, err := root.Open(".")
+	if err != nil {
+		return fmt.Errorf("opening config directory: %w", err)
+	}
+	if err := rootDir.Sync(); err != nil {
+		_ = rootDir.Close()
+		return fmt.Errorf("syncing config directory: %w", err)
+	}
+	if err := rootDir.Close(); err != nil {
+		return fmt.Errorf("closing config directory: %w", err)
 	}
 
 	return nil

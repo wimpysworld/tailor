@@ -202,6 +202,71 @@ func TestWriteCreatesFile(t *testing.T) {
 	if info.IsDir() {
 		t.Error(".tailor.yml is a directory, want file")
 	}
+	if got, want := info.Mode().Perm(), os.FileMode(0o644); got != want {
+		t.Errorf(".tailor.yml permissions = %v, want %v", got, want)
+	}
+}
+
+func TestWriteReplacesExistingConfig(t *testing.T) {
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, ".tailor.yml")
+	if err := os.WriteFile(configFile, []byte("old config\n"), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	cfg := &Config{
+		License: "MIT",
+		Swatches: []SwatchEntry{
+			{Path: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+	if err := Write(dir, cfg, "2026-08-25", "Refitted"); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+
+	written, err := os.ReadFile(configFile)
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	if strings.Contains(string(written), "old config") {
+		t.Errorf(".tailor.yml still contains old content:\n%s", written)
+	}
+	if !strings.Contains(string(written), "# Refitted by tailor on 2026-08-25") {
+		t.Errorf(".tailor.yml does not contain replacement content:\n%s", written)
+	}
+
+	info, err := os.Stat(configFile)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
+		t.Errorf(".tailor.yml permissions = %v, want preserved %v", got, want)
+	}
+}
+
+func TestWriteCleansUpTemporaryConfigAfterRenameFailure(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, ".tailor.yml"), 0o755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+
+	cfg := &Config{
+		License: "MIT",
+		Swatches: []SwatchEntry{
+			{Path: "justfile", Alteration: swatch.FirstFit},
+		},
+	}
+	if err := Write(dir, cfg, "2026-08-25", "Refitted"); err == nil {
+		t.Fatal("Write() error = nil, want rename error")
+	}
+
+	temps, err := filepath.Glob(filepath.Join(dir, ".tailor.yml.tmp-*"))
+	if err != nil {
+		t.Fatalf("Glob: %v", err)
+	}
+	if len(temps) != 0 {
+		t.Errorf("temporary config files remain after rename failure: %v", temps)
+	}
 }
 
 func TestWriteRejectsConfigSymlinkOutsideProjectRoot(t *testing.T) {
