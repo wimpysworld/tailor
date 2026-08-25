@@ -100,6 +100,43 @@ func TestValidateActions(t *testing.T) {
 	}
 }
 
+func TestValidateActionsPatternsControlCharacters(t *testing.T) {
+	tests := []struct {
+		name    string
+		pattern string
+		wantErr bool
+	}{
+		{name: "ANSI CSI", pattern: "\x1b[31mocto/*", wantErr: true},
+		{name: "OSC 8 hyperlink", pattern: "\x1b]8;;https://evil.example\x07octo/*", wantErr: true},
+		{name: "OSC 52 clipboard write", pattern: "\x1b]52;c;Zm9v\x07octo/*", wantErr: true},
+		{name: "carriage return", pattern: "safe\rspoofed/*", wantErr: true},
+		{name: "C1 CSI", pattern: "\u009b31mocto/*", wantErr: true},
+		{name: "benign owner wildcard", pattern: "octocat/*"},
+		{name: "benign pinned action", pattern: "actions/checkout@v4"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{Actions: &model.ActionsSettings{
+				AllowedActions:  new("selected"),
+				PatternsAllowed: &[]string{tt.pattern},
+			}}
+			err := ValidateActions(cfg)
+			if !tt.wantErr {
+				if err != nil {
+					t.Fatalf("ValidateActions() error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("ValidateActions() returned nil, want error")
+			}
+			if !strings.Contains(err.Error(), "patterns_allowed") || !strings.Contains(err.Error(), "control characters") {
+				t.Errorf("error = %q, want mention of patterns_allowed control characters", err)
+			}
+		})
+	}
+}
+
 func TestValidateCompleteActions(t *testing.T) {
 	completePatterns := []string{}
 	tests := []struct {

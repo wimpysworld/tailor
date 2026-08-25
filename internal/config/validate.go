@@ -91,7 +91,8 @@ func ValidateWorkflowPermissions(cfg *Config) error {
 }
 
 // ValidateActions checks the Actions policy field names, enum values, and
-// selected-action field combinations.
+// selected-action field combinations, and rejects patterns_allowed entries
+// containing control characters.
 func ValidateActions(cfg *Config) error {
 	if cfg.Actions == nil {
 		return nil
@@ -113,6 +114,13 @@ func ValidateActions(cfg *Config) error {
 	selectedFieldsSet := a.GitHubOwnedAllowed != nil || a.VerifiedAllowed != nil || a.PatternsAllowed != nil
 	if selectedFieldsSet && (a.AllowedActions == nil || *a.AllowedActions != "selected") {
 		return fmt.Errorf("github_owned_allowed, verified_allowed, and patterns_allowed require allowed_actions to be %q", "selected")
+	}
+	if a.PatternsAllowed != nil {
+		for i, pattern := range *a.PatternsAllowed {
+			if containsControl(pattern) {
+				return fmt.Errorf("patterns_allowed[%d]: pattern %q contains control characters", i, pattern)
+			}
+		}
 	}
 	return nil
 }
