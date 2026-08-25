@@ -99,7 +99,9 @@ homebrew_casks:
     license: BlueOak-1.0.0
 
 aurs:
-  - name: tailor-bin
+  - ids:
+      - compressed
+    name: tailor-bin
     description: "Ready-to-wear project templates for GitHub repositories."
     homepage: https://github.com/wimpysworld/tailor
     maintainers:
