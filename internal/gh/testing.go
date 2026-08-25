@@ -10,10 +10,12 @@ func SetTokenForHostFunc(fn func(string) (string, string)) func() {
 	return func() { tokenForHost = old }
 }
 
-// SetCurrentRepoFunc replaces the currentRepo function for testing.
+// SetCurrentRepoFunc replaces repository discovery for testing.
 // It returns a restore function for t.Cleanup.
 func SetCurrentRepoFunc(fn func() (repository.Repository, error)) func() {
-	old := currentRepo
-	currentRepo = fn
-	return func() { currentRepo = old }
+	old := currentRepoAt
+	currentRepoAt = func(string) (repository.Repository, error) {
+		return fn()
+	}
+	return func() { currentRepoAt = old }
 }
