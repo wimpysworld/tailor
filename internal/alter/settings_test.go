@@ -118,7 +118,6 @@ func TestProcessRepoSettingsNoRepoContext(t *testing.T) {
 	target := repoTarget(nil, "", "", false)
 	target.Stderr = &stderr
 	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, target)
-
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
