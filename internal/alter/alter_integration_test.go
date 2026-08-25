@@ -16,6 +16,8 @@ import (
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/api"
+	"gopkg.in/yaml.v3"
+
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/ghfake"
@@ -1937,6 +1939,55 @@ swatches:
 	}
 	if !strings.Contains(string(issueData), "{{SUPPORT_URL}}") {
 		t.Error(".github/ISSUE_TEMPLATE/config.yml does not contain raw {{SUPPORT_URL}} token; expected unsubstituted")
+	}
+
+	// Even unsubstituted, the file must parse as YAML with url as a string.
+	if got := issueContactURL(t, issueData); got != "{{SUPPORT_URL}}" {
+		t.Errorf("contact url = %q, want raw {{SUPPORT_URL}} token", got)
+	}
+}
+
+// issueContactURL parses issue template config data as YAML and returns the
+// first contact link URL, failing the test if the data is not valid YAML or
+// the URL is not a plain string.
+func issueContactURL(t *testing.T, data []byte) string {
+	t.Helper()
+	var parsed struct {
+		ContactLinks []struct {
+			URL string `yaml:"url"`
+		} `yaml:"contact_links"`
+	}
+	if err := yaml.Unmarshal(data, &parsed); err != nil {
+		t.Fatalf(".github/ISSUE_TEMPLATE/config.yml is not valid YAML with a string url: %v", err)
+	}
+	if len(parsed.ContactLinks) == 0 {
+		t.Fatal(".github/ISSUE_TEMPLATE/config.yml has no contact_links entries")
+	}
+	return parsed.ContactLinks[0].URL
+}
+
+// TestAlterRunConfigYmlSubstitutedValidYaml verifies that with repo context,
+// the written issue template config is valid YAML whose contact url is the
+// resolved support URL string.
+func TestAlterRunConfigYmlSubstitutedValidYaml(t *testing.T) {
+	configYAML := `license: none
+swatches:
+  - path: .github/ISSUE_TEMPLATE/config.yml
+    alteration: always
+`
+	tc := setupAlterTest(t, configYAML)
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+
+	cfg := loadTestConfig(t, tc.Dir)
+	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+
+	issueData, err := os.ReadFile(filepath.Join(tc.Dir, ".github/ISSUE_TEMPLATE/config.yml"))
+	if err != nil {
+		t.Fatalf(".github/ISSUE_TEMPLATE/config.yml not written: %v", err)
+	}
+	want := "https://github.com/testowner/testrepo/blob/HEAD/SUPPORT.md"
+	if got := issueContactURL(t, issueData); got != want {
+		t.Errorf("contact url = %q, want %q", got, want)
 	}
 }
 
