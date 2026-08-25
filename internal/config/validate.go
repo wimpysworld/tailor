@@ -16,6 +16,17 @@ var (
 	labelHexRegexp = regexp.MustCompile(`^[0-9a-fA-F]{6}$`)
 )
 
+func validateTopLevelSettings(cfg *Config) error {
+	if len(cfg.Extra) == 0 {
+		return nil
+	}
+
+	keys := slices.Sorted(maps.Keys(cfg.Extra))
+	valid := []string{"actions", "labels", "license", "repository", "swatches"}
+	return fmt.Errorf("unrecognised top-level setting %q in config; valid settings: %s",
+		keys[0], strings.Join(valid, ", "))
+}
+
 // ValidatePaths checks that every swatch path in cfg matches a known embedded
 // swatch. Returns an error listing the unrecognised path and all valid paths.
 func ValidatePaths(cfg *Config) error {

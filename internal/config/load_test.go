@@ -34,6 +34,51 @@ func TestLoadValidConfig(t *testing.T) {
 	}
 }
 
+func TestLoadAcceptsSupportedTopLevelSettings(t *testing.T) {
+	dir := t.TempDir()
+	testutil.WriteConfig(t, dir, `license: none
+repository: {}
+actions: {}
+labels: []
+swatches: []
+`)
+
+	if _, err := Load(dir); err != nil {
+		t.Fatalf("Load() error: %v", err)
+	}
+}
+
+func TestLoadRejectsUnknownTopLevelSettings(t *testing.T) {
+	tests := []struct {
+		name string
+		yaml string
+		want string
+	}{
+		{
+			name: "one",
+			yaml: "lables: []\nlicense: none\nswatches: []\n",
+			want: `unrecognised top-level setting "lables" in config; valid settings: actions, labels, license, repository, swatches`,
+		},
+		{
+			name: "multiple use sorted first key",
+			yaml: "zebra: true\nlicense: none\nswatches: []\nalpaca: true\n",
+			want: `unrecognised top-level setting "alpaca" in config; valid settings: actions, labels, license, repository, swatches`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			testutil.WriteConfig(t, dir, tt.yaml)
+
+			_, err := Load(dir)
+			if err == nil || err.Error() != tt.want {
+				t.Fatalf("Load() error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestLoadMissingFile(t *testing.T) {
 	dir := t.TempDir()
 	_, err := Load(dir)
