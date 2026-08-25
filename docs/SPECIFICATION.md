@@ -552,8 +552,6 @@ Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT
 license: BlueOak-1.0.0
 
 repository:
-  description: ""
-  homepage: "{{HOMEPAGE_URL}}"
   has_wiki: false
   has_discussions: false
   has_projects: false
