@@ -15,7 +15,7 @@ type Config struct {
 
 	// Extra captures any YAML keys not mapped to fields above.
 	// validate rejects these unrecognised top-level settings.
-	Extra map[string]interface{} `yaml:",inline"`
+	Extra map[string]any `yaml:",inline"`
 }
 
 // SwatchEntry describes a single swatch entry in the config file.

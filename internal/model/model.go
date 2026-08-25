@@ -24,7 +24,7 @@ type ActionsSettings struct {
 
 	// Extra captures any YAML keys not mapped to struct fields above.
 	// ValidateActions uses this to reject unrecognised settings.
-	Extra map[string]interface{} `yaml:",inline"`
+	Extra map[string]any `yaml:",inline"`
 }
 
 // LabelNeedsUpdate reports whether existing differs from desired in name casing,
@@ -66,7 +66,7 @@ type RepositorySettings struct {
 
 	// Extra captures any YAML keys not mapped to struct fields above.
 	// ValidateRepoSettings uses this to reject unrecognised settings.
-	Extra map[string]interface{} `yaml:",inline"`
+	Extra map[string]any `yaml:",inline"`
 }
 
 // RepositorySettingField describes one supported setting field, keyed by its
