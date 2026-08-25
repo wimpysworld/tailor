@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/alter"
@@ -277,29 +279,148 @@ func TestProcessLicenceNilResultWhenNone(t *testing.T) {
 	}
 }
 
-func TestProcessLicenceSymlinkEscapeRejectsWrite(t *testing.T) {
-	dir := t.TempDir()
-	outside := filepath.Join(t.TempDir(), "LICENSE")
-	if err := os.WriteFile(outside, []byte("outside"), 0o644); err != nil {
-		t.Fatal(err)
+func TestProcessLicenceDestinationPolicy(t *testing.T) {
+	body := "new licence"
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, dir string)
+		wantErr  string
+		wantSkip bool
+		check    func(t *testing.T, dir string)
+	}{
+		{
+			name: "regular file skipped",
+			setup: func(t *testing.T, dir string) {
+				writeOnDisk(t, dir, "LICENSE", []byte("existing"))
+			},
+			wantSkip: true,
+			check: func(t *testing.T, dir string) {
+				data, err := os.ReadFile(filepath.Join(dir, "LICENSE"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(data) != "existing" {
+					t.Errorf("existing LICENSE changed to %q", data)
+				}
+			},
+		},
+		{
+			name: "directory rejected",
+			setup: func(t *testing.T, dir string) {
+				if err := os.Mkdir(filepath.Join(dir, "LICENSE"), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			},
+			wantErr: `licence destination "LICENSE" is a directory`,
+		},
+		{
+			name: "dangling symlink replaced",
+			setup: func(t *testing.T, dir string) {
+				symlinkOrSkip(t, "missing", filepath.Join(dir, "LICENSE"))
+			},
+			check: func(t *testing.T, dir string) {
+				if _, err := os.Lstat(filepath.Join(dir, "missing")); !os.IsNotExist(err) {
+					t.Errorf("dangling target exists or returned an unexpected error: %v", err)
+				}
+			},
+		},
+		{
+			name: "in-root symlink replaced without following",
+			setup: func(t *testing.T, dir string) {
+				writeOnDisk(t, dir, "target", []byte("unchanged"))
+				symlinkOrSkip(t, "target", filepath.Join(dir, "LICENSE"))
+			},
+			check: func(t *testing.T, dir string) {
+				data, err := os.ReadFile(filepath.Join(dir, "target"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(data) != "unchanged" {
+					t.Errorf("symlink target changed to %q", data)
+				}
+			},
+		},
+		{
+			name: "escaping symlink replaced without following",
+			setup: func(t *testing.T, dir string) {
+				outside := filepath.Join(t.TempDir(), "LICENSE")
+				if err := os.WriteFile(outside, []byte("outside"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				symlinkOrSkip(t, outside, filepath.Join(dir, "LICENSE"))
+				t.Cleanup(func() {
+					data, err := os.ReadFile(outside)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if string(data) != "outside" {
+						t.Errorf("outside LICENSE changed to %q", data)
+					}
+				})
+			},
+		},
+		{
+			name: "special file rejected",
+			setup: func(t *testing.T, dir string) {
+				if err := syscall.Mkfifo(filepath.Join(dir, "LICENSE"), 0o644); err != nil {
+					t.Skipf("mkfifo unavailable: %v", err)
+				}
+			},
+			wantErr: `licence destination "LICENSE" is not a regular file`,
+		},
 	}
-	symlinkOrSkip(t, outside, filepath.Join(dir, "LICENSE"))
 
-	server := licenceServer("new licence")
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tt.setup(t, dir)
 
-	cfg := &config.Config{License: "mit"}
-	_, err := alter.ProcessLicence(cfg, dir, alter.Apply, client)
-	if err == nil {
-		t.Fatal("expected symlink escape write error, got nil")
-	}
+			server := licenceServer(body)
+			t.Cleanup(server.Close)
+			client := testutil.NewTestClient(t, server)
 
-	data, err := os.ReadFile(outside)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if string(data) != "outside" {
-		t.Fatalf("outside LICENSE changed to %q", string(data))
+			cfg := &config.Config{License: "mit"}
+			result, err := alter.ProcessLicence(cfg, dir, alter.Apply, client)
+			if tt.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %v, want substring %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ProcessLicence() error: %v", err)
+			}
+			if result == nil {
+				t.Fatal("expected non-nil result")
+			}
+
+			if tt.wantSkip {
+				if result.Category != alter.Skipped || result.Reason != alter.SkipFirstFitExists {
+					t.Errorf("result = %+v, want skipped because first-fit destination exists", result)
+				}
+			} else {
+				if result.Category != alter.WouldCopy {
+					t.Errorf("category = %q, want %q", result.Category, alter.WouldCopy)
+				}
+				info, err := os.Lstat(filepath.Join(dir, "LICENSE"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !info.Mode().IsRegular() {
+					t.Errorf("LICENSE mode = %v, want regular file", info.Mode())
+				}
+				data, err := os.ReadFile(filepath.Join(dir, "LICENSE"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if string(data) != body {
+					t.Errorf("LICENSE content = %q, want %q", data, body)
+				}
+			}
+
+			if tt.check != nil {
+				tt.check(t, dir)
+			}
+		})
 	}
 }
