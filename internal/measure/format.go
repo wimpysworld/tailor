@@ -3,6 +3,8 @@ package measure
 import (
 	"fmt"
 	"strings"
+
+	"github.com/wimpysworld/tailor/internal/termtext"
 )
 
 // labelWidth is the fixed column width for status labels in formatted output.
@@ -39,5 +41,7 @@ func writeResultLine(b *strings.Builder, label, path, detail string) {
 	if detail != "" {
 		path += " " + detail
 	}
-	fmt.Fprintf(b, "%-*s%s\n", labelWidth, label, path)
+	// Paths and details can carry values from .tailor.yml, so render
+	// control characters as visible escapes.
+	fmt.Fprintf(b, "%-*s%s\n", labelWidth, label, termtext.EscapeControlText(path))
 }
