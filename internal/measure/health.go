@@ -111,6 +111,10 @@ const readmeFile = "README.md"
 // .tailor.yml limit in the config package.
 const maxLicenceSize = 1 << 20
 
+// errLicenceTooLarge marks a licence that exceeds maxLicenceSize, so the
+// health check can name the reason the file was not inspected.
+var errLicenceTooLarge = errors.New("licence exceeds maximum size of 1 MiB")
+
 // readLicence reads the licence file at path inside root for the
 // placeholder check. It returns an error when the file is not regular or
 // exceeds maxLicenceSize.
@@ -132,7 +136,7 @@ func readLicence(root *os.Root, path string) ([]byte, error) {
 		return nil, errors.New("licence is not a regular file")
 	}
 	if info.Size() > maxLicenceSize {
-		return nil, errors.New("licence exceeds maximum size of 1 MiB")
+		return nil, errLicenceTooLarge
 	}
 
 	data, err := io.ReadAll(io.LimitReader(file, maxLicenceSize+1))
@@ -140,7 +144,7 @@ func readLicence(root *os.Root, path string) ([]byte, error) {
 		return nil, fmt.Errorf("reading licence: %w", err)
 	}
 	if len(data) > maxLicenceSize {
-		return nil, errors.New("licence exceeds maximum size of 1 MiB")
+		return nil, errLicenceTooLarge
 	}
 	return data, nil
 }
@@ -160,7 +164,8 @@ func isRegularFile(root *os.Root, path string) bool {
 // README.md exist in dir as regular files; symlinks, paths whose parents
 // resolve outside dir, and other non-regular files count as absent. LICENSE
 // files containing unresolved placeholder tokens are reported as warnings
-// rather than present. A missing README.md is reported as a warning. Returns
+// rather than present, as are LICENSE files that exist but could not be
+// inspected. A missing README.md is reported as a warning. Returns
 // results sorted lexicographically by path within each status group
 // (missing, warning, present).
 func CheckHealth(dir string) []HealthResult {
@@ -187,7 +192,21 @@ func CheckHealth(dir string) []HealthResult {
 		}
 		if p == swatch.LicenseDestination {
 			data, err := readLicence(root, p)
-			if err == nil && hasUnresolvedPlaceholders(data) {
+			if err != nil {
+				// The licence exists but was not inspected, so present
+				// would overstate what the check verified. Warn instead.
+				detail := "(not inspected: read failed)"
+				if errors.Is(err, errLicenceTooLarge) {
+					detail = "(not inspected: exceeds 1 MiB)"
+				}
+				warning = append(warning, HealthResult{
+					Path:   p,
+					Status: Warning,
+					Detail: detail,
+				})
+				continue
+			}
+			if hasUnresolvedPlaceholders(data) {
 				warning = append(warning, HealthResult{
 					Path:   p,
 					Status: Warning,

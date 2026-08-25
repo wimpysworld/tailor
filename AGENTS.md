@@ -55,7 +55,7 @@ tailor/
 - Commands that call `gh` should have their external calls abstracted behind interfaces for testability
 - Test authentication through local `GH_TOKEN`, `GITHUB_TOKEN`, and `gh` credential paths only
 - `measure` is purely local and needs no mocking
-- `measure` emits `warning` results for two local health diagnostics: missing `README.md` (not managed by tailor) and `LICENSE` files containing unresolved placeholder tokens (e.g. `[year]`, `[fullname]`)
+- `measure` emits `warning` results for three local health diagnostics: missing `README.md` (not managed by tailor), `LICENSE` files containing unresolved placeholder tokens (e.g. `[year]`, `[fullname]`), and `LICENSE` files that exist but were not inspected (over 1 MiB or unreadable)
 - `README.md` is checked by exact path at the project root; it is a local diagnostic, not a swatch or config-diff item
 
 ## Key implementation details
