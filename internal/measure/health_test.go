@@ -457,6 +457,40 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 	}
 }
 
+func TestCheckHealthSymlinkedParentEscapingProjectIsMissing(t *testing.T) {
+	base := t.TempDir()
+
+	// Populate a directory outside the project with the .github health files.
+	outside := filepath.Join(base, "outside")
+	githubFiles := []string{
+		"FUNDING.yml",
+		"dependabot.yml",
+		"pull_request_template.md",
+		"ISSUE_TEMPLATE/bug_report.yml",
+		"ISSUE_TEMPLATE/feature_request.yml",
+		"ISSUE_TEMPLATE/config.yml",
+	}
+	for _, f := range githubFiles {
+		testutil.CreateFile(t, outside, f)
+	}
+
+	dir := filepath.Join(base, "project")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, ".github")); err != nil {
+		t.Fatalf("Symlink: %v", err)
+	}
+
+	results := CheckHealth(dir)
+
+	for _, r := range results {
+		if strings.HasPrefix(r.Path, ".github/") && r.Status != Missing {
+			t.Errorf("%q behind escaping symlinked parent: status = %q, want %q", r.Path, r.Status, Missing)
+		}
+	}
+}
+
 func TestCheckHealthSymlinkedReadmeWarns(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target.md")
