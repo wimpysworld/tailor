@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -187,7 +188,7 @@ func ValidateLabels(cfg *Config) error {
 		if l.Name == "" {
 			return fmt.Errorf("label[%d]: name must not be empty", i)
 		}
-		if len(l.Name) > 50 {
+		if utf8.RuneCountInString(l.Name) > 50 {
 			return fmt.Errorf("label[%d]: name %q exceeds 50 characters", i, l.Name)
 		}
 		if containsControl(l.Name) {
@@ -202,7 +203,7 @@ func ValidateLabels(cfg *Config) error {
 		if l.Description == "" {
 			return fmt.Errorf("label[%d]: description must not be empty", i)
 		}
-		if len(l.Description) > 100 {
+		if utf8.RuneCountInString(l.Description) > 100 {
 			return fmt.Errorf("label[%d]: description exceeds 100 characters", i)
 		}
 		if containsControl(l.Description) {
