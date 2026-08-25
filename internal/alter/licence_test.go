@@ -152,7 +152,6 @@ func TestProcessLicenceWarningWhenNoneAndNoFile(t *testing.T) {
 
 	var stderr strings.Builder
 	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client, &stderr)
-
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
 	}
@@ -178,7 +177,6 @@ func TestProcessLicenceWarningWhenEmptyAndNoFile(t *testing.T) {
 
 	var stderr strings.Builder
 	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client, &stderr)
-
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
 	}
@@ -200,7 +198,6 @@ func TestProcessLicenceNoWarningWhenConfigured(t *testing.T) {
 
 	var stderr strings.Builder
 	_, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client, &stderr)
-
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
 	}
@@ -221,7 +218,6 @@ func TestProcessLicenceNoWarningWhenFileExistsAndNone(t *testing.T) {
 
 	var stderr strings.Builder
 	result, err := alter.ProcessLicence(cfg, dir, alter.DryRun, client, &stderr)
-
 	if err != nil {
 		t.Fatalf("ProcessLicence() error: %v", err)
 	}

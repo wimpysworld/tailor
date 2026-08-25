@@ -317,7 +317,6 @@ func captureAlterRun(t *testing.T, cfg *config.Config, dir string, mode alter.Ap
 
 	var stdout strings.Builder
 	err := alter.Run(cfg, dir, mode, client, &stdout, io.Discard)
-
 	if err != nil {
 		t.Fatalf("alter.Run() error: %v", err)
 	}
