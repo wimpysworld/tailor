@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -9,8 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/ghfake"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
@@ -381,6 +384,122 @@ func TestDocketNotAuthenticated(t *testing.T) {
 	cmd := DocketCmd{}
 	if err := cmd.Run(); err != nil {
 		t.Fatalf("DocketCmd.Run() error: %v", err)
+	}
+}
+
+func TestRunNoArguments(t *testing.T) {
+	var stdout, stderr strings.Builder
+
+	code := run(nil, &stdout, &stderr)
+
+	if code != 80 {
+		t.Errorf("run() = %d, want 80", code)
+	}
+	if !strings.Contains(stderr.String(), "expected one of") {
+		t.Errorf("stderr = %q, want missing-command error", stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "Usage: tailor") {
+		t.Errorf("stdout = %q, want usage output", stdout.String())
+	}
+}
+
+func TestRunHelp(t *testing.T) {
+	var stdout, stderr strings.Builder
+
+	code := run([]string{"--help"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Errorf("run() = %d, want 0", code)
+	}
+	if !strings.Contains(stdout.String(), "Usage: tailor") {
+		t.Errorf("stdout = %q, want usage output", stdout.String())
+	}
+	if !strings.Contains(stdout.String(), "Bespoke project templates for GitHub repositories.") {
+		t.Errorf("stdout = %q, want description", stdout.String())
+	}
+	for _, command := range []string{"fit", "alter", "baste", "measure", "docket"} {
+		if !strings.Contains(stdout.String(), command) {
+			t.Errorf("stdout missing command %q", command)
+		}
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunVersion(t *testing.T) {
+	var stdout, stderr strings.Builder
+
+	code := run([]string{"--version"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Errorf("run() = %d, want 0", code)
+	}
+	if stdout.String() != version+"\n" {
+		t.Errorf("stdout = %q, want %q", stdout.String(), version+"\n")
+	}
+	if stderr.Len() != 0 {
+		t.Errorf("stderr = %q, want empty", stderr.String())
+	}
+}
+
+func TestRunUnknownFlag(t *testing.T) {
+	var stdout, stderr strings.Builder
+
+	code := run([]string{"--bogus"}, &stdout, &stderr)
+
+	if code != 80 {
+		t.Errorf("run() = %d, want 80", code)
+	}
+	if !strings.Contains(stderr.String(), "unknown flag --bogus") {
+		t.Errorf("stderr = %q, want unknown flag error", stderr.String())
+	}
+}
+
+func TestRunFitWarningsToStderr(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeRepo(t, "octocat", "my-project")
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/user"):
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"login":"octocat"}`)
+		case strings.HasSuffix(r.URL.Path, "/actions/permissions/workflow"):
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message":"forbidden"}`)
+		case strings.HasSuffix(r.URL.Path, "/private-vulnerability-reporting"),
+			strings.HasSuffix(r.URL.Path, "/automated-security-fixes"):
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"enabled":true}`)
+		case strings.HasSuffix(r.URL.Path, "/vulnerability-alerts"):
+			w.WriteHeader(http.StatusNoContent)
+		case strings.HasSuffix(r.URL.Path, "/repos/octocat/my-project"):
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{}`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	restore := gh.SetNewRESTClientFunc(func(string) (*api.RESTClient, error) {
+		return testutil.NewTestClient(t, srv), nil
+	})
+	t.Cleanup(restore)
+
+	dir := t.TempDir()
+	var stdout, stderr strings.Builder
+
+	code := run([]string{"fit", dir}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	if !strings.HasPrefix(stderr.String(), "warning: fetch workflow permissions") {
+		t.Errorf("stderr = %q, want plain warning prefix", stderr.String())
+	}
+	if !strings.HasSuffix(stderr.String(), "\n") {
+		t.Errorf("stderr = %q, want trailing newline", stderr.String())
 	}
 }
 
