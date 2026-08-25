@@ -1,7 +1,7 @@
 blank_issues_enabled: false
 contact_links:
   - name: 🛟 Support
-    url: {{SUPPORT_URL}}
+    url: "{{SUPPORT_URL}}"
     about: Check the support guide before opening an issue.
 #  - name: Code of Conduct Report
 #    url: https://yourproject.org/community-report/
