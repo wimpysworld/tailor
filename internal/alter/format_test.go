@@ -247,14 +247,12 @@ func TestFormatOutputRepoSettingsBeforeSwatches(t *testing.T) {
 	}
 
 	got := FormatOutput(repos, nil, swatches, DryRun)
+	want := "would set:                           repository.has_wiki = false\n" +
+		"would copy:                          CONTRIBUTING.md\n"
 
-	// Repo settings line must appear before swatch line.
-	repoIdx := 0
-	swatchIdx := len("would set:                           repository.has_wiki = false\n")
-	if got[:swatchIdx] != "would set:                           repository.has_wiki = false\n" {
-		t.Errorf("repo settings not first in output:\ngot:\n%s", got)
+	if got != want {
+		t.Errorf("FormatOutput repo settings before swatches:\ngot:\n%s\nwant:\n%s", got, want)
 	}
-	_ = repoIdx
 }
 
 func TestFormatOutputNoTrailingBlankLine(t *testing.T) {
