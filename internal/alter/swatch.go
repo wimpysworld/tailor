@@ -87,7 +87,7 @@ func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode
 		return SwatchResult{}, err
 	}
 
-	exists, err := rootFileExists(root, entry.Path)
+	exists, err := prepareSwatchDestination(root, entry.Path, mode.ShouldWrite())
 	if err != nil {
 		return SwatchResult{}, fmt.Errorf("checking swatch %q: %w", entry.Path, err)
 	}
@@ -141,6 +141,25 @@ func validateSwatchParents(root *os.Root, path string) error {
 		}
 	}
 	return nil
+}
+
+func prepareSwatchDestination(root *os.Root, path string, shouldWrite bool) (bool, error) {
+	info, err := root.Lstat(path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return false, nil
+		}
+		return false, err
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return true, nil
+	}
+	if shouldWrite {
+		if err := root.Remove(path); err != nil {
+			return false, fmt.Errorf("removing destination symlink: %w", err)
+		}
+	}
+	return false, nil
 }
 
 func processAlways(root *os.Root, entry config.SwatchEntry, content []byte, mode ApplyMode) (SwatchResult, error) {

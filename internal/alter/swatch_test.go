@@ -406,3 +406,74 @@ func TestSwatchRejectsInRootRelativeParentSymlink(t *testing.T) {
 		})
 	}
 }
+
+func TestSwatchReplacesDestinationSymlinkWithoutFollowingIt(t *testing.T) {
+	modes := []struct {
+		name       string
+		alteration swatch.AlterationMode
+		mode       alter.ApplyMode
+	}{
+		{name: "always", alteration: swatch.Always, mode: alter.Apply},
+		{name: "first-fit", alteration: swatch.FirstFit, mode: alter.Apply},
+		{name: "recut", alteration: swatch.FirstFit, mode: alter.Recut},
+	}
+	targets := []struct {
+		name   string
+		exists bool
+	}{
+		{name: "existing", exists: true},
+		{name: "dangling", exists: false},
+	}
+
+	for _, mode := range modes {
+		for _, target := range targets {
+			t.Run(mode.name+"/"+target.name, func(t *testing.T) {
+				dir := t.TempDir()
+				managed := ".github/ISSUE_TEMPLATE/bug_report.yml"
+				targetPath := ".github/ISSUE_TEMPLATE/target.yml"
+				if target.exists {
+					writeOnDisk(t, dir, targetPath, []byte("unchanged"))
+				} else if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(managed)), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				symlinkOrSkip(t, filepath.Base(targetPath), filepath.Join(dir, managed))
+
+				cfg := newConfig(entry(managed, mode.alteration))
+				results, err := alter.ProcessSwatches(cfg, dir, mode.mode, &alter.TokenContext{})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(results) != 1 || results[0].Category != alter.WouldCopy {
+					t.Errorf("results = %+v, want one would-copy result", results)
+				}
+
+				info, err := os.Lstat(filepath.Join(dir, managed))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !info.Mode().IsRegular() {
+					t.Errorf("managed path mode = %v, want regular file", info.Mode())
+				}
+				data, err := os.ReadFile(filepath.Join(dir, managed))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if want := mustContent(t, managed); !bytes.Equal(data, want) {
+					t.Error("managed path content does not match embedded swatch")
+				}
+
+				if target.exists {
+					data, err := os.ReadFile(filepath.Join(dir, targetPath))
+					if err != nil {
+						t.Fatal(err)
+					}
+					if string(data) != "unchanged" {
+						t.Errorf("target content = %q, want unchanged", data)
+					}
+				} else if _, err := os.Lstat(filepath.Join(dir, targetPath)); !os.IsNotExist(err) {
+					t.Errorf("dangling target exists or returned an unexpected error: %v", err)
+				}
+			})
+		}
+	}
+}
