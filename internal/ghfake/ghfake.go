@@ -55,7 +55,7 @@ func FakeRepo(t *testing.T, owner, name string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restore := gh.SetCurrentRepoFunc(func() (repository.Repository, error) {
+	restore := gh.SetCurrentRepoFunc(func(string) (repository.Repository, error) {
 		return repo, nil
 	})
 	t.Cleanup(restore)
@@ -64,7 +64,7 @@ func FakeRepo(t *testing.T, owner, name string) {
 // FakeNoRepo installs a currentRepo stub that returns an error.
 func FakeNoRepo(t *testing.T) {
 	t.Helper()
-	restore := gh.SetCurrentRepoFunc(func() (repository.Repository, error) {
+	restore := gh.SetCurrentRepoFunc(func(string) (repository.Repository, error) {
 		return repository.Repository{}, errors.New("not a git repository")
 	})
 	t.Cleanup(restore)
