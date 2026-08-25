@@ -97,7 +97,7 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 		if !found {
 			if err := createLabel(client, owner, repo, d); err != nil {
 				opName := CreateLabelOp(d.Name)
-				if limitErr := labelRateLimitError(err, opName, applied, len(desired)-i); limitErr != nil {
+				if limitErr := labelRateLimitError(err, opName, applied, remainingLabelChanges(desired[i:], currentMap)); limitErr != nil {
 					return nil, limitErr
 				}
 				if recordAccessError(result, opName, err) {
@@ -112,7 +112,7 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 		if model.LabelNeedsUpdate(existing, d) {
 			if err := updateLabel(client, owner, repo, existing.Name, d); err != nil {
 				opName := UpdateLabelOp(d.Name)
-				if limitErr := labelRateLimitError(err, opName, applied, len(desired)-i); limitErr != nil {
+				if limitErr := labelRateLimitError(err, opName, applied, remainingLabelChanges(desired[i:], currentMap)); limitErr != nil {
 					return nil, limitErr
 				}
 				if recordAccessError(result, opName, err) {
@@ -125,6 +125,17 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 	}
 
 	return result, nil
+}
+
+func remainingLabelChanges(desired []model.LabelEntry, current map[string]model.LabelEntry) int {
+	remaining := 0
+	for _, label := range desired {
+		existing, found := current[strings.ToLower(label.Name)]
+		if !found || model.LabelNeedsUpdate(existing, label) {
+			remaining++
+		}
+	}
+	return remaining
 }
 
 // labelRateLimitError classifies err and, when it is a rate-limit error,

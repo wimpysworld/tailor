@@ -739,6 +739,64 @@ func TestApplyLabelsRateLimitStopsLoop(t *testing.T) {
 	}
 }
 
+func TestApplyLabelsRateLimitReportsRemainingChanges(t *testing.T) {
+	desired := []model.LabelEntry{
+		{Name: "unchanged-first", Color: "111111", Description: "same"},
+		{Name: "create-first", Color: "222222", Description: "new"},
+		{Name: "unchanged-middle", Color: "333333", Description: "same"},
+		{Name: "update-middle", Color: "444444", Description: "new"},
+		{Name: "create-final", Color: "555555", Description: "new"},
+		{Name: "unchanged-final", Color: "666666", Description: "same"},
+	}
+	current := []model.LabelEntry{
+		{Name: "unchanged-first", Color: "111111", Description: "same"},
+		{Name: "unchanged-middle", Color: "333333", Description: "same"},
+		{Name: "update-middle", Color: "000000", Description: "old"},
+		{Name: "unchanged-final", Color: "666666", Description: "same"},
+	}
+
+	tests := []struct {
+		name          string
+		failAt        int
+		wantApplied   int
+		wantRemaining int
+	}{
+		{name: "first change", failAt: 1, wantApplied: 0, wantRemaining: 3},
+		{name: "middle change", failAt: 2, wantApplied: 1, wantRemaining: 2},
+		{name: "final change", failAt: 3, wantApplied: 2, wantRemaining: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls++
+				if calls == tt.failAt {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusTooManyRequests)
+					fmt.Fprint(w, `{"message": "Too Many Requests"}`)
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				fmt.Fprint(w, `{}`)
+			}))
+			t.Cleanup(server.Close)
+
+			client := newTestClient(t, server)
+			_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+			if err == nil {
+				t.Fatal("ApplyLabels() expected rate-limit error, got nil")
+			}
+			want := fmt.Sprintf("rate limited while applying labels: %d applied, %d remaining", tt.wantApplied, tt.wantRemaining)
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error = %q, want substring %q", err, want)
+			}
+			if calls != tt.failAt {
+				t.Errorf("API calls = %d, want %d", calls, tt.failAt)
+			}
+		})
+	}
+}
+
 func TestApplyLabelsMixed403AndSuccess(t *testing.T) {
 	// Three labels: create (403), update (success), no-change (no call).
 	// Verifies skipped and applied are both populated correctly.
