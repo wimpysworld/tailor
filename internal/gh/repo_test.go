@@ -70,7 +70,9 @@ func TestRepoContextAtParsesRemoteURLs(t *testing.T) {
 		remote string
 	}{
 		{name: "HTTPS", remote: "https://github.com/wimpysworld/tailor.git"},
-		{name: "SSH", remote: "git@github.com:wimpysworld/tailor.git"},
+		{name: "scp with user", remote: "git@github.com:wimpysworld/tailor.git"},
+		{name: "scp without user", remote: "github.com:wimpysworld/tailor.git"},
+		{name: "git+ssh", remote: "git+ssh://git@github.com/wimpysworld/tailor.git"},
 	}
 
 	for _, tt := range tests {

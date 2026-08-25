@@ -59,8 +59,9 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 			continue
 		}
 		rawURL := fields[1]
-		if strings.HasPrefix(rawURL, "git@") {
-			rawURL = "ssh://" + strings.Replace(rawURL, ":", "/", 1)
+		if authority, path, found := strings.Cut(rawURL, ":"); found &&
+			!strings.Contains(authority, "/") && path != "" && !strings.HasPrefix(path, "//") {
+			rawURL = "ssh://" + authority + "/" + path
 		}
 		remoteURL, parseErr := url.Parse(rawURL)
 		if parseErr != nil {
