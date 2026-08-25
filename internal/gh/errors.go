@@ -37,6 +37,48 @@ func isAccessError(err error) bool {
 	return errors.As(err, &scope)
 }
 
+// ErrRateLimited signals the API rejected the request because the caller
+// exhausted a rate limit.
+type ErrRateLimited struct {
+	StatusCode int
+	Message    string // from JSON body
+	RetryAfter string // from Retry-After header, empty when absent
+	Operation  Operation
+}
+
+func (e *ErrRateLimited) Error() string {
+	msg := fmt.Sprintf("%s: rate limited (HTTP %d): %s", e.Operation, e.StatusCode, e.Message)
+	if e.RetryAfter != "" {
+		msg += fmt.Sprintf(" (retry after %s)", e.RetryAfter)
+	}
+	return msg
+}
+
+// isRateLimitError returns true when err is an *ErrRateLimited.
+func isRateLimitError(err error) bool {
+	var limited *ErrRateLimited
+	return errors.As(err, &limited)
+}
+
+// isRateLimitHTTPError reports whether httpErr is a rate-limit response:
+// any 429, or a 403 with X-RateLimit-Remaining: 0, a Retry-After header,
+// or a rate-limit message.
+func isRateLimitHTTPError(httpErr *api.HTTPError) bool {
+	if httpErr.StatusCode == http.StatusTooManyRequests {
+		return true
+	}
+	if httpErr.StatusCode != http.StatusForbidden {
+		return false
+	}
+	if httpErr.Headers.Get("X-RateLimit-Remaining") == "0" {
+		return true
+	}
+	if httpErr.Headers.Get("Retry-After") != "" {
+		return true
+	}
+	return strings.Contains(strings.ToLower(httpErr.Message), "rate limit")
+}
+
 // parseCSVScopes splits a comma-separated scope header value into a slice,
 // trimming whitespace from each entry. Returns nil for an empty string.
 func parseCSVScopes(header string) []string {
@@ -54,9 +96,11 @@ func parseCSVScopes(header string) []string {
 	return scopes
 }
 
-// classifyHTTPError inspects err for a *api.HTTPError and, on 403 or 404,
-// returns an *ErrInsufficientScope. Non-HTTP errors
-// and non-403/404 HTTP errors pass through unchanged.
+// classifyHTTPError inspects err for a *api.HTTPError. Rate-limit responses
+// (any 429, or a 403 that carries rate-limit evidence) return an
+// *ErrRateLimited; other 403 and 404 responses return an
+// *ErrInsufficientScope. Non-HTTP errors and other HTTP errors pass through
+// unchanged.
 func classifyHTTPError(err error, operation Operation) error {
 	if err == nil {
 		return nil
@@ -65,6 +109,15 @@ func classifyHTTPError(err error, operation Operation) error {
 	var httpErr *api.HTTPError
 	if !errors.As(err, &httpErr) {
 		return err
+	}
+
+	if isRateLimitHTTPError(httpErr) {
+		return &ErrRateLimited{
+			StatusCode: httpErr.StatusCode,
+			Message:    httpErr.Message,
+			RetryAfter: httpErr.Headers.Get("Retry-After"),
+			Operation:  operation,
+		}
 	}
 
 	if httpErr.StatusCode != http.StatusForbidden && httpErr.StatusCode != http.StatusNotFound {

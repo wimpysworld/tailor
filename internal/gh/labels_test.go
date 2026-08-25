@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/model"
@@ -635,6 +636,106 @@ func TestApplyLabelsNon403ErrorStillAborts(t *testing.T) {
 	_, err := ApplyLabels(client, "testowner", "testrepo", desired, nil)
 	if err == nil {
 		t.Fatal("ApplyLabels() expected hard error from 500, got nil")
+	}
+}
+
+func TestApplyLabelsRateLimitStopsLoop(t *testing.T) {
+	// Three new labels: the first POST succeeds, the second returns the
+	// configured error. A rate-limit response must stop the loop before the
+	// third POST; a scope 403 must skip and continue.
+	tests := []struct {
+		name     string
+		status   int
+		headers  map[string]string
+		message  string
+		wantStop bool
+	}{
+		{
+			name:     "403 with X-RateLimit-Remaining zero stops",
+			status:   http.StatusForbidden,
+			headers:  map[string]string{"X-RateLimit-Remaining": "0"},
+			message:  "API rate limit exceeded",
+			wantStop: true,
+		},
+		{
+			name:     "403 with Retry-After stops",
+			status:   http.StatusForbidden,
+			headers:  map[string]string{"Retry-After": "60"},
+			message:  "You have exceeded a secondary rate limit",
+			wantStop: true,
+		},
+		{
+			name:     "403 with rate limit message stops",
+			status:   http.StatusForbidden,
+			message:  "API rate limit exceeded for user",
+			wantStop: true,
+		},
+		{
+			name:     "429 stops",
+			status:   http.StatusTooManyRequests,
+			message:  "Too Many Requests",
+			wantStop: true,
+		},
+		{
+			name:     "scope 403 skips and continues",
+			status:   http.StatusForbidden,
+			message:  "Resource not accessible by integration",
+			wantStop: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			calls := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				if calls == 2 {
+					for k, v := range tt.headers {
+						w.Header().Set(k, v)
+					}
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(tt.status)
+					fmt.Fprintf(w, `{"message": %q}`, tt.message)
+					return
+				}
+				w.WriteHeader(http.StatusCreated)
+				fmt.Fprint(w, `{}`)
+			}))
+			t.Cleanup(server.Close)
+
+			client := newTestClient(t, server)
+			desired := []model.LabelEntry{
+				{Name: "alpha", Color: "aa0000", Description: "first"},
+				{Name: "beta", Color: "bb0000", Description: "second"},
+				{Name: "gamma", Color: "cc0000", Description: "third"},
+			}
+
+			result, err := ApplyLabels(client, "testowner", "testrepo", desired, nil)
+			if !tt.wantStop {
+				if err != nil {
+					t.Fatalf("ApplyLabels() returned hard error: %v", err)
+				}
+				if calls != 3 {
+					t.Fatalf("expected 3 API calls, got %d", calls)
+				}
+				if len(result.Skipped) != 1 {
+					t.Fatalf("expected 1 skipped, got %d", len(result.Skipped))
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("ApplyLabels() expected rate-limit error, got nil")
+			}
+			if calls != 2 {
+				t.Fatalf("expected 2 API calls (loop stops), got %d", calls)
+			}
+			want := "rate limited while applying labels: 1 applied, 2 remaining"
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("error = %q, want substring %q", err, want)
+			}
+			if !isRateLimitError(err) {
+				t.Errorf("error does not unwrap to *ErrRateLimited: %v", err)
+			}
+		})
 	}
 }
 

@@ -78,7 +78,9 @@ func hasNextPage(link string) bool {
 //
 // Access errors (insufficient scope or role) on individual labels are collected
 // in the returned ApplyResult rather than aborting, so a 403 on one label does
-// not prevent others from being applied.
+// not prevent others from being applied. Rate-limit errors abort immediately
+// with a partial-completion error, so the loop does not burn the remaining
+// API budget.
 func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []model.LabelEntry) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
@@ -87,33 +89,53 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 		currentMap[strings.ToLower(l.Name)] = l
 	}
 
-	for _, d := range desired {
+	applied := 0
+	for i, d := range desired {
 		key := strings.ToLower(d.Name)
 		existing, found := currentMap[key]
 
 		if !found {
 			if err := createLabel(client, owner, repo, d); err != nil {
 				opName := CreateLabelOp(d.Name)
+				if limitErr := labelRateLimitError(err, opName, applied, len(desired)-i); limitErr != nil {
+					return nil, limitErr
+				}
 				if recordAccessError(result, opName, err) {
 					continue
 				}
 				return nil, err
 			}
+			applied++
 			continue
 		}
 
 		if model.LabelNeedsUpdate(existing, d) {
 			if err := updateLabel(client, owner, repo, existing.Name, d); err != nil {
 				opName := UpdateLabelOp(d.Name)
+				if limitErr := labelRateLimitError(err, opName, applied, len(desired)-i); limitErr != nil {
+					return nil, limitErr
+				}
 				if recordAccessError(result, opName, err) {
 					continue
 				}
 				return nil, err
 			}
+			applied++
 		}
 	}
 
 	return result, nil
+}
+
+// labelRateLimitError classifies err and, when it is a rate-limit error,
+// wraps it with a partial-completion report. Returns nil for every other
+// error, leaving the caller's access-error and hard-error handling intact.
+func labelRateLimitError(err error, operation Operation, applied, remaining int) error {
+	classified := classifyHTTPError(err, operation)
+	if !isRateLimitError(classified) {
+		return nil
+	}
+	return fmt.Errorf("rate limited while applying labels: %d applied, %d remaining: %w", applied, remaining, classified)
 }
 
 // createLabel sends a POST to create a new label.

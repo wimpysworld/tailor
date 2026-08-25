@@ -314,6 +314,47 @@ func TestValidateLabelsAcceptsEmpty(t *testing.T) {
 	}
 }
 
+func TestValidateLabelsCollectionLimit(t *testing.T) {
+	makeLabels := func(count int) []model.LabelEntry {
+		labels := make([]model.LabelEntry, 0, count)
+		for i := range count {
+			labels = append(labels, model.LabelEntry{
+				Name:        fmt.Sprintf("label-%d", i),
+				Color:       "d73a4a",
+				Description: "desc",
+			})
+		}
+		return labels
+	}
+
+	tests := []struct {
+		name    string
+		count   int
+		wantErr string
+	}{
+		{name: "at limit", count: 1000, wantErr: ""},
+		{name: "over limit", count: 1001, wantErr: "1001 entries exceed the maximum of 1000"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{Labels: makeLabels(tt.count)}
+			err := ValidateLabels(cfg)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateLabels(%d labels): %v", tt.count, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("ValidateLabels(%d labels) expected error, got nil", tt.count)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("error = %q, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestValidateLabelsRejectsEmptyName(t *testing.T) {
 	cfg := &Config{
 		Labels: []model.LabelEntry{
