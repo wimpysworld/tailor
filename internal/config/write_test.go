@@ -431,6 +431,7 @@ func TestWriteHomepageRoundTrips(t *testing.T) {
 		{"plain URL", "https://example.com"},
 		{"contains space", "https://example.com/my page"},
 		{"contains space hash", "https://example.com #fragment"},
+		{"contains colon tab", "https://example.com/a:\tb"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
