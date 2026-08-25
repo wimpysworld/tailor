@@ -2,6 +2,30 @@ package gh
 
 import "testing"
 
+func TestResolveHost(t *testing.T) {
+	tests := []struct {
+		name   string
+		host   string
+		ghHost string
+		want   string
+	}{
+		{name: "non-empty host passes through", host: "ghe.example.com", ghHost: "", want: "ghe.example.com"},
+		{name: "empty host falls back to github.com", host: "", ghHost: "", want: "github.com"},
+		{name: "empty host honours GH_HOST", host: "", ghHost: "ghe.example.com", want: "ghe.example.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GH_CONFIG_DIR", t.TempDir())
+			t.Setenv("GH_HOST", tt.ghHost)
+
+			if got := ResolveHost(tt.host); got != tt.want {
+				t.Errorf("ResolveHost(%q) = %q, want %q", tt.host, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestCheckAuth(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -39,6 +63,8 @@ func TestCheckAuth(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("GH_CONFIG_DIR", t.TempDir())
+			t.Setenv("GH_HOST", "")
 			var gotHost string
 			restore := SetTokenForHostFunc(func(host string) (string, string) {
 				gotHost = host

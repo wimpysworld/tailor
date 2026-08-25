@@ -32,13 +32,17 @@ func Run(client *api.RESTClient) (*Result, error) {
 		r.Repository = repo.Owner + "/" + repo.Name
 	}
 
-	if err := gh.CheckAuth(repo.Host); err != nil {
+	// Resolve one effective host so the auth check and the REST client
+	// cannot disagree when no repository context exists.
+	host := gh.ResolveHost(repo.Host)
+
+	if err := gh.CheckAuth(host); err != nil {
 		return r, nil
 	}
 
 	if client == nil {
 		var err error
-		client, err = gh.NewRESTClient(repo.Host)
+		client, err = gh.NewRESTClient(host)
 		if err != nil {
 			return nil, err
 		}

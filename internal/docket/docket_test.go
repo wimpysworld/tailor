@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/api"
+	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/ghfake"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -164,6 +165,45 @@ func TestRun(t *testing.T) {
 				t.Errorf("Auth = %q, want %q", result.Auth, tt.wantAuth)
 			}
 		})
+	}
+}
+
+func TestRunUsesOneHostForAuthAndClient(t *testing.T) {
+	t.Setenv("GH_CONFIG_DIR", t.TempDir())
+	t.Setenv("GH_HOST", "ghe.example.com")
+	ghfake.FakeNoRepo(t)
+
+	var authHost string
+	restoreToken := gh.SetTokenForHostFunc(func(host string) (string, string) {
+		authHost = host
+		return "gho_test", "oauth_token"
+	})
+	t.Cleanup(restoreToken)
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, `{"login":"octocat"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	var clientHost string
+	restoreClient := gh.SetNewRESTClientFunc(func(host string) (*api.RESTClient, error) {
+		clientHost = host
+		return testutil.NewTestClient(t, server), nil
+	})
+	t.Cleanup(restoreClient)
+
+	result, err := Run(nil)
+	if err != nil {
+		t.Fatalf("Run() error = %v", err)
+	}
+	if result.Auth != "authenticated" {
+		t.Errorf("Auth = %q, want %q", result.Auth, "authenticated")
+	}
+	if authHost != "ghe.example.com" {
+		t.Errorf("auth check host = %q, want %q", authHost, "ghe.example.com")
+	}
+	if clientHost != authHost {
+		t.Errorf("client host = %q, auth check host = %q, want equal hosts", clientHost, authHost)
 	}
 }
 

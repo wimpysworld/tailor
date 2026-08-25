@@ -130,6 +130,23 @@ func TestRepoContextAtResolvesSSHAlias(t *testing.T) {
 	}
 }
 
+func TestRepoContextAtNoAuthenticatedHosts(t *testing.T) {
+	t.Setenv("GH_CONFIG_DIR", t.TempDir())
+	t.Setenv("GH_HOST", "")
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
+	dir := initGitRepository(t, "https://github.com/no-auth/project.git")
+
+	repo, ok, err := RepoContextAt(dir)
+	if err != nil {
+		t.Fatalf("RepoContextAt() error = %v", err)
+	}
+	want := Repo{Host: "github.com", Owner: "no-auth", Name: "project"}
+	if repo != want || !ok {
+		t.Errorf("RepoContextAt() = %+v, %v, want %+v, true", repo, ok, want)
+	}
+}
+
 func TestRepoContextAtNoRemote(t *testing.T) {
 	configureGitHubHost(t)
 	dir := initGitRepository(t, "")
