@@ -10,7 +10,7 @@ type userResponse struct {
 // FetchUsername returns the authenticated user's login via GET /user.
 func FetchUsername(client *api.RESTClient) (string, error) {
 	var resp userResponse
-	if err := client.Get("user", &resp); err != nil {
+	if err := boundedHTTPError(client.Get("user", &resp)); err != nil {
 		return "", err
 	}
 	return resp.Login, nil
