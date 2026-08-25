@@ -18,6 +18,10 @@ var (
 	labelHexRegexp = regexp.MustCompile(`^[0-9a-fA-F]{6}$`)
 )
 
+// maxLabels caps the label list so a misconfigured file cannot drive an
+// unbounded number of API mutations.
+const maxLabels = 1000
+
 func validateTopLevelSettings(cfg *Config) error {
 	if len(cfg.Extra) == 0 {
 		return nil
@@ -174,6 +178,9 @@ func ValidateRepoStringSettings(cfg *Config) error {
 func ValidateLabels(cfg *Config) error {
 	if cfg.Labels == nil {
 		return nil
+	}
+	if len(cfg.Labels) > maxLabels {
+		return fmt.Errorf("labels: %d entries exceed the maximum of %d", len(cfg.Labels), maxLabels)
 	}
 	seen := make(map[string]bool, len(cfg.Labels))
 	for i, l := range cfg.Labels {
