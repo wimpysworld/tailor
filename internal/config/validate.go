@@ -166,13 +166,40 @@ func containsControl(s string) bool {
 	return strings.ContainsFunc(s, unicode.IsControl)
 }
 
-// ValidateRepoStringSettings checks that repository string settings contain no
+// ValidateRepoStringSettings checks repository string enum values and rejects
 // control characters, which could inject terminal control sequences into
 // output. Topics carry their own stricter format validation in ValidateTopics.
 func ValidateRepoStringSettings(cfg *Config) error {
 	if cfg.Repository == nil {
 		return nil
 	}
+
+	enumSettings := []struct {
+		name    string
+		value   *string
+		allowed []string
+	}{
+		{"squash_merge_commit_title", cfg.Repository.SquashMergeCommitTitle, []string{"PR_TITLE", "COMMIT_OR_PR_TITLE"}},
+		{"squash_merge_commit_message", cfg.Repository.SquashMergeCommitMessage, []string{"PR_BODY", "COMMIT_MESSAGES", "BLANK"}},
+		{"merge_commit_title", cfg.Repository.MergeCommitTitle, []string{"PR_TITLE", "MERGE_MESSAGE"}},
+		{"merge_commit_message", cfg.Repository.MergeCommitMessage, []string{"PR_TITLE", "PR_BODY", "BLANK"}},
+	}
+	for _, setting := range enumSettings {
+		if setting.value == nil || slices.Contains(setting.allowed, *setting.value) {
+			continue
+		}
+		quoted := make([]string, len(setting.allowed))
+		for i, value := range setting.allowed {
+			quoted[i] = fmt.Sprintf("%q", value)
+		}
+		separator := " or "
+		if len(quoted) > 2 {
+			separator = ", or "
+		}
+		allowed := strings.Join(quoted[:len(quoted)-1], ", ") + separator + quoted[len(quoted)-1]
+		return fmt.Errorf("invalid %s %q; must be %s", setting.name, *setting.value, allowed)
+	}
+
 	for _, field := range model.RepositorySettingFields(cfg.Repository) {
 		if !field.Set || field.Value.Elem().Kind() != reflect.String {
 			continue

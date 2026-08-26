@@ -699,6 +699,50 @@ func TestValidateRepoStringSettingsAcceptsBenignValues(t *testing.T) {
 	}
 }
 
+func TestValidateRepoStringSettingsMergeEnums(t *testing.T) {
+	tests := []struct {
+		name    string
+		value   string
+		set     func(*model.RepositorySettings, *string)
+		wantErr string
+	}{
+		{name: "squash title PR_TITLE", value: "PR_TITLE", set: func(r *model.RepositorySettings, v *string) { r.SquashMergeCommitTitle = v }},
+		{name: "squash title COMMIT_OR_PR_TITLE", value: "COMMIT_OR_PR_TITLE", set: func(r *model.RepositorySettings, v *string) { r.SquashMergeCommitTitle = v }},
+		{name: "squash title invalid", value: "MERGE_MESSAGE", set: func(r *model.RepositorySettings, v *string) { r.SquashMergeCommitTitle = v }, wantErr: `invalid squash_merge_commit_title "MERGE_MESSAGE"; must be "PR_TITLE" or "COMMIT_OR_PR_TITLE"`},
+		{name: "squash message PR_BODY", value: "PR_BODY", set: func(r *model.RepositorySettings, v *string) { r.SquashMergeCommitMessage = v }},
+		{name: "squash message COMMIT_MESSAGES", value: "COMMIT_MESSAGES", set: func(r *model.RepositorySettings, v *string) { r.SquashMergeCommitMessage = v }},
+		{name: "squash message BLANK", value: "BLANK", set: func(r *model.RepositorySettings, v *string) { r.SquashMergeCommitMessage = v }},
+		{name: "squash message invalid", value: "PR_TITLE", set: func(r *model.RepositorySettings, v *string) { r.SquashMergeCommitMessage = v }, wantErr: `invalid squash_merge_commit_message "PR_TITLE"; must be "PR_BODY", "COMMIT_MESSAGES", or "BLANK"`},
+		{name: "merge title PR_TITLE", value: "PR_TITLE", set: func(r *model.RepositorySettings, v *string) { r.MergeCommitTitle = v }},
+		{name: "merge title MERGE_MESSAGE", value: "MERGE_MESSAGE", set: func(r *model.RepositorySettings, v *string) { r.MergeCommitTitle = v }},
+		{name: "merge title invalid", value: "COMMIT_OR_PR_TITLE", set: func(r *model.RepositorySettings, v *string) { r.MergeCommitTitle = v }, wantErr: `invalid merge_commit_title "COMMIT_OR_PR_TITLE"; must be "PR_TITLE" or "MERGE_MESSAGE"`},
+		{name: "merge message PR_TITLE", value: "PR_TITLE", set: func(r *model.RepositorySettings, v *string) { r.MergeCommitMessage = v }},
+		{name: "merge message PR_BODY", value: "PR_BODY", set: func(r *model.RepositorySettings, v *string) { r.MergeCommitMessage = v }},
+		{name: "merge message BLANK", value: "BLANK", set: func(r *model.RepositorySettings, v *string) { r.MergeCommitMessage = v }},
+		{name: "merge message invalid", value: "COMMIT_MESSAGES", set: func(r *model.RepositorySettings, v *string) { r.MergeCommitMessage = v }, wantErr: `invalid merge_commit_message "COMMIT_MESSAGES"; must be "PR_TITLE", "PR_BODY", or "BLANK"`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repository := &model.RepositorySettings{}
+			tt.set(repository, &tt.value)
+			err := ValidateRepoStringSettings(&Config{Repository: repository})
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("ValidateRepoStringSettings() returned unexpected error: %v", err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatal("ValidateRepoStringSettings() returned nil, want error")
+			}
+			if err.Error() != tt.wantErr {
+				t.Errorf("error = %q, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestValidateRepoStringSettingsAcceptsNilRepository(t *testing.T) {
 	if err := ValidateRepoStringSettings(&Config{}); err != nil {
 		t.Fatalf("ValidateRepoStringSettings() returned unexpected error: %v", err)
