@@ -238,7 +238,9 @@ The `repository` section manages GitHub repository settings declaratively. Field
 | `default_workflow_permissions` | string | `GITHUB_TOKEN` default permissions: `read` or `write` |
 | `can_approve_pull_request_reviews` | bool | Allow `GITHUB_TOKEN` workflows to create pull requests and submit approval reviews |
 
-Omit the `repository` section entirely to skip settings management. Generated configs expose all three security settings. Their built-in values are `true`. When a GitHub remote exists, `fit` uses live values. Default merging appends missing security settings without changing explicit Boolean values. The security prerequisite normalisation below is the exception: it can change an explicit `vulnerability_alerts_enabled: false` to `true`.
+To skip settings management, omit the `repository` section and set the `.tailor.yml` swatch to `alteration: never`. With `always`, `alter` restores the section from built-in defaults and applies it in the same run. With `first-fit`, `alter --recut` restores and applies the section.
+
+Generated configs expose all three security settings. Their built-in values are `true`. When a GitHub remote exists, `fit` uses live values. Default merging appends missing security settings without changing explicit Boolean values. The security prerequisite normalisation below is the exception: it can change an explicit `vulnerability_alerts_enabled: false` to `true`.
 
 GitHub labels `can_approve_pull_request_reviews` as “Allow GitHub Actions to create and approve pull requests”. Tailor keeps the REST API field name because repository config keys match the API. Enabling the setting permits the repository `GITHUB_TOKEN` to create pull requests and submit approval reviews when the workflow has `pull-requests: write`. The setting does not permit merges, bypass branch rules, or affect personal access tokens or separate GitHub App tokens.
 
@@ -282,7 +284,7 @@ labels:
 
 Labels are reconciled with create-and-update-only semantics: tailor creates missing labels and updates labels whose colour or description differs, but never deletes labels from the repository. This avoids removing labels already applied to issues.
 
-Omit the `labels` section to skip label management.
+To skip label management, omit the `labels` section and set the `.tailor.yml` swatch to `alteration: never`. With `always`, `alter` restores all default labels and manages them in the same run. With `first-fit`, `alter --recut` restores and manages them.
 
 ## Sponsorships
 
