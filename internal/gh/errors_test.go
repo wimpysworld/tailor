@@ -170,6 +170,19 @@ func TestClassifyHTTPError_404ClassifiedAsScopeError(t *testing.T) {
 	}
 }
 
+func TestClassifyHTTPError_UpdateLabel404PassesThrough(t *testing.T) {
+	httpErr := newHTTPError(http.StatusNotFound, "Not Found", http.Header{})
+
+	got := classifyHTTPError(httpErr, UpdateLabelOp("bug"))
+
+	if !errors.Is(got, httpErr) {
+		t.Errorf("classifyHTTPError() = %v, want original error", got)
+	}
+	if isAccessError(got) {
+		t.Errorf("classifyHTTPError() returned an access error: %v", got)
+	}
+}
+
 func TestClassifyHTTPError_WrappedHTTPError(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("X-Accepted-OAuth-Scopes", "repo")

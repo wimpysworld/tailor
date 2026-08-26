@@ -98,9 +98,10 @@ func parseCSVScopes(header string) []string {
 
 // classifyHTTPError inspects err for a *api.HTTPError. Rate-limit responses
 // (any 429, or a 403 that carries rate-limit evidence) return an
-// *ErrRateLimited; other 403 and 404 responses return an
-// *ErrInsufficientScope. Non-HTTP errors and other HTTP errors pass through
-// unchanged.
+// *ErrRateLimited. Other 403 responses and most 404 responses return an
+// *ErrInsufficientScope. An update-label 404 passes through because the label
+// can disappear after Tailor reads it. Non-HTTP errors and other HTTP errors
+// pass through unchanged.
 func classifyHTTPError(err error, operation Operation) error {
 	if err == nil {
 		return nil
@@ -120,7 +121,8 @@ func classifyHTTPError(err error, operation Operation) error {
 		}
 	}
 
-	if httpErr.StatusCode != http.StatusForbidden && httpErr.StatusCode != http.StatusNotFound {
+	if httpErr.StatusCode != http.StatusForbidden &&
+		(httpErr.StatusCode != http.StatusNotFound || operation.Kind == OpUpdateLabel) {
 		return err
 	}
 
