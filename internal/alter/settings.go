@@ -97,22 +97,15 @@ func settingsForApply(declared *model.RepositorySettings, results []RepoSettingR
 			changed[result.Field] = true
 		}
 	}
-	apply := *declared
-	if !changed["private_vulnerability_reporting_enabled"] {
-		apply.PrivateVulnerabilityReportEnabled = nil
+
+	apply := new(model.RepositorySettings)
+	applyValue := reflect.ValueOf(apply).Elem()
+	for _, field := range model.RepositorySettingFields(declared) {
+		if changed[field.YAMLKey] {
+			applyValue.Field(field.Index).Set(field.Value)
+		}
 	}
-	if !changed["vulnerability_alerts_enabled"] {
-		apply.VulnerabilityAlertsEnabled = nil
-	}
-	if !changed["automated_security_fixes_enabled"] {
-		apply.AutomatedSecurityFixesEnabled = nil
-	}
-	if changed["vulnerability_alerts_enabled"] &&
-		declared.VulnerabilityAlertsEnabled != nil && !*declared.VulnerabilityAlertsEnabled &&
-		declared.AutomatedSecurityFixesEnabled != nil && !*declared.AutomatedSecurityFixesEnabled {
-		apply.AutomatedSecurityFixesEnabled = declared.AutomatedSecurityFixesEnabled
-	}
-	return &apply
+	return apply
 }
 
 // skippedToResults converts gh.ApplyResult skipped operations into
