@@ -618,6 +618,46 @@ func TestApplyLabelsUpdate403SkipsAndContinues(t *testing.T) {
 	}
 }
 
+func TestApplyLabelsUpdate404Aborts(t *testing.T) {
+	var calls []string
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		fmt.Fprint(w, `{"message": "Not Found"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	client := newTestClient(t, server)
+	desired := []model.LabelEntry{
+		{Name: "alpha", Color: "ff0000", Description: "changed"},
+		{Name: "beta", Color: "00ff00", Description: "changed"},
+	}
+	current := []model.LabelEntry{
+		{Name: "alpha", Color: "aa0000", Description: "old"},
+		{Name: "beta", Color: "bb0000", Description: "old"},
+	}
+
+	result, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
+	if err == nil {
+		t.Fatal("ApplyLabels() expected hard error from 404, got nil")
+	}
+	if result != nil {
+		t.Errorf("ApplyLabels() result = %+v, want nil", result)
+	}
+	if isAccessError(err) {
+		t.Errorf("ApplyLabels() returned an access error: %v", err)
+	}
+	if len(calls) != 1 {
+		t.Fatalf("expected 1 API call, got %d: %v", len(calls), calls)
+	}
+	wantCall := "PATCH /repos/testowner/testrepo/labels/alpha"
+	if calls[0] != wantCall {
+		t.Errorf("call = %q, want %q", calls[0], wantCall)
+	}
+}
+
 func TestApplyLabelsNon403ErrorStillAborts(t *testing.T) {
 	// A non-access error (e.g. 500) on create should still abort.
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
