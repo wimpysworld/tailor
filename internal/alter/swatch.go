@@ -154,15 +154,18 @@ func prepareSwatchDestination(root *os.Root, path string, shouldWrite bool) (boo
 	if info.IsDir() {
 		return false, fmt.Errorf("swatch destination %q is a directory", path)
 	}
-	if info.Mode()&os.ModeSymlink == 0 {
-		return true, nil
-	}
-	if shouldWrite {
-		if err := root.Remove(path); err != nil {
-			return false, fmt.Errorf("removing destination symlink: %w", err)
+	if info.Mode()&os.ModeSymlink != 0 {
+		if shouldWrite {
+			if err := root.Remove(path); err != nil {
+				return false, fmt.Errorf("removing destination symlink: %w", err)
+			}
 		}
+		return false, nil
 	}
-	return false, nil
+	if !info.Mode().IsRegular() {
+		return false, fmt.Errorf("swatch destination %q is not a regular file", path)
+	}
+	return true, nil
 }
 
 func processAlways(root *os.Root, entry config.SwatchEntry, content []byte, mode ApplyMode) (SwatchResult, error) {

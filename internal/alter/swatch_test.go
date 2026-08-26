@@ -3,6 +3,7 @@ package alter_test
 import (
 	"bytes"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -44,6 +45,13 @@ func symlinkOrSkip(t *testing.T, oldname, newname string) {
 	t.Helper()
 	if err := os.Symlink(oldname, newname); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
+	}
+}
+
+func mkfifoOrSkip(t *testing.T, path string) {
+	t.Helper()
+	if err := exec.CommandContext(t.Context(), "mkfifo", path).Run(); err != nil {
+		t.Skipf("mkfifo unavailable: %v", err)
 	}
 }
 
@@ -181,6 +189,42 @@ func TestAlwaysRejectsDirectoryDestination(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), `swatch destination "CODE_OF_CONDUCT.md" is a directory`) {
 		t.Errorf("error = %q, want directory error", err)
+	}
+}
+
+func TestSwatchRejectsNonRegularDestination(t *testing.T) {
+	tests := []struct {
+		name       string
+		alteration swatch.AlterationMode
+		mode       alter.ApplyMode
+	}{
+		{name: "always/dry-run", alteration: swatch.Always, mode: alter.DryRun},
+		{name: "always/apply", alteration: swatch.Always, mode: alter.Apply},
+		{name: "first-fit/dry-run", alteration: swatch.FirstFit, mode: alter.DryRun},
+		{name: "first-fit/apply", alteration: swatch.FirstFit, mode: alter.Apply},
+		{name: "recut", alteration: swatch.FirstFit, mode: alter.Recut},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			path := filepath.Join(dir, ".gitignore")
+			mkfifoOrSkip(t, path)
+
+			cfg := newConfig(entry(".gitignore", test.alteration))
+			_, err := alter.ProcessSwatches(cfg, dir, test.mode, &alter.TokenContext{})
+			if err == nil || !strings.Contains(err.Error(), `swatch destination ".gitignore" is not a regular file`) {
+				t.Fatalf("error = %v, want non-regular destination error", err)
+			}
+
+			info, statErr := os.Lstat(path)
+			if statErr != nil {
+				t.Fatal(statErr)
+			}
+			if info.Mode()&os.ModeNamedPipe == 0 {
+				t.Errorf("destination mode = %v, want named pipe", info.Mode())
+			}
+		})
 	}
 }
 
