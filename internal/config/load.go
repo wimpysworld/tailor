@@ -1,10 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
-	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 
@@ -16,10 +17,23 @@ const (
 	maxConfigSize = 1 << 20
 )
 
-// Exists reports whether .tailor.yml is present in dir.
-func Exists(dir string) bool {
-	info, err := os.Stat(filepath.Join(dir, configPath))
-	return err == nil && !info.IsDir()
+// Exists reports whether a .tailor.yml path is present in dir.
+func Exists(dir string) (bool, error) {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return false, fmt.Errorf("checking config: opening project root %q: %w", dir, err)
+	}
+	defer root.Close()
+
+	_, err = root.Lstat(configPath)
+	switch {
+	case err == nil:
+		return true, nil
+	case errors.Is(err, fs.ErrNotExist):
+		return false, nil
+	default:
+		return false, fmt.Errorf("checking config: %w", err)
+	}
 }
 
 // Load reads and parses .tailor.yml from dir, returning the validated Config

@@ -65,7 +65,11 @@ func (f *FitCmd) Run() error {
 		return err
 	}
 
-	if config.Exists(f.Path) {
+	hasConfig, err := config.Exists(f.Path)
+	if err != nil {
+		return err
+	}
+	if hasConfig {
 		return fmt.Errorf(".tailor.yml already exists at %s; edit it directly to change swatch configuration", f.Path)
 	}
 
@@ -184,7 +188,10 @@ func (m *MeasureCmd) Run() error {
 
 	health := measure.CheckHealth(dir)
 
-	hasConfig := config.Exists(dir)
+	hasConfig, err := config.Exists(dir)
+	if err != nil {
+		return err
+	}
 	var diff []measure.DiffResult
 	if hasConfig {
 		cfg, err := config.Load(dir)

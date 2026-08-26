@@ -357,6 +357,46 @@ func TestRunAlterMalformedConfigError(t *testing.T) {
 	}
 }
 
+func TestMeasureCmdRejectsInvalidConfigPath(t *testing.T) {
+	tests := []struct {
+		name   string
+		create func(t *testing.T, path string)
+	}{
+		{
+			name: "directory",
+			create: func(t *testing.T, path string) {
+				t.Helper()
+				if err := os.Mkdir(path, 0o755); err != nil {
+					t.Fatalf("Mkdir: %v", err)
+				}
+			},
+		},
+		{
+			name: "broken symlink",
+			create: func(t *testing.T, path string) {
+				t.Helper()
+				if err := os.Symlink(filepath.Join(filepath.Dir(path), "missing.yml"), path); err != nil {
+					t.Skipf("Symlink unavailable: %v", err)
+				}
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			tt.create(t, filepath.Join(dir, ".tailor.yml"))
+			t.Chdir(dir)
+
+			err := (&MeasureCmd{}).Run()
+			want := "loading config: reading config: .tailor.yml is not a regular file"
+			if err == nil || err.Error() != want {
+				t.Fatalf("MeasureCmd.Run() error = %v, want %q", err, want)
+			}
+		})
+	}
+}
+
 func TestDocketAuthenticated(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeRepo(t, "octocat", "my-project")

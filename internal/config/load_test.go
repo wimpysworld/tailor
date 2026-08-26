@@ -416,7 +416,11 @@ func TestExistsTrue(t *testing.T) {
 	dir := t.TempDir()
 	testutil.WriteConfig(t, dir, "license: BlueOak-1.0.0\nswatches: []\n")
 
-	if !Exists(dir) {
+	exists, err := Exists(dir)
+	if err != nil {
+		t.Fatalf("Exists() error: %v", err)
+	}
+	if !exists {
 		t.Error("Exists() = false, want true")
 	}
 }
@@ -424,19 +428,43 @@ func TestExistsTrue(t *testing.T) {
 func TestExistsFalse(t *testing.T) {
 	dir := t.TempDir()
 
-	if Exists(dir) {
+	exists, err := Exists(dir)
+	if err != nil {
+		t.Fatalf("Exists() error: %v", err)
+	}
+	if exists {
 		t.Error("Exists() = true, want false")
 	}
 }
 
-func TestExistsFalseForDirectory(t *testing.T) {
+func TestExistsTrueForDirectory(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(dir, ".tailor.yml"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 
-	if Exists(dir) {
-		t.Error("Exists() = true for a directory, want false")
+	exists, err := Exists(dir)
+	if err != nil {
+		t.Fatalf("Exists() error: %v", err)
+	}
+	if !exists {
+		t.Error("Exists() = false for a directory, want true")
+	}
+}
+
+func TestExistsTrueForBrokenSymlink(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".tailor.yml")
+	if err := os.Symlink(filepath.Join(dir, "missing.yml"), path); err != nil {
+		t.Skipf("Symlink unavailable: %v", err)
+	}
+
+	exists, err := Exists(dir)
+	if err != nil {
+		t.Fatalf("Exists() error: %v", err)
+	}
+	if !exists {
+		t.Error("Exists() = false for a broken symlink, want true")
 	}
 }
 
