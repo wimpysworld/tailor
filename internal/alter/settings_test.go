@@ -353,6 +353,80 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 	}
 }
 
+func TestProcessRepoSettingsMixedApplyWritesOnlyChangedFields(t *testing.T) {
+	ghfake.FakeRepo(t, "testowner", "testrepo")
+
+	var patchBody map[string]any
+	var workflowBody map[string]any
+	var unexpectedWrites []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo":
+			fmt.Fprint(w, `{"description":"old","has_wiki":true,"topics":["go"],"permissions":{"admin":true}}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/actions/permissions/workflow":
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/private-vulnerability-reporting":
+			fmt.Fprint(w, `{"enabled":false}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/vulnerability-alerts":
+			w.WriteHeader(http.StatusNotFound)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/automated-security-fixes":
+			fmt.Fprint(w, `{"enabled":false,"paused":false}`)
+		case r.Method == http.MethodPatch && r.URL.Path == "/repos/testowner/testrepo":
+			if err := json.NewDecoder(r.Body).Decode(&patchBody); err != nil {
+				t.Errorf("decode PATCH body: %v", err)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPut && r.URL.Path == "/repos/testowner/testrepo/actions/permissions/workflow":
+			if err := json.NewDecoder(r.Body).Decode(&workflowBody); err != nil {
+				t.Errorf("decode workflow body: %v", err)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method != http.MethodGet:
+			unexpectedWrites = append(unexpectedWrites, r.Method+" "+r.URL.Path)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	topics := []string{"go"}
+	cfg := &config.Config{Repository: &model.RepositorySettings{
+		Description:                       new("new"),
+		HasWiki:                           new(true),
+		Topics:                            &topics,
+		DefaultWorkflowPermissions:        new("write"),
+		CanApprovePullRequestReviews:      new(false),
+		PrivateVulnerabilityReportEnabled: new(false),
+		VulnerabilityAlertsEnabled:        new(false),
+		AutomatedSecurityFixesEnabled:     new(false),
+	}}
+
+	results, err := alter.ProcessRepoSettings(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "testowner", "testrepo", true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(unexpectedWrites) != 0 {
+		t.Fatalf("unexpected writes = %v", unexpectedWrites)
+	}
+	if len(patchBody) != 1 || patchBody["description"] != "new" {
+		t.Fatalf("PATCH body = %v, want only changed description", patchBody)
+	}
+	if len(workflowBody) != 2 || workflowBody["default_workflow_permissions"] != "write" || workflowBody["can_approve_pull_request_reviews"] != false {
+		t.Fatalf("workflow body = %v, want changed permission and required current approval value", workflowBody)
+	}
+
+	for _, result := range results {
+		want := alter.RepoNoChange
+		if result.Field == "description" || result.Field == "default_workflow_permissions" {
+			want = alter.WouldSet
+		}
+		if result.Category != want {
+			t.Errorf("%s category = %q, want %q", result.Field, result.Category, want)
+		}
+	}
+}
+
 func TestProcessRepoSettingsStringFieldValues(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
