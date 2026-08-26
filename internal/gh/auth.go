@@ -3,17 +3,24 @@ package gh
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/auth"
 )
+
+const apiRequestTimeout = 30 * time.Second
 
 // tokenForHost wraps auth.TokenForHost for testability.
 var tokenForHost = auth.TokenForHost
 
 // newRESTClient wraps api.NewRESTClient for testability.
 var newRESTClient = func(host string) (*api.RESTClient, error) {
-	return api.NewRESTClient(api.ClientOptions{Host: host})
+	return api.NewRESTClient(restClientOptions(host))
+}
+
+func restClientOptions(host string) api.ClientOptions {
+	return api.ClientOptions{Host: host, Timeout: apiRequestTimeout}
 }
 
 // ResolveHost returns the given host, or the go-gh default host when the
