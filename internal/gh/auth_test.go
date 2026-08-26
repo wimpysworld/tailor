@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 )
@@ -100,6 +101,17 @@ func TestCheckAuth(t *testing.T) {
 				t.Errorf("CheckAuth() error = %q, want %q", err.Error(), tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestRESTClientOptions(t *testing.T) {
+	options := restClientOptions("ghe.example.com")
+
+	if options.Host != "ghe.example.com" {
+		t.Errorf("Host = %q, want %q", options.Host, "ghe.example.com")
+	}
+	if options.Timeout != 30*time.Second {
+		t.Errorf("Timeout = %s, want 30s", options.Timeout)
 	}
 }
 
