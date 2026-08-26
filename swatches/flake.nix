@@ -2,7 +2,7 @@
   description = "Nix flake";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-26.05-darwin";
     nix-packages.url = "github:wimpysworld/nix-packages";
     nix-packages.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -15,6 +15,7 @@
     }:
     let
       supportedSystems = [
+        "x86_64-darwin"
         "x86_64-linux"
         "aarch64-darwin"
         "aarch64-linux"
