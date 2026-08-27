@@ -170,33 +170,6 @@ func TestFitDescriptionNoRepoContext(t *testing.T) {
 	}
 }
 
-func TestFitNoRepoContextDefaultsDescriptionToDirectory(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
-	ghfake.FakeNoRepo(t)
-
-	dir := filepath.Join(t.TempDir(), "widgets")
-
-	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0"}
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	content := string(data)
-
-	if !strings.Contains(content, "description: widgets") {
-		t.Errorf("config does not contain 'description: widgets':\n%s", content)
-	}
-	// No repository context means no URL to default the homepage to.
-	if strings.Contains(content, "\n  homepage:") {
-		t.Errorf("config should not contain homepage without repo context:\n%s", content)
-	}
-}
-
 func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
@@ -235,6 +208,11 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 	// not the description key inside label entries.
 	if !strings.Contains(content, "\n  description: defaults") {
 		t.Error("default config should contain the directory name as description")
+	}
+
+	// No repository context means no URL to default the homepage to.
+	if strings.Contains(content, "\n  homepage:") {
+		t.Errorf("config should not contain homepage without repo context:\n%s", content)
 	}
 }
 
