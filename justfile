@@ -1,3 +1,8 @@
+# Tailor is pure Go and releases build with CGO_ENABLED=0. Pin the same
+# here so lint and test analyse the code the release ships; a broken local
+# C toolchain otherwise degrades staticcheck into false positives.
+export CGO_ENABLED := "0"
+
 # List available recipes
 default:
     @just --list
