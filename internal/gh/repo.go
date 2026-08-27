@@ -61,6 +61,7 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 	defaultHost, _ := auth.DefaultHost()
 	acceptedHosts := append(auth.KnownHosts(), "github.com", defaultHost)
 	translator := ssh.NewTranslator()
+	remotes := map[string]repository.Repository{}
 	bestPriority := -1
 	var best repository.Repository
 	for line := range strings.Lines(string(output)) {
@@ -84,6 +85,7 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 		if parseErr != nil || !isKnownHost(repo.Host, acceptedHosts) {
 			continue
 		}
+		remotes[fields[0]] = repo
 		priority := remotePriority(fields[0])
 		if priority > bestPriority {
 			best = repo
@@ -93,7 +95,49 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 	if bestPriority < 0 {
 		return repository.Repository{}, errors.New("unable to determine current repository")
 	}
+	if resolved, ok := resolvedRepository(dir, remotes); ok {
+		return resolved, nil
+	}
 	return best, nil
+}
+
+// resolvedRepository honours the remote resolution that `gh repo set-default`
+// stores in git config as remote.<name>.gh-resolved. A value of "base" selects
+// the remote's own repository; any other value names a repository directly.
+func resolvedRepository(dir string, remotes map[string]repository.Repository) (repository.Repository, bool) {
+	output, err := exec.CommandContext(context.Background(), "git", "-C", dir,
+		"config", "--get-regexp", `^remote\..+\.gh-resolved$`).Output()
+	if err != nil {
+		return repository.Repository{}, false
+	}
+	bestPriority := -1
+	var best repository.Repository
+	for line := range strings.Lines(string(output)) {
+		key, value, found := strings.Cut(strings.TrimSpace(line), " ")
+		if !found {
+			continue
+		}
+		name := strings.TrimSuffix(strings.TrimPrefix(key, "remote."), ".gh-resolved")
+		var repo repository.Repository
+		if value == "base" {
+			remote, known := remotes[name]
+			if !known {
+				continue
+			}
+			repo = remote
+		} else {
+			parsed, parseErr := repository.Parse(value)
+			if parseErr != nil {
+				continue
+			}
+			repo = parsed
+		}
+		if priority := remotePriority(name); priority > bestPriority {
+			best = repo
+			bestPriority = priority
+		}
+	}
+	return best, bestPriority >= 0
 }
 
 func isKnownHost(host string, knownHosts []string) bool {
@@ -105,13 +149,16 @@ func isKnownHost(host string, knownHosts []string) bool {
 	return false
 }
 
+// remotePriority ranks origin above upstream: tailor manages the repository
+// the user administers and pushes to, so in a fork clone the fork wins over
+// the parent repository. This inverts the gh CLI ordering deliberately.
 func remotePriority(name string) int {
 	switch strings.ToLower(name) {
-	case "upstream":
+	case "origin":
 		return 3
 	case "github":
 		return 2
-	case "origin":
+	case "upstream":
 		return 1
 	default:
 		return 0

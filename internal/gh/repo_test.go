@@ -150,6 +150,52 @@ func TestRepoContextAtNoAuthenticatedHosts(t *testing.T) {
 	}
 }
 
+func TestRepoContextAtPrefersOriginOverUpstream(t *testing.T) {
+	configureGitHubHost(t)
+	dir := initGitRepository(t, "https://github.com/wimpysworld/vecdecor.git")
+	runGit(t, dir, "remote", "add", "upstream", "https://github.com/soreau/pixdecor.git")
+
+	repo, ok, err := RepoContextAt(dir)
+	if err != nil {
+		t.Fatalf("RepoContextAt() error = %v", err)
+	}
+	want := Repo{Host: "github.com", Owner: "wimpysworld", Name: "vecdecor"}
+	if repo != want || !ok {
+		t.Errorf("RepoContextAt() = %+v, %v, want %+v, true", repo, ok, want)
+	}
+}
+
+func TestRepoContextAtHonoursSetDefaultBase(t *testing.T) {
+	configureGitHubHost(t)
+	dir := initGitRepository(t, "https://github.com/wimpysworld/vecdecor.git")
+	runGit(t, dir, "remote", "add", "upstream", "https://github.com/soreau/pixdecor.git")
+	runGit(t, dir, "config", "remote.upstream.gh-resolved", "base")
+
+	repo, ok, err := RepoContextAt(dir)
+	if err != nil {
+		t.Fatalf("RepoContextAt() error = %v", err)
+	}
+	want := Repo{Host: "github.com", Owner: "soreau", Name: "pixdecor"}
+	if repo != want || !ok {
+		t.Errorf("RepoContextAt() = %+v, %v, want %+v, true", repo, ok, want)
+	}
+}
+
+func TestRepoContextAtHonoursSetDefaultNamed(t *testing.T) {
+	configureGitHubHost(t)
+	dir := initGitRepository(t, "https://github.com/wimpysworld/vecdecor.git")
+	runGit(t, dir, "config", "remote.origin.gh-resolved", "another/project")
+
+	repo, ok, err := RepoContextAt(dir)
+	if err != nil {
+		t.Fatalf("RepoContextAt() error = %v", err)
+	}
+	want := Repo{Host: "github.com", Owner: "another", Name: "project"}
+	if repo != want || !ok {
+		t.Errorf("RepoContextAt() = %+v, %v, want %+v, true", repo, ok, want)
+	}
+}
+
 func TestRepoContextAtNoRemote(t *testing.T) {
 	configureGitHubHost(t)
 	dir := initGitRepository(t, "")
