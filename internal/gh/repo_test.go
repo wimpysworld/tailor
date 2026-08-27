@@ -196,6 +196,21 @@ func TestRepoContextAtHonoursSetDefaultNamed(t *testing.T) {
 	}
 }
 
+func TestRepoContextAtIgnoresSetDefaultUnacceptedHost(t *testing.T) {
+	configureGitHubHost(t)
+	dir := initGitRepository(t, "https://github.com/wimpysworld/vecdecor.git")
+	runGit(t, dir, "config", "remote.origin.gh-resolved", "evil.example.com/owner/name")
+
+	repo, ok, err := RepoContextAt(dir)
+	if err != nil {
+		t.Fatalf("RepoContextAt() error = %v", err)
+	}
+	want := Repo{Host: "github.com", Owner: "wimpysworld", Name: "vecdecor"}
+	if repo != want || !ok {
+		t.Errorf("RepoContextAt() = %+v, %v, want %+v, true", repo, ok, want)
+	}
+}
+
 func TestRepoContextAtNoRemote(t *testing.T) {
 	configureGitHubHost(t)
 	dir := initGitRepository(t, "")

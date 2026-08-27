@@ -95,7 +95,7 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 	if bestPriority < 0 {
 		return repository.Repository{}, errors.New("unable to determine current repository")
 	}
-	if resolved, ok := resolvedRepository(dir, remotes); ok {
+	if resolved, ok := resolvedRepository(dir, remotes, acceptedHosts); ok {
 		return resolved, nil
 	}
 	return best, nil
@@ -104,7 +104,7 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 // resolvedRepository honours the remote resolution that `gh repo set-default`
 // stores in git config as remote.<name>.gh-resolved. A value of "base" selects
 // the remote's own repository; any other value names a repository directly.
-func resolvedRepository(dir string, remotes map[string]repository.Repository) (repository.Repository, bool) {
+func resolvedRepository(dir string, remotes map[string]repository.Repository, acceptedHosts []string) (repository.Repository, bool) {
 	output, err := exec.CommandContext(context.Background(), "git", "-C", dir,
 		"config", "--get-regexp", `^remote\..+\.gh-resolved$`).Output()
 	if err != nil {
@@ -127,7 +127,7 @@ func resolvedRepository(dir string, remotes map[string]repository.Repository) (r
 			repo = remote
 		} else {
 			parsed, parseErr := repository.Parse(value)
-			if parseErr != nil {
+			if parseErr != nil || !isKnownHost(parsed.Host, acceptedHosts) {
 				continue
 			}
 			repo = parsed
