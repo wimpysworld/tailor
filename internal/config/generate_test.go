@@ -290,6 +290,42 @@ func TestMergeRepoSettingsPreservesMergeCommitFields(t *testing.T) {
 	testutil.AssertPtr(t, cfg.Repository.MergeCommitMessage, false, "PR_BODY", "merge_commit_message")
 }
 
+func TestApplyRepoDefaults(t *testing.T) {
+	description := "existing description"
+	homepage := "https://example.com"
+	repoURL := "https://github.com/octocat/widgets"
+	tests := []struct {
+		name            string
+		repo            *model.RepositorySettings
+		url             string
+		wantDescription string
+		wantHomepage    *string
+	}{
+		{name: "fills empty fields", repo: &model.RepositorySettings{}, url: repoURL, wantDescription: "widgets", wantHomepage: &repoURL},
+		{name: "preserves set fields", repo: &model.RepositorySettings{Description: &description, Homepage: &homepage}, url: repoURL, wantDescription: description, wantHomepage: &homepage},
+		{name: "empty url omits homepage", repo: &model.RepositorySettings{}, url: "", wantDescription: "widgets", wantHomepage: nil},
+		{name: "nil repository", repo: nil, url: repoURL, wantDescription: "widgets", wantHomepage: &repoURL},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{Repository: tt.repo}
+			ApplyRepoDefaults(cfg, "widgets", tt.url)
+
+			if cfg.Repository.Description == nil || *cfg.Repository.Description != tt.wantDescription {
+				t.Errorf("Description = %v, want %q", cfg.Repository.Description, tt.wantDescription)
+			}
+			switch {
+			case tt.wantHomepage == nil:
+				if cfg.Repository.Homepage != nil {
+					t.Errorf("Homepage = %q, want nil", *cfg.Repository.Homepage)
+				}
+			case cfg.Repository.Homepage == nil || *cfg.Repository.Homepage != *tt.wantHomepage:
+				t.Errorf("Homepage = %v, want %q", cfg.Repository.Homepage, *tt.wantHomepage)
+			}
+		})
+	}
+}
+
 func TestDefaultConfigLicenseValues(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -170,6 +170,33 @@ func TestFitDescriptionNoRepoContext(t *testing.T) {
 	}
 }
 
+func TestFitNoRepoContextDefaultsDescriptionToDirectory(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
+	ghfake.FakeNoRepo(t)
+
+	dir := filepath.Join(t.TempDir(), "widgets")
+
+	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0"}
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+
+	if !strings.Contains(content, "description: widgets") {
+		t.Errorf("config does not contain 'description: widgets':\n%s", content)
+	}
+	// No repository context means no URL to default the homepage to.
+	if strings.Contains(content, "\n  homepage:") {
+		t.Errorf("config should not contain homepage without repo context:\n%s", content)
+	}
+}
+
 func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
@@ -203,11 +230,11 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 		t.Error("default config should not contain merge_commit_message")
 	}
 
-	// Repository description should be absent when not provided.
+	// Repository description defaults to the target directory name.
 	// Use leading whitespace to match only the repository-level field,
 	// not the description key inside label entries.
-	if strings.Contains(content, "\n  description:") {
-		t.Error("default config should not contain repository description when not set")
+	if !strings.Contains(content, "\n  description: defaults") {
+		t.Error("default config should contain the directory name as description")
 	}
 }
 
@@ -541,6 +568,20 @@ func TestRunFitWarningsToStderr(t *testing.T) {
 	}
 	if !strings.HasSuffix(stderr.String(), "\n") {
 		t.Errorf("stderr = %q, want trailing newline", stderr.String())
+	}
+
+	// The live repository carries no description or homepage, so fit
+	// defaults them to the repository name and URL.
+	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "description: my-project") {
+		t.Errorf("config does not contain 'description: my-project':\n%s", content)
+	}
+	if !strings.Contains(content, "homepage: https://github.com/octocat/my-project") {
+		t.Errorf("config does not contain default homepage:\n%s", content)
 	}
 }
 
