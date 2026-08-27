@@ -227,6 +227,8 @@ A `license` key is included in `.tailor.yml` by default (`license: BlueOak-1.0.0
 
 **Repository settings resolution at `fit` time**: `fit` detects repository context by querying GitHub remotes in `<path>`. If a GitHub remote exists, the project has repository context. If no remote is found, no repository context exists. Repository context detection reads git remotes (via `go-gh`), so `git` must be present when a GitHub remote exists - which is always the case in practice, since the remote implies a git repository.
 
+When several remotes exist, Tailor prefers `origin`, then `github`, then `upstream`, then any other remote. This deliberately reverses the gh CLI order: Tailor manages the repository the user administers and pushes to, so in a fork clone the fork (`origin`) wins over the parent (`upstream`). A default repository recorded by `gh repo set-default` (the `remote.<name>.gh-resolved` git config) overrides this priority. This selection applies to every command that uses repository context (`fit`, `alter`, `baste`, `docket`).
+
 When repository context exists, `fit` queries the live repository configuration via `GET /repos/{owner}/{repo}` and the separate endpoints for security features and Actions workflow permissions. The live values populate the `repository` section. This prevents Tailor from changing features that the repository already configures. The `--description` flag takes precedence over the value from GitHub. `description` and `homepage` are omitted if empty. When no repository context exists, the built-in defaults from the embedded swatch are used. `DefaultConfig` normalises `description` and `homepage` to nil, so the generated config omits them.
 
 ```bash
