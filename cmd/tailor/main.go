@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -91,11 +92,16 @@ func (f *FitCmd) Run() error {
 			fmt.Fprintf(stderr, "warning: %v\n", w)
 		}
 		config.MergeRepoSettings(cfg, live, f.Description)
-	} else if f.Description != "" {
-		if cfg.Repository == nil {
-			cfg.Repository = &model.RepositorySettings{}
+		homepage := fmt.Sprintf("https://%s/%s/%s", repo.Host, repo.Owner, repo.Name)
+		config.ApplyRepoDefaults(cfg, repo.Name, homepage)
+	} else {
+		if f.Description != "" {
+			if cfg.Repository == nil {
+				cfg.Repository = &model.RepositorySettings{}
+			}
+			cfg.Repository.Description = &f.Description
 		}
-		cfg.Repository.Description = &f.Description
+		config.ApplyRepoDefaults(cfg, projectName(f.Path), "")
 	}
 
 	today := time.Now().Format("2006-01-02")
@@ -105,6 +111,14 @@ func (f *FitCmd) Run() error {
 
 	fmt.Printf("Fitted %s with .tailor.yml\n", f.Path)
 	return nil
+}
+
+// projectName derives the fallback description from the target directory name.
+func projectName(path string) string {
+	if abs, err := filepath.Abs(path); err == nil {
+		return filepath.Base(abs)
+	}
+	return filepath.Base(path)
 }
 
 // AlterCmd applies swatch templates to the current project.
