@@ -230,9 +230,7 @@ func TestLoadConfigSizeLimit(t *testing.T) {
 				prefix = append(prefix, bytes.Repeat([]byte{'x'}, tt.size-len(prefix))...)
 				data = prefix
 			}
-			if err := os.WriteFile(filepath.Join(dir, ConfigSwatchPath), data, 0o644); err != nil {
-				t.Fatalf("WriteFile: %v", err)
-			}
+			testutil.WriteConfig(t, dir, string(data))
 
 			_, err := Load(dir)
 			if tt.wantSizeError {

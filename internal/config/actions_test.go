@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/model"
+	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
 var approvedDefaultActionPatterns = []string{
@@ -33,9 +34,7 @@ actions:
     - actions/checkout@v4
 swatches: []
 `
-	if err := os.WriteFile(filepath.Join(dir, ConfigSwatchPath), []byte(input), 0o600); err != nil {
-		t.Fatal(err)
-	}
+	testutil.WriteConfig(t, dir, input)
 	cfg, err := Load(dir)
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
@@ -82,13 +81,7 @@ func TestValidateActions(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateActions(&Config{Actions: tt.actions})
-			if tt.wantErr == "" && err != nil {
-				t.Fatalf("ValidateActions() error: %v", err)
-			}
-			if tt.wantErr != "" && (err == nil || !strings.Contains(err.Error(), tt.wantErr)) {
-				t.Fatalf("ValidateActions() error = %v, want %q", err, tt.wantErr)
-			}
+			assertErrorContains(t, ValidateActions(&Config{Actions: tt.actions}), tt.wantErr)
 		})
 	}
 }
