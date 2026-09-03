@@ -15,19 +15,22 @@ func TestValidateSecretScanning(t *testing.T) {
 		name           string
 		scanning       *string
 		pushProtection *string
+		nonProvider    *string
 		wantErr        string
 	}{
 		{name: "absent"},
-		{name: "enabled", scanning: new("enabled"), pushProtection: new("enabled")},
-		{name: "disabled", scanning: new("disabled"), pushProtection: new("disabled")},
+		{name: "enabled", scanning: new("enabled"), pushProtection: new("enabled"), nonProvider: new("enabled")},
+		{name: "disabled", scanning: new("disabled"), pushProtection: new("disabled"), nonProvider: new("disabled")},
 		{name: "invalid scanning", scanning: new("on"), wantErr: `invalid secret_scanning "on"; must be "enabled" or "disabled"`},
 		{name: "invalid push protection", pushProtection: new("true"), wantErr: `invalid secret_scanning_push_protection "true"; must be "enabled" or "disabled"`},
+		{name: "invalid non-provider patterns", nonProvider: new("yes"), wantErr: `invalid secret_scanning_non_provider_patterns "yes"; must be "enabled" or "disabled"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{Repository: &model.RepositorySettings{
-				SecretScanning:               tt.scanning,
-				SecretScanningPushProtection: tt.pushProtection,
+				SecretScanning:                    tt.scanning,
+				SecretScanningPushProtection:      tt.pushProtection,
+				SecretScanningNonProviderPatterns: tt.nonProvider,
 			}}
 			err := ValidateSecretScanning(cfg)
 			assertErrorContains(t, err, tt.wantErr)
@@ -118,38 +121,50 @@ func TestLoadRejectsInvalidSetupSections(t *testing.T) {
 }
 
 func TestNormaliseSecretScanningPrerequisites(t *testing.T) {
+	const (
+		pushWarning        = "warning: set secret_scanning to enabled because secret_scanning_push_protection requires secret scanning"
+		nonProviderWarning = "warning: set secret_scanning to enabled because secret_scanning_non_provider_patterns requires secret scanning"
+	)
 	tests := []struct {
 		name           string
 		scanning       *string
 		pushProtection *string
-		wantChanged    bool
+		nonProvider    *string
+		wantWarnings   []string
 		wantScanning   *string
 	}{
-		{name: "nil scanning", pushProtection: new("enabled"), wantChanged: true, wantScanning: new("enabled")},
-		{name: "disabled scanning", scanning: new("disabled"), pushProtection: new("enabled"), wantChanged: true, wantScanning: new("enabled")},
+		{name: "nil scanning", pushProtection: new("enabled"), wantWarnings: []string{pushWarning}, wantScanning: new("enabled")},
+		{name: "disabled scanning", scanning: new("disabled"), pushProtection: new("enabled"), wantWarnings: []string{pushWarning}, wantScanning: new("enabled")},
 		{name: "enabled scanning", scanning: new("enabled"), pushProtection: new("enabled"), wantScanning: new("enabled")},
 		{name: "disabled push protection", scanning: new("disabled"), pushProtection: new("disabled"), wantScanning: new("disabled")},
 		{name: "nil push protection", scanning: new("disabled"), wantScanning: new("disabled")},
+		{name: "non-provider patterns nil scanning", nonProvider: new("enabled"), wantWarnings: []string{nonProviderWarning}, wantScanning: new("enabled")},
+		{name: "non-provider patterns disabled scanning", scanning: new("disabled"), nonProvider: new("enabled"), wantWarnings: []string{nonProviderWarning}, wantScanning: new("enabled")},
+		{name: "non-provider patterns enabled scanning", scanning: new("enabled"), nonProvider: new("enabled"), wantScanning: new("enabled")},
+		{name: "non-provider patterns disabled", scanning: new("disabled"), nonProvider: new("disabled"), wantScanning: new("disabled")},
+		{name: "both features", scanning: new("disabled"), pushProtection: new("enabled"), nonProvider: new("enabled"), wantWarnings: []string{pushWarning, nonProviderWarning}, wantScanning: new("enabled")},
 		{name: "nil repository"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{}
-			if tt.scanning != nil || tt.pushProtection != nil {
+			if tt.scanning != nil || tt.pushProtection != nil || tt.nonProvider != nil {
 				cfg.Repository = &model.RepositorySettings{
-					SecretScanning:               tt.scanning,
-					SecretScanningPushProtection: tt.pushProtection,
+					SecretScanning:                    tt.scanning,
+					SecretScanningPushProtection:      tt.pushProtection,
+					SecretScanningNonProviderPatterns: tt.nonProvider,
 				}
 			}
-			if got := NormaliseSecretScanningPrerequisites(cfg); got != tt.wantChanged {
-				t.Fatalf("NormaliseSecretScanningPrerequisites() = %t, want %t", got, tt.wantChanged)
+			got := NormaliseSecretScanningPrerequisites(cfg)
+			if strings.Join(got, "\n") != strings.Join(tt.wantWarnings, "\n") {
+				t.Fatalf("NormaliseSecretScanningPrerequisites() = %q, want %q", got, tt.wantWarnings)
 			}
 			if cfg.Repository == nil {
 				return
 			}
 			testutil.AssertPtr(t, cfg.Repository.SecretScanning, tt.wantScanning == nil, valueOrEmpty(tt.wantScanning), "secret_scanning")
-			if got := NormaliseSecretScanningPrerequisites(cfg); got {
-				t.Fatal("second NormaliseSecretScanningPrerequisites() call changed the config")
+			if got := NormaliseSecretScanningPrerequisites(cfg); len(got) != 0 {
+				t.Fatalf("second NormaliseSecretScanningPrerequisites() call changed the config: %q", got)
 			}
 		})
 	}
@@ -169,6 +184,7 @@ func TestDefaultConfigSetupSections(t *testing.T) {
 	}
 	testutil.AssertPtr(t, got.Repository.SecretScanning, false, "enabled", "secret_scanning")
 	testutil.AssertPtr(t, got.Repository.SecretScanningPushProtection, false, "enabled", "secret_scanning_push_protection")
+	testutil.AssertPtr(t, got.Repository.SecretScanningNonProviderPatterns, false, "enabled", "secret_scanning_non_provider_patterns")
 	if got.CodeScanning == nil || got.CodeQuality == nil {
 		t.Fatal("default code_scanning or code_quality section is nil")
 	}
@@ -195,6 +211,7 @@ func TestMergeDefaultsAddsSetupSections(t *testing.T) {
 	}
 	testutil.AssertPtr(t, cfg.Repository.SecretScanning, false, "enabled", "secret_scanning")
 	testutil.AssertPtr(t, cfg.Repository.SecretScanningPushProtection, false, "enabled", "secret_scanning_push_protection")
+	testutil.AssertPtr(t, cfg.Repository.SecretScanningNonProviderPatterns, false, "enabled", "secret_scanning_non_provider_patterns")
 	if cfg.CodeScanning == nil || cfg.CodeQuality == nil {
 		t.Fatal("merged config is missing a setup section")
 	}

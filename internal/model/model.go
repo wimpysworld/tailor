@@ -66,6 +66,7 @@ type RepositorySettings struct {
 	CanApprovePullRequestReviews      *bool     `yaml:"can_approve_pull_request_reviews,omitempty"`
 	SecretScanning                    *string   `yaml:"secret_scanning,omitempty"`
 	SecretScanningPushProtection      *string   `yaml:"secret_scanning_push_protection,omitempty"`
+	SecretScanningNonProviderPatterns *string   `yaml:"secret_scanning_non_provider_patterns,omitempty"`
 
 	// Extra captures any YAML keys not mapped to struct fields above.
 	// ValidateRepoSettings uses this to reject unrecognised settings.
@@ -195,6 +196,14 @@ var RulesetBypassModes = []string{"always", "pull_request", "exempt"}
 // the order the config template documents them.
 var RulesetMergeMethods = []string{"merge", "squash", "rebase"}
 
+// RulesetAlertsThresholds lists the code scanning alert thresholds, in the
+// order the config template documents them.
+var RulesetAlertsThresholds = []string{"none", "errors", "errors_and_warnings", "all"}
+
+// RulesetSecurityAlertsThresholds lists the code scanning security alert
+// thresholds, in the order the config template documents them.
+var RulesetSecurityAlertsThresholds = []string{"none", "critical", "high_or_higher", "medium_or_higher", "all"}
+
 // RulesetRepositoryRole pairs a RepositoryRole actor_id with its name.
 type RulesetRepositoryRole struct {
 	ID   int
@@ -260,6 +269,7 @@ type RulesetRules struct {
 	NonFastForward        *bool                `yaml:"non_fast_forward,omitempty"`
 	PullRequest           *RulesetPullRequest  `yaml:"pull_request,omitempty"`
 	RequiredStatusChecks  *RulesetStatusChecks `yaml:"required_status_checks,omitempty"`
+	CodeScanning          *RulesetCodeScanning `yaml:"code_scanning,omitempty"`
 
 	// Extra captures any YAML keys not mapped to struct fields above.
 	Extra map[string]any `yaml:",inline"`
@@ -320,6 +330,35 @@ type RulesetStatusCheck struct {
 	Extra map[string]any `yaml:",inline"`
 }
 
+// RulesetCodeScanning holds the code scanning rule and its parameters.
+type RulesetCodeScanning struct {
+	Enabled    *bool                          `yaml:"enabled,omitempty"`
+	Parameters *RulesetCodeScanningParameters `yaml:"parameters,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetCodeScanningParameters holds the managed parameters of the code
+// scanning rule.
+type RulesetCodeScanningParameters struct {
+	CodeScanningTools *[]RulesetCodeScanningTool `yaml:"code_scanning_tools,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetCodeScanningTool names one code scanning tool and the alert
+// thresholds that block a merge.
+type RulesetCodeScanningTool struct {
+	Tool                    string `yaml:"tool"`
+	AlertsThreshold         string `yaml:"alerts_threshold"`
+	SecurityAlertsThreshold string `yaml:"security_alerts_threshold"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
 // Sorted yaml key names for each ruleset level. Validation reports them
 // when it rejects an unrecognised key.
 var (
@@ -332,6 +371,8 @@ var (
 	RulesetPullRequestParameterNames  = yamlKeys[RulesetPullRequestParameters]()
 	RulesetStatusChecksParameterNames = yamlKeys[RulesetStatusChecksParameters]()
 	RulesetStatusCheckNames           = yamlKeys[RulesetStatusCheck]()
+	RulesetCodeScanningParameterNames = yamlKeys[RulesetCodeScanningParameters]()
+	RulesetCodeScanningToolNames      = yamlKeys[RulesetCodeScanningTool]()
 )
 
 // yamlKeys returns the sorted yaml tag names of T, excluding the inline

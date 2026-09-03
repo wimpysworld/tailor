@@ -233,6 +233,9 @@ func (w *rulesetWriter) rules(rules *model.RulesetRules) {
 	if rules.RequiredStatusChecks != nil {
 		w.statusChecks(rules.RequiredStatusChecks)
 	}
+	if rules.CodeScanning != nil {
+		w.codeScanning(rules.CodeScanning)
+	}
 }
 
 func (w *rulesetWriter) pullRequest(rule *model.RulesetPullRequest) {
@@ -289,6 +292,32 @@ func (w *rulesetWriter) statusChecks(rule *model.RulesetStatusChecks) {
 		if check.IntegrationID != nil {
 			w.line(10, "  integration_id: %d", *check.IntegrationID)
 		}
+	}
+}
+
+func (w *rulesetWriter) codeScanning(rule *model.RulesetCodeScanning) {
+	w.line(4, "code_scanning:")
+	w.boolean(6, "enabled", rule.Enabled)
+	p := rule.Parameters
+	if p == nil {
+		return
+	}
+	w.line(6, "parameters:")
+	if p.CodeScanningTools == nil {
+		return
+	}
+	w.line(8, "# tool is the tool name as GitHub shows it, for example CodeQL.")
+	w.line(8, "# alerts_threshold: %s", strings.Join(model.RulesetAlertsThresholds, ", "))
+	w.line(8, "# security_alerts_threshold: %s", strings.Join(model.RulesetSecurityAlertsThresholds, ", "))
+	if len(*p.CodeScanningTools) == 0 {
+		w.line(8, "code_scanning_tools: []")
+		return
+	}
+	w.line(8, "code_scanning_tools:")
+	for _, tool := range *p.CodeScanningTools {
+		w.scalar(10, "- ", "tool", tool.Tool)
+		w.scalar(10, "  ", "alerts_threshold", tool.AlertsThreshold)
+		w.scalar(10, "  ", "security_alerts_threshold", tool.SecurityAlertsThreshold)
 	}
 }
 

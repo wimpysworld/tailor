@@ -40,11 +40,11 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	if securityNormalised {
 		fmt.Fprintln(stderr, "warning: set vulnerability_alerts_enabled to true because automated_security_fixes_enabled requires vulnerability alerts")
 	}
-	secretScanningNormalised := config.NormaliseSecretScanningPrerequisites(cfg)
-	if secretScanningNormalised {
-		fmt.Fprintln(stderr, "warning: set secret_scanning to enabled because secret_scanning_push_protection requires secret scanning")
+	secretScanningWarnings := config.NormaliseSecretScanningPrerequisites(cfg)
+	for _, warning := range secretScanningWarnings {
+		fmt.Fprintln(stderr, warning)
 	}
-	configChanged = configChanged || securityNormalised || secretScanningNormalised
+	configChanged = configChanged || securityNormalised || len(secretScanningWarnings) > 0
 	if err := validateConfig(cfg); err != nil {
 		return err
 	}

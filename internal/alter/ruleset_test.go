@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -58,6 +59,21 @@ var defaultRulesetNoChange = []string{
 	"ruleset.rules.pull_request.parameters.require_extra_approval_for_unattributed_changes no change true ",
 	"ruleset.rules.pull_request.parameters.allowed_merge_methods no change squash, rebase ",
 	"ruleset.rules.required_status_checks no change disabled ",
+	"ruleset.rules.code_scanning no change disabled ",
+}
+
+const (
+	codeScanningNoChange = "ruleset.rules.code_scanning no change disabled "
+	// liveCodeScanningRuleJSON is the code scanning rule in the live form.
+	liveCodeScanningRuleJSON = `{"type":"code_scanning","parameters":{"code_scanning_tools":[{"tool":"Sentinel 👁️","alerts_threshold":"all","security_alerts_threshold":"none"},` +
+		`{"tool":"CodeQL","alerts_threshold":"errors","security_alerts_threshold":"high_or_higher"}]}}`
+)
+
+func codeScanningTools() *[]model.RulesetCodeScanningTool {
+	return &[]model.RulesetCodeScanningTool{
+		{Tool: "CodeQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "high_or_higher"},
+		{Tool: "Sentinel 👁️", AlertsThreshold: "all", SecurityAlertsThreshold: "none"},
+	}
 }
 
 func wouldSetAll(results []string) []string {
@@ -167,6 +183,7 @@ func TestProcessRulesetCompare(t *testing.T) {
 			want: append(append([]string(nil), defaultRulesetNoChange[:10]...),
 				"ruleset.rules.pull_request would set disabled ",
 				"ruleset.rules.required_status_checks no change disabled ",
+				codeScanningNoChange,
 			),
 		},
 		{
@@ -181,6 +198,7 @@ func TestProcessRulesetCompare(t *testing.T) {
 				"ruleset.rules.required_status_checks.parameters.strict_required_status_checks_policy would set false ",
 				"ruleset.rules.required_status_checks.parameters.do_not_enforce_on_create would set false ",
 				"ruleset.rules.required_status_checks.parameters.required_status_checks would set Sentinel 👁️, lint (15368) ",
+				codeScanningNoChange,
 			),
 		},
 		{
@@ -198,6 +216,72 @@ func TestProcessRulesetCompare(t *testing.T) {
 				"ruleset.rules.required_status_checks.parameters.strict_required_status_checks_policy no change true ",
 				"ruleset.rules.required_status_checks.parameters.do_not_enforce_on_create no change false ",
 				"ruleset.rules.required_status_checks.parameters.required_status_checks no change Sentinel 👁️, lint (15368) ",
+				codeScanningNoChange,
+			),
+		},
+		{
+			name:     "code scanning enabled against absent rule",
+			readBody: liveTailorRulesetJSON,
+			declare: func(r *model.RulesetSettings) {
+				r.Rules.CodeScanning.Enabled = new(true)
+				r.Rules.CodeScanning.Parameters.CodeScanningTools = codeScanningTools()
+			},
+			want: append(append([]string(nil), defaultRulesetNoChange[:19]...),
+				"ruleset.rules.code_scanning would set enabled ",
+				"ruleset.rules.code_scanning.parameters.code_scanning_tools would set CodeQL (errors, high_or_higher), Sentinel 👁️ (all, none) ",
+			),
+		},
+		{
+			name:     "code scanning tools match as a set",
+			readBody: strings.Replace(liveTailorRulesetJSON, `{"type":"deletion"}`, `{"type":"deletion"},`+liveCodeScanningRuleJSON, 1),
+			declare: func(r *model.RulesetSettings) {
+				r.Rules.CodeScanning.Enabled = new(true)
+				r.Rules.CodeScanning.Parameters.CodeScanningTools = codeScanningTools()
+			},
+			want: append(append([]string(nil), defaultRulesetNoChange[:19]...),
+				"ruleset.rules.code_scanning no change enabled ",
+				"ruleset.rules.code_scanning.parameters.code_scanning_tools no change CodeQL (errors, high_or_higher), Sentinel 👁️ (all, none) ",
+			),
+		},
+		{
+			name:     "code scanning threshold differs",
+			readBody: strings.Replace(liveTailorRulesetJSON, `{"type":"deletion"}`, `{"type":"deletion"},`+liveCodeScanningRuleJSON, 1),
+			declare: func(r *model.RulesetSettings) {
+				r.Rules.CodeScanning.Enabled = new(true)
+				r.Rules.CodeScanning.Parameters.CodeScanningTools = &[]model.RulesetCodeScanningTool{{Tool: "CodeQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "critical"}}
+			},
+			want: append(append([]string(nil), defaultRulesetNoChange[:19]...),
+				"ruleset.rules.code_scanning no change enabled ",
+				"ruleset.rules.code_scanning.parameters.code_scanning_tools would set CodeQL (errors, critical) ",
+			),
+		},
+		{
+			name:     "code scanning rule without parameters",
+			readBody: strings.Replace(liveTailorRulesetJSON, `{"type":"deletion"}`, `{"type":"deletion"},{"type":"code_scanning"}`, 1),
+			declare: func(r *model.RulesetSettings) {
+				r.Rules.CodeScanning.Enabled = new(true)
+			},
+			want: append(append([]string(nil), defaultRulesetNoChange[:19]...),
+				"ruleset.rules.code_scanning no change enabled ",
+				"ruleset.rules.code_scanning.parameters.code_scanning_tools would set CodeQL (errors, high_or_higher) ",
+			),
+		},
+		{
+			name:     "code scanning rule with malformed parameters",
+			readBody: strings.Replace(liveTailorRulesetJSON, `{"type":"deletion"}`, `{"type":"deletion"},{"type":"code_scanning","parameters":{"code_scanning_tools":"CodeQL"}}`, 1),
+			declare: func(r *model.RulesetSettings) {
+				r.Rules.CodeScanning.Enabled = new(true)
+			},
+			want: append(append([]string(nil), defaultRulesetNoChange[:19]...),
+				"ruleset.rules.code_scanning no change enabled ",
+				"ruleset.rules.code_scanning.parameters.code_scanning_tools would set CodeQL (errors, high_or_higher) ",
+			),
+		},
+		{
+			name:     "disabled code scanning compares no tools",
+			readBody: strings.Replace(liveTailorRulesetJSON, `{"type":"deletion"}`, `{"type":"deletion"},`+liveCodeScanningRuleJSON, 1),
+			want: append(append([]string(nil), defaultRulesetNoChange[:19]...),
+				"ruleset.rules.code_scanning would set disabled ",
 			),
 		},
 	}
@@ -464,6 +548,8 @@ ruleset:
           - squash
     required_status_checks:
       enabled: false
+    code_scanning:
+      enabled: false
 swatches: []
 `
 	tc := setupAlterTest(t, configYAML, withRuleset(liveTailorRulesetJSON))
@@ -537,6 +623,76 @@ swatches:
 	}
 }
 
+func TestAlterRunRulesetUpgradeAddsCodeScanning(t *testing.T) {
+	// A config written by a release before the code scanning rule carries a
+	// complete ruleset section without rules.code_scanning. An always config
+	// swatch merges the built-in block before validation.
+	configYAML := `license: none
+ruleset:
+  enforcement: active
+  bypass_actors:
+    - actor_id: 5
+      actor_type: RepositoryRole
+      bypass_mode: always
+  conditions:
+    ref_name:
+      include:
+        - ~DEFAULT_BRANCH
+      exclude: []
+  rules:
+    creation: false
+    update: false
+    deletion: true
+    required_linear_history: false
+    required_signatures: false
+    non_fast_forward: true
+    pull_request:
+      enabled: true
+      parameters:
+        required_approving_review_count: 1
+        dismiss_stale_reviews_on_push: true
+        require_code_owner_review: false
+        require_last_push_approval: false
+        required_review_thread_resolution: true
+        require_extra_approval_for_unattributed_changes: true
+        allowed_merge_methods:
+          - squash
+          - rebase
+    required_status_checks:
+      enabled: false
+      parameters:
+        strict_required_status_checks_policy: false
+        do_not_enforce_on_create: false
+        required_status_checks: []
+swatches:
+  - path: .tailor.yml
+    alteration: always
+`
+	tc := setupAlterTest(t, configYAML, withRuleset(liveTailorRulesetJSON))
+	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+	cfg := loadTestConfig(t, tc.Dir)
+	output := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+	requireContains(t, output, "ruleset.rules.code_scanning (already disabled)")
+	if strings.Contains(output, "ruleset.rules.code_scanning = ") {
+		t.Errorf("output reports a code scanning change:\n%s", output)
+	}
+	for _, call := range tc.Calls() {
+		if call.Method != http.MethodGet && strings.Contains(call.Path, "/rulesets") {
+			t.Errorf("unchanged ruleset reached a write: %s %s", call.Method, call.Path)
+		}
+	}
+
+	persisted := loadTestConfig(t, tc.Dir)
+	rule := persisted.Ruleset.Rules.CodeScanning
+	if rule == nil || rule.Enabled == nil || *rule.Enabled {
+		t.Fatalf("persisted rules.code_scanning = %+v, want enabled false", rule)
+	}
+	want := []model.RulesetCodeScanningTool{{Tool: "CodeQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "high_or_higher"}}
+	if rule.Parameters == nil || rule.Parameters.CodeScanningTools == nil || !reflect.DeepEqual(*rule.Parameters.CodeScanningTools, want) {
+		t.Errorf("persisted code_scanning_tools = %+v, want %+v", rule.Parameters, want)
+	}
+}
+
 func TestAlterRunRulesetPartialSectionStopsBeforeWrite(t *testing.T) {
 	// A first-fit config swatch without --recut never merges defaults, so
 	// the partial section must fail validation before any API write.
@@ -553,6 +709,8 @@ func TestAlterRunRulesetPartialSectionStopsBeforeWrite(t *testing.T) {
     pull_request:
       enabled: false
     required_status_checks:
+      enabled: false
+    code_scanning:
       enabled: false
 `,
 			wantErr: "ruleset requires bypass_actors",
@@ -578,8 +736,35 @@ func TestAlterRunRulesetPartialSectionStopsBeforeWrite(t *testing.T) {
       enabled: false
     required_status_checks:
       enabled: false
+    code_scanning:
+      enabled: false
 `,
 			wantErr: "ruleset.rules requires creation",
+		},
+		{
+			// An omitted code scanning rule would remove a live rule
+			// without a report line.
+			name: "missing code scanning rule",
+			section: `  enforcement: active
+  bypass_actors: []
+  conditions:
+    ref_name:
+      include:
+        - ~DEFAULT_BRANCH
+      exclude: []
+  rules:
+    creation: false
+    update: false
+    deletion: true
+    required_linear_history: false
+    required_signatures: false
+    non_fast_forward: true
+    pull_request:
+      enabled: false
+    required_status_checks:
+      enabled: false
+`,
+			wantErr: "ruleset.rules.code_scanning requires enabled",
 		},
 	}
 	for _, tt := range tests {

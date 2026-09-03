@@ -24,6 +24,7 @@ repository:
   can_approve_pull_request_reviews: true
   secret_scanning: enabled
   secret_scanning_push_protection: enabled
+  secret_scanning_non_provider_patterns: enabled
   topics:
     - community-health-files
     - github-community-health
@@ -116,6 +117,16 @@ ruleset:
         # Actions job that is the job's name. integration_id is optional and
         # restricts the check to one app; 15368 is GitHub Actions.
         required_status_checks: []
+    code_scanning:
+      enabled: false
+      parameters:
+        # tool is the tool name as GitHub shows it, for example CodeQL.
+        # alerts_threshold: none, errors, errors_and_warnings, all
+        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all
+        code_scanning_tools:
+          - tool: CodeQL
+            alerts_threshold: errors
+            security_alerts_threshold: high_or_higher
 
 labels:
   - name: bug

@@ -20,12 +20,14 @@ func TestReadRepoSettingsSecurityAndAnalysis(t *testing.T) {
 		wantWarning        bool
 		wantScanning       *string
 		wantPushProtection *string
+		wantNonProvider    *string
 	}{
 		{
 			name:               "present",
-			repo:               `{"permissions":{"admin":true},"security_and_analysis":{"secret_scanning":{"status":"enabled"},"secret_scanning_push_protection":{"status":"disabled"}}}`,
+			repo:               `{"permissions":{"admin":true},"security_and_analysis":{"secret_scanning":{"status":"enabled"},"secret_scanning_push_protection":{"status":"disabled"},"secret_scanning_non_provider_patterns":{"status":"enabled"}}}`,
 			wantScanning:       new("enabled"),
 			wantPushProtection: new("disabled"),
+			wantNonProvider:    new("enabled"),
 		},
 		{
 			name:         "partial block",
@@ -62,6 +64,7 @@ func TestReadRepoSettingsSecurityAndAnalysis(t *testing.T) {
 			}
 			testutil.AssertPtr(t, settings.SecretScanning, tt.wantScanning == nil, derefString(tt.wantScanning), "secret_scanning")
 			testutil.AssertPtr(t, settings.SecretScanningPushProtection, tt.wantPushProtection == nil, derefString(tt.wantPushProtection), "secret_scanning_push_protection")
+			testutil.AssertPtr(t, settings.SecretScanningNonProviderPatterns, tt.wantNonProvider == nil, derefString(tt.wantNonProvider), "secret_scanning_non_provider_patterns")
 			if !tt.wantWarning {
 				if len(warnings) != 0 {
 					t.Fatalf("warnings = %v, want none", warnings)
@@ -97,12 +100,18 @@ func TestBuildSettingsPayloadSecurityAndAnalysis(t *testing.T) {
 		want     map[string]any
 	}{
 		{
-			name:     "both fields",
-			settings: &model.RepositorySettings{SecretScanning: new("enabled"), SecretScanningPushProtection: new("disabled")},
+			name:     "all fields",
+			settings: &model.RepositorySettings{SecretScanning: new("enabled"), SecretScanningPushProtection: new("disabled"), SecretScanningNonProviderPatterns: new("enabled")},
 			want: map[string]any{
-				"secret_scanning":                 map[string]any{"status": "enabled"},
-				"secret_scanning_push_protection": map[string]any{"status": "disabled"},
+				"secret_scanning":                       map[string]any{"status": "enabled"},
+				"secret_scanning_push_protection":       map[string]any{"status": "disabled"},
+				"secret_scanning_non_provider_patterns": map[string]any{"status": "enabled"},
 			},
+		},
+		{
+			name:     "non-provider patterns only",
+			settings: &model.RepositorySettings{SecretScanningNonProviderPatterns: new("disabled")},
+			want:     map[string]any{"secret_scanning_non_provider_patterns": map[string]any{"status": "disabled"}},
 		},
 		{
 			name:     "push protection only",
@@ -117,7 +126,7 @@ func TestBuildSettingsPayloadSecurityAndAnalysis(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			p := buildSettingsPayload(tt.settings)
-			for _, key := range []string{"secret_scanning", "secret_scanning_push_protection"} {
+			for _, key := range []string{"secret_scanning", "secret_scanning_push_protection", "secret_scanning_non_provider_patterns"} {
 				if _, ok := p.Body[key]; ok {
 					t.Errorf("%s must not appear in the flat PATCH body", key)
 				}

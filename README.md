@@ -178,6 +178,7 @@ repository:
   can_approve_pull_request_reviews: false
   secret_scanning: enabled
   secret_scanning_push_protection: enabled
+  secret_scanning_non_provider_patterns: enabled
 
 actions:
   enabled: true
@@ -257,6 +258,16 @@ ruleset:
         # Actions job that is the job's name. integration_id is optional and
         # restricts the check to one app; 15368 is GitHub Actions.
         required_status_checks: []
+    code_scanning:
+      enabled: false
+      parameters:
+        # tool is the tool name as GitHub shows it, for example CodeQL.
+        # alerts_threshold: none, errors, errors_and_warnings, all
+        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all
+        code_scanning_tools:
+          - tool: CodeQL
+            alerts_threshold: errors
+            security_alerts_threshold: high_or_higher
 
 swatches:
   - path: SECURITY.md
@@ -306,16 +317,19 @@ The `repository` section manages GitHub repository settings declaratively. Field
 | `can_approve_pull_request_reviews` | bool | Allow `GITHUB_TOKEN` workflows to create pull requests and submit approval reviews |
 | `secret_scanning` | string | Secret scanning alerts (`enabled` or `disabled`) |
 | `secret_scanning_push_protection` | string | Secret scanning push protection (`enabled` or `disabled`) |
+| `secret_scanning_non_provider_patterns` | string | Secret scanning generic patterns (`enabled` or `disabled`) |
 
 To skip settings management, omit the `repository` section and set the `.tailor.yml` swatch to `alteration: never`. With `always`, `alter` restores the section from built-in defaults and applies it in the same run. With `first-fit`, `alter --recut` restores and applies the section.
 
-Generated configs expose all five security settings, three Boolean and two string. The built-in values are `true` for the Boolean settings and `enabled` for `secret_scanning` and `secret_scanning_push_protection`. When a GitHub remote exists, `fit` uses live values. Default merging appends missing security settings without changing explicit values. The security prerequisite normalisations below are the exception: they can change an explicit `vulnerability_alerts_enabled: false` to `true`, and an explicit `secret_scanning: disabled` to `enabled`.
+Generated configs expose all six security settings, three Boolean and three string. The built-in values are `true` for the Boolean settings and `enabled` for `secret_scanning`, `secret_scanning_push_protection`, and `secret_scanning_non_provider_patterns`. When a GitHub remote exists, `fit` uses live values. Default merging appends missing security settings without changing explicit values. The security prerequisite normalisations below are the exception: they can change an explicit `vulnerability_alerts_enabled: false` to `true`, and an explicit `secret_scanning: disabled` to `enabled`.
 
 GitHub labels `can_approve_pull_request_reviews` as “Allow GitHub Actions to create and approve pull requests”. Tailor keeps the REST API field name because repository config keys match the API. Enabling the setting permits the repository `GITHUB_TOKEN` to create pull requests and submit approval reviews when the workflow has `pull-requests: write`. The setting does not permit merges, bypass branch rules, or affect personal access tokens or separate GitHub App tokens.
 
 GitHub requires vulnerability alerts before automated security fixes. When automated fixes are enabled and alerts are absent or false, Tailor sets `vulnerability_alerts_enabled` to `true` and shows a warning. `alter` and `alter --recut` save the corrected `.tailor.yml` before repository API calls. `baste` previews the config update without writing. Tailor enables alerts first and disables automated fixes before alerts. If a prerequisite read is unknown, or its write fails or is skipped, Tailor skips the dependent write. A security `404` stays unknown unless Tailor can distinguish a disabled feature from denied access. Access failures produce warnings. Other API failures stop the command.
 
-Push protection requires secret scanning. When `secret_scanning_push_protection` is `enabled` and `secret_scanning` is absent or `disabled`, Tailor sets `secret_scanning` to `enabled` and shows a warning. The write path matches the automated security fixes prerequisite. Tailor sends only the declared `security_and_analysis` keys, so other keys keep the value set in the GitHub UI. When the token lacks admin access, GitHub omits the `security_and_analysis` block, and Tailor leaves both values unknown with an access warning.
+Push protection requires secret scanning. When `secret_scanning_push_protection` is `enabled` and `secret_scanning` is absent or `disabled`, Tailor sets `secret_scanning` to `enabled` and shows a warning. The write path matches the automated security fixes prerequisite. Tailor sends only the declared `security_and_analysis` keys, so other keys keep the value set in the GitHub UI. When the token lacks admin access, GitHub omits the `security_and_analysis` block, and Tailor leaves all three values unknown with an access warning.
+
+`secret_scanning_non_provider_patterns` turns on the generic patterns that GitHub maintains, such as private keys, database connection strings, and HTTP authorisation headers. The GitHub UI calls the feature "Generic patterns", and the API key keeps the older name "non-provider patterns". There is nothing to configure beyond the toggle. Custom patterns need a Secret Protection licence and stay out of scope. Alerts from generic patterns have lower confidence than alerts from provider patterns. Push protection does not block them, so they raise alerts only. The feature is free on a public repository with secret scanning enabled. Generic patterns require secret scanning. When `secret_scanning_non_provider_patterns` is `enabled` and `secret_scanning` is absent or `disabled`, Tailor sets `secret_scanning` to `enabled` and shows a warning, on the same write path as push protection.
 
 ## Actions Policy
 
@@ -380,8 +394,12 @@ The top-level `ruleset` section manages one branch ruleset named `Tailor`. Tailo
 | `rules.pull_request.parameters` | object | `required_approving_review_count` (0 to 10), `dismiss_stale_reviews_on_push`, `require_code_owner_review`, `require_last_push_approval`, `required_review_thread_resolution`, `require_extra_approval_for_unattributed_changes` (bools), and `allowed_merge_methods` (any combination of `merge`, `squash`, `rebase`, at least one) |
 | `rules.required_status_checks.enabled` | bool | Require status checks to pass |
 | `rules.required_status_checks.parameters` | object | `strict_required_status_checks_policy` and `do_not_enforce_on_create` (bools), and `required_status_checks`, a list of `context` (check name, not empty) and optional `integration_id` (positive integer) |
+| `rules.code_scanning.enabled` | bool | Require code scanning results before merging. At least one tool when `true` |
+| `rules.code_scanning.parameters` | object | `code_scanning_tools`, a list of `tool` (tool name as GitHub shows it, for example `CodeQL`, not empty, unique), `alerts_threshold` (`none`, `errors`, `errors_and_warnings`, or `all`), and `security_alerts_threshold` (`none`, `critical`, `high_or_higher`, `medium_or_higher`, or `all`). All three keys are required per entry |
 
-Each key in the `rules` map is a GitHub rule type. The `enabled` key on `pull_request` and `required_status_checks` is Tailor's own, because both rules carry parameters that stay in the config while the rule is off. `required_status_checks` is off by default with an empty list, because a required check that never reports blocks every merge. Enable it per repository and name an aggregating job, for example one that depends on every other job and fails when any of them failed.
+Each key in the `rules` map is a GitHub rule type. The `enabled` key on `pull_request`, `required_status_checks`, and `code_scanning` is Tailor's own, because these three rules carry parameters that stay in the config while the rule is off. `required_status_checks` is off by default with an empty list, because a required check that never reports blocks every merge. Enable it per repository and name an aggregating job, for example one that depends on every other job and fails when any of them failed.
+
+The `code_scanning` rule is the free route to the "Check runs failure threshold" merge gate on the Advanced Security settings page. That page setting has no repository API. The rule blocks a merge until the tool has results for both the pull request commit and the base branch, so a new repository has no results yet. `code_scanning` is therefore off by default with one entry, `CodeQL` at `errors` and `high_or_higher`, which matches the GitHub UI defaults "Only errors" and "High or higher". Turning the gate on is a one-line change to `enabled`. Tailor does not cross-check the rule against the top-level `code_scanning.state`, because advanced setup also reports as the `CodeQL` tool while default setup stays `not-configured`.
 
 GitHub blocks a merge when the ruleset allows a method that the repository disables. When `allowed_merge_methods` names a method whose `repository` setting is `false` in the same config, Tailor shows `warning: ruleset allows <method> merging but repository.<field> is false` and continues without changing either value. When rulesets are not available to the repository, Tailor reports `would skip (not available)`. When the token lacks write access to the ruleset, Tailor reports `would skip (insufficient scope)`. When GitHub rejects the ruleset body, Tailor stops with the API error.
 

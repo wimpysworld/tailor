@@ -66,7 +66,7 @@ func fitSetupServer(t *testing.T, setupStatus int, codeScanningJSON, codeQuality
 			w.WriteHeader(http.StatusNoContent)
 		case strings.HasSuffix(r.URL.Path, "/repos/octocat/my-project"):
 			fmt.Fprint(w, `{"squash_merge_commit_title":"PR_TITLE","squash_merge_commit_message":"PR_BODY","merge_commit_title":"PR_TITLE","merge_commit_message":"PR_BODY",`+
-				`"security_and_analysis":{"secret_scanning":{"status":"enabled"},"secret_scanning_push_protection":{"status":"disabled"}}}`)
+				`"security_and_analysis":{"secret_scanning":{"status":"enabled"},"secret_scanning_push_protection":{"status":"disabled"},"secret_scanning_non_provider_patterns":{"status":"enabled"}}}`)
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -98,7 +98,7 @@ func TestFitWritesLiveSetupWithEmptyLanguages(t *testing.T) {
 	}
 	content := string(data)
 	for _, want := range []string{
-		"  secret_scanning: enabled\n  secret_scanning_push_protection: disabled\n",
+		"  secret_scanning: enabled\n  secret_scanning_push_protection: disabled\n  secret_scanning_non_provider_patterns: enabled\n",
 		"\ncode_scanning:\n  state: configured\n  query_suite: extended\n  threat_model: remote_and_local\n" +
 			"  # An empty list means GitHub detects the languages. Valid values:\n" +
 			"  # actions, c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift\n" +
@@ -201,7 +201,8 @@ const (
 		`"bypass_actors":[{"actor_id":4,"actor_type":"RepositoryRole","bypass_mode":"pull_request"},{"actor_id":null,"actor_type":"DeployKey","bypass_mode":"always"}],` +
 		`"conditions":{"ref_name":{"include":["refs/heads/main","release/*"],"exclude":["refs/heads/wip/*"]}},` +
 		`"rules":[{"type":"creation"},{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":true,"do_not_enforce_on_create":false,` +
-		`"required_status_checks":[{"context":"lint","integration_id":15368}]}}]}`
+		`"required_status_checks":[{"context":"lint","integration_id":15368}]}},` +
+		`{"type":"code_scanning","parameters":{"code_scanning_tools":[{"tool":"CodeQL","alerts_threshold":"errors_and_warnings","security_alerts_threshold":"critical"}]}}]}`
 )
 
 func TestFitWritesLiveRuleset(t *testing.T) {
@@ -234,10 +235,52 @@ func TestFitWritesLiveRuleset(t *testing.T) {
 		"    pull_request:\n      enabled: false\n      parameters:\n        required_approving_review_count: 1\n",
 		"    required_status_checks:\n      enabled: true\n      parameters:\n        # Require branches to be up to date before merging.\n        strict_required_status_checks_policy: true\n",
 		"        required_status_checks:\n          - context: lint\n            integration_id: 15368\n",
+		"    code_scanning:\n      enabled: true\n      parameters:\n" +
+			"        # tool is the tool name as GitHub shows it, for example CodeQL.\n" +
+			"        # alerts_threshold: none, errors, errors_and_warnings, all\n" +
+			"        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all\n" +
+			"        code_scanning_tools:\n          - tool: CodeQL\n            alerts_threshold: errors_and_warnings\n            security_alerts_threshold: critical\n",
 	} {
 		if !strings.Contains(content, want) {
 			t.Errorf("config missing %q:\n%s", want, content)
 		}
+	}
+	if _, err := config.Load(dir); err != nil {
+		t.Fatalf("config.Load() error: %v", err)
+	}
+}
+
+func TestFitRulesetWithoutCodeScanningKeepsBuiltInTools(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeRepo(t, "octocat", "my-project")
+	withoutRule := strings.Replace(liveRulesetJSON,
+		`,{"type":"code_scanning","parameters":{"code_scanning_tools":[{"tool":"CodeQL","alerts_threshold":"errors_and_warnings","security_alerts_threshold":"critical"}]}}`, "", 1)
+	if withoutRule == liveRulesetJSON {
+		t.Fatal("liveRulesetJSON does not carry the code scanning rule")
+	}
+	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: withoutRule})
+
+	dir := t.TempDir()
+	var stdout, stderr strings.Builder
+	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	if stderr.String() != "" {
+		t.Errorf("stderr = %q, want empty", stderr.String())
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	want := "    code_scanning:\n      enabled: false\n      parameters:\n" +
+		"        # tool is the tool name as GitHub shows it, for example CodeQL.\n" +
+		"        # alerts_threshold: none, errors, errors_and_warnings, all\n" +
+		"        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all\n" +
+		"        code_scanning_tools:\n          - tool: CodeQL\n            alerts_threshold: errors\n            security_alerts_threshold: high_or_higher\n"
+	if !strings.Contains(content, want) {
+		t.Errorf("config missing the built-in code scanning block %q:\n%s", want, content)
 	}
 	if _, err := config.Load(dir); err != nil {
 		t.Fatalf("config.Load() error: %v", err)

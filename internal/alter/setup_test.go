@@ -32,6 +32,65 @@ swatches: []
 	}
 }
 
+func TestAlterRunNonProviderPatternsPrerequisiteWarning(t *testing.T) {
+	configYAML := `license: none
+repository:
+  secret_scanning: disabled
+  secret_scanning_push_protection: enabled
+  secret_scanning_non_provider_patterns: enabled
+swatches: []
+`
+	tc := setupAlterTest(t, configYAML)
+	cfg := loadTestConfig(t, tc.Dir)
+
+	var stdout, stderr strings.Builder
+	if err := alter.Run(cfg, tc.Dir, alter.DryRun, tc.Client, &stdout, &stderr); err != nil {
+		t.Fatalf("alter.Run() error: %v", err)
+	}
+	want := "warning: set secret_scanning to enabled because secret_scanning_push_protection requires secret scanning\n" +
+		"warning: set secret_scanning to enabled because secret_scanning_non_provider_patterns requires secret scanning\n"
+	if !strings.Contains(stderr.String(), want) {
+		t.Errorf("stderr = %q, want %q", stderr.String(), want)
+	}
+	if strings.Count(stderr.String(), "warning: set secret_scanning to enabled") != 2 {
+		t.Errorf("stderr = %q, want each warning once", stderr.String())
+	}
+	if cfg.Repository.SecretScanning == nil || *cfg.Repository.SecretScanning != "enabled" {
+		t.Errorf("secret_scanning = %v, want enabled", cfg.Repository.SecretScanning)
+	}
+}
+
+func TestAlterRunNonProviderPatternsPatch(t *testing.T) {
+	configYAML := `license: none
+repository:
+  secret_scanning: enabled
+  secret_scanning_push_protection: enabled
+  secret_scanning_non_provider_patterns: enabled
+swatches: []
+`
+	live := &securityAndAnalysisJSON{
+		SecretScanning:                    securityStatusJSON{Status: "enabled"},
+		SecretScanningPushProtection:      securityStatusJSON{Status: "enabled"},
+		SecretScanningNonProviderPatterns: &securityStatusJSON{Status: "disabled"},
+	}
+	tc := setupAlterTest(t, configYAML, WithRepoSettings(repoJSON{SecurityAndAnalysis: live}))
+	cfg := loadTestConfig(t, tc.Dir)
+	output := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
+
+	requireContains(t, output, "repository.secret_scanning (already enabled)")
+	requireContains(t, output, "repository.secret_scanning_push_protection (already enabled)")
+	requireContains(t, output, "repository.secret_scanning_non_provider_patterns = enabled")
+
+	patches := tc.MutatingCalls()
+	if len(patches) != 1 {
+		t.Fatalf("mutating calls = %v, want one repository PATCH", patches)
+	}
+	want := `{"security_and_analysis":{"secret_scanning_non_provider_patterns":{"status":"enabled"}}}`
+	if patches[0].Body != want {
+		t.Errorf("PATCH body = %s, want %s", patches[0].Body, want)
+	}
+}
+
 func TestAlterRunWritesNormalisedSecretScanning(t *testing.T) {
 	configYAML := `license: none
 repository:
@@ -60,6 +119,7 @@ repository:
   has_wiki: false
   secret_scanning: enabled
   secret_scanning_push_protection: enabled
+  secret_scanning_non_provider_patterns: enabled
 swatches: []
 `
 	tc := setupAlterTest(t, configYAML, WithRepoSettings(repoJSON{HasWiki: true}))
@@ -69,6 +129,7 @@ swatches: []
 	requireContains(t, output, "set:                                                           repository.has_wiki = false\n")
 	requireContains(t, output, "would skip (insufficient scope: token missing required scope): secret_scanning\n")
 	requireContains(t, output, "would skip (insufficient scope: token missing required scope): secret_scanning_push_protection\n")
+	requireContains(t, output, "would skip (insufficient scope: token missing required scope): secret_scanning_non_provider_patterns\n")
 	if strings.Contains(output, "secret_scanning = enabled") {
 		t.Errorf("output reports a secret scanning write without admin access:\n%s", output)
 	}
@@ -138,6 +199,8 @@ ruleset:
     pull_request:
       enabled: false
     required_status_checks:
+      enabled: false
+    code_scanning:
       enabled: false
 labels:
   - name: bug

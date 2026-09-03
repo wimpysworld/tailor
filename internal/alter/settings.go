@@ -194,7 +194,7 @@ var readWarningOperationFields = map[gh.OperationKind][]string{
 	gh.OpFetchAutomatedSecurityFixes:        {"automated_security_fixes_enabled"},
 	gh.OpFetchPrivateVulnerabilityReporting: {"private_vulnerability_reporting_enabled"},
 	gh.OpFetchWorkflowPermissions:           {"default_workflow_permissions", "can_approve_pull_request_reviews"},
-	gh.OpFetchSecurityAnalysis:              {"secret_scanning", "secret_scanning_push_protection"},
+	gh.OpFetchSecurityAnalysis:              {"secret_scanning", "secret_scanning_push_protection", "secret_scanning_non_provider_patterns"},
 }
 
 // readWarningsToResults converts read-path access-error warnings into
