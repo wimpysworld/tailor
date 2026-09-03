@@ -109,7 +109,7 @@ func TestLoadRejectsExternalConfigSymlinkWithoutBlocking(t *testing.T) {
 	if err := os.WriteFile(outside, []byte("license: none\nswatches: []\n"), 0o644); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
-	if err := os.Symlink(outside, filepath.Join(dir, configPath)); err != nil {
+	if err := os.Symlink(outside, filepath.Join(dir, ConfigSwatchPath)); err != nil {
 		t.Skipf("Symlink unavailable: %v", err)
 	}
 
@@ -134,7 +134,7 @@ func TestLoadRejectsExternalConfigSymlinkWithoutBlocking(t *testing.T) {
 
 func TestLoadRejectsConfigDirectory(t *testing.T) {
 	dir := t.TempDir()
-	if err := os.Mkdir(filepath.Join(dir, configPath), 0o755); err != nil {
+	if err := os.Mkdir(filepath.Join(dir, ConfigSwatchPath), 0o755); err != nil {
 		t.Fatalf("Mkdir: %v", err)
 	}
 
@@ -147,7 +147,7 @@ func TestLoadRejectsConfigDirectory(t *testing.T) {
 
 func TestLoadRejectsConfigSpecialFile(t *testing.T) {
 	dir := t.TempDir()
-	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", filepath.Join(dir, configPath))
+	listener, err := (&net.ListenConfig{}).Listen(t.Context(), "unix", filepath.Join(dir, ConfigSwatchPath))
 	if err != nil {
 		t.Skipf("Unix sockets unavailable: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestLoadRejectsConfigFIFONonBlocking(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	path := filepath.Join(dir, configPath)
+	path := filepath.Join(dir, ConfigSwatchPath)
 	if err := exec.CommandContext(t.Context(), "mkfifo", path).Run(); err != nil {
 		t.Skipf("FIFO unavailable: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestLoadConfigSizeLimit(t *testing.T) {
 				prefix = append(prefix, bytes.Repeat([]byte{'x'}, tt.size-len(prefix))...)
 				data = prefix
 			}
-			if err := os.WriteFile(filepath.Join(dir, configPath), data, 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, ConfigSwatchPath), data, 0o644); err != nil {
 				t.Fatalf("WriteFile: %v", err)
 			}
 

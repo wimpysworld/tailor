@@ -420,11 +420,11 @@ func Write(dir string, cfg *Config, date string, verb string) (retErr error) {
 	defer root.Close()
 
 	mode := os.FileMode(0o644)
-	info, err := root.Lstat(configPath)
+	info, err := root.Lstat(ConfigSwatchPath)
 	switch {
 	case err == nil:
 		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("writing config: %s is a symbolic link", configPath)
+			return fmt.Errorf("writing config: %s is a symbolic link", ConfigSwatchPath)
 		}
 		if info.Mode().IsRegular() {
 			mode = info.Mode().Perm()
@@ -433,7 +433,7 @@ func Write(dir string, cfg *Config, date string, verb string) (retErr error) {
 		return fmt.Errorf("inspecting config: %w", err)
 	}
 
-	tempPath := configPath + ".tmp-" + rand.Text()
+	tempPath := ConfigSwatchPath + ".tmp-" + rand.Text()
 	temp, err := root.OpenFile(tempPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return fmt.Errorf("creating temporary config: %w", err)
@@ -467,7 +467,7 @@ func Write(dir string, cfg *Config, date string, verb string) (retErr error) {
 	}
 	tempOpen = false
 
-	if err := root.Rename(tempPath, configPath); err != nil {
+	if err := root.Rename(tempPath, ConfigSwatchPath); err != nil {
 		return fmt.Errorf("replacing config: %w", err)
 	}
 	tempPath = ""

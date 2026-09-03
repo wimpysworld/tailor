@@ -33,7 +33,7 @@ actions:
     - actions/checkout@v4
 swatches: []
 `
-	if err := os.WriteFile(filepath.Join(dir, configPath), []byte(input), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, ConfigSwatchPath), []byte(input), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	cfg, err := Load(dir)
@@ -46,7 +46,7 @@ swatches: []
 	if err := Write(dir, cfg, "2026-08-24", "Refitted"); err != nil {
 		t.Fatalf("Write() error: %v", err)
 	}
-	written, err := os.ReadFile(filepath.Join(dir, configPath))
+	written, err := os.ReadFile(filepath.Join(dir, ConfigSwatchPath))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,7 +63,7 @@ func TestActionsOmittedWhenAbsent(t *testing.T) {
 	if err := Write(dir, cfg, "2026-08-24", "Refitted"); err != nil {
 		t.Fatal(err)
 	}
-	written, err := os.ReadFile(filepath.Join(dir, configPath))
+	written, err := os.ReadFile(filepath.Join(dir, ConfigSwatchPath))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,7 +345,7 @@ func TestWriteActionsEmptyPatterns(t *testing.T) {
 	if err := Write(dir, cfg, "2026-08-24", "Refitted"); err != nil {
 		t.Fatal(err)
 	}
-	written, err := os.ReadFile(filepath.Join(dir, configPath))
+	written, err := os.ReadFile(filepath.Join(dir, ConfigSwatchPath))
 	if err != nil {
 		t.Fatal(err)
 	}

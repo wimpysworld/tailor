@@ -13,7 +13,6 @@ import (
 )
 
 const (
-	configPath    = ".tailor.yml"
 	maxConfigSize = 1 << 20
 )
 
@@ -25,7 +24,7 @@ func Exists(dir string) (bool, error) {
 	}
 	defer root.Close()
 
-	_, err = root.Lstat(configPath)
+	_, err = root.Lstat(ConfigSwatchPath)
 	switch {
 	case err == nil:
 		return true, nil
@@ -45,15 +44,15 @@ func Load(dir string) (*Config, error) {
 	}
 	defer root.Close()
 
-	info, err := root.Lstat(configPath)
+	info, err := root.Lstat(ConfigSwatchPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading config: %w", err)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("reading config: %s is not a regular file", configPath)
+		return nil, fmt.Errorf("reading config: %s is not a regular file", ConfigSwatchPath)
 	}
 
-	file, err := root.Open(configPath)
+	file, err := root.Open(ConfigSwatchPath)
 	if err != nil {
 		return nil, fmt.Errorf("reading config: %w", err)
 	}
@@ -66,10 +65,10 @@ func Load(dir string) (*Config, error) {
 		return nil, fmt.Errorf("reading config metadata: %w", err)
 	}
 	if !info.Mode().IsRegular() {
-		return nil, fmt.Errorf("reading config: %s is not a regular file", configPath)
+		return nil, fmt.Errorf("reading config: %s is not a regular file", ConfigSwatchPath)
 	}
 	if info.Size() > maxConfigSize {
-		return nil, fmt.Errorf("reading config: %s exceeds maximum size of 1 MiB", configPath)
+		return nil, fmt.Errorf("reading config: %s exceeds maximum size of 1 MiB", ConfigSwatchPath)
 	}
 
 	data, err := io.ReadAll(io.LimitReader(file, maxConfigSize+1))
@@ -77,7 +76,7 @@ func Load(dir string) (*Config, error) {
 		return nil, fmt.Errorf("reading config: %w", err)
 	}
 	if len(data) > maxConfigSize {
-		return nil, fmt.Errorf("reading config: %s exceeds maximum size of 1 MiB", configPath)
+		return nil, fmt.Errorf("reading config: %s exceeds maximum size of 1 MiB", ConfigSwatchPath)
 	}
 
 	return parseAndValidate(data, "config")
