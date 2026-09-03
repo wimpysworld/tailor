@@ -32,7 +32,7 @@ func TestReadCodeQualitySetup(t *testing.T) {
 			if err != nil {
 				return
 			}
-			testutil.AssertPtr(t, got.State, false, "not-configured", "state")
+			testutil.AssertPtrEqual(t, got.State, new("not-configured"), "state")
 			if got.Languages == nil || len(*got.Languages) != 1 || (*got.Languages)[0] != "go" {
 				t.Fatalf("languages = %v, want [go]", got.Languages)
 			}

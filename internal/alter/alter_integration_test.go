@@ -461,7 +461,7 @@ swatches:
 			}
 			if tt.wantWrite {
 				persisted := loadTestConfig(t, tc.Dir)
-				testutil.AssertPtr(t, persisted.Repository.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+				testutil.AssertPtrEqual(t, persisted.Repository.VulnerabilityAlertsEnabled, new(true), "vulnerability_alerts_enabled")
 				if bytes.Equal(after, before) {
 					t.Error(".tailor.yml bytes did not change")
 				}
@@ -509,7 +509,7 @@ swatches:
 	requireContains(t, stderr, "warning: set vulnerability_alerts_enabled to true")
 
 	persisted := loadTestConfig(t, tc.Dir)
-	testutil.AssertPtr(t, persisted.Repository.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
+	testutil.AssertPtrEqual(t, persisted.Repository.VulnerabilityAlertsEnabled, new(true), "vulnerability_alerts_enabled")
 	for _, call := range tc.MutatingCalls() {
 		if strings.Contains(call.Path, "automated-security-fixes") {
 			t.Fatalf("automated security fixes API called after alert failure: %v", tc.MutatingCalls())

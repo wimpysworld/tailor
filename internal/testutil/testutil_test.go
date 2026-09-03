@@ -140,22 +140,12 @@ func TestWriteConfigCreatesFile(t *testing.T) {
 	}
 }
 
-func TestAssertPtrBool(t *testing.T) {
-	val := true
-	AssertPtr(t, &val, false, true, "bool_field")
-	AssertPtr(t, nil, true, false, "bool_field")
-}
-
-func TestAssertPtrString(t *testing.T) {
-	val := "read"
-	AssertPtr(t, &val, false, "read", "string_field")
-	AssertPtr(t, nil, true, "", "string_field")
-}
-
 func TestAssertPtrEqual(t *testing.T) {
 	val := "read"
 	AssertPtrEqual(t, &val, &val, "string_field")
+	AssertPtrEqual(t, &val, new("read"), "string_field")
 	AssertPtrEqual[string](t, nil, nil, "string_field")
 	flag := true
 	AssertPtrEqual(t, &flag, new(true), "bool_field")
+	AssertPtrEqual[bool](t, nil, nil, "bool_field")
 }

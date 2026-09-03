@@ -37,32 +37,32 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	if got.Repository == nil {
 		t.Fatal("Repository is nil, want non-nil")
 	}
-	testutil.AssertPtr(t, got.Repository.HasWiki, false, false, "has_wiki")
-	testutil.AssertPtr(t, got.Repository.HasDiscussions, false, false, "has_discussions")
-	testutil.AssertPtr(t, got.Repository.HasProjects, false, false, "has_projects")
-	testutil.AssertPtr(t, got.Repository.HasIssues, false, true, "has_issues")
-	testutil.AssertPtr(t, got.Repository.AllowMergeCommit, false, false, "allow_merge_commit")
-	testutil.AssertPtr(t, got.Repository.AllowSquashMerge, false, true, "allow_squash_merge")
-	testutil.AssertPtr(t, got.Repository.AllowRebaseMerge, false, true, "allow_rebase_merge")
-	testutil.AssertPtr(t, got.Repository.SquashMergeCommitTitle, false, "PR_TITLE", "squash_merge_commit_title")
-	testutil.AssertPtr(t, got.Repository.SquashMergeCommitMessage, false, "PR_BODY", "squash_merge_commit_message")
-	testutil.AssertPtr(t, got.Repository.DeleteBranchOnMerge, false, true, "delete_branch_on_merge")
-	testutil.AssertPtr(t, got.Repository.AllowUpdateBranch, false, true, "allow_update_branch")
-	testutil.AssertPtr(t, got.Repository.AllowAutoMerge, false, true, "allow_auto_merge")
-	testutil.AssertPtr(t, got.Repository.WebCommitSignoffRequired, false, false, "web_commit_signoff_required")
-	testutil.AssertPtr(t, got.Repository.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
-	testutil.AssertPtr(t, got.Repository.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
-	testutil.AssertPtr(t, got.Repository.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
-	testutil.AssertPtr(t, got.Repository.DefaultWorkflowPermissions, false, "read", "default_workflow_permissions")
-	testutil.AssertPtr(t, got.Repository.CanApprovePullRequestReviews, false, false, "can_approve_pull_request_reviews")
+	testutil.AssertPtrEqual(t, got.Repository.HasWiki, new(false), "has_wiki")
+	testutil.AssertPtrEqual(t, got.Repository.HasDiscussions, new(false), "has_discussions")
+	testutil.AssertPtrEqual(t, got.Repository.HasProjects, new(false), "has_projects")
+	testutil.AssertPtrEqual(t, got.Repository.HasIssues, new(true), "has_issues")
+	testutil.AssertPtrEqual(t, got.Repository.AllowMergeCommit, new(false), "allow_merge_commit")
+	testutil.AssertPtrEqual(t, got.Repository.AllowSquashMerge, new(true), "allow_squash_merge")
+	testutil.AssertPtrEqual(t, got.Repository.AllowRebaseMerge, new(true), "allow_rebase_merge")
+	testutil.AssertPtrEqual(t, got.Repository.SquashMergeCommitTitle, new("PR_TITLE"), "squash_merge_commit_title")
+	testutil.AssertPtrEqual(t, got.Repository.SquashMergeCommitMessage, new("PR_BODY"), "squash_merge_commit_message")
+	testutil.AssertPtrEqual(t, got.Repository.DeleteBranchOnMerge, new(true), "delete_branch_on_merge")
+	testutil.AssertPtrEqual(t, got.Repository.AllowUpdateBranch, new(true), "allow_update_branch")
+	testutil.AssertPtrEqual(t, got.Repository.AllowAutoMerge, new(true), "allow_auto_merge")
+	testutil.AssertPtrEqual(t, got.Repository.WebCommitSignoffRequired, new(false), "web_commit_signoff_required")
+	testutil.AssertPtrEqual(t, got.Repository.PrivateVulnerabilityReportEnabled, new(true), "private_vulnerability_reporting_enabled")
+	testutil.AssertPtrEqual(t, got.Repository.VulnerabilityAlertsEnabled, new(true), "vulnerability_alerts_enabled")
+	testutil.AssertPtrEqual(t, got.Repository.AutomatedSecurityFixesEnabled, new(true), "automated_security_fixes_enabled")
+	testutil.AssertPtrEqual(t, got.Repository.DefaultWorkflowPermissions, new("read"), "default_workflow_permissions")
+	testutil.AssertPtrEqual(t, got.Repository.CanApprovePullRequestReviews, new(false), "can_approve_pull_request_reviews")
 	if got.Actions == nil {
 		t.Fatal("Actions is nil, want default policy")
 	}
-	testutil.AssertPtr(t, got.Actions.Enabled, false, true, "actions.enabled")
-	testutil.AssertPtr(t, got.Actions.AllowedActions, false, "selected", "actions.allowed_actions")
-	testutil.AssertPtr(t, got.Actions.SHAPinningRequired, false, false, "actions.sha_pinning_required")
-	testutil.AssertPtr(t, got.Actions.GitHubOwnedAllowed, false, true, "actions.github_owned_allowed")
-	testutil.AssertPtr(t, got.Actions.VerifiedAllowed, false, true, "actions.verified_allowed")
+	testutil.AssertPtrEqual(t, got.Actions.Enabled, new(true), "actions.enabled")
+	testutil.AssertPtrEqual(t, got.Actions.AllowedActions, new("selected"), "actions.allowed_actions")
+	testutil.AssertPtrEqual(t, got.Actions.SHAPinningRequired, new(false), "actions.sha_pinning_required")
+	testutil.AssertPtrEqual(t, got.Actions.GitHubOwnedAllowed, new(true), "actions.github_owned_allowed")
+	testutil.AssertPtrEqual(t, got.Actions.VerifiedAllowed, new(true), "actions.verified_allowed")
 	if got.Actions.PatternsAllowed == nil || !slices.Equal(*got.Actions.PatternsAllowed, approvedDefaultActionPatterns) {
 		t.Fatalf("actions.patterns_allowed = %v, want %v", got.Actions.PatternsAllowed, approvedDefaultActionPatterns)
 	}
@@ -250,23 +250,8 @@ func TestMergeRepoSettings(t *testing.T) {
 				t.Fatal("Repository was not replaced with live settings")
 			}
 
-			// Check Description.
-			if tt.wantDesc == nil {
-				if cfg.Repository.Description != nil {
-					t.Errorf("Description = %q, want nil", *cfg.Repository.Description)
-				}
-			} else {
-				testutil.AssertPtr(t, cfg.Repository.Description, false, *tt.wantDesc, "description")
-			}
-
-			// Check Homepage.
-			if tt.wantHome == nil {
-				if cfg.Repository.Homepage != nil {
-					t.Errorf("Homepage = %q, want nil", *cfg.Repository.Homepage)
-				}
-			} else {
-				testutil.AssertPtr(t, cfg.Repository.Homepage, false, *tt.wantHome, "homepage")
-			}
+			testutil.AssertPtrEqual(t, cfg.Repository.Description, tt.wantDesc, "description")
+			testutil.AssertPtrEqual(t, cfg.Repository.Homepage, tt.wantHome, "homepage")
 		})
 	}
 }
@@ -284,8 +269,8 @@ func TestMergeRepoSettingsPreservesMergeCommitFields(t *testing.T) {
 	cfg := &Config{License: "BlueOak-1.0.0"}
 	MergeRepoSettings(cfg, live, "")
 
-	testutil.AssertPtr(t, cfg.Repository.MergeCommitTitle, false, "PR_TITLE", "merge_commit_title")
-	testutil.AssertPtr(t, cfg.Repository.MergeCommitMessage, false, "PR_BODY", "merge_commit_message")
+	testutil.AssertPtrEqual(t, cfg.Repository.MergeCommitTitle, new("PR_TITLE"), "merge_commit_title")
+	testutil.AssertPtrEqual(t, cfg.Repository.MergeCommitMessage, new("PR_BODY"), "merge_commit_message")
 }
 
 func TestApplyRepoDefaults(t *testing.T) {
