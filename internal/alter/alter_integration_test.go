@@ -2049,6 +2049,9 @@ func allDefaultRepoSettingsYAML(t *testing.T) string {
 	if r.SecretScanningPushProtection != nil {
 		fmt.Fprintf(&sb, "  secret_scanning_push_protection: %s\n", *r.SecretScanningPushProtection)
 	}
+	if r.SecretScanningNonProviderPatterns != nil {
+		fmt.Fprintf(&sb, "  secret_scanning_non_provider_patterns: %s\n", *r.SecretScanningNonProviderPatterns)
+	}
 	return sb.String()
 }
 
@@ -2672,6 +2675,9 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 		}
 		if defaults.Repository.SecretScanningPushProtection != nil {
 			fmt.Fprintf(&sb, "  secret_scanning_push_protection: %s\n", *defaults.Repository.SecretScanningPushProtection)
+		}
+		if defaults.Repository.SecretScanningNonProviderPatterns != nil {
+			fmt.Fprintf(&sb, "  secret_scanning_non_provider_patterns: %s\n", *defaults.Repository.SecretScanningNonProviderPatterns)
 		}
 	}
 	if defaults.Actions != nil {

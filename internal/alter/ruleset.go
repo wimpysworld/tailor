@@ -158,6 +158,7 @@ func compareRules(c *rulesetComparer, declared, live *model.RulesetRules) {
 	c.boolean("rules.non_fast_forward", declared.NonFastForward, live.NonFastForward)
 	comparePullRequest(c, declared.PullRequest, live.PullRequest)
 	compareStatusChecks(c, declared.RequiredStatusChecks, live.RequiredStatusChecks)
+	compareRulesetCodeScanning(c, declared.CodeScanning, live.CodeScanning)
 }
 
 // comparePullRequest compares the rule presence and, when the declared rule
@@ -217,18 +218,56 @@ func compareStatusChecks(c *rulesetComparer, declared, live *model.RulesetStatus
 	}
 }
 
+// compareRulesetCodeScanning compares the rule presence and, when the
+// declared rule is enabled, the tool list as a set.
+func compareRulesetCodeScanning(c *rulesetComparer, declared, live *model.RulesetCodeScanning) {
+	if declared == nil {
+		return
+	}
+	if live == nil {
+		live = &model.RulesetCodeScanning{}
+	}
+	const field = "rules.code_scanning"
+	c.enabled(field, declared.Enabled, live.Enabled)
+	if !isTrue(declared.Enabled) || declared.Parameters == nil || declared.Parameters.CodeScanningTools == nil {
+		return
+	}
+	l := live.Parameters
+	if l == nil {
+		l = &model.RulesetCodeScanningParameters{}
+	}
+	c.set(field+".parameters.code_scanning_tools", toolTexts(declared.Parameters.CodeScanningTools), toolTexts(l.CodeScanningTools))
+}
+
 func isTrue(p *bool) bool {
 	return p != nil && *p
 }
 
-// actorTexts renders bypass actors as "Type id (mode)" strings, in the
-// declared order, so the list compares as a set and displays as declared.
-func actorTexts(actors *[]model.RulesetBypassActor) *[]string {
-	if actors == nil {
+// texts renders every item of a list with render, in the declared order,
+// so the list compares as a set and displays as declared. A nil list stays
+// nil, which means the list is absent.
+func texts[T any](items *[]T, render func(T) string) *[]string {
+	if items == nil {
 		return nil
 	}
-	texts := make([]string, 0, len(*actors))
-	for _, actor := range *actors {
+	out := make([]string, 0, len(*items))
+	for _, item := range *items {
+		out = append(out, render(item))
+	}
+	return &out
+}
+
+// toolTexts renders code scanning tools as
+// "tool (alerts_threshold, security_alerts_threshold)" strings.
+func toolTexts(tools *[]model.RulesetCodeScanningTool) *[]string {
+	return texts(tools, func(tool model.RulesetCodeScanningTool) string {
+		return fmt.Sprintf("%s (%s, %s)", tool.Tool, tool.AlertsThreshold, tool.SecurityAlertsThreshold)
+	})
+}
+
+// actorTexts renders bypass actors as "Type id (mode)" strings.
+func actorTexts(actors *[]model.RulesetBypassActor) *[]string {
+	return texts(actors, func(actor model.RulesetBypassActor) string {
 		var parts []string
 		if actor.ActorType != nil {
 			parts = append(parts, *actor.ActorType)
@@ -239,26 +278,19 @@ func actorTexts(actors *[]model.RulesetBypassActor) *[]string {
 		if actor.BypassMode != nil {
 			parts = append(parts, fmt.Sprintf("(%s)", *actor.BypassMode))
 		}
-		texts = append(texts, strings.Join(parts, " "))
-	}
-	return &texts
+		return strings.Join(parts, " ")
+	})
 }
 
 // checkTexts renders required status checks as "context" or
 // "context (integration_id)" strings.
 func checkTexts(checks *[]model.RulesetStatusCheck) *[]string {
-	if checks == nil {
-		return nil
-	}
-	texts := make([]string, 0, len(*checks))
-	for _, check := range *checks {
-		text := check.Context
+	return texts(checks, func(check model.RulesetStatusCheck) string {
 		if check.IntegrationID != nil {
-			text = fmt.Sprintf("%s (%d)", check.Context, *check.IntegrationID)
+			return fmt.Sprintf("%s (%d)", check.Context, *check.IntegrationID)
 		}
-		texts = append(texts, text)
-	}
-	return &texts
+		return check.Context
+	})
 }
 
 // rulesetFieldOrder keeps ruleset results in config order in the output,
@@ -286,6 +318,8 @@ var rulesetFieldOrder = []string{
 	"rules.required_status_checks.parameters.strict_required_status_checks_policy",
 	"rules.required_status_checks.parameters.do_not_enforce_on_create",
 	"rules.required_status_checks.parameters.required_status_checks",
+	"rules.code_scanning",
+	"rules.code_scanning.parameters.code_scanning_tools",
 }
 
 // rulesetSortKey returns a zero-padded config position so ruleset fields

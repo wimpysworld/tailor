@@ -169,6 +169,7 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 		"merge_commit_title",
 		"private_vulnerability_reporting_enabled",
 		"secret_scanning",
+		"secret_scanning_non_provider_patterns",
 		"secret_scanning_push_protection",
 		"squash_merge_commit_message",
 		"squash_merge_commit_title",

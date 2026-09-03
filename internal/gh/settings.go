@@ -42,8 +42,9 @@ type repoResponse struct {
 // securityAndAnalysisResponse holds the secret scanning statuses that the
 // repository response carries for administrators.
 type securityAndAnalysisResponse struct {
-	SecretScanning               *securityStatusResponse `json:"secret_scanning"`
-	SecretScanningPushProtection *securityStatusResponse `json:"secret_scanning_push_protection"`
+	SecretScanning                    *securityStatusResponse `json:"secret_scanning"`
+	SecretScanningPushProtection      *securityStatusResponse `json:"secret_scanning_push_protection"`
+	SecretScanningNonProviderPatterns *securityStatusResponse `json:"secret_scanning_non_provider_patterns"`
 }
 
 type securityStatusResponse struct {
@@ -160,7 +161,7 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 
 // applySecurityAndAnalysis copies the secret scanning statuses into s. It
 // returns an access warning when the block is absent, because GitHub omits it
-// for tokens without admin access, and leaves both fields nil.
+// for tokens without admin access, and leaves every field nil.
 func applySecurityAndAnalysis(block *securityAndAnalysisResponse, s *model.RepositorySettings) error {
 	if block == nil {
 		return &ErrInsufficientScope{
@@ -174,6 +175,9 @@ func applySecurityAndAnalysis(block *securityAndAnalysisResponse, s *model.Repos
 	}
 	if block.SecretScanningPushProtection != nil {
 		s.SecretScanningPushProtection = new(block.SecretScanningPushProtection.Status)
+	}
+	if block.SecretScanningNonProviderPatterns != nil {
+		s.SecretScanningNonProviderPatterns = new(block.SecretScanningNonProviderPatterns.Status)
 	}
 	return nil
 }
@@ -438,6 +442,7 @@ var nonPatchFields = map[string]bool{
 	"can_approve_pull_request_reviews":        true,
 	"secret_scanning":                         true,
 	"secret_scanning_push_protection":         true,
+	"secret_scanning_non_provider_patterns":   true,
 }
 
 // buildSettingsPayload uses reflection to build a map of non-nil fields from
@@ -483,6 +488,9 @@ func securityAndAnalysisBody(settings *model.RepositorySettings) map[string]any 
 	}
 	if settings.SecretScanningPushProtection != nil {
 		body["secret_scanning_push_protection"] = map[string]any{"status": *settings.SecretScanningPushProtection}
+	}
+	if settings.SecretScanningNonProviderPatterns != nil {
+		body["secret_scanning_non_provider_patterns"] = map[string]any{"status": *settings.SecretScanningNonProviderPatterns}
 	}
 	return body
 }

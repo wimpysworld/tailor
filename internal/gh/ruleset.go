@@ -86,6 +86,20 @@ type statusChecksParametersJSON struct {
 	RequiredStatusChecks             *[]rulesetCheckJSON `json:"required_status_checks"`
 }
 
+// rulesetToolJSON is one code scanning tool in the API form. The fields
+// are in key order so a marshalled body matches a re-marshalled map.
+type rulesetToolJSON struct {
+	AlertsThreshold         string `json:"alerts_threshold"`
+	SecurityAlertsThreshold string `json:"security_alerts_threshold"`
+	Tool                    string `json:"tool"`
+}
+
+// codeScanningParametersJSON holds the managed parameters of the code
+// scanning rule.
+type codeScanningParametersJSON struct {
+	CodeScanningTools *[]rulesetToolJSON `json:"code_scanning_tools"`
+}
+
 func rulesetsPath(owner, name string) string {
 	return fmt.Sprintf("repos/%s/%s/rulesets", owner, name)
 }
@@ -212,6 +226,7 @@ func rulesFromList(list []rulesetRuleJSON) *model.RulesetRules {
 		NonFastForward:        new(false),
 		PullRequest:           &model.RulesetPullRequest{Enabled: new(false)},
 		RequiredStatusChecks:  &model.RulesetStatusChecks{Enabled: new(false)},
+		CodeScanning:          &model.RulesetCodeScanning{Enabled: new(false)},
 	}
 	for _, rule := range list {
 		switch rule.Type {
@@ -231,6 +246,8 @@ func rulesFromList(list []rulesetRuleJSON) *model.RulesetRules {
 			rules.PullRequest = pullRequestFromJSON(rule.Parameters)
 		case "required_status_checks":
 			rules.RequiredStatusChecks = statusChecksFromJSON(rule.Parameters)
+		case "code_scanning":
+			rules.CodeScanning = codeScanningFromJSON(rule.Parameters)
 		}
 	}
 	return rules
@@ -274,6 +291,30 @@ func statusChecksFromJSON(raw json.RawMessage) *model.RulesetStatusChecks {
 			checks = append(checks, model.RulesetStatusCheck{Context: check.Context, IntegrationID: check.IntegrationID})
 		}
 		parameters.RequiredStatusChecks = &checks
+	}
+	rule.Parameters = parameters
+	return rule
+}
+
+// codeScanningFromJSON decodes the managed code scanning parameters. A
+// parameter the response omits stays nil.
+func codeScanningFromJSON(raw json.RawMessage) *model.RulesetCodeScanning {
+	rule := &model.RulesetCodeScanning{Enabled: new(true)}
+	var p codeScanningParametersJSON
+	if len(raw) == 0 || json.Unmarshal(raw, &p) != nil {
+		return rule
+	}
+	parameters := &model.RulesetCodeScanningParameters{}
+	if p.CodeScanningTools != nil {
+		tools := make([]model.RulesetCodeScanningTool, 0, len(*p.CodeScanningTools))
+		for _, tool := range *p.CodeScanningTools {
+			tools = append(tools, model.RulesetCodeScanningTool{
+				Tool:                    tool.Tool,
+				AlertsThreshold:         tool.AlertsThreshold,
+				SecurityAlertsThreshold: tool.SecurityAlertsThreshold,
+			})
+		}
+		parameters.CodeScanningTools = &tools
 	}
 	rule.Parameters = parameters
 	return rule
@@ -328,10 +369,10 @@ func rulesetBody(desired *model.RulesetSettings) map[string]any {
 }
 
 // rulesToList converts the config rules map into the API rules list. A
-// true Boolean adds a rule of that type. An enabled pull request or
-// required status checks rule carries its managed parameters.
+// true Boolean adds a rule of that type. An enabled pull request, required
+// status checks, or code scanning rule carries its managed parameters.
 func rulesToList(rules *model.RulesetRules) []any {
-	list := make([]any, 0, 8)
+	list := make([]any, 0, 9)
 	for _, rule := range []struct {
 		name    string
 		enabled *bool
@@ -352,6 +393,9 @@ func rulesToList(rules *model.RulesetRules) []any {
 	}
 	if checks := rules.RequiredStatusChecks; checks != nil && isTrue(checks.Enabled) {
 		list = append(list, map[string]any{"type": "required_status_checks", "parameters": statusChecksParametersBody(checks.Parameters)})
+	}
+	if scanning := rules.CodeScanning; scanning != nil && isTrue(scanning.Enabled) {
+		list = append(list, map[string]any{"type": "code_scanning", "parameters": codeScanningParametersBody(scanning.Parameters)})
 	}
 	return list
 }
@@ -399,5 +443,22 @@ func statusChecksParametersBody(p *model.RulesetStatusChecksParameters) map[stri
 		}
 		body["required_status_checks"] = checks
 	}
+	return body
+}
+
+func codeScanningParametersBody(p *model.RulesetCodeScanningParameters) map[string]any {
+	body := map[string]any{"code_scanning_tools": []any{}}
+	if p == nil || p.CodeScanningTools == nil {
+		return body
+	}
+	tools := make([]any, 0, len(*p.CodeScanningTools))
+	for _, tool := range *p.CodeScanningTools {
+		tools = append(tools, rulesetToolJSON{
+			Tool:                    tool.Tool,
+			AlertsThreshold:         tool.AlertsThreshold,
+			SecurityAlertsThreshold: tool.SecurityAlertsThreshold,
+		})
+	}
+	body["code_scanning_tools"] = tools
 	return body
 }

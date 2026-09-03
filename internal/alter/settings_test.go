@@ -51,8 +51,9 @@ type securityStatusJSON struct {
 }
 
 type securityAndAnalysisJSON struct {
-	SecretScanning               securityStatusJSON `json:"secret_scanning"`
-	SecretScanningPushProtection securityStatusJSON `json:"secret_scanning_push_protection"`
+	SecretScanning                    securityStatusJSON  `json:"secret_scanning"`
+	SecretScanningPushProtection      securityStatusJSON  `json:"secret_scanning_push_protection"`
+	SecretScanningNonProviderPatterns *securityStatusJSON `json:"secret_scanning_non_provider_patterns,omitempty"`
 }
 
 // settingsServer creates an httptest server that responds to repo settings

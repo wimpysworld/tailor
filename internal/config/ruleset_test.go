@@ -47,6 +47,14 @@ func statusChecksRule(p *model.RulesetStatusChecksParameters) *model.RulesetRule
 	return &model.RulesetRules{RequiredStatusChecks: &model.RulesetStatusChecks{Enabled: new(true), Parameters: p}}
 }
 
+func codeScanningRule(tools ...model.RulesetCodeScanningTool) *model.RulesetRules {
+	return &model.RulesetRules{CodeScanning: &model.RulesetCodeScanning{Enabled: new(true), Parameters: &model.RulesetCodeScanningParameters{CodeScanningTools: &tools}}}
+}
+
+func codeQLTool() model.RulesetCodeScanningTool {
+	return model.RulesetCodeScanningTool{Tool: "CodeQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "high_or_higher"}
+}
+
 func TestValidateRuleset(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -83,7 +91,7 @@ func TestValidateRuleset(t *testing.T) {
 		{name: "exclude default branch token", section: &model.RulesetSettings{Conditions: refName(nil, &[]string{"refs/heads/wip", "~DEFAULT_BRANCH"})}, wantErr: `ruleset.conditions.ref_name.exclude[1]: ~DEFAULT_BRANCH is valid in include only`},
 		{name: "exclude all token", section: &model.RulesetSettings{Conditions: refName(nil, &[]string{"~ALL"})}, wantErr: `ruleset.conditions.ref_name.exclude[0]: ~ALL is valid in include only`},
 		{name: "exclude pattern", section: &model.RulesetSettings{Conditions: refName(nil, &[]string{"refs/heads/wip/*"})}},
-		{name: "rules unknown key", section: &model.RulesetSettings{Rules: &model.RulesetRules{Extra: map[string]any{"workflows": nil}}}, wantErr: `unrecognised ruleset.rules setting "workflows" in config; valid settings: creation, deletion, non_fast_forward, pull_request, required_linear_history, required_signatures, required_status_checks, update`},
+		{name: "rules unknown key", section: &model.RulesetSettings{Rules: &model.RulesetRules{Extra: map[string]any{"workflows": nil}}}, wantErr: `unrecognised ruleset.rules setting "workflows" in config; valid settings: code_scanning, creation, deletion, non_fast_forward, pull_request, required_linear_history, required_signatures, required_status_checks, update`},
 		{name: "pull request unknown key", section: &model.RulesetSettings{Rules: &model.RulesetRules{PullRequest: &model.RulesetPullRequest{Extra: map[string]any{"type": "pull_request"}}}}, wantErr: `unrecognised ruleset.rules.pull_request setting "type" in config; valid settings: enabled, parameters`},
 		{name: "pull request parameters unknown key", section: &model.RulesetSettings{Rules: pullRequestRule(&model.RulesetPullRequestParameters{Extra: map[string]any{"required_reviewers": nil}})}, wantErr: `unrecognised ruleset.rules.pull_request.parameters setting "required_reviewers" in config; valid settings: allowed_merge_methods, dismiss_stale_reviews_on_push, require_code_owner_review, require_extra_approval_for_unattributed_changes, require_last_push_approval, required_approving_review_count, required_review_thread_resolution`},
 		{name: "review count negative", section: &model.RulesetSettings{Rules: pullRequestRule(&model.RulesetPullRequestParameters{RequiredApprovingReviewCount: new(-1)})}, wantErr: `ruleset.rules.pull_request.parameters.required_approving_review_count must be between 0 and 10, got -1`},
@@ -104,6 +112,18 @@ func TestValidateRuleset(t *testing.T) {
 		{name: "status check integration id zero", section: &model.RulesetSettings{Rules: statusChecksRule(&model.RulesetStatusChecksParameters{RequiredStatusChecks: &[]model.RulesetStatusCheck{{Context: "lint", IntegrationID: new(0)}}})}, wantErr: `ruleset.rules.required_status_checks.parameters.required_status_checks[0]: integration_id must be positive, got 0`},
 		{name: "status check duplicate context", section: &model.RulesetSettings{Rules: statusChecksRule(&model.RulesetStatusChecksParameters{RequiredStatusChecks: &[]model.RulesetStatusCheck{{Context: "lint"}, {Context: "lint", IntegrationID: new(15368)}}})}, wantErr: `ruleset.rules.required_status_checks.parameters.required_status_checks[1]: duplicate context "lint"`},
 		{name: "status checks valid", section: &model.RulesetSettings{Rules: statusChecksRule(&model.RulesetStatusChecksParameters{RequiredStatusChecks: &[]model.RulesetStatusCheck{{Context: "Sentinel 👁️"}, {Context: "lint", IntegrationID: new(15368)}}})}},
+		{name: "code scanning unknown key", section: &model.RulesetSettings{Rules: &model.RulesetRules{CodeScanning: &model.RulesetCodeScanning{Extra: map[string]any{"tools": nil}}}}, wantErr: `unrecognised ruleset.rules.code_scanning setting "tools" in config; valid settings: enabled, parameters`},
+		{name: "code scanning parameters unknown key", section: &model.RulesetSettings{Rules: &model.RulesetRules{CodeScanning: &model.RulesetCodeScanning{Enabled: new(true), Parameters: &model.RulesetCodeScanningParameters{Extra: map[string]any{"tools": nil}}}}}, wantErr: `unrecognised ruleset.rules.code_scanning.parameters setting "tools" in config; valid settings: code_scanning_tools`},
+		{name: "code scanning tool unknown key", section: &model.RulesetSettings{Rules: codeScanningRule(model.RulesetCodeScanningTool{Tool: "CodeQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "all", Extra: map[string]any{"threshold": "all"}})}, wantErr: `unrecognised ruleset.rules.code_scanning.parameters.code_scanning_tools[0] setting "threshold" in config; valid settings: alerts_threshold, security_alerts_threshold, tool`},
+		{name: "code scanning empty tool", section: &model.RulesetSettings{Rules: codeScanningRule(model.RulesetCodeScanningTool{AlertsThreshold: "errors", SecurityAlertsThreshold: "all"})}, wantErr: `ruleset.rules.code_scanning.parameters.code_scanning_tools[0]: tool must not be empty`},
+		{name: "code scanning tool control characters", section: &model.RulesetSettings{Rules: codeScanningRule(model.RulesetCodeScanningTool{Tool: "Code\x1bQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "all"})}, wantErr: `ruleset.rules.code_scanning.parameters.code_scanning_tools[0]: tool "Code\x1bQL" contains control characters`},
+		{name: "code scanning invalid alerts threshold", section: &model.RulesetSettings{Rules: codeScanningRule(model.RulesetCodeScanningTool{Tool: "CodeQL", AlertsThreshold: "warnings", SecurityAlertsThreshold: "all"})}, wantErr: `invalid ruleset.rules.code_scanning.parameters.code_scanning_tools[0].alerts_threshold "warnings"; must be "none" or "errors" or "errors_and_warnings" or "all"`},
+		{name: "code scanning invalid security alerts threshold", section: &model.RulesetSettings{Rules: codeScanningRule(model.RulesetCodeScanningTool{Tool: "CodeQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "high"})}, wantErr: `invalid ruleset.rules.code_scanning.parameters.code_scanning_tools[0].security_alerts_threshold "high"; must be "none" or "critical" or "high_or_higher" or "medium_or_higher" or "all"`},
+		{name: "code scanning empty threshold", section: &model.RulesetSettings{Rules: codeScanningRule(model.RulesetCodeScanningTool{Tool: "CodeQL", AlertsThreshold: "errors"})}, wantErr: `invalid ruleset.rules.code_scanning.parameters.code_scanning_tools[0].security_alerts_threshold ""`},
+		{name: "code scanning duplicate tool", section: &model.RulesetSettings{Rules: codeScanningRule(codeQLTool(), model.RulesetCodeScanningTool{Tool: "CodeQL", AlertsThreshold: "all", SecurityAlertsThreshold: "all"})}, wantErr: `ruleset.rules.code_scanning.parameters.code_scanning_tools[1]: duplicate tool "CodeQL"`},
+		{name: "code scanning tool names are case-sensitive", section: &model.RulesetSettings{Rules: codeScanningRule(codeQLTool(), model.RulesetCodeScanningTool{Tool: "codeql", AlertsThreshold: "all", SecurityAlertsThreshold: "all"})}},
+		{name: "code scanning empty list", section: &model.RulesetSettings{Rules: codeScanningRule()}},
+		{name: "code scanning valid", section: &model.RulesetSettings{Rules: codeScanningRule(codeQLTool(), model.RulesetCodeScanningTool{Tool: "Sentinel 👁️", AlertsThreshold: "none", SecurityAlertsThreshold: "medium_or_higher"})}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -125,13 +145,22 @@ func TestValidateCompleteRuleset(t *testing.T) {
 		rules := booleanRules()
 		rules.PullRequest = &model.RulesetPullRequest{Enabled: new(false)}
 		rules.RequiredStatusChecks = &model.RulesetStatusChecks{Enabled: new(false)}
+		rules.CodeScanning = &model.RulesetCodeScanning{Enabled: new(false)}
 		return rules
 	}
 	withPullRequest := func(rules *model.RulesetRules) *model.RulesetRules {
 		complete := booleanRules()
 		complete.PullRequest = rules.PullRequest
 		complete.RequiredStatusChecks = rules.RequiredStatusChecks
+		complete.CodeScanning = rules.CodeScanning
 		return complete
+	}
+	// withCodeScanning pairs disabled pull request and status checks rules
+	// with the given code scanning rule.
+	withCodeScanning := func(rule *model.RulesetCodeScanning) *model.RulesetRules {
+		rules := disabledRules()
+		rules.CodeScanning = rule
+		return rules
 	}
 	// complete wraps rules with the other required fields present.
 	complete := func(rules *model.RulesetRules) *model.RulesetSettings {
@@ -169,6 +198,12 @@ func TestValidateCompleteRuleset(t *testing.T) {
 			PullRequest:          &model.RulesetPullRequest{Enabled: new(false)},
 			RequiredStatusChecks: &model.RulesetStatusChecks{Enabled: new(true), Parameters: &model.RulesetStatusChecksParameters{StrictRequiredStatusChecksPolicy: new(false)}},
 		})), wantErr: "ruleset.rules.required_status_checks requires every parameter when enabled: do_not_enforce_on_create, required_status_checks, strict_required_status_checks_policy"},
+		{name: "missing code scanning", section: complete(withCodeScanning(nil)), wantErr: "ruleset.rules.code_scanning requires enabled"},
+		{name: "code scanning without enabled", section: complete(withCodeScanning(&model.RulesetCodeScanning{Parameters: &model.RulesetCodeScanningParameters{CodeScanningTools: &[]model.RulesetCodeScanningTool{codeQLTool()}}})), wantErr: "ruleset.rules.code_scanning requires enabled"},
+		{name: "code scanning enabled without parameters", section: complete(withCodeScanning(&model.RulesetCodeScanning{Enabled: new(true)})), wantErr: "ruleset.rules.code_scanning requires at least one entry in parameters.code_scanning_tools when enabled"},
+		{name: "code scanning enabled with empty tools", section: complete(withCodeScanning(codeScanningRule().CodeScanning)), wantErr: "ruleset.rules.code_scanning requires at least one entry in parameters.code_scanning_tools when enabled"},
+		{name: "code scanning enabled with tools", section: complete(withCodeScanning(codeScanningRule(codeQLTool()).CodeScanning))},
+		{name: "code scanning disabled with empty tools", section: complete(withCodeScanning(&model.RulesetCodeScanning{Enabled: new(false), Parameters: &model.RulesetCodeScanningParameters{CodeScanningTools: &[]model.RulesetCodeScanningTool{}}}))},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -236,6 +271,8 @@ func TestLoadRejectsInvalidRuleset(t *testing.T) {
 		{name: "unknown nested key", yaml: "license: none\nruleset:\n  rules:\n    pull_request:\n      enabled: true\n      parameters:\n        required_reviewers: []\nswatches: []\n", want: `unrecognised ruleset.rules.pull_request.parameters setting "required_reviewers"`},
 		{name: "deploy key null id", yaml: "license: none\nruleset:\n  bypass_actors:\n    - actor_id: null\n      actor_type: DeployKey\n      bypass_mode: always\nswatches: []\n"},
 		{name: "review count string", yaml: "license: none\nruleset:\n  rules:\n    pull_request:\n      enabled: true\n      parameters:\n        required_approving_review_count: two\nswatches: []\n", want: "parsing config"},
+		{name: "code scanning threshold", yaml: "license: none\nruleset:\n  rules:\n    code_scanning:\n      enabled: true\n      parameters:\n        code_scanning_tools:\n          - tool: CodeQL\n            alerts_threshold: errors\n            security_alerts_threshold: severe\nswatches: []\n", want: `security_alerts_threshold "severe"`},
+		{name: "code scanning tool unknown key", yaml: "license: none\nruleset:\n  rules:\n    code_scanning:\n      enabled: true\n      parameters:\n        code_scanning_tools:\n          - tool: CodeQL\n            alerts_threshold: errors\n            security_alerts_threshold: all\n            threshold: all\nswatches: []\n", want: `unrecognised ruleset.rules.code_scanning.parameters.code_scanning_tools[0] setting "threshold"`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -274,6 +311,10 @@ func TestDefaultConfigRuleset(t *testing.T) {
 	testutil.AssertPtr(t, r.Rules.RequiredStatusChecks.Enabled, false, false, "rules.required_status_checks.enabled")
 	if r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks == nil || len(*r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks) != 0 {
 		t.Errorf("required_status_checks = %v, want empty list", r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks)
+	}
+	testutil.AssertPtr(t, r.Rules.CodeScanning.Enabled, false, false, "rules.code_scanning.enabled")
+	if !reflect.DeepEqual(*r.Rules.CodeScanning.Parameters.CodeScanningTools, []model.RulesetCodeScanningTool{codeQLTool()}) {
+		t.Errorf("code_scanning_tools = %v, want [CodeQL errors high_or_higher]", *r.Rules.CodeScanning.Parameters.CodeScanningTools)
 	}
 	if err := ValidateCompleteRuleset(&Config{Ruleset: r}); err != nil {
 		t.Errorf("default ruleset is incomplete: %v", err)
@@ -341,6 +382,10 @@ func TestMergeDefaultsFillsRulesetFields(t *testing.T) {
 	if !reflect.DeepEqual(*r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks, []model.RulesetStatusCheck{{Context: "lint"}}) {
 		t.Errorf("required_status_checks = %v, want the explicit list", *r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks)
 	}
+	testutil.AssertPtr(t, r.Rules.CodeScanning.Enabled, false, false, "rules.code_scanning.enabled")
+	if !reflect.DeepEqual(*r.Rules.CodeScanning.Parameters.CodeScanningTools, []model.RulesetCodeScanningTool{codeQLTool()}) {
+		t.Errorf("code_scanning_tools = %v, want the default list", *r.Rules.CodeScanning.Parameters.CodeScanningTools)
+	}
 	if err := ValidateCompleteRuleset(cfg); err != nil {
 		t.Errorf("merged ruleset is incomplete: %v", err)
 	}
@@ -372,6 +417,12 @@ func TestMergeRulesetSetup(t *testing.T) {
 					RequiredStatusChecks:             &[]model.RulesetStatusCheck{{Context: "lint", IntegrationID: new(15368)}},
 				},
 			},
+			CodeScanning: &model.RulesetCodeScanning{
+				Enabled: new(true),
+				Parameters: &model.RulesetCodeScanningParameters{
+					CodeScanningTools: &[]model.RulesetCodeScanningTool{{Tool: "CodeQL", AlertsThreshold: "all", SecurityAlertsThreshold: "critical"}},
+				},
+			},
 		},
 	}
 	MergeRulesetSetup(cfg, live)
@@ -395,8 +446,24 @@ func TestMergeRulesetSetup(t *testing.T) {
 	if !reflect.DeepEqual(*r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks, []model.RulesetStatusCheck{{Context: "lint", IntegrationID: new(15368)}}) {
 		t.Errorf("required_status_checks = %v, want the live list", *r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks)
 	}
+	testutil.AssertPtr(t, r.Rules.CodeScanning.Enabled, false, true, "rules.code_scanning.enabled")
+	wantTools := []model.RulesetCodeScanningTool{{Tool: "CodeQL", AlertsThreshold: "all", SecurityAlertsThreshold: "critical"}}
+	if !reflect.DeepEqual(*r.Rules.CodeScanning.Parameters.CodeScanningTools, wantTools) {
+		t.Errorf("code_scanning_tools = %v, want the live list", *r.Rules.CodeScanning.Parameters.CodeScanningTools)
+	}
 
 	MergeRulesetSetup(&Config{}, live)
+}
+
+func TestMergeRulesetSetupKeepsBuiltInCodeScanningTools(t *testing.T) {
+	// The live ruleset carries no code scanning rule, so the built-in tool
+	// list stays in the config for the day the rule is enabled.
+	cfg := &Config{Ruleset: defaultRuleset(t)}
+	MergeRulesetSetup(cfg, &model.RulesetSettings{Rules: &model.RulesetRules{CodeScanning: &model.RulesetCodeScanning{Enabled: new(false)}}})
+	testutil.AssertPtr(t, cfg.Ruleset.Rules.CodeScanning.Enabled, false, false, "rules.code_scanning.enabled")
+	if !reflect.DeepEqual(*cfg.Ruleset.Rules.CodeScanning.Parameters.CodeScanningTools, []model.RulesetCodeScanningTool{codeQLTool()}) {
+		t.Errorf("code_scanning_tools = %v, want the built-in list", *cfg.Ruleset.Rules.CodeScanning.Parameters.CodeScanningTools)
+	}
 }
 
 func TestMergeRulesetSetupSkipsUnmanagedEnforcement(t *testing.T) {
@@ -441,6 +508,7 @@ func TestWriteRulesetSection(t *testing.T) {
 							RequiredStatusChecks:             &[]model.RulesetStatusCheck{{Context: "Sentinel"}, {Context: "lint", IntegrationID: new(15368)}},
 						},
 					},
+					CodeScanning: codeScanningRule(codeQLTool(), model.RulesetCodeScanningTool{Tool: "Sentinel", AlertsThreshold: "all", SecurityAlertsThreshold: "none"}).CodeScanning,
 				},
 			},
 			want: []string{
@@ -482,9 +550,43 @@ func TestWriteRulesetSection(t *testing.T) {
 					"          - context: Sentinel\n" +
 					"          - context: lint\n" +
 					"            integration_id: 15368\n" +
+					"    code_scanning:\n" +
+					"      enabled: true\n" +
+					"      parameters:\n" +
+					"        # tool is the tool name as GitHub shows it, for example CodeQL.\n" +
+					"        # alerts_threshold: none, errors, errors_and_warnings, all\n" +
+					"        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all\n" +
+					"        code_scanning_tools:\n" +
+					"          - tool: CodeQL\n" +
+					"            alerts_threshold: errors\n" +
+					"            security_alerts_threshold: high_or_higher\n" +
+					"          - tool: Sentinel\n" +
+					"            alerts_threshold: all\n" +
+					"            security_alerts_threshold: none\n" +
 					"\nswatches:\n",
 			},
 			wantMissing: []string{"pull_request:", "creation:"},
+		},
+		{
+			name:    "code scanning with an empty tool list",
+			ruleset: &model.RulesetSettings{Rules: &model.RulesetRules{CodeScanning: &model.RulesetCodeScanning{Enabled: new(false), Parameters: &model.RulesetCodeScanningParameters{CodeScanningTools: &[]model.RulesetCodeScanningTool{}}}}},
+			want: []string{
+				"  rules:\n" +
+					"    code_scanning:\n" +
+					"      enabled: false\n" +
+					"      parameters:\n" +
+					"        # tool is the tool name as GitHub shows it, for example CodeQL.\n" +
+					"        # alerts_threshold: none, errors, errors_and_warnings, all\n" +
+					"        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all\n" +
+					"        code_scanning_tools: []\n" +
+					"\nswatches:\n",
+			},
+		},
+		{
+			name:        "code scanning without parameters",
+			ruleset:     &model.RulesetSettings{Rules: &model.RulesetRules{CodeScanning: &model.RulesetCodeScanning{Enabled: new(false)}}},
+			want:        []string{"  rules:\n    code_scanning:\n      enabled: false\n\nswatches:\n"},
+			wantMissing: []string{"parameters:", "code_scanning_tools"},
 		},
 		{
 			name:    "no bypass actors keeps the guidance",
@@ -535,6 +637,7 @@ func TestWriteRulesetRoundTrip(t *testing.T) {
 	(*want.BypassActors) = append(*want.BypassActors, actor("DeployKey", nil, "exempt"))
 	*want.Conditions.RefName.Exclude = []string{"refs/heads/wip/*", "~release"}
 	*want.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks = []model.RulesetStatusCheck{{Context: "Sentinel 👁️"}, {Context: "lint", IntegrationID: new(15368)}}
+	*want.Rules.CodeScanning.Parameters.CodeScanningTools = []model.RulesetCodeScanningTool{codeQLTool(), {Tool: "Sentinel 👁️", AlertsThreshold: "all", SecurityAlertsThreshold: "none"}}
 	if err := Write(dir, &Config{License: "none", Ruleset: want}, "2026-03-02", "Refitted"); err != nil {
 		t.Fatalf("Write() error: %v", err)
 	}

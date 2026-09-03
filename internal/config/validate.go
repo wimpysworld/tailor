@@ -85,8 +85,9 @@ func ValidateWorkflowPermissions(cfg *Config) error {
 	return nil
 }
 
-// ValidateSecretScanning checks that secret_scanning and
-// secret_scanning_push_protection, if set, are either "enabled" or "disabled".
+// ValidateSecretScanning checks that secret_scanning,
+// secret_scanning_push_protection, and secret_scanning_non_provider_patterns,
+// if set, are either "enabled" or "disabled".
 func ValidateSecretScanning(cfg *Config) error {
 	if cfg.Repository == nil {
 		return nil
@@ -97,6 +98,7 @@ func ValidateSecretScanning(cfg *Config) error {
 	}{
 		{"secret_scanning", cfg.Repository.SecretScanning},
 		{"secret_scanning_push_protection", cfg.Repository.SecretScanningPushProtection},
+		{"secret_scanning_non_provider_patterns", cfg.Repository.SecretScanningNonProviderPatterns},
 	} {
 		if setting.value == nil {
 			continue
@@ -532,7 +534,10 @@ func validateRulesetRules(rules *model.RulesetRules) error {
 	if err := validateLinearHistoryMergeMethods(rules); err != nil {
 		return err
 	}
-	return validateRulesetStatusChecks(rules.RequiredStatusChecks)
+	if err := validateRulesetStatusChecks(rules.RequiredStatusChecks); err != nil {
+		return err
+	}
+	return validateRulesetCodeScanning(rules.CodeScanning)
 }
 
 // validateLinearHistoryMergeMethods rejects required_linear_history with an
@@ -611,22 +616,66 @@ func validateRulesetStatusChecks(rule *model.RulesetStatusChecks) error {
 	seen := make(map[string]bool, len(*p.RequiredStatusChecks))
 	for i, check := range *p.RequiredStatusChecks {
 		entry := fmt.Sprintf("%s.parameters.required_status_checks[%d]", name, i)
-		if err := rejectExtra(entry, check.Extra, model.RulesetStatusCheckNames); err != nil {
-			return err
-		}
-		if check.Context == "" {
-			return fmt.Errorf("%s: context must not be empty", entry)
-		}
-		if containsControl(check.Context) {
-			return fmt.Errorf("%s: context %q contains control characters", entry, check.Context)
-		}
 		if check.IntegrationID != nil && *check.IntegrationID <= 0 {
 			return fmt.Errorf("%s: integration_id must be positive, got %d", entry, *check.IntegrationID)
 		}
-		if seen[check.Context] {
-			return fmt.Errorf("%s: duplicate context %q", entry, check.Context)
+		if err := validateListEntry(entry, check.Extra, model.RulesetStatusCheckNames, "context", check.Context, seen); err != nil {
+			return err
 		}
-		seen[check.Context] = true
+	}
+	return nil
+}
+
+// validateListEntry checks one entry of a keyed list: no unrecognised
+// setting, and a key value that is not empty, carries no control
+// characters, and appears once. It records the value in seen.
+func validateListEntry(entry string, extra map[string]any, valid []string, field, value string, seen map[string]bool) error {
+	if err := rejectExtra(entry, extra, valid); err != nil {
+		return err
+	}
+	if value == "" {
+		return fmt.Errorf("%s: %s must not be empty", entry, field)
+	}
+	if containsControl(value) {
+		return fmt.Errorf("%s: %s %q contains control characters", entry, field, value)
+	}
+	if seen[value] {
+		return fmt.Errorf("%s: duplicate %s %q", entry, field, value)
+	}
+	seen[value] = true
+	return nil
+}
+
+func validateRulesetCodeScanning(rule *model.RulesetCodeScanning) error {
+	if rule == nil {
+		return nil
+	}
+	const name = "ruleset.rules.code_scanning"
+	if err := rejectExtra(name, rule.Extra, model.RulesetRuleNames); err != nil {
+		return err
+	}
+	p := rule.Parameters
+	if p == nil {
+		return nil
+	}
+	if err := rejectExtra(name+".parameters", p.Extra, model.RulesetCodeScanningParameterNames); err != nil {
+		return err
+	}
+	if p.CodeScanningTools == nil {
+		return nil
+	}
+	seen := make(map[string]bool, len(*p.CodeScanningTools))
+	for i, tool := range *p.CodeScanningTools {
+		entry := fmt.Sprintf("%s.parameters.code_scanning_tools[%d]", name, i)
+		if err := validateEnum(entry+".alerts_threshold", &tool.AlertsThreshold, model.RulesetAlertsThresholds...); err != nil {
+			return err
+		}
+		if err := validateEnum(entry+".security_alerts_threshold", &tool.SecurityAlertsThreshold, model.RulesetSecurityAlertsThresholds...); err != nil {
+			return err
+		}
+		if err := validateListEntry(entry, tool.Extra, model.RulesetCodeScanningToolNames, "tool", tool.Tool, seen); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -634,10 +683,10 @@ func validateRulesetStatusChecks(rule *model.RulesetStatusChecks) error {
 // ValidateCompleteRuleset checks that the ruleset carries every field the
 // rulesets API requires after default merging: the enforcement level, the
 // bypass actor list, both branch condition lists, the six Boolean rule
-// keys, the pull request rule with its seven parameters, and the required
-// status checks rule with its two policy flags. A write sends the whole
-// ruleset, so an absent list or Boolean would clear the live value without
-// a report line.
+// keys, the pull request rule with its seven parameters, the required
+// status checks rule with its two policy flags, and the code scanning rule
+// with its tool list. A write sends the whole ruleset, so an absent list or
+// Boolean would clear the live value without a report line.
 func ValidateCompleteRuleset(cfg *Config) error {
 	r := cfg.Ruleset
 	if r == nil {
@@ -664,7 +713,10 @@ func ValidateCompleteRuleset(cfg *Config) error {
 	if err := validateCompletePullRequest(r.Rules.PullRequest); err != nil {
 		return err
 	}
-	return validateCompleteStatusChecks(r.Rules.RequiredStatusChecks)
+	if err := validateCompleteStatusChecks(r.Rules.RequiredStatusChecks); err != nil {
+		return err
+	}
+	return validateCompleteCodeScanning(r.Rules.CodeScanning)
 }
 
 // validateCompleteBooleanRules requires the six Boolean rule keys. A write
@@ -718,6 +770,24 @@ func validateCompleteStatusChecks(rule *model.RulesetStatusChecks) error {
 	p := rule.Parameters
 	if p == nil || p.StrictRequiredStatusChecksPolicy == nil || p.DoNotEnforceOnCreate == nil || p.RequiredStatusChecks == nil {
 		return fmt.Errorf("%s requires every parameter when enabled: %s", name, strings.Join(model.RulesetStatusChecksParameterNames, ", "))
+	}
+	return nil
+}
+
+// validateCompleteCodeScanning requires the tool list when the rule is
+// enabled. GitHub rejects a code scanning rule with no tools, so an empty
+// list would fail the write.
+func validateCompleteCodeScanning(rule *model.RulesetCodeScanning) error {
+	const name = "ruleset.rules.code_scanning"
+	if rule == nil || rule.Enabled == nil {
+		return fmt.Errorf("%s requires enabled", name)
+	}
+	if !*rule.Enabled {
+		return nil
+	}
+	p := rule.Parameters
+	if p == nil || p.CodeScanningTools == nil || len(*p.CodeScanningTools) == 0 {
+		return fmt.Errorf("%s requires at least one entry in parameters.code_scanning_tools when enabled", name)
 	}
 	return nil
 }

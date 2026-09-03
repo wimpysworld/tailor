@@ -24,6 +24,7 @@ const (
 		`"required_review_thread_resolution":true,"required_reviewers":[]},"type":"pull_request"},{"type":"non_fast_forward"},{"type":"deletion"},` +
 		`{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":true,"do_not_enforce_on_create":false,` +
 		`"required_status_checks":[{"context":"Sentinel 👁️"},{"context":"lint","integration_id":15368}]}},` +
+		`{"type":"code_scanning","parameters":{"code_scanning_tools":[{"tool":"CodeQL","alerts_threshold":"errors","security_alerts_threshold":"high_or_higher"}]}},` +
 		`{"type":"commit_message_pattern","parameters":{"operator":"starts_with","pattern":"feat"}}]}`
 )
 
@@ -155,6 +156,11 @@ func TestReadTailorRuleset(t *testing.T) {
 			if !reflect.DeepEqual(*checks.RequiredStatusChecks, wantChecks) {
 				t.Errorf("required_status_checks = %+v, want %+v", *checks.RequiredStatusChecks, wantChecks)
 			}
+			testutil.AssertPtr(t, rules.CodeScanning.Enabled, false, true, "rules.code_scanning.enabled")
+			wantTools := []model.RulesetCodeScanningTool{{Tool: "CodeQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "high_or_higher"}}
+			if !reflect.DeepEqual(*rules.CodeScanning.Parameters.CodeScanningTools, wantTools) {
+				t.Errorf("code_scanning_tools = %+v, want %+v", *rules.CodeScanning.Parameters.CodeScanningTools, wantTools)
+			}
 		})
 	}
 }
@@ -175,14 +181,31 @@ func TestReadTailorRulesetAbsentRulesAreDisabled(t *testing.T) {
 		"non_fast_forward":        live.Rules.NonFastForward,
 		"pull_request":            live.Rules.PullRequest.Enabled,
 		"required_status_checks":  live.Rules.RequiredStatusChecks.Enabled,
+		"code_scanning":           live.Rules.CodeScanning.Enabled,
 	} {
 		testutil.AssertPtr(t, value, false, false, name)
 	}
-	if live.Rules.PullRequest.Parameters != nil || live.Rules.RequiredStatusChecks.Parameters != nil {
+	if live.Rules.PullRequest.Parameters != nil || live.Rules.RequiredStatusChecks.Parameters != nil || live.Rules.CodeScanning.Parameters != nil {
 		t.Error("absent rules carry parameters")
 	}
 	if len(*live.BypassActors) != 0 || len(*live.Conditions.RefName.Include) != 0 {
 		t.Errorf("empty lists were not preserved: %+v", live)
+	}
+}
+
+func TestCodeScanningFromJSONWithoutParameters(t *testing.T) {
+	for name, raw := range map[string]json.RawMessage{
+		"absent":    nil,
+		"malformed": json.RawMessage(`{"code_scanning_tools":"CodeQL"}`),
+		"truncated": json.RawMessage(`{"code_scanning_tools":[`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			rule := codeScanningFromJSON(raw)
+			testutil.AssertPtr(t, rule.Enabled, false, true, "enabled")
+			if rule.Parameters != nil {
+				t.Errorf("parameters = %+v, want nil", rule.Parameters)
+			}
+		})
 	}
 }
 
@@ -201,6 +224,12 @@ func desiredRuleset() *model.RulesetSettings {
 				StrictRequiredStatusChecksPolicy: new(true), DoNotEnforceOnCreate: new(false),
 				RequiredStatusChecks: &[]model.RulesetStatusCheck{{Context: "Sentinel 👁️"}, {Context: "lint", IntegrationID: new(15368)}},
 			}},
+			CodeScanning: &model.RulesetCodeScanning{Enabled: new(true), Parameters: &model.RulesetCodeScanningParameters{
+				CodeScanningTools: &[]model.RulesetCodeScanningTool{
+					{Tool: "CodeQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "high_or_higher"},
+					{Tool: "Sentinel 👁️", AlertsThreshold: "all", SecurityAlertsThreshold: "none"},
+				},
+			}},
 		},
 	}
 }
@@ -210,7 +239,8 @@ const desiredRulesetBodyJSON = `{"bypass_actors":[{"actor_id":5,"actor_type":"Re
 	`"rules":[{"type":"update"},{"type":"deletion"},{"type":"non_fast_forward"},` +
 	`{"parameters":{"allowed_merge_methods":["squash","rebase"],"dismiss_stale_reviews_on_push":true,"require_code_owner_review":false,` +
 	`"require_extra_approval_for_unattributed_changes":true,"require_last_push_approval":false,"required_approving_review_count":1,"required_review_thread_resolution":true},"type":"pull_request"},` +
-	`{"parameters":{"do_not_enforce_on_create":false,"required_status_checks":[{"context":"Sentinel 👁️"},{"context":"lint","integration_id":15368}],"strict_required_status_checks_policy":true},"type":"required_status_checks"}],` +
+	`{"parameters":{"do_not_enforce_on_create":false,"required_status_checks":[{"context":"Sentinel 👁️"},{"context":"lint","integration_id":15368}],"strict_required_status_checks_policy":true},"type":"required_status_checks"},` +
+	`{"parameters":{"code_scanning_tools":[{"alerts_threshold":"errors","security_alerts_threshold":"high_or_higher","tool":"CodeQL"},{"alerts_threshold":"all","security_alerts_threshold":"none","tool":"Sentinel 👁️"}]},"type":"code_scanning"}],` +
 	`"target":"branch"}`
 
 func TestRulesetBody(t *testing.T) {
@@ -231,6 +261,9 @@ func TestRulesetBody(t *testing.T) {
 				Deletion:             new(false),
 				PullRequest:          &model.RulesetPullRequest{Enabled: new(false), Parameters: &model.RulesetPullRequestParameters{RequiredApprovingReviewCount: new(2)}},
 				RequiredStatusChecks: &model.RulesetStatusChecks{Enabled: new(false), Parameters: &model.RulesetStatusChecksParameters{StrictRequiredStatusChecksPolicy: new(true)}},
+				CodeScanning: &model.RulesetCodeScanning{Enabled: new(false), Parameters: &model.RulesetCodeScanningParameters{
+					CodeScanningTools: &[]model.RulesetCodeScanningTool{{Tool: "CodeQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "high_or_higher"}},
+				}},
 			}},
 			want: `{"bypass_actors":[],"conditions":{"ref_name":{"exclude":[],"include":[]}},"enforcement":"disabled","name":"Tailor","rules":[],"target":"branch"}`,
 		},
@@ -239,9 +272,11 @@ func TestRulesetBody(t *testing.T) {
 			desired: &model.RulesetSettings{Rules: &model.RulesetRules{
 				PullRequest:          &model.RulesetPullRequest{Enabled: new(true)},
 				RequiredStatusChecks: &model.RulesetStatusChecks{Enabled: new(true)},
+				CodeScanning:         &model.RulesetCodeScanning{Enabled: new(true)},
 			}},
 			want: `{"bypass_actors":[],"conditions":{"ref_name":{"exclude":[],"include":[]}},"enforcement":"","name":"Tailor",` +
-				`"rules":[{"parameters":{},"type":"pull_request"},{"parameters":{"required_status_checks":[]},"type":"required_status_checks"}],"target":"branch"}`,
+				`"rules":[{"parameters":{},"type":"pull_request"},{"parameters":{"required_status_checks":[]},"type":"required_status_checks"},` +
+				`{"parameters":{"code_scanning_tools":[]},"type":"code_scanning"}],"target":"branch"}`,
 		},
 	}
 	for _, tt := range tests {
