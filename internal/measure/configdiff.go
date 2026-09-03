@@ -1,9 +1,7 @@
 package measure
 
 import (
-	"cmp"
 	"fmt"
-	"slices"
 
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -72,12 +70,6 @@ func CheckConfigDiff(cfg *config.Config, defaults []swatch.Swatch) []DiffResult 
 		}
 	}
 
-	sortByPath := func(a, b DiffResult) int {
-		return cmp.Compare(a.Path, b.Path)
-	}
-	slices.SortFunc(notConfigured, sortByPath)
-	slices.SortFunc(configOnly, sortByPath)
-	slices.SortFunc(modeDiffers, sortByPath)
-
-	return slices.Concat(notConfigured, configOnly, modeDiffers)
+	return concatSortedByPath(func(r DiffResult) string { return r.Path },
+		notConfigured, configOnly, modeDiffers)
 }

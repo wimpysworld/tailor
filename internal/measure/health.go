@@ -1,12 +1,10 @@
 package measure
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"io"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -222,12 +220,6 @@ func CheckHealth(dir string) []HealthResult {
 		})
 	}
 
-	sortByPath := func(a, b HealthResult) int {
-		return cmp.Compare(a.Path, b.Path)
-	}
-	slices.SortFunc(missing, sortByPath)
-	slices.SortFunc(warning, sortByPath)
-	slices.SortFunc(present, sortByPath)
-
-	return slices.Concat(missing, warning, present)
+	return concatSortedByPath(func(r HealthResult) string { return r.Path },
+		missing, warning, present)
 }
