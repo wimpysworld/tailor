@@ -207,16 +207,9 @@ func readSecurityFeature(client *api.RESTClient, path string, statusOnly, allow4
 // security features, topics, and Actions workflow permissions. Access errors
 // are collected in the returned ApplyResult rather than aborting.
 // Hard errors still return as the error value.
-func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings *model.RepositorySettings) (*ApplyResult, error) {
-	return applyRepoSettings(client, owner, name, settings, nil)
-}
-
-// ApplyRepoSettingsWithCurrent applies settings with the live state available to avoid redundant security feature writes.
-func ApplyRepoSettingsWithCurrent(client *api.RESTClient, owner, name string, settings, current *model.RepositorySettings) (*ApplyResult, error) {
-	return applyRepoSettings(client, owner, name, settings, current)
-}
-
-func applyRepoSettings(client *api.RESTClient, owner, name string, settings, current *model.RepositorySettings) (*ApplyResult, error) {
+// current is the live repository state, used to skip redundant security
+// feature writes. Pass nil when the live state is unknown.
+func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings, current *model.RepositorySettings) (*ApplyResult, error) {
 	p := buildSettingsPayload(settings)
 	result := &ApplyResult{}
 
