@@ -122,14 +122,8 @@ jobs:
     permissions: {}
     steps:
       - name: Check results
-        run: |
-          results='${{ toJSON(needs.*.result) }}'
-          echo "Job results: ${results}"
-          if echo "${results}" | jq -e 'any(. == "failure" or . == "cancelled")' > /dev/null 2>&1; then
-            echo "One or more jobs failed or were cancelled"
-            exit 1
-          fi
-          echo "All jobs passed"
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
 
   snapshot:
     name: Snapshot 📦
