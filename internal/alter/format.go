@@ -256,11 +256,13 @@ func sortResults[T any](results []T, order func(T) int, key func(T) string) []T 
 }
 
 // repoSortKey returns the field name, or the skipped operation text for
-// write-skip results, which have no field name. Ruleset fields sort in
-// config order.
+// write-skip results, which have no field name. Ruleset results share the
+// empty key: the stable sort keeps their emission order, which is config
+// order, and the empty key sorts them before every other section inside a
+// category.
 func repoSortKey(r RepoSettingResult) string {
 	if r.Section == rulesetSection {
-		return rulesetSortKey(r.Field)
+		return ""
 	}
 	if r.Field != "" {
 		return r.Field
