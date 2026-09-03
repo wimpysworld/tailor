@@ -28,13 +28,8 @@ func ProcessCodeQuality(cfg *config.Config, mode ApplyMode, target RepoTarget) (
 }
 
 func compareCodeQuality(declared, live *model.CodeQualitySettings) []RepoSettingResult {
-	const section = "code_quality"
-	var results []RepoSettingResult
-	if result, ok := setupStringResult(section, "state", declared.State, live.State); ok {
-		results = append(results, result)
-	}
-	if result, ok := setupLanguagesResult(section, declared.Languages, live.Languages); ok {
-		results = append(results, result)
-	}
-	return results
+	c := &resultComparer{section: "code_quality"}
+	c.str("state", declared.State, live.State)
+	c.languages(declared.Languages, live.Languages)
+	return c.results
 }

@@ -37,72 +37,12 @@ func ProcessRuleset(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]Re
 		})
 }
 
-// rulesetComparer collects one result per declared managed field. A nil
-// live ruleset means the ruleset is absent, so every field would be set.
-type rulesetComparer struct {
-	results []RepoSettingResult
-}
-
-func (c *rulesetComparer) add(field, value string, equal bool) {
-	category := WouldSet
-	if equal {
-		category = RepoNoChange
-	}
-	c.results = append(c.results, RepoSettingResult{Section: rulesetSection, Field: field, Category: category, Value: value})
-}
-
-func (c *rulesetComparer) str(field string, declared, live *string) {
-	if declared != nil {
-		c.add(field, *declared, live != nil && *live == *declared)
-	}
-}
-
-func (c *rulesetComparer) boolean(field string, declared, live *bool) {
-	if declared != nil {
-		c.add(field, strconv.FormatBool(*declared), live != nil && *live == *declared)
-	}
-}
-
-func (c *rulesetComparer) enabled(field string, declared, live *bool) {
-	if declared != nil {
-		c.add(field, enabledText(*declared), live != nil && *live == *declared)
-	}
-}
-
-func (c *rulesetComparer) count(field string, declared, live *int) {
-	if declared != nil {
-		c.add(field, strconv.Itoa(*declared), live != nil && *live == *declared)
-	}
-}
-
-// set compares two lists as sets and renders the declared list joined by
-// ", ", or "(none)" when empty.
-func (c *rulesetComparer) set(field string, declared, live *[]string) {
-	if declared != nil {
-		c.add(field, listText(*declared), live != nil && equalStringSets(*declared, *live))
-	}
-}
-
-func enabledText(enabled bool) string {
-	if enabled {
-		return "enabled"
-	}
-	return "disabled"
-}
-
-func listText(values []string) string {
-	if len(values) == 0 {
-		return "(none)"
-	}
-	return strings.Join(values, ", ")
-}
-
 // compareRuleset returns one result per declared managed field.
 func compareRuleset(declared, live *model.RulesetSettings) []RepoSettingResult {
 	if live == nil {
 		live = &model.RulesetSettings{}
 	}
-	c := &rulesetComparer{}
+	c := &resultComparer{section: rulesetSection}
 	c.str("enforcement", declared.Enforcement, live.Enforcement)
 	if declared.BypassActors != nil {
 		c.set("bypass_actors", actorTexts(declared.BypassActors), actorTexts(live.BypassActors))
@@ -125,7 +65,7 @@ func refNameOf(r *model.RulesetSettings) *model.RulesetRefName {
 	return r.Conditions.RefName
 }
 
-func compareRefName(c *rulesetComparer, declared, live *model.RulesetRefName) {
+func compareRefName(c *resultComparer, declared, live *model.RulesetRefName) {
 	if declared == nil {
 		return
 	}
@@ -136,7 +76,7 @@ func compareRefName(c *rulesetComparer, declared, live *model.RulesetRefName) {
 	c.set("conditions.ref_name.exclude", declared.Exclude, live.Exclude)
 }
 
-func compareRules(c *rulesetComparer, declared, live *model.RulesetRules) {
+func compareRules(c *resultComparer, declared, live *model.RulesetRules) {
 	c.boolean("rules.creation", declared.Creation, live.Creation)
 	c.boolean("rules.update", declared.Update, live.Update)
 	c.boolean("rules.deletion", declared.Deletion, live.Deletion)
@@ -151,7 +91,7 @@ func compareRules(c *rulesetComparer, declared, live *model.RulesetRules) {
 // comparePullRequest compares the rule presence and, when the declared rule
 // is enabled, its seven parameters. A disabled rule sends no parameters, so
 // they are not compared.
-func comparePullRequest(c *rulesetComparer, declared, live *model.RulesetPullRequest) {
+func comparePullRequest(c *resultComparer, declared, live *model.RulesetPullRequest) {
 	if declared == nil {
 		return
 	}
@@ -180,7 +120,7 @@ func comparePullRequest(c *rulesetComparer, declared, live *model.RulesetPullReq
 
 // compareStatusChecks compares the rule presence and, when the declared
 // rule is enabled, its two policy flags and the check list as a set.
-func compareStatusChecks(c *rulesetComparer, declared, live *model.RulesetStatusChecks) {
+func compareStatusChecks(c *resultComparer, declared, live *model.RulesetStatusChecks) {
 	if declared == nil {
 		return
 	}
@@ -207,7 +147,7 @@ func compareStatusChecks(c *rulesetComparer, declared, live *model.RulesetStatus
 
 // compareRulesetCodeScanning compares the rule presence and, when the
 // declared rule is enabled, the tool list as a set.
-func compareRulesetCodeScanning(c *rulesetComparer, declared, live *model.RulesetCodeScanning) {
+func compareRulesetCodeScanning(c *resultComparer, declared, live *model.RulesetCodeScanning) {
 	if declared == nil {
 		return
 	}
