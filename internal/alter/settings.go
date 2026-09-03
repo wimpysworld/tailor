@@ -61,7 +61,7 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 	results := readWarningsToResults(compareSettings(cfg.Repository, live), warnings, cfg.Repository, live)
 
 	if mode.ShouldWrite() && hasChanges(results) {
-		applyResult, err := gh.ApplyRepoSettings(target.Client, target.Owner, target.Name, settingsForApply(cfg.Repository, results), live)
+		applyResult, err := gh.ApplyRepoSettings(target.Client, target.Owner, target.Name, changedSettings(cfg.Repository, results, model.RepositorySettingFields), live)
 		if err != nil {
 			return nil, err
 		}
@@ -69,10 +69,6 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 	}
 
 	return results, nil
-}
-
-func settingsForApply(declared *model.RepositorySettings, results []RepoSettingResult) *model.RepositorySettings {
-	return changedSettings(declared, results, model.RepositorySettingFields)
 }
 
 // changedSettings copies the fields of declared whose result is WouldSet into
