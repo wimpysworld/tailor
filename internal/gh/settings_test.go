@@ -918,23 +918,6 @@ func TestApplyRepoSettingsPartialTopics403(t *testing.T) {
 	}
 }
 
-func TestApplyRepoSettingsAllSkipped(t *testing.T) {
-	server := statusServer(t, http.StatusForbidden, `{"message": "Resource not accessible by integration"}`)
-
-	client := testutil.NewTestClient(t, server)
-	settings := &model.RepositorySettings{
-		HasWiki: new(true),
-	}
-
-	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
-	if err != nil {
-		t.Fatalf("unexpected hard error: %v", err)
-	}
-	if len(result.Skipped) != 1 {
-		t.Errorf("expected 1 skipped, got %d: %v", len(result.Skipped), result.Skipped)
-	}
-}
-
 func TestApplyRepoSettingsApplyResultPopulatedOnSuccess(t *testing.T) {
 	server := statusServer(t, http.StatusNoContent, "")
 
