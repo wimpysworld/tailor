@@ -1,6 +1,8 @@
 package gh
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -218,4 +220,14 @@ func boundedSanitisedText(input string, limit int) string {
 		text += "..."
 	}
 	return text
+}
+
+// sendJSON marshals body, sends it with the given method, and discards the
+// response. The returned error is bounded by boundedHTTPError.
+func sendJSON(client *api.RESTClient, method, path string, body any) error {
+	payload, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	return boundedHTTPError(client.Do(method, path, bytes.NewReader(payload), nil))
 }

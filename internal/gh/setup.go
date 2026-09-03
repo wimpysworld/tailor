@@ -1,8 +1,6 @@
 package gh
 
 import (
-	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -71,11 +69,7 @@ func readSetup(client *api.RESTClient, path string, operation Operation, respons
 // patchSetup sends body to one setup endpoint. GitHub answers 202 when it
 // accepts the update and starts a setup run.
 func patchSetup(client *api.RESTClient, path string, operation Operation, body map[string]any) error {
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("marshalling %s: %w", operation, err)
-	}
-	return classifySetupError(boundedHTTPError(client.Patch(path, bytes.NewReader(payload), nil)), operation, true)
+	return classifySetupError(sendJSON(client, http.MethodPatch, path, body), operation, true)
 }
 
 // optionalString returns a pointer to value, or nil when the response omitted

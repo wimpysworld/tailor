@@ -1,7 +1,6 @@
 package gh
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -156,16 +155,14 @@ func ReadTailorRuleset(client *api.RESTClient, owner, name string) (*model.Rules
 // including a 422 validation error, is returned as a hard error.
 func ApplyRuleset(client *api.RESTClient, owner, name string, id int64, desired *model.RulesetSettings) error {
 	operation := Op(OpSetRuleset)
-	payload, err := json.Marshal(rulesetBody(desired))
-	if err != nil {
-		return fmt.Errorf("marshalling %s: %w", operation, err)
-	}
+	body := rulesetBody(desired)
+	var err error
 	if id == 0 {
-		err = client.Post(rulesetsPath(owner, name), bytes.NewReader(payload), nil)
+		err = sendJSON(client, http.MethodPost, rulesetsPath(owner, name), body)
 	} else {
-		err = client.Put(rulesetPath(owner, name, id), bytes.NewReader(payload), nil)
+		err = sendJSON(client, http.MethodPut, rulesetPath(owner, name, id), body)
 	}
-	return classifyRulesetWriteError(boundedHTTPError(err), operation)
+	return classifyRulesetWriteError(err, operation)
 }
 
 // classifyRulesetWriteError converts a 403 into *ErrSetupSkipped and a rate
