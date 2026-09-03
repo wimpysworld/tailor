@@ -71,6 +71,8 @@ func TestRepositorySettingFieldsMetadata(t *testing.T) {
 		"topics",
 		"default_workflow_permissions",
 		"can_approve_pull_request_reviews",
+		"secret_scanning",
+		"secret_scanning_push_protection",
 	}
 
 	if len(fields) != len(wantKeys) {

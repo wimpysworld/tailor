@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -94,6 +95,9 @@ func (f *FitCmd) Run() error {
 		config.MergeRepoSettings(cfg, live, f.Description)
 		homepage := fmt.Sprintf("https://%s/%s/%s", repo.Host, repo.Owner, repo.Name)
 		config.ApplyRepoDefaults(cfg, repo.Name, homepage)
+		if err := mergeLiveSetup(cfg, client, repo, stderr); err != nil {
+			return err
+		}
 	} else {
 		if f.Description != "" {
 			if cfg.Repository == nil {
@@ -110,6 +114,35 @@ func (f *FitCmd) Run() error {
 	}
 
 	fmt.Printf("Fitted %s with .tailor.yml\n", f.Path)
+	return nil
+}
+
+// mergeLiveSetup copies the live code scanning and Code Quality setup into
+// cfg. A read that is skipped because the feature is not available keeps the
+// built-in section and warns, because plan availability is not a token
+// problem. Other read errors stop the command.
+func mergeLiveSetup(cfg *config.Config, client *api.RESTClient, repo gh.Repo, stderr io.Writer) error {
+	var skipped *gh.ErrSetupSkipped
+
+	codeScanning, err := gh.ReadCodeScanningSetup(client, repo.Owner, repo.Name)
+	switch {
+	case err == nil:
+		config.MergeCodeScanningSetup(cfg, codeScanning)
+	case errors.As(err, &skipped):
+		fmt.Fprintf(stderr, "warning: %v\n", err)
+	default:
+		return err
+	}
+
+	codeQuality, err := gh.ReadCodeQualitySetup(client, repo.Owner, repo.Name)
+	switch {
+	case err == nil:
+		config.MergeCodeQualitySetup(cfg, codeQuality)
+	case errors.As(err, &skipped):
+		fmt.Fprintf(stderr, "warning: %v\n", err)
+	default:
+		return err
+	}
 	return nil
 }
 

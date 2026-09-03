@@ -153,7 +153,7 @@ Tailor embeds 16 default swatches:
 
 ### Configuration
 
-All state lives in `.tailor.yml` with five sections: `license`, `repository`, `actions`, `labels`, and `swatches`.
+All state lives in `.tailor.yml` with seven sections: `license`, `repository`, `actions`, `code_scanning`, `code_quality`, `labels`, and `swatches`.
 
 Tailor opens `.tailor.yml` relative to the project root. The config must be a regular file no larger than 1 MiB.
 
@@ -176,6 +176,8 @@ repository:
   automated_security_fixes_enabled: true
   default_workflow_permissions: read
   can_approve_pull_request_reviews: false
+  secret_scanning: enabled
+  secret_scanning_push_protection: enabled
 
 actions:
   enabled: true
@@ -190,6 +192,20 @@ actions:
     - nick-fields/retry@*
     - robherley/go-test-action@*
     - softprops/action-gh-release@*
+
+code_scanning:
+  state: configured
+  query_suite: default
+  threat_model: remote
+  # An empty list means GitHub detects the languages. Valid values:
+  # actions, c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift
+  languages: []
+
+code_quality:
+  state: not-configured
+  # An empty list means GitHub detects the languages. Valid values:
+  # csharp, go, java-kotlin, javascript-typescript, python, ruby
+  languages: []
 
 swatches:
   - path: SECURITY.md
@@ -237,14 +253,18 @@ The `repository` section manages GitHub repository settings declaratively. Field
 | `topics` | string[] | Repository topics for discoverability |
 | `default_workflow_permissions` | string | `GITHUB_TOKEN` default permissions: `read` or `write` |
 | `can_approve_pull_request_reviews` | bool | Allow `GITHUB_TOKEN` workflows to create pull requests and submit approval reviews |
+| `secret_scanning` | string | Secret scanning alerts (`enabled` or `disabled`) |
+| `secret_scanning_push_protection` | string | Secret scanning push protection (`enabled` or `disabled`) |
 
 To skip settings management, omit the `repository` section and set the `.tailor.yml` swatch to `alteration: never`. With `always`, `alter` restores the section from built-in defaults and applies it in the same run. With `first-fit`, `alter --recut` restores and applies the section.
 
-Generated configs expose all three security settings. Their built-in values are `true`. When a GitHub remote exists, `fit` uses live values. Default merging appends missing security settings without changing explicit Boolean values. The security prerequisite normalisation below is the exception: it can change an explicit `vulnerability_alerts_enabled: false` to `true`.
+Generated configs expose all five security settings, three Boolean and two string. The built-in values are `true` for the Boolean settings and `enabled` for `secret_scanning` and `secret_scanning_push_protection`. When a GitHub remote exists, `fit` uses live values. Default merging appends missing security settings without changing explicit values. The security prerequisite normalisations below are the exception: they can change an explicit `vulnerability_alerts_enabled: false` to `true`, and an explicit `secret_scanning: disabled` to `enabled`.
 
 GitHub labels `can_approve_pull_request_reviews` as “Allow GitHub Actions to create and approve pull requests”. Tailor keeps the REST API field name because repository config keys match the API. Enabling the setting permits the repository `GITHUB_TOKEN` to create pull requests and submit approval reviews when the workflow has `pull-requests: write`. The setting does not permit merges, bypass branch rules, or affect personal access tokens or separate GitHub App tokens.
 
 GitHub requires vulnerability alerts before automated security fixes. When automated fixes are enabled and alerts are absent or false, Tailor sets `vulnerability_alerts_enabled` to `true` and shows a warning. `alter` and `alter --recut` save the corrected `.tailor.yml` before repository API calls. `baste` previews the config update without writing. Tailor enables alerts first and disables automated fixes before alerts. If a prerequisite read is unknown, or its write fails or is skipped, Tailor skips the dependent write. A security `404` stays unknown unless Tailor can distinguish a disabled feature from denied access. Access failures produce warnings. Other API failures stop the command.
+
+Push protection requires secret scanning. When `secret_scanning_push_protection` is `enabled` and `secret_scanning` is absent or `disabled`, Tailor sets `secret_scanning` to `enabled` and shows a warning. The write path matches the automated security fixes prerequisite. Tailor sends only the declared `security_and_analysis` keys, so other keys keep the value set in the GitHub UI. When the token lacks admin access, GitHub omits the `security_and_analysis` block, and Tailor leaves both values unknown with an access warning.
 
 ## Actions Policy
 
@@ -264,6 +284,30 @@ The selected-action fields require `allowed_actions: selected`. A selected polic
 For an enabled transition from `all` to an enabled `selected` policy, Tailor first changes `allowed_actions` to `selected`. This write keeps SHA pinning enabled when the final policy disables it. Tailor then applies the complete selected rules and disables SHA pinning in a final core write. When the final policy keeps or enables SHA pinning, the first core write applies that value and Tailor omits the final write. A hard first-write failure leaves `all` active. A selected-rule failure leaves the narrower `selected` policy active and preserves SHA pinning. A final SHA write failure leaves the selected rules and SHA pinning active. Each hard failure stops the command.
 
 For other transitions from `all` or `local_only`, Tailor disables Actions before it applies the complete selected rules and the final core policy. For an existing selected policy, Tailor applies changed selected rules before any core broadening, including disabling SHA pinning. When an enabled policy combines selected broadening with SHA pinning or disabling Actions, Tailor disables Actions before both updates. Broadening means newly allowing GitHub-owned actions, verified actions, or patterns. Tailor also disables Actions before any selected update whose final policy disables Actions. A later update failure leaves Actions disabled and stops the command. If Tailor cannot read an active selected policy, it does not enable Actions or disable SHA pinning. Organisation policy can restrict repository values. Other access failures produce skip results, and other API failures stop the command.
+
+## Code Scanning
+
+The top-level `code_scanning` section manages CodeQL default setup. Generated configs enable default setup with the default query suite, the remote threat model, and GitHub language detection.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `state` | string | `configured` or `not-configured` |
+| `query_suite` | string | `default` or `extended` |
+| `threat_model` | string | `remote` or `remote_and_local` |
+| `languages` | string[] | Complete set of languages to analyse. An empty list means GitHub detects them. Accepts `actions`, `c-cpp`, `csharp`, `go`, `java-kotlin`, `javascript-typescript`, `python`, `ruby`, `swift` |
+
+An empty `languages` list sends no `languages` field, so GitHub detects the languages on enable and keeps the current set afterwards, unlike `topics`, where an empty list clears all topics. Tailor sends only the fields it manages, so `runner_type` and `runner_label` keep the value set in the GitHub UI, and Tailor exposes no setting that needs a paid plan, an Advanced Security licence, or a self-hosted runner. A validation run in progress reports `would skip (setup in progress)`, and an unavailable feature reports `would skip (not available)`. Default setup does not conflict with workflows that upload SARIF results, such as Scorecard.
+
+## Code Quality
+
+The top-level `code_quality` section manages GitHub Code Quality. Generated configs leave Code Quality not configured with GitHub language detection.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `state` | string | `configured` or `not-configured` |
+| `languages` | string[] | Complete set of languages to analyse. An empty list means GitHub detects them. Accepts `csharp`, `go`, `java-kotlin`, `javascript-typescript`, `python`, `ruby` |
+
+An empty `languages` list sends no `languages` field, so GitHub detects the languages and keeps the current set afterwards. Tailor sends only the fields it manages, so `ai_findings_option`, `runner_type`, and `runner_label` keep the value set in the GitHub UI, and Tailor never spends AI credit on a public repository. The skip results match code scanning.
 
 ## Labels
 
@@ -320,11 +364,11 @@ tailor fit ./my-project --license=none
 tailor fit ./my-project --description="Short description"
 ```
 
-When a GitHub remote exists, `fit` queries the live repository configuration for the `repository` section. Otherwise, built-in defaults are used. Exits with an error if `.tailor.yml` already exists.
+When a GitHub remote exists, `fit` queries the live repository configuration for the `repository`, `code_scanning`, and `code_quality` sections. Otherwise, built-in defaults are used. When a default setup read returns an access error or `404`, `fit` warns and writes the built-in section. `fit` always writes `languages: []`. Exits with an error if `.tailor.yml` already exists.
 
 ### `alter`
 
-Reads `.tailor.yml` in the current directory and applies repository settings, Actions policy, labels, licence, and swatches in that order.
+Reads `.tailor.yml` in the current directory and applies repository settings, Actions policy, code scanning, Code Quality, labels, licence, and swatches in that order.
 
 ```bash
 tailor alter            # Apply changes

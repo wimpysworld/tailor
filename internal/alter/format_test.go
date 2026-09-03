@@ -419,11 +419,23 @@ func TestFormatOutputSkipWithoutAnnotation(t *testing.T) {
 	}
 }
 
-func TestResultLabelSkipAnnotationDoesNotDependOnCategorySpelling(t *testing.T) {
-	got := resultLabel("scope skip", "token missing required scope", true, DryRun)
-	want := "would skip (insufficient scope: token missing required scope):"
-	if got != want {
-		t.Errorf("resultLabel() = %q, want %q", got, want)
+func TestResultLabelSkipAnnotation(t *testing.T) {
+	tests := []struct {
+		name       string
+		category   RepoSettingCategory
+		annotation string
+		want       string
+	}{
+		{name: "scope", category: WouldSkipScope, annotation: "token missing required scope", want: "would skip (insufficient scope: token missing required scope):"},
+		{name: "setup", category: WouldSkipSetup, annotation: "not available", want: "would skip (not available):"},
+		{name: "no annotation", category: WouldSkipScope, want: "would skip (insufficient scope):"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resultLabel(string(tt.category), tt.annotation, true, Apply); got != tt.want {
+				t.Errorf("resultLabel() = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }
 

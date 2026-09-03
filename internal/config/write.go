@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 	"text/template"
 
@@ -91,6 +92,30 @@ var templateFuncs = template.FuncMap{
 	"actionsLines": func(a *model.ActionsSettings) ([]string, error) {
 		return settingLines(model.ActionsSettingFields(a))
 	},
+	"codeScanningLines": func(c *model.CodeScanningSettings) ([]string, error) {
+		lines, err := settingLines(model.CodeScanningSettingFields(c))
+		return withLanguagesComment(lines, model.CodeScanningLanguages), err
+	},
+	"codeQualityLines": func(c *model.CodeQualitySettings) ([]string, error) {
+		lines, err := settingLines(model.CodeQualitySettingFields(c))
+		return withLanguagesComment(lines, model.CodeQualityLanguages), err
+	},
+}
+
+// withLanguagesComment inserts the languages guidance comment before the
+// languages line, so the valid values in the config match the model.
+func withLanguagesComment(lines []string, valid []string) []string {
+	index := slices.IndexFunc(lines, func(line string) bool {
+		return strings.HasPrefix(line, "  languages:")
+	})
+	if index == -1 {
+		return lines
+	}
+	comment := []string{
+		"  # An empty list means GitHub detects the languages. Valid values:",
+		"  # " + strings.Join(valid, ", "),
+	}
+	return slices.Insert(lines, index, comment...)
 }
 
 // configTemplate renders .tailor.yml in the exact format specified. It uses
@@ -111,6 +136,20 @@ repository:
 
 actions:
 {{- range actionsLines .Actions }}
+{{ . }}
+{{- end }}
+{{- end }}
+{{- if .CodeScanning }}
+
+code_scanning:
+{{- range codeScanningLines .CodeScanning }}
+{{ . }}
+{{- end }}
+{{- end }}
+{{- if .CodeQuality }}
+
+code_quality:
+{{- range codeQualityLines .CodeQuality }}
 {{ . }}
 {{- end }}
 {{- end }}

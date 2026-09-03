@@ -40,7 +40,11 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	if securityNormalised {
 		fmt.Fprintln(stderr, "warning: set vulnerability_alerts_enabled to true because automated_security_fixes_enabled requires vulnerability alerts")
 	}
-	configChanged = configChanged || securityNormalised
+	secretScanningNormalised := config.NormaliseSecretScanningPrerequisites(cfg)
+	if secretScanningNormalised {
+		fmt.Fprintln(stderr, "warning: set secret_scanning to enabled because secret_scanning_push_protection requires secret scanning")
+	}
+	configChanged = configChanged || securityNormalised || secretScanningNormalised
 	if err := validateConfig(cfg); err != nil {
 		return err
 	}
@@ -100,15 +104,10 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	}
 	target := RepoTarget{Client: client, Owner: repo.Owner, Name: repo.Name, HasRepo: hasRepo, Stderr: stderr}
 
-	repoResults, err := ProcessRepoSettings(cfg, mode, target)
+	repoResults, err := processRepoStages(cfg, mode, target)
 	if err != nil {
 		return err
 	}
-	actionsResults, err := ProcessActions(cfg, mode, target)
-	if err != nil {
-		return err
-	}
-	repoResults = append(repoResults, actionsResults...)
 
 	labelResults, err := ProcessLabels(cfg, mode, target)
 	if err != nil {
@@ -142,6 +141,25 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	return nil
 }
 
+// processRepoStages runs the repository API stages in order: repository
+// settings, Actions policy, code scanning, then Code Quality.
+func processRepoStages(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]RepoSettingResult, error) {
+	var results []RepoSettingResult
+	for _, stage := range []func(*config.Config, ApplyMode, RepoTarget) ([]RepoSettingResult, error){
+		ProcessRepoSettings,
+		ProcessActions,
+		ProcessCodeScanning,
+		ProcessCodeQuality,
+	} {
+		stageResults, err := stage(cfg, mode, target)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, stageResults...)
+	}
+	return results, nil
+}
+
 // validateConfig runs the repeated config validation pass in sequence.
 func validateConfig(cfg *config.Config) error {
 	if err := config.ValidateSwatches(cfg); err != nil {
@@ -156,7 +174,13 @@ func validateConfig(cfg *config.Config) error {
 	if err := config.ValidateRepoSettings(cfg); err != nil {
 		return err
 	}
-	return config.ValidateActions(cfg)
+	if err := config.ValidateActions(cfg); err != nil {
+		return err
+	}
+	if err := config.ValidateCodeScanning(cfg); err != nil {
+		return err
+	}
+	return config.ValidateCodeQuality(cfg)
 }
 
 // shouldMerge reports whether the config merge step should run. It looks up

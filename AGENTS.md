@@ -63,7 +63,7 @@ tailor/
 - Swatches are embedded at build time via `//go:embed swatches/*`
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
-- Run `alter` stages in this order: config migration and update, retired workflow cleanup, repository settings, Actions policy, labels, licence, then swatches
+- Run `alter` stages in this order: config migration and update, retired workflow cleanup, repository settings, Actions policy, code scanning, Code Quality, labels, licence, then swatches
 - Before strict path and mode validation, prune `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml` from config
 - Accept legacy `triggered` only for these retired entries during migration
 - Always check both fixed retired paths, regardless of config or mode
@@ -75,6 +75,13 @@ tailor/
 - Licences fetched via GitHub REST API (`GET /licenses/{id}`), not embedded
 - Several repository settings use separate API endpoints rather than the main repo PATCH: `topics`, `default_workflow_permissions`, and `can_approve_pull_request_reviews`; see `internal/gh/settings.go` for implementation
 - `labels` is a top-level config section with its own API layer (`internal/gh/labels.go`) and alter layer (`internal/alter/labels.go`), separate from repository settings
+- `code_scanning` is a top-level config section for CodeQL default setup with its own API layer (`internal/gh/codescanning.go`) and alter layer (`internal/alter/codescanning.go`); it uses `GET`/`PATCH /repos/{owner}/{repo}/code-scanning/default-setup`
+- `code_quality` is a top-level config section for GitHub Code Quality with its own API layer (`internal/gh/codequality.go`) and alter layer (`internal/alter/codequality.go`); it uses `GET`/`PATCH /repos/{owner}/{repo}/code-quality/setup`
+- `secret_scanning` and `secret_scanning_push_protection` are `repository` fields that travel in the `security_and_analysis` object of the repository PATCH body; send only the declared keys
+- Push protection requires secret scanning: normalise `secret_scanning` to `enabled` with a warning, on the same write path as the automated security fixes prerequisite
+- Free features only: expose no setting that needs a paid plan, an Advanced Security or Secret Protection licence, a self-hosted runner, or AI credit spend; never manage `runner_type`, `runner_label`, `ai_findings_option`, or other `security_and_analysis` keys
+- An empty `languages` list in `code_scanning` or `code_quality` sends no `languages` field, so GitHub detects the languages; a non-empty list is the complete set, compared as a set (unlike `topics`, where an empty list clears all topics)
+- Default setup writes return `202`; report `409` as `would skip (setup in progress)` and `403` as `would skip (not available)`, and continue
 - `validate.go` includes enum validation for `default_workflow_permissions` ("read"|"write"), topic format validation (lowercase alphanumeric start, max 50 chars, lowercase alphanumerics and hyphens only), and label validation (name length, hex colour, description length, duplicate detection)
 - Dry-run output uses dynamically computed label width for `baste` and fixed 16 chars for `measure`
 - `measure` output order: `missing`, `warning`, `present`, then config-diff categories (`not-configured`, `config-only`, `mode-differs`)

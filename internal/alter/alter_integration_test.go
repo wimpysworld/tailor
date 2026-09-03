@@ -267,6 +267,19 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 		case r.Method == http.MethodPut && (path == repoPath+"/actions/permissions" || path == repoPath+"/actions/permissions/selected-actions"):
 			w.WriteHeader(http.StatusNoContent)
 
+		case r.Method == http.MethodGet && path == repoPath+"/code-scanning/default-setup":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"state":"not-configured","languages":["go"],"query_suite":"default","threat_model":"remote","runner_type":"standard","runner_label":null}`)
+
+		case r.Method == http.MethodGet && path == repoPath+"/code-quality/setup":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"state":"not-configured","languages":["go"],"runner_type":"standard","runner_label":null,"ai_findings_option":"disabled"}`)
+
+		case r.Method == http.MethodPatch && (path == repoPath+"/code-scanning/default-setup" || path == repoPath+"/code-quality/setup"):
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusAccepted)
+			fmt.Fprint(w, `{"run_id":42,"run_url":"https://api.github.com/repos/testowner/testrepo/actions/runs/42"}`)
+
 		case r.Method == http.MethodGet && path == repoPath+"/labels":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(sc.labels)
@@ -1991,6 +2004,36 @@ func allDefaultRepoSettingsYAML(t *testing.T) string {
 	if r.CanApprovePullRequestReviews != nil {
 		fmt.Fprintf(&sb, "  can_approve_pull_request_reviews: %t\n", *r.CanApprovePullRequestReviews)
 	}
+	if r.SecretScanning != nil {
+		fmt.Fprintf(&sb, "  secret_scanning: %s\n", *r.SecretScanning)
+	}
+	if r.SecretScanningPushProtection != nil {
+		fmt.Fprintf(&sb, "  secret_scanning_push_protection: %s\n", *r.SecretScanningPushProtection)
+	}
+	return sb.String()
+}
+
+// allDefaultSetupYAML returns YAML for the default code_scanning and
+// code_quality sections.
+func allDefaultSetupYAML(t *testing.T) string {
+	t.Helper()
+	defaults, err := config.DefaultConfig("none")
+	if err != nil {
+		t.Fatalf("loading default config: %v", err)
+	}
+	if defaults.CodeScanning == nil || defaults.CodeQuality == nil {
+		t.Fatal("default code scanning or Code Quality section is nil")
+	}
+
+	var sb strings.Builder
+	sb.WriteString("code_scanning:\n")
+	fmt.Fprintf(&sb, "  state: %s\n", *defaults.CodeScanning.State)
+	fmt.Fprintf(&sb, "  query_suite: %s\n", *defaults.CodeScanning.QuerySuite)
+	fmt.Fprintf(&sb, "  threat_model: %s\n", *defaults.CodeScanning.ThreatModel)
+	sb.WriteString("  languages: []\n")
+	sb.WriteString("code_quality:\n")
+	fmt.Fprintf(&sb, "  state: %s\n", *defaults.CodeQuality.State)
+	sb.WriteString("  languages: []\n")
 	return sb.String()
 }
 
@@ -2092,6 +2135,7 @@ func TestConfigMergeAllPresentApply(t *testing.T) {
 	configYAML := "license: none\n" +
 		allDefaultRepoSettingsYAML(t) +
 		allDefaultActionsYAML(t) +
+		allDefaultSetupYAML(t) +
 		allDefaultLabelsYAML(t) +
 		"swatches:\n" +
 		"  - path: .tailor.yml\n    alteration: always\n" +
@@ -2566,6 +2610,12 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 		if defaults.Repository.CanApprovePullRequestReviews != nil {
 			fmt.Fprintf(&sb, "  can_approve_pull_request_reviews: %t\n", *defaults.Repository.CanApprovePullRequestReviews)
 		}
+		if defaults.Repository.SecretScanning != nil {
+			fmt.Fprintf(&sb, "  secret_scanning: %s\n", *defaults.Repository.SecretScanning)
+		}
+		if defaults.Repository.SecretScanningPushProtection != nil {
+			fmt.Fprintf(&sb, "  secret_scanning_push_protection: %s\n", *defaults.Repository.SecretScanningPushProtection)
+		}
 	}
 	if defaults.Actions != nil {
 		sb.WriteString("\nactions:\n")
@@ -2588,6 +2638,7 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 			writePatternsAllowedYAML(&sb, *defaults.Actions.PatternsAllowed)
 		}
 	}
+	sb.WriteString("\n" + allDefaultSetupYAML(t))
 
 	sb.WriteString("\nlabels:\n")
 	for _, l := range defaults.Labels {

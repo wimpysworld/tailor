@@ -34,7 +34,11 @@ const fullRepoJSON = `{
 	"allow_auto_merge": true,
 	"web_commit_signoff_required": false,
 	"topics": ["go", "cli-tool"],
-	"permissions": {"admin": true}
+	"permissions": {"admin": true},
+	"security_and_analysis": {
+		"secret_scanning": {"status": "enabled"},
+		"secret_scanning_push_protection": {"status": "disabled"}
+	}
 }`
 
 const (
@@ -221,7 +225,7 @@ func TestReadRepoSettingsIgnoresGitHubActionsEnvironment(t *testing.T) {
 			w.WriteHeader(http.StatusForbidden)
 			fmt.Fprint(w, `{"message": "Resource not accessible by integration"}`)
 		case "/repos/testowner/testrepo":
-			fmt.Fprint(w, `{"permissions":{"admin":true}}`)
+			fmt.Fprint(w, `{"permissions":{"admin":true},"security_and_analysis":{"secret_scanning":{"status":"enabled"}}}`)
 		case "/repos/testowner/testrepo/actions/permissions/workflow":
 			fmt.Fprint(w, wfPermsReadJSON)
 		case "/repos/testowner/testrepo/private-vulnerability-reporting":
@@ -424,8 +428,10 @@ func TestReadRepoSettingsSecurityFeature404UnknownWithoutConfirmedAdminAccess(t 
 		workflowStatus int
 		wantWarnings   int
 	}{
-		{name: "non-admin", repo: `{"permissions":{"admin":false}}`, workflowStatus: http.StatusOK, wantWarnings: 3},
-		{name: "administration read denied", repo: `{"permissions":{"admin":true}}`, workflowStatus: http.StatusForbidden, wantWarnings: 4},
+		// The repository response omits security_and_analysis, which adds one
+		// secret scanning access warning to each case.
+		{name: "non-admin", repo: `{"permissions":{"admin":false}}`, workflowStatus: http.StatusOK, wantWarnings: 4},
+		{name: "administration read denied", repo: `{"permissions":{"admin":true}}`, workflowStatus: http.StatusForbidden, wantWarnings: 5},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
