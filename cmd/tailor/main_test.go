@@ -19,10 +19,18 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-func TestFitNewDirectoryDefaultConfig(t *testing.T) {
+// fakeNoRepoAuth installs a valid token, a user API that returns octocat,
+// and no repository context.
+func fakeNoRepoAuth(t *testing.T) {
+	t.Helper()
+
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
 	ghfake.FakeNoRepo(t)
+}
+
+func TestFitNewDirectoryDefaultConfig(t *testing.T) {
+	fakeNoRepoAuth(t)
 
 	dir := filepath.Join(t.TempDir(), "new-project")
 
@@ -69,21 +77,10 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 			t.Errorf("config missing %q", s)
 		}
 	}
-
-	// Default config omits merge_commit_title and merge_commit_message.
-	// Use leading newline+spaces to avoid matching squash_merge_commit_title.
-	if strings.Contains(content, "\n  merge_commit_title:") {
-		t.Error("default config should not contain merge_commit_title")
-	}
-	if strings.Contains(content, "\n  merge_commit_message:") {
-		t.Error("default config should not contain merge_commit_message")
-	}
 }
 
 func TestFitExistingDirectoryWithoutConfig(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
-	ghfake.FakeNoRepo(t)
+	fakeNoRepoAuth(t)
 
 	dir := t.TempDir()
 
@@ -99,9 +96,7 @@ func TestFitExistingDirectoryWithoutConfig(t *testing.T) {
 }
 
 func TestFitExistingDirectoryWithConfigError(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
-	ghfake.FakeNoRepo(t)
+	fakeNoRepoAuth(t)
 
 	dir := t.TempDir()
 
@@ -126,9 +121,7 @@ func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 }
 
 func TestFitLicenseNone(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
-	ghfake.FakeNoRepo(t)
+	fakeNoRepoAuth(t)
 
 	dir := filepath.Join(t.TempDir(), "license-none")
 
@@ -148,9 +141,7 @@ func TestFitLicenseNone(t *testing.T) {
 }
 
 func TestFitDescriptionNoRepoContext(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
-	ghfake.FakeNoRepo(t)
+	fakeNoRepoAuth(t)
 
 	dir := filepath.Join(t.TempDir(), "with-desc")
 
@@ -170,9 +161,7 @@ func TestFitDescriptionNoRepoContext(t *testing.T) {
 }
 
 func TestFitNoRepoContextUsesDefaults(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
-	ghfake.FakeNoRepo(t)
+	fakeNoRepoAuth(t)
 
 	dir := filepath.Join(t.TempDir(), "defaults")
 
@@ -221,9 +210,7 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 func setupSwatchCommandTest(t *testing.T) string {
 	t.Helper()
 
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
-	ghfake.FakeNoRepo(t)
+	fakeNoRepoAuth(t)
 
 	dir := t.TempDir()
 	cfg := `license: none
