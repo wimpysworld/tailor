@@ -229,23 +229,30 @@ swatches:
     alteration: always
 `
 
+// writeConfig writes cfg into a fresh temporary directory and returns the
+// content of the ConfigSwatchPath file that Write produced.
+func writeConfig(t *testing.T, cfg *Config, date, action string) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := Write(dir, cfg, date, action); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	got, err := os.ReadFile(filepath.Join(dir, ConfigSwatchPath))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	return string(got)
+}
+
 func TestWriteDefaultConfigMatchesSpec(t *testing.T) {
 	cfg, err := DefaultConfig("BlueOak-1.0.0")
 	if err != nil {
 		t.Fatalf("DefaultConfig: %v", err)
 	}
 
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-02", "Initially fitted"); err != nil {
-		t.Fatalf("Write: %v", err)
-	}
+	got := writeConfig(t, cfg, "2026-03-02", "Initially fitted")
 
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-
-	if string(got) != wantSpecOutput {
+	if got != wantSpecOutput {
 		t.Errorf("output does not match spec\n--- got ---\n%s\n--- want ---\n%s", got, wantSpecOutput)
 	}
 }
@@ -448,17 +455,9 @@ swatches:
     alteration: first-fit
 `
 
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-02", "Initially fitted"); err != nil {
-		t.Fatalf("Write: %v", err)
-	}
+	got := writeConfig(t, cfg, "2026-03-02", "Initially fitted")
 
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-
-	if string(got) != want {
+	if got != want {
 		t.Errorf("output mismatch with optional fields present\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
@@ -514,17 +513,9 @@ swatches:
     alteration: first-fit
 `
 
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-02", "Initially fitted"); err != nil {
-		t.Fatalf("Write: %v", err)
-	}
+	got := writeConfig(t, cfg, "2026-03-02", "Initially fitted")
 
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-
-	if string(got) != want {
+	if got != want {
 		t.Errorf("output mismatch with optional fields omitted\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
 }
@@ -543,19 +534,11 @@ func TestWriteYAMLSpecialCharactersQuoted(t *testing.T) {
 		},
 	}
 
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-04", "Initially fitted"); err != nil {
-		t.Fatalf("Write: %v", err)
-	}
-
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
+	got := writeConfig(t, cfg, "2026-03-04", "Initially fitted")
 
 	// The output must be valid YAML that round-trips through yaml.Unmarshal.
 	var parsed Config
-	if err := yaml.Unmarshal(got, &parsed); err != nil {
+	if err := yaml.Unmarshal([]byte(got), &parsed); err != nil {
 		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, got)
 	}
 
@@ -593,18 +576,10 @@ func TestWriteDynamicScalarsRoundTrip(t *testing.T) {
 		},
 	}
 
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-08-25", "Refitted"); err != nil {
-		t.Fatalf("Write: %v", err)
-	}
-
-	written, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
+	written := writeConfig(t, cfg, "2026-08-25", "Refitted")
 
 	var parsed Config
-	if err := yaml.Unmarshal(written, &parsed); err != nil {
+	if err := yaml.Unmarshal([]byte(written), &parsed); err != nil {
 		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, written)
 	}
 	if !reflect.DeepEqual(parsed, *cfg) {
@@ -635,18 +610,10 @@ func TestWriteHomepageRoundTrips(t *testing.T) {
 				},
 			}
 
-			dir := t.TempDir()
-			if err := Write(dir, cfg, "2026-03-04", "Initially fitted"); err != nil {
-				t.Fatalf("Write: %v", err)
-			}
-
-			got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-			if err != nil {
-				t.Fatalf("ReadFile: %v", err)
-			}
+			got := writeConfig(t, cfg, "2026-03-04", "Initially fitted")
 
 			var parsed Config
-			if err := yaml.Unmarshal(got, &parsed); err != nil {
+			if err := yaml.Unmarshal([]byte(got), &parsed); err != nil {
 				t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, got)
 			}
 
@@ -673,25 +640,15 @@ func TestWriteTopicsPreserved(t *testing.T) {
 		},
 	}
 
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-10", "Refitted"); err != nil {
-		t.Fatalf("Write: %v", err)
-	}
-
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-
-	output := string(got)
+	output := writeConfig(t, cfg, "2026-03-10", "Refitted")
 	if !strings.Contains(output, "topics:") {
 		t.Fatalf("output missing topics:\n%s", output)
 	}
 
 	// Round-trip through YAML to confirm topics survive.
 	var parsed Config
-	if err := yaml.Unmarshal(got, &parsed); err != nil {
-		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, got)
+	if err := yaml.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, output)
 	}
 
 	if parsed.Repository == nil || parsed.Repository.Topics == nil {
@@ -719,17 +676,9 @@ func TestWriteTopicsOmittedWhenNil(t *testing.T) {
 		},
 	}
 
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-10", "Refitted"); err != nil {
-		t.Fatalf("Write: %v", err)
-	}
+	got := writeConfig(t, cfg, "2026-03-10", "Refitted")
 
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-
-	if strings.Contains(string(got), "topics:") {
+	if strings.Contains(got, "topics:") {
 		t.Errorf("output contains 'topics:' when Topics is nil:\n%s", got)
 	}
 }
@@ -747,25 +696,15 @@ func TestWriteEmptyTopicsRoundTrip(t *testing.T) {
 		},
 	}
 
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-10", "Refitted"); err != nil {
-		t.Fatalf("Write: %v", err)
-	}
-
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-
-	output := string(got)
+	output := writeConfig(t, cfg, "2026-03-10", "Refitted")
 	if !strings.Contains(output, "topics: []") {
 		t.Fatalf("expected 'topics: []' in output, got:\n%s", output)
 	}
 
 	// Round-trip: parse back and verify Topics is non-nil empty slice.
 	var parsed Config
-	if err := yaml.Unmarshal(got, &parsed); err != nil {
-		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, got)
+	if err := yaml.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, output)
 	}
 
 	if parsed.Repository == nil || parsed.Repository.Topics == nil {
@@ -784,24 +723,14 @@ func TestWriteNilRepositoryOmitted(t *testing.T) {
 		},
 	}
 
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-03-04", "Initially fitted"); err != nil {
-		t.Fatalf("Write: %v", err)
-	}
-
-	got, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-
-	output := string(got)
+	output := writeConfig(t, cfg, "2026-03-04", "Initially fitted")
 	if strings.Contains(output, "repository:") {
 		t.Errorf("output contains 'repository:' when Repository is nil:\n%s", output)
 	}
 
 	// Must still be valid YAML.
 	var parsed Config
-	if err := yaml.Unmarshal(got, &parsed); err != nil {
-		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, got)
+	if err := yaml.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, output)
 	}
 }
