@@ -99,11 +99,8 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 	adminRead := false
 	var wfPerms workflowPermissionsResponse
 	if err := boundedHTTPError(client.Get(fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name), &wfPerms)); err != nil {
-		classified := classifyHTTPError(err, Op(OpFetchWorkflowPermissions))
-		if isAccessError(classified) {
-			warnings = append(warnings, classified)
-		} else {
-			return nil, nil, fmt.Errorf("fetching workflow permissions: %w", err)
+		if err := collectAccessWarning(err, Op(OpFetchWorkflowPermissions), "fetching workflow permissions", &warnings); err != nil {
+			return nil, nil, err
 		}
 	} else {
 		adminRead = true
@@ -143,12 +140,9 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 			feature.set(enabled)
 			continue
 		}
-		classified := classifyHTTPError(err, feature.operation)
-		if isAccessError(classified) {
-			warnings = append(warnings, classified)
-			continue
+		if err := collectAccessWarning(err, feature.operation, feature.operation.String(), &warnings); err != nil {
+			return nil, nil, err
 		}
-		return nil, nil, fmt.Errorf("%s: %w", feature.operation, err)
 	}
 
 	if warning := applySecurityAndAnalysis(repo.SecurityAndAnalysis, s); warning != nil {

@@ -32,11 +32,8 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 	var permissions actionsPermissionsResponse
 	coreKnown := false
 	if err := boundedHTTPError(client.Get(base, &permissions)); err != nil {
-		classified := classifyHTTPError(err, Op(OpFetchActionsPermissions))
-		if isAccessError(classified) {
-			warnings = append(warnings, classified)
-		} else {
-			return nil, nil, fmt.Errorf("fetching actions permissions: %w", err)
+		if err := collectAccessWarning(err, Op(OpFetchActionsPermissions), "fetching actions permissions", &warnings); err != nil {
+			return nil, nil, err
 		}
 	} else {
 		coreKnown = true
@@ -51,11 +48,8 @@ func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool
 	if selected && coreKnown && permissions.AllowedActions == "selected" {
 		var policy selectedActionsResponse
 		if err := boundedHTTPError(client.Get(base+"/selected-actions", &policy)); err != nil {
-			classified := classifyHTTPError(err, Op(OpFetchSelectedActionsPermissions))
-			if isAccessError(classified) {
-				warnings = append(warnings, classified)
-			} else {
-				return nil, nil, fmt.Errorf("fetching selected actions permissions: %w", err)
+			if err := collectAccessWarning(err, Op(OpFetchSelectedActionsPermissions), "fetching selected actions permissions", &warnings); err != nil {
+				return nil, nil, err
 			}
 		} else {
 			settings.GitHubOwnedAllowed = new(policy.GitHubOwnedAllowed)
