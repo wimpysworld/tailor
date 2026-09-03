@@ -122,28 +122,35 @@ func (f *FitCmd) Run() error {
 // built-in section and warns, because plan availability is not a token
 // problem. Other read errors stop the command.
 func mergeLiveSetup(cfg *config.Config, client *api.RESTClient, repo gh.Repo, stderr io.Writer) error {
-	var skipped *gh.ErrSetupSkipped
-
 	codeScanning, err := gh.ReadCodeScanningSetup(client, repo.Owner, repo.Name)
-	switch {
-	case err == nil:
+	if err != nil {
+		if err = warnSkipped(err, stderr); err != nil {
+			return err
+		}
+	} else {
 		config.MergeCodeScanningSetup(cfg, codeScanning)
-	case errors.As(err, &skipped):
-		fmt.Fprintf(stderr, "warning: %v\n", err)
-	default:
-		return err
 	}
 
 	codeQuality, err := gh.ReadCodeQualitySetup(client, repo.Owner, repo.Name)
-	switch {
-	case err == nil:
+	if err != nil {
+		if err = warnSkipped(err, stderr); err != nil {
+			return err
+		}
+	} else {
 		config.MergeCodeQualitySetup(cfg, codeQuality)
-	case errors.As(err, &skipped):
-		fmt.Fprintf(stderr, "warning: %v\n", err)
-	default:
-		return err
 	}
 	return mergeLiveRuleset(cfg, client, repo, stderr)
+}
+
+// warnSkipped writes a skipped setup read as a warning and returns nil, so
+// the caller keeps the built-in section. Any other error is returned as is.
+func warnSkipped(err error, stderr io.Writer) error {
+	var skipped *gh.ErrSetupSkipped
+	if errors.As(err, &skipped) {
+		fmt.Fprintf(stderr, "warning: %v\n", err)
+		return nil
+	}
+	return err
 }
 
 // mergeLiveRuleset copies the live Tailor ruleset into cfg. An absent
