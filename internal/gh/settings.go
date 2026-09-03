@@ -2,7 +2,6 @@ package gh
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -228,11 +227,7 @@ func applyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 	result := &ApplyResult{}
 
 	if len(p.Body) > 0 {
-		payload, err := json.Marshal(p.Body)
-		if err != nil {
-			return nil, fmt.Errorf("marshalling repo settings: %w", err)
-		}
-		if err := boundedHTTPError(client.Patch(fmt.Sprintf("repos/%s/%s", owner, name), bytes.NewReader(payload), nil)); err != nil {
+		if err := sendJSON(client, http.MethodPatch, fmt.Sprintf("repos/%s/%s", owner, name), p.Body); err != nil {
 			if !recordAccessError(result, Op(OpPatchRepoSettings), err) {
 				return nil, fmt.Errorf("patching repo settings: %w", err)
 			}
@@ -319,11 +314,7 @@ func applyTopics(client *api.RESTClient, owner, name string, p settingsPayload, 
 	topicsBody := struct {
 		Names []string `json:"names"`
 	}{Names: *p.Topics}
-	payload, err := json.Marshal(topicsBody)
-	if err != nil {
-		return fmt.Errorf("marshalling topics: %w", err)
-	}
-	if err := boundedHTTPError(client.Put(fmt.Sprintf("repos/%s/%s/topics", owner, name), bytes.NewReader(payload), nil)); err != nil {
+	if err := sendJSON(client, http.MethodPut, fmt.Sprintf("repos/%s/%s/topics", owner, name), topicsBody); err != nil {
 		if !recordAccessError(result, Op(OpSetTopics), err) {
 			return fmt.Errorf("setting topics: %w", err)
 		}
@@ -404,11 +395,7 @@ func putWorkflowPermissions(client *api.RESTClient, owner, name string, p settin
 		"default_workflow_permissions":     *perms,
 		"can_approve_pull_request_reviews": *approve,
 	}
-	payload, err := json.Marshal(wfpBody)
-	if err != nil {
-		return fmt.Errorf("marshalling workflow permissions: %w", err)
-	}
-	if err := boundedHTTPError(client.Put(wfpPath, bytes.NewReader(payload), nil)); err != nil {
+	if err := sendJSON(client, http.MethodPut, wfpPath, wfpBody); err != nil {
 		return fmt.Errorf("setting workflow permissions: %w", err)
 	}
 	return nil

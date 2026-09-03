@@ -1,10 +1,9 @@
 package gh
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"maps"
+	"net/http"
 	"slices"
 	"strings"
 
@@ -324,9 +323,5 @@ func applyActionsWrite(client *api.RESTClient, path string, body map[string]any,
 }
 
 func putActionsPolicy(client *api.RESTClient, path string, body map[string]any) error {
-	payload, err := json.Marshal(body)
-	if err != nil {
-		return fmt.Errorf("marshalling actions permissions: %w", err)
-	}
-	return boundedHTTPError(client.Put(path, bytes.NewReader(payload), nil))
+	return sendJSON(client, http.MethodPut, path, body)
 }
