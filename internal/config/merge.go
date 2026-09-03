@@ -181,23 +181,14 @@ func skipActionsField(cfg *Config) func(model.SettingField) bool {
 }
 
 // mergeSettingField copies a set default field into cfv when cfv is nil,
-// reporting whether it changed anything. Slice values are cloned so cfg does
-// not share a backing array with the defaults.
+// reporting whether it changed anything. The value is deep copied so cfg does
+// not share a pointer or a backing array with the defaults.
 func mergeSettingField(cfv reflect.Value, field model.SettingField) bool {
 	if !field.Set || !cfv.IsNil() {
 		return false
 	}
 
-	dfv := field.Value.Elem()
-	newVal := reflect.New(dfv.Type())
-	if dfv.Kind() == reflect.Slice {
-		cloned := reflect.MakeSlice(dfv.Type(), dfv.Len(), dfv.Len())
-		reflect.Copy(cloned, dfv)
-		newVal.Elem().Set(cloned)
-	} else {
-		newVal.Elem().Set(dfv)
-	}
-	cfv.Set(newVal)
+	cfv.Set(deepCopy(field.Value))
 	return true
 }
 
