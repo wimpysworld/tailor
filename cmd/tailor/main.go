@@ -184,7 +184,6 @@ func projectName(path string) string {
 // AlterCmd applies swatch templates to the current project.
 type AlterCmd struct {
 	Recut  bool `help:"Overwrite existing first-fit swatches and merge missing .tailor.yml defaults (never swatches and the licence stay untouched)." name:"recut"`
-	run    func(alter.ApplyMode) error
 	stdout io.Writer
 	stderr io.Writer
 }
@@ -195,24 +194,17 @@ func (a *AlterCmd) Run() error {
 	if a.Recut {
 		mode = alter.Recut
 	}
-	if a.run != nil {
-		return a.run(mode)
-	}
 	return runAlter(mode, a.stdout, a.stderr)
 }
 
 // BasteCmd previews what alter would do without making any changes.
 type BasteCmd struct {
-	run    func(alter.ApplyMode) error
 	stdout io.Writer
 	stderr io.Writer
 }
 
 // Run executes the baste command.
 func (b *BasteCmd) Run() error {
-	if b.run != nil {
-		return b.run(alter.DryRun)
-	}
 	return runAlter(alter.DryRun, b.stdout, b.stderr)
 }
 
