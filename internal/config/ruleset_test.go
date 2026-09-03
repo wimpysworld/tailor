@@ -11,18 +11,6 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-func defaultRuleset(t *testing.T) *model.RulesetSettings {
-	t.Helper()
-	cfg, err := DefaultConfig("none")
-	if err != nil {
-		t.Fatalf("DefaultConfig() error: %v", err)
-	}
-	if cfg.Ruleset == nil {
-		t.Fatal("default ruleset section is nil")
-	}
-	return cfg.Ruleset
-}
-
 func actor(actorType string, id *int, mode string) model.RulesetBypassActor {
 	return model.RulesetBypassActor{ActorID: id, ActorType: new(actorType), BypassMode: new(mode)}
 }
@@ -63,7 +51,7 @@ func TestValidateRuleset(t *testing.T) {
 	}{
 		{name: "absent"},
 		{name: "empty", section: &model.RulesetSettings{}},
-		{name: "defaults", section: defaultRuleset(t)},
+		{name: "defaults", section: defaultConfig(t).Ruleset},
 		{name: "evaluate is enterprise only", section: &model.RulesetSettings{Enforcement: new("evaluate")}, wantErr: `invalid ruleset.enforcement "evaluate"; evaluate is available only on GitHub Enterprise`},
 		{name: "invalid enforcement", section: &model.RulesetSettings{Enforcement: new("on")}, wantErr: `invalid ruleset.enforcement "on"; must be "active" or "disabled"`},
 		{name: "unknown key", section: &model.RulesetSettings{Extra: map[string]any{"target": "branch"}}, wantErr: `unrecognised ruleset setting "target" in config; valid settings: bypass_actors, conditions, enforcement, rules`},
@@ -177,7 +165,7 @@ func TestValidateCompleteRuleset(t *testing.T) {
 		wantErr string
 	}{
 		{name: "absent"},
-		{name: "defaults", section: defaultRuleset(t)},
+		{name: "defaults", section: defaultConfig(t).Ruleset},
 		{name: "disabled rules need no parameters", section: complete(disabledRules())},
 		{name: "missing enforcement", section: &model.RulesetSettings{BypassActors: &[]model.RulesetBypassActor{}, Conditions: refName(&[]string{"~ALL"}, &[]string{}), Rules: disabledRules()}, wantErr: "ruleset requires enforcement"},
 		{name: "missing bypass actors", section: &model.RulesetSettings{Enforcement: new("active"), Conditions: refName(&[]string{"~ALL"}, &[]string{}), Rules: disabledRules()}, wantErr: "ruleset requires bypass_actors"},
@@ -285,7 +273,7 @@ func TestLoadRejectsInvalidRuleset(t *testing.T) {
 }
 
 func TestDefaultConfigRuleset(t *testing.T) {
-	r := defaultRuleset(t)
+	r := defaultConfig(t).Ruleset
 	testutil.AssertPtr(t, r.Enforcement, false, "active", "enforcement")
 	if r.BypassActors == nil || len(*r.BypassActors) != 1 {
 		t.Fatalf("bypass_actors = %v, want one actor", r.BypassActors)
@@ -330,7 +318,7 @@ func TestMergeDefaultsAddsRuleset(t *testing.T) {
 	if !changed {
 		t.Fatal("expected changed=true for an empty config")
 	}
-	if !reflect.DeepEqual(cfg.Ruleset, defaultRuleset(t)) {
+	if !reflect.DeepEqual(cfg.Ruleset, defaultConfig(t).Ruleset) {
 		t.Errorf("merged ruleset = %#v, want the default section", cfg.Ruleset)
 	}
 	changed, err = MergeDefaults(cfg)
@@ -400,7 +388,7 @@ func TestMergeDefaultsFillsRulesetFields(t *testing.T) {
 }
 
 func TestMergeRulesetSetup(t *testing.T) {
-	cfg := &Config{Ruleset: defaultRuleset(t)}
+	cfg := &Config{Ruleset: defaultConfig(t).Ruleset}
 	live := &model.RulesetSettings{
 		Enforcement:  new("disabled"),
 		BypassActors: &[]model.RulesetBypassActor{},
@@ -458,7 +446,7 @@ func TestMergeRulesetSetup(t *testing.T) {
 func TestMergeRulesetSetupKeepsBuiltInCodeScanningTools(t *testing.T) {
 	// The live ruleset carries no code scanning rule, so the built-in tool
 	// list stays in the config for the day the rule is enabled.
-	cfg := &Config{Ruleset: defaultRuleset(t)}
+	cfg := &Config{Ruleset: defaultConfig(t).Ruleset}
 	MergeRulesetSetup(cfg, &model.RulesetSettings{Rules: &model.RulesetRules{CodeScanning: &model.RulesetCodeScanning{Enabled: new(false)}}})
 	testutil.AssertPtr(t, cfg.Ruleset.Rules.CodeScanning.Enabled, false, false, "rules.code_scanning.enabled")
 	if !reflect.DeepEqual(*cfg.Ruleset.Rules.CodeScanning.Parameters.CodeScanningTools, []model.RulesetCodeScanningTool{codeQLTool()}) {
@@ -467,7 +455,7 @@ func TestMergeRulesetSetupKeepsBuiltInCodeScanningTools(t *testing.T) {
 }
 
 func TestMergeRulesetSetupSkipsUnmanagedEnforcement(t *testing.T) {
-	cfg := &Config{Ruleset: defaultRuleset(t)}
+	cfg := &Config{Ruleset: defaultConfig(t).Ruleset}
 	live := &model.RulesetSettings{Enforcement: new("evaluate"), Rules: &model.RulesetRules{Creation: new(true)}}
 	if !MergeRulesetSetup(cfg, live) {
 		t.Error("MergeRulesetSetup() = false, want true for an evaluate enforcement")
@@ -633,7 +621,7 @@ func TestWriteRulesetSection(t *testing.T) {
 
 func TestWriteRulesetRoundTrip(t *testing.T) {
 	dir := t.TempDir()
-	want := defaultRuleset(t)
+	want := defaultConfig(t).Ruleset
 	(*want.BypassActors) = append(*want.BypassActors, actor("DeployKey", nil, "exempt"))
 	*want.Conditions.RefName.Exclude = []string{"refs/heads/wip/*", "~release"}
 	*want.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks = []model.RulesetStatusCheck{{Context: "Sentinel 👁️"}, {Context: "lint", IntegrationID: new(15368)}}

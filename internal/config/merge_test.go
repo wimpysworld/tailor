@@ -183,20 +183,6 @@ func TestMergeDefaultsChangedByEachSection(t *testing.T) {
 	}
 }
 
-// defaultRepoDefaults returns the default RepositorySettings from the embedded
-// config, for comparison in merge tests.
-func defaultRepoDefaults(t *testing.T) *model.RepositorySettings {
-	t.Helper()
-	defaults, err := DefaultConfig("_")
-	if err != nil {
-		t.Fatalf("DefaultConfig: %v", err)
-	}
-	if defaults.Repository == nil {
-		t.Fatal("DefaultConfig returned nil Repository")
-	}
-	return defaults.Repository
-}
-
 func defaultConfig(t *testing.T) *Config {
 	t.Helper()
 	defaults, err := DefaultConfig("_")
@@ -221,7 +207,7 @@ func mergeLabelsDefaultsForTest(t *testing.T, cfg *Config) bool {
 // RepositorySettings that are non-nil and not in repoSettingsSkipFields.
 func countMergeableFields(t *testing.T) int {
 	t.Helper()
-	def := defaultRepoDefaults(t)
+	def := defaultConfig(t).Repository
 	count := 0
 	for _, field := range model.RepositorySettingFields(def) {
 		if _, skip := repoSettingsSkipFields[field.YAMLKey]; skip {
@@ -246,7 +232,7 @@ func TestMergeRepoSettingsNilRepository(t *testing.T) {
 		t.Fatal("Repository should be allocated after merge")
 	}
 
-	def := defaultRepoDefaults(t)
+	def := defaultConfig(t).Repository
 	cv := reflect.ValueOf(cfg.Repository).Elem()
 
 	merged := 0
@@ -303,7 +289,7 @@ func TestMergeRepoSettingsPartialRepository(t *testing.T) {
 	}
 
 	// Nil fields receive values from defaults.
-	def := defaultRepoDefaults(t)
+	def := defaultConfig(t).Repository
 	cv := reflect.ValueOf(cfg.Repository).Elem()
 
 	for _, field := range model.RepositorySettingFields(def) {
@@ -349,7 +335,7 @@ func TestMergeRepoSettingsPreservesExplicitFalseSecuritySettings(t *testing.T) {
 }
 
 func TestMergeRepoSettingsFullRepository(t *testing.T) {
-	def := defaultRepoDefaults(t)
+	def := defaultConfig(t).Repository
 
 	// Deep-copy default into a new RepositorySettings so every field is set.
 	full := &model.RepositorySettings{}
@@ -441,16 +427,6 @@ func TestMergeActionsClonesPatterns(t *testing.T) {
 	}
 }
 
-// defaultLabelDefaults returns the default Labels from the embedded config.
-func defaultLabelDefaults(t *testing.T) []model.LabelEntry {
-	t.Helper()
-	defaults, err := DefaultConfig("_")
-	if err != nil {
-		t.Fatalf("DefaultConfig: %v", err)
-	}
-	return defaults.Labels
-}
-
 func TestMergeLabelsNilLabels(t *testing.T) {
 	cfg := &Config{}
 
@@ -460,7 +436,7 @@ func TestMergeLabelsNilLabels(t *testing.T) {
 		t.Fatal("expected changed=true for nil Labels")
 	}
 
-	def := defaultLabelDefaults(t)
+	def := defaultConfig(t).Labels
 	if len(cfg.Labels) != len(def) {
 		t.Fatalf("got %d labels, want %d", len(cfg.Labels), len(def))
 	}
@@ -478,7 +454,7 @@ func TestMergeLabelsEmptySlice(t *testing.T) {
 		t.Fatal("expected changed=true for empty Labels slice")
 	}
 
-	def := defaultLabelDefaults(t)
+	def := defaultConfig(t).Labels
 	if len(cfg.Labels) != len(def) {
 		t.Fatalf("got %d labels, want %d", len(cfg.Labels), len(def))
 	}
@@ -507,7 +483,7 @@ func TestMergeLabelsNonEmpty(t *testing.T) {
 }
 
 func TestMergeLabelsDefaultCount(t *testing.T) {
-	def := defaultLabelDefaults(t)
+	def := defaultConfig(t).Labels
 	const wantCount = 12
 	if len(def) != wantCount {
 		t.Fatalf("embedded default label count = %d, want %d", len(def), wantCount)
