@@ -28,11 +28,14 @@ type fitRulesets struct {
 	readBody   string // served for GET /rulesets/1
 }
 
-// fitSetupServer fakes the endpoints that fit reads. setupStatus and the two
-// bodies control the code scanning and Code Quality setup reads. rulesets
-// controls the rulesets reads; a zero value lists no rulesets.
+// fitSetupServer fakes the auth, the repository, and the endpoints that fit
+// reads. setupStatus and the two bodies control the code scanning and Code
+// Quality setup reads. rulesets controls the rulesets reads; a zero value
+// lists no rulesets.
 func fitSetupServer(t *testing.T, setupStatus int, codeScanningJSON, codeQualityJSON string, rulesets fitRulesets) {
 	t.Helper()
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeRepo(t, "octocat", "my-project")
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
@@ -78,25 +81,40 @@ func fitSetupServer(t *testing.T, setupStatus int, codeScanningJSON, codeQuality
 	t.Cleanup(restore)
 }
 
-func TestFitWritesLiveSetupWithEmptyLanguages(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeRepo(t, "octocat", "my-project")
-	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{})
+// fitResult is what runFit returns: the project directory, the written
+// .tailor.yml, and the stderr text.
+type fitResult struct {
+	dir    string
+	config string
+	stderr string
+}
+
+// runFit installs the fakes through fitSetupServer, runs fit into a temporary
+// directory, and reads the written .tailor.yml. It stops the test when fit
+// exits with a non-zero code.
+func runFit(t *testing.T, setupStatus int, codeScanningJSON, codeQualityJSON string, rulesets fitRulesets) fitResult {
+	t.Helper()
+	fitSetupServer(t, setupStatus, codeScanningJSON, codeQualityJSON, rulesets)
 
 	dir := t.TempDir()
 	var stdout, stderr strings.Builder
 	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
 		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
 	}
-	if stderr.String() != "" {
-		t.Errorf("stderr = %q, want empty", stderr.String())
-	}
 
 	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	content := string(data)
+	return fitResult{dir: dir, config: string(data), stderr: stderr.String()}
+}
+
+func TestFitWritesLiveSetupWithEmptyLanguages(t *testing.T) {
+	got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{})
+	if got.stderr != "" {
+		t.Errorf("stderr = %q, want empty", got.stderr)
+	}
+
 	for _, want := range []string{
 		"  secret_scanning: enabled\n  secret_scanning_push_protection: disabled\n  secret_scanning_non_provider_patterns: enabled\n",
 		"\ncode_scanning:\n  state: configured\n  query_suite: extended\n  threat_model: remote_and_local\n" +
@@ -108,47 +126,32 @@ func TestFitWritesLiveSetupWithEmptyLanguages(t *testing.T) {
 			"  # csharp, go, java-kotlin, javascript-typescript, python, ruby\n" +
 			"  languages: []\n",
 	} {
-		if !strings.Contains(content, want) {
-			t.Errorf("config missing %q:\n%s", want, content)
+		if !strings.Contains(got.config, want) {
+			t.Errorf("config missing %q:\n%s", want, got.config)
 		}
 	}
 }
 
 func TestFitSetupEmptyFieldsKeepBuiltInDefaults(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeRepo(t, "octocat", "my-project")
-	fitSetupServer(t, http.StatusOK, `{"state":"not-configured","languages":[]}`, `{"state":"not-configured","languages":[]}`, fitRulesets{})
+	got := runFit(t, http.StatusOK, `{"state":"not-configured","languages":[]}`, `{"state":"not-configured","languages":[]}`, fitRulesets{})
 
-	dir := t.TempDir()
-	var stdout, stderr strings.Builder
-	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	content := string(data)
 	want := "\ncode_scanning:\n  state: not-configured\n  query_suite: default\n  threat_model: remote\n"
-	if !strings.Contains(content, want) {
-		t.Errorf("config missing %q:\n%s", want, content)
+	if !strings.Contains(got.config, want) {
+		t.Errorf("config missing %q:\n%s", want, got.config)
 	}
 	for _, empty := range []string{`query_suite: ""`, `threat_model: ""`, "query_suite: \n", "threat_model: \n"} {
-		if strings.Contains(content, empty) {
-			t.Errorf("config contains empty value %q:\n%s", empty, content)
+		if strings.Contains(got.config, empty) {
+			t.Errorf("config contains empty value %q:\n%s", empty, got.config)
 		}
 	}
 
 	// The written config must load and validate on the next alter.
-	if _, err := config.Load(dir); err != nil {
+	if _, err := config.Load(got.dir); err != nil {
 		t.Fatalf("config.Load() error: %v", err)
 	}
 }
 
 func TestFitSetupReadHardErrorStopsCommand(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeRepo(t, "octocat", "my-project")
 	fitSetupServer(t, http.StatusInternalServerError, `{"message":"boom"}`, `{"message":"boom"}`, fitRulesets{})
 
 	dir := t.TempDir()
@@ -165,32 +168,19 @@ func TestFitSetupReadHardErrorStopsCommand(t *testing.T) {
 }
 
 func TestFitSetupNotAvailableUsesBuiltIn(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeRepo(t, "octocat", "my-project")
-	fitSetupServer(t, http.StatusNotFound, `{"message":"Not Found"}`, `{"message":"Not Found"}`, fitRulesets{})
-
-	dir := t.TempDir()
-	var stdout, stderr strings.Builder
-	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
-	}
+	got := runFit(t, http.StatusNotFound, `{"message":"Not Found"}`, `{"message":"Not Found"}`, fitRulesets{})
 	wantStderr := "warning: fetch code scanning setup: not available (HTTP 404)\n" +
 		"warning: fetch code quality setup: not available (HTTP 404)\n"
-	if stderr.String() != wantStderr {
-		t.Errorf("stderr = %q, want %q", stderr.String(), wantStderr)
+	if got.stderr != wantStderr {
+		t.Errorf("stderr = %q, want %q", got.stderr, wantStderr)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	content := string(data)
 	for _, want := range []string{
 		"\ncode_scanning:\n  state: configured\n  query_suite: default\n  threat_model: remote\n",
 		"\ncode_quality:\n  state: not-configured\n",
 	} {
-		if !strings.Contains(content, want) {
-			t.Errorf("config missing built-in section %q:\n%s", want, content)
+		if !strings.Contains(got.config, want) {
+			t.Errorf("config missing built-in section %q:\n%s", want, got.config)
 		}
 	}
 }
@@ -206,24 +196,11 @@ const (
 )
 
 func TestFitWritesLiveRuleset(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeRepo(t, "octocat", "my-project")
-	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: liveRulesetJSON})
-
-	dir := t.TempDir()
-	var stdout, stderr strings.Builder
-	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
-	}
-	if stderr.String() != "" {
-		t.Errorf("stderr = %q, want empty", stderr.String())
+	got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: liveRulesetJSON})
+	if got.stderr != "" {
+		t.Errorf("stderr = %q, want empty", got.stderr)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	content := string(data)
 	for _, want := range []string{
 		"\nruleset:\n",
 		"  enforcement: disabled\n",
@@ -241,48 +218,35 @@ func TestFitWritesLiveRuleset(t *testing.T) {
 			"        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all\n" +
 			"        code_scanning_tools:\n          - tool: CodeQL\n            alerts_threshold: errors_and_warnings\n            security_alerts_threshold: critical\n",
 	} {
-		if !strings.Contains(content, want) {
-			t.Errorf("config missing %q:\n%s", want, content)
+		if !strings.Contains(got.config, want) {
+			t.Errorf("config missing %q:\n%s", want, got.config)
 		}
 	}
-	if _, err := config.Load(dir); err != nil {
+	if _, err := config.Load(got.dir); err != nil {
 		t.Fatalf("config.Load() error: %v", err)
 	}
 }
 
 func TestFitRulesetWithoutCodeScanningKeepsBuiltInTools(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeRepo(t, "octocat", "my-project")
 	withoutRule := strings.Replace(liveRulesetJSON,
 		`,{"type":"code_scanning","parameters":{"code_scanning_tools":[{"tool":"CodeQL","alerts_threshold":"errors_and_warnings","security_alerts_threshold":"critical"}]}}`, "", 1)
 	if withoutRule == liveRulesetJSON {
 		t.Fatal("liveRulesetJSON does not carry the code scanning rule")
 	}
-	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: withoutRule})
-
-	dir := t.TempDir()
-	var stdout, stderr strings.Builder
-	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
-	}
-	if stderr.String() != "" {
-		t.Errorf("stderr = %q, want empty", stderr.String())
+	got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: withoutRule})
+	if got.stderr != "" {
+		t.Errorf("stderr = %q, want empty", got.stderr)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	content := string(data)
 	want := "    code_scanning:\n      enabled: false\n      parameters:\n" +
 		"        # tool is the tool name as GitHub shows it, for example CodeQL.\n" +
 		"        # alerts_threshold: none, errors, errors_and_warnings, all\n" +
 		"        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all\n" +
 		"        code_scanning_tools:\n          - tool: CodeQL\n            alerts_threshold: errors\n            security_alerts_threshold: high_or_higher\n"
-	if !strings.Contains(content, want) {
-		t.Errorf("config missing the built-in code scanning block %q:\n%s", want, content)
+	if !strings.Contains(got.config, want) {
+		t.Errorf("config missing the built-in code scanning block %q:\n%s", want, got.config)
 	}
-	if _, err := config.Load(dir); err != nil {
+	if _, err := config.Load(got.dir); err != nil {
 		t.Fatalf("config.Load() error: %v", err)
 	}
 }
@@ -304,23 +268,10 @@ func TestFitRulesetFallbackUsesBuiltIn(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ghfake.FakeAuth(t, "gho_test")
-			ghfake.FakeRepo(t, "octocat", "my-project")
-			fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, tt.rulesets)
-
-			dir := t.TempDir()
-			var stdout, stderr strings.Builder
-			if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
-				t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+			got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, tt.rulesets)
+			if got.stderr != tt.wantStderr {
+				t.Errorf("stderr = %q, want %q", got.stderr, tt.wantStderr)
 			}
-			if stderr.String() != tt.wantStderr {
-				t.Errorf("stderr = %q, want %q", stderr.String(), tt.wantStderr)
-			}
-			data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			content := string(data)
 			for _, want := range []string{
 				"\nruleset:\n",
 				"  enforcement: active\n",
@@ -328,8 +279,8 @@ func TestFitRulesetFallbackUsesBuiltIn(t *testing.T) {
 				"      include:\n        - ~DEFAULT_BRANCH\n      exclude: []\n",
 				"    pull_request:\n      enabled: true\n",
 			} {
-				if !strings.Contains(content, want) {
-					t.Errorf("config missing built-in ruleset text %q:\n%s", want, content)
+				if !strings.Contains(got.config, want) {
+					t.Errorf("config missing built-in ruleset text %q:\n%s", want, got.config)
 				}
 			}
 		})
@@ -337,41 +288,26 @@ func TestFitRulesetFallbackUsesBuiltIn(t *testing.T) {
 }
 
 func TestFitRulesetEvaluateEnforcementKeepsBuiltIn(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeRepo(t, "octocat", "my-project")
 	evaluateRulesetJSON := strings.Replace(liveRulesetJSON, `"enforcement":"disabled"`, `"enforcement":"evaluate"`, 1)
-	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: evaluateRulesetJSON})
-
-	dir := t.TempDir()
-	var stdout, stderr strings.Builder
-	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
-	}
+	got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: evaluateRulesetJSON})
 	want := "warning: the Tailor ruleset enforcement \"evaluate\" is not managed; wrote enforcement: active\n"
-	if stderr.String() != want {
-		t.Errorf("stderr = %q, want %q", stderr.String(), want)
+	if got.stderr != want {
+		t.Errorf("stderr = %q, want %q", got.stderr, want)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	content := string(data)
 	for _, want := range []string{
 		"  enforcement: active\n",
 		"    creation: true\n",
 	} {
-		if !strings.Contains(content, want) {
-			t.Errorf("config missing %q:\n%s", want, content)
+		if !strings.Contains(got.config, want) {
+			t.Errorf("config missing %q:\n%s", want, got.config)
 		}
 	}
-	if _, err := config.Load(dir); err != nil {
+	if _, err := config.Load(got.dir); err != nil {
 		t.Fatalf("config.Load() error: %v", err)
 	}
 }
 
 func TestFitRulesetHardErrorStopsCommand(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeRepo(t, "octocat", "my-project")
 	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listStatus: http.StatusInternalServerError})
 
 	dir := t.TempDir()
