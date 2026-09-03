@@ -63,6 +63,34 @@ func skipResults(results []RepoSettingResult, category RepoSettingCategory, anno
 	return skipped
 }
 
+// processSetup is the shared skeleton of the ruleset, code scanning, and
+// Code Quality stages. declared holds the results against an empty live
+// state, so a read that is skipped can report every declared field. read
+// fetches the live state and compares it. write sends the change. A read
+// that returns *gh.ErrSetupSkipped or *gh.ErrInsufficientScope turns every
+// declared field into a skip result and the command continues.
+func processSetup(declared []RepoSettingResult, mode ApplyMode, read func() ([]RepoSettingResult, error), write func(results []RepoSettingResult) error) ([]RepoSettingResult, error) {
+	if len(declared) == 0 {
+		return nil, nil
+	}
+	results, err := read()
+	var skipped *gh.ErrSetupSkipped
+	if errors.As(err, &skipped) {
+		return skipResults(declared, WouldSkipSetup, string(skipped.Reason)), nil
+	}
+	var scope *gh.ErrInsufficientScope
+	if errors.As(err, &scope) {
+		return skipResults(declared, WouldSkipScope, skipAnnotation), nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !mode.ShouldWrite() || !hasChanges(results) {
+		return results, nil
+	}
+	return applySetup(results, func() error { return write(results) })
+}
+
 // applySetup runs the write and reports its outcome. When the write is
 // skipped, every WouldSet result becomes a skip result and the command
 // continues. Other errors stop the command.

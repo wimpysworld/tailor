@@ -1,8 +1,6 @@
 package alter
 
 import (
-	"errors"
-
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/model"
@@ -16,28 +14,18 @@ func ProcessCodeScanning(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 	if cfg.CodeScanning == nil || !target.HasRepo {
 		return nil, nil
 	}
-	declared := compareCodeScanning(cfg.CodeScanning, &model.CodeScanningSettings{})
-	if len(declared) == 0 {
-		return nil, nil
-	}
-
-	live, err := gh.ReadCodeScanningSetup(target.Client, target.Owner, target.Name)
-	var skipped *gh.ErrSetupSkipped
-	if errors.As(err, &skipped) {
-		return skipResults(declared, WouldSkipSetup, string(skipped.Reason)), nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	results := compareCodeScanning(cfg.CodeScanning, live)
-	if !mode.ShouldWrite() || !hasChanges(results) {
-		return results, nil
-	}
-	return applySetup(results, func() error {
-		desired := changedSettings(cfg.CodeScanning, results, model.CodeScanningSettingFields)
-		return gh.ApplyCodeScanningSetup(target.Client, target.Owner, target.Name, desired)
-	})
+	return processSetup(compareCodeScanning(cfg.CodeScanning, &model.CodeScanningSettings{}), mode,
+		func() ([]RepoSettingResult, error) {
+			live, err := gh.ReadCodeScanningSetup(target.Client, target.Owner, target.Name)
+			if err != nil {
+				return nil, err
+			}
+			return compareCodeScanning(cfg.CodeScanning, live), nil
+		},
+		func(results []RepoSettingResult) error {
+			desired := changedSettings(cfg.CodeScanning, results, model.CodeScanningSettingFields)
+			return gh.ApplyCodeScanningSetup(target.Client, target.Owner, target.Name, desired)
+		})
 }
 
 func compareCodeScanning(declared, live *model.CodeScanningSettings) []RepoSettingResult {
