@@ -72,6 +72,18 @@ func recordAccessError(result *ApplyResult, operation Operation, err error) bool
 	return true
 }
 
+// collectAccessWarning classifies a read error. It appends an access error to
+// warnings and returns nil so the read continues. Any other error is returned
+// wrapped with prefix as a hard failure.
+func collectAccessWarning(err error, operation Operation, prefix string, warnings *[]error) error {
+	classified := classifyHTTPError(err, operation)
+	if isAccessError(classified) {
+		*warnings = append(*warnings, classified)
+		return nil
+	}
+	return fmt.Errorf("%s: %w", prefix, err)
+}
+
 // Op wraps a parameterless kind in an Operation.
 func Op(kind OperationKind) Operation {
 	return Operation{Kind: kind}
