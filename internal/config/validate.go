@@ -78,11 +78,7 @@ func ValidateWorkflowPermissions(cfg *Config) error {
 	if cfg.Repository == nil || cfg.Repository.DefaultWorkflowPermissions == nil {
 		return nil
 	}
-	v := *cfg.Repository.DefaultWorkflowPermissions
-	if v != "read" && v != "write" {
-		return fmt.Errorf("invalid default_workflow_permissions %q; must be %q or %q", v, "read", "write")
-	}
-	return nil
+	return validateEnum("default_workflow_permissions", cfg.Repository.DefaultWorkflowPermissions, "read", "write")
 }
 
 // ValidateSecretScanning checks that secret_scanning,
@@ -100,11 +96,8 @@ func ValidateSecretScanning(cfg *Config) error {
 		{"secret_scanning_push_protection", cfg.Repository.SecretScanningPushProtection},
 		{"secret_scanning_non_provider_patterns", cfg.Repository.SecretScanningNonProviderPatterns},
 	} {
-		if setting.value == nil {
-			continue
-		}
-		if v := *setting.value; v != "enabled" && v != "disabled" {
-			return fmt.Errorf("invalid %s %q; must be %q or %q", setting.name, v, "enabled", "disabled")
+		if err := validateEnum(setting.name, setting.value, "enabled", "disabled"); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -150,7 +143,9 @@ func ValidateCodeQuality(cfg *Config) error {
 	return validateLanguages("code_quality", c.Languages, model.CodeQualityLanguages)
 }
 
-// validateEnum checks that value, if set, is one of the allowed values.
+// validateEnum checks that value, if set, is one of the allowed values. The
+// error lists the allowed values as `"a" or "b"` for two values and as
+// `"a", "b", or "c"` for three or more.
 func validateEnum(name string, value *string, allowed ...string) error {
 	if value == nil || slices.Contains(allowed, *value) {
 		return nil
@@ -159,7 +154,12 @@ func validateEnum(name string, value *string, allowed ...string) error {
 	for i, v := range allowed {
 		quoted[i] = fmt.Sprintf("%q", v)
 	}
-	return fmt.Errorf("invalid %s %q; must be %s", name, *value, strings.Join(quoted, " or "))
+	separator := " or "
+	if len(quoted) > 2 {
+		separator = ", or "
+	}
+	list := strings.Join(quoted[:len(quoted)-1], ", ") + separator + quoted[len(quoted)-1]
+	return fmt.Errorf("invalid %s %q; must be %s", name, *value, list)
 }
 
 // validateLanguages checks that every language, if set, is in the valid list
@@ -194,11 +194,8 @@ func ValidateActions(cfg *Config) error {
 	}
 
 	a := cfg.Actions
-	if a.AllowedActions != nil {
-		v := *a.AllowedActions
-		if v != "all" && v != "local_only" && v != "selected" {
-			return fmt.Errorf("invalid allowed_actions %q; must be %q, %q, or %q", v, "all", "local_only", "selected")
-		}
+	if err := validateEnum("allowed_actions", a.AllowedActions, "all", "local_only", "selected"); err != nil {
+		return err
 	}
 	selectedFieldsSet := a.GitHubOwnedAllowed != nil || a.VerifiedAllowed != nil || a.PatternsAllowed != nil
 	if selectedFieldsSet && (a.AllowedActions == nil || *a.AllowedActions != "selected") {
@@ -282,19 +279,9 @@ func ValidateRepoStringSettings(cfg *Config) error {
 		{"merge_commit_message", cfg.Repository.MergeCommitMessage, []string{"PR_TITLE", "PR_BODY", "BLANK"}},
 	}
 	for _, setting := range enumSettings {
-		if setting.value == nil || slices.Contains(setting.allowed, *setting.value) {
-			continue
+		if err := validateEnum(setting.name, setting.value, setting.allowed...); err != nil {
+			return err
 		}
-		quoted := make([]string, len(setting.allowed))
-		for i, value := range setting.allowed {
-			quoted[i] = fmt.Sprintf("%q", value)
-		}
-		separator := " or "
-		if len(quoted) > 2 {
-			separator = ", or "
-		}
-		allowed := strings.Join(quoted[:len(quoted)-1], ", ") + separator + quoted[len(quoted)-1]
-		return fmt.Errorf("invalid %s %q; must be %s", setting.name, *setting.value, allowed)
 	}
 
 	for _, field := range model.RepositorySettingFields(cfg.Repository) {
