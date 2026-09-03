@@ -35,6 +35,14 @@ func pullRequestRule(p *model.RulesetPullRequestParameters) *model.RulesetRules 
 	return &model.RulesetRules{PullRequest: &model.RulesetPullRequest{Enabled: new(true), Parameters: p}}
 }
 
+// linearHistoryRule pairs required_linear_history with an enabled pull
+// request rule that allows methods.
+func linearHistoryRule(linear bool, methods *[]string) *model.RulesetRules {
+	rules := pullRequestRule(&model.RulesetPullRequestParameters{AllowedMergeMethods: methods})
+	rules.RequiredLinearHistory = new(linear)
+	return rules
+}
+
 func statusChecksRule(p *model.RulesetStatusChecksParameters) *model.RulesetRules {
 	return &model.RulesetRules{RequiredStatusChecks: &model.RulesetStatusChecks{Enabled: new(true), Parameters: p}}
 }
@@ -81,6 +89,11 @@ func TestValidateRuleset(t *testing.T) {
 		{name: "merge methods empty", section: &model.RulesetSettings{Rules: pullRequestRule(&model.RulesetPullRequestParameters{AllowedMergeMethods: &[]string{}})}, wantErr: `ruleset.rules.pull_request.parameters.allowed_merge_methods must contain at least one method`},
 		{name: "merge method unknown", section: &model.RulesetSettings{Rules: pullRequestRule(&model.RulesetPullRequestParameters{AllowedMergeMethods: &[]string{"fast-forward"}})}, wantErr: `ruleset.rules.pull_request.parameters.allowed_merge_methods[0]: unrecognised method "fast-forward"; valid methods: merge, squash, rebase`},
 		{name: "merge method duplicate", section: &model.RulesetSettings{Rules: pullRequestRule(&model.RulesetPullRequestParameters{AllowedMergeMethods: &[]string{"merge", "squash", "merge"}})}, wantErr: `ruleset.rules.pull_request.parameters.allowed_merge_methods[2]: duplicate method "merge"`},
+		{name: "linear history with merge only", section: &model.RulesetSettings{Rules: linearHistoryRule(true, &[]string{"merge"})}, wantErr: `ruleset.rules.required_linear_history requires pull_request.parameters.allowed_merge_methods to include squash or rebase`},
+		{name: "linear history with squash", section: &model.RulesetSettings{Rules: linearHistoryRule(true, &[]string{"merge", "squash"})}},
+		{name: "linear history without methods", section: &model.RulesetSettings{Rules: linearHistoryRule(true, nil)}},
+		{name: "merge only without linear history", section: &model.RulesetSettings{Rules: linearHistoryRule(false, &[]string{"merge"})}},
+		{name: "linear history with pull request disabled", section: &model.RulesetSettings{Rules: &model.RulesetRules{RequiredLinearHistory: new(true), PullRequest: &model.RulesetPullRequest{Enabled: new(false), Parameters: &model.RulesetPullRequestParameters{AllowedMergeMethods: &[]string{"merge"}}}}}},
 		{name: "status checks unknown key", section: &model.RulesetSettings{Rules: &model.RulesetRules{RequiredStatusChecks: &model.RulesetStatusChecks{Extra: map[string]any{"checks": nil}}}}, wantErr: `unrecognised ruleset.rules.required_status_checks setting "checks" in config; valid settings: enabled, parameters`},
 		{name: "status checks parameters unknown key", section: &model.RulesetSettings{Rules: statusChecksRule(&model.RulesetStatusChecksParameters{Extra: map[string]any{"contexts": nil}})}, wantErr: `unrecognised ruleset.rules.required_status_checks.parameters setting "contexts" in config; valid settings: do_not_enforce_on_create, required_status_checks, strict_required_status_checks_policy`},
 		{name: "status check unknown key", section: &model.RulesetSettings{Rules: statusChecksRule(&model.RulesetStatusChecksParameters{RequiredStatusChecks: &[]model.RulesetStatusCheck{{Context: "lint", Extra: map[string]any{"app_id": 1}}}})}, wantErr: `unrecognised ruleset.rules.required_status_checks.parameters.required_status_checks[0] setting "app_id" in config; valid settings: context, integration_id`},
