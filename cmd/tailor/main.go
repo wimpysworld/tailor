@@ -147,9 +147,11 @@ func mergeLiveSetup(cfg *config.Config, client *api.RESTClient, repo gh.Repo, st
 }
 
 // mergeLiveRuleset copies the live Tailor ruleset into cfg. An absent
-// ruleset keeps the built-in section. A read that is skipped, or a token
-// that can read but not write the ruleset, keeps the built-in section and
-// warns. Other read errors stop the command.
+// ruleset keeps the built-in section. A live enforcement level that Tailor
+// does not manage, such as evaluate, keeps the built-in level and warns,
+// because the written config must pass validation. A read that is skipped,
+// or a token that can read but not write the ruleset, keeps the built-in
+// section and warns. Other read errors stop the command.
 func mergeLiveRuleset(cfg *config.Config, client *api.RESTClient, repo gh.Repo, stderr io.Writer) error {
 	var skipped *gh.ErrSetupSkipped
 	var scope *gh.ErrInsufficientScope
@@ -157,7 +159,10 @@ func mergeLiveRuleset(cfg *config.Config, client *api.RESTClient, repo gh.Repo, 
 	ruleset, _, err := gh.ReadTailorRuleset(client, repo.Owner, repo.Name)
 	switch {
 	case err == nil && ruleset != nil:
-		config.MergeRulesetSetup(cfg, ruleset)
+		if config.MergeRulesetSetup(cfg, ruleset) {
+			fmt.Fprintf(stderr, "warning: the Tailor ruleset enforcement %q is not managed; wrote enforcement: %s\n",
+				*ruleset.Enforcement, *cfg.Ruleset.Enforcement)
+		}
 	case err == nil:
 		// The Tailor ruleset does not exist yet; the built-in section stands.
 	case errors.As(err, &skipped), errors.As(err, &scope):

@@ -436,7 +436,7 @@ tailor fit ./my-project --license=none
 tailor fit ./my-project --description="Short description"
 ```
 
-When a GitHub remote exists, `fit` queries the live repository configuration for the `repository`, `code_scanning`, `code_quality`, and `ruleset` sections. Otherwise, built-in defaults are used. When a default setup read returns an access error or `404`, `fit` warns and writes the built-in section. `fit` always writes `languages: []`. `fit` reads the `Tailor` ruleset when it exists and writes its live values. When the ruleset does not exist, or the read returns an access error or `403`, `fit` writes the built-in `ruleset` section. Exits with an error if `.tailor.yml` already exists.
+When a GitHub remote exists, `fit` queries the live repository configuration for the `repository`, `code_scanning`, `code_quality`, and `ruleset` sections. Otherwise, built-in defaults are used. When a default setup read returns an access error or `404`, `fit` warns and writes the built-in section. `fit` always writes `languages: []`. `fit` reads the `Tailor` ruleset when it exists and writes its live values. When the live `enforcement` is `evaluate`, `fit` warns and writes `active`. When the ruleset does not exist, or the read returns an access error or `403`, `fit` writes the built-in `ruleset` section. Exits with an error if `.tailor.yml` already exists.
 
 ### `alter`
 
