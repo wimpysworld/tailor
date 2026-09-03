@@ -91,6 +91,12 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 }
 
 func settingsForApply(declared *model.RepositorySettings, results []RepoSettingResult) *model.RepositorySettings {
+	return changedSettings(declared, results, model.RepositorySettingFields)
+}
+
+// changedSettings copies the fields of declared whose result is WouldSet into
+// a new settings value, so a write carries only the fields that differ.
+func changedSettings[T any](declared *T, results []RepoSettingResult, fields func(*T) []model.SettingField) *T {
 	changed := make(map[string]bool)
 	for _, result := range results {
 		if result.Category == WouldSet {
@@ -98,9 +104,9 @@ func settingsForApply(declared *model.RepositorySettings, results []RepoSettingR
 		}
 	}
 
-	apply := new(model.RepositorySettings)
+	apply := new(T)
 	applyValue := reflect.ValueOf(apply).Elem()
-	for _, field := range model.RepositorySettingFields(declared) {
+	for _, field := range fields(declared) {
 		if changed[field.YAMLKey] {
 			applyValue.Field(field.Index).Set(field.Value)
 		}
@@ -188,6 +194,7 @@ var readWarningOperationFields = map[gh.OperationKind][]string{
 	gh.OpFetchAutomatedSecurityFixes:        {"automated_security_fixes_enabled"},
 	gh.OpFetchPrivateVulnerabilityReporting: {"private_vulnerability_reporting_enabled"},
 	gh.OpFetchWorkflowPermissions:           {"default_workflow_permissions", "can_approve_pull_request_reviews"},
+	gh.OpFetchSecurityAnalysis:              {"secret_scanning", "secret_scanning_push_protection"},
 }
 
 // readWarningsToResults converts read-path access-error warnings into

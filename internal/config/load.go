@@ -115,7 +115,16 @@ func validate(cfg *Config) error {
 	if err := ValidateRepoStringSettings(cfg); err != nil {
 		return err
 	}
+	if err := ValidateSecretScanning(cfg); err != nil {
+		return err
+	}
 	if err := ValidateActions(cfg); err != nil {
+		return err
+	}
+	if err := ValidateCodeScanning(cfg); err != nil {
+		return err
+	}
+	if err := ValidateCodeQuality(cfg); err != nil {
 		return err
 	}
 	if err := ValidateTopics(cfg); err != nil {

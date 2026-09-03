@@ -28,7 +28,7 @@ func validateTopLevelSettings(cfg *Config) error {
 		return nil
 	}
 
-	valid := []string{"actions", "labels", "license", "repository", "swatches"}
+	valid := []string{"actions", "code_quality", "code_scanning", "labels", "license", "repository", "swatches"}
 	return unrecognisedSettingError("top-level", cfg.Extra, valid)
 }
 
@@ -85,6 +85,101 @@ func ValidateWorkflowPermissions(cfg *Config) error {
 	return nil
 }
 
+// ValidateSecretScanning checks that secret_scanning and
+// secret_scanning_push_protection, if set, are either "enabled" or "disabled".
+func ValidateSecretScanning(cfg *Config) error {
+	if cfg.Repository == nil {
+		return nil
+	}
+	for _, setting := range []struct {
+		name  string
+		value *string
+	}{
+		{"secret_scanning", cfg.Repository.SecretScanning},
+		{"secret_scanning_push_protection", cfg.Repository.SecretScanningPushProtection},
+	} {
+		if setting.value == nil {
+			continue
+		}
+		if v := *setting.value; v != "enabled" && v != "disabled" {
+			return fmt.Errorf("invalid %s %q; must be %q or %q", setting.name, v, "enabled", "disabled")
+		}
+	}
+	return nil
+}
+
+// ValidateCodeScanning checks the code scanning field names, enum values, and
+// language list.
+func ValidateCodeScanning(cfg *Config) error {
+	if cfg.CodeScanning == nil {
+		return nil
+	}
+	if len(cfg.CodeScanning.Extra) > 0 {
+		return unrecognisedSettingError("code_scanning", cfg.CodeScanning.Extra, settingNames(model.CodeScanningSettingFields(nil)))
+	}
+
+	c := cfg.CodeScanning
+	if err := validateEnum("code_scanning.state", c.State, "configured", "not-configured"); err != nil {
+		return err
+	}
+	if err := validateEnum("code_scanning.query_suite", c.QuerySuite, "default", "extended"); err != nil {
+		return err
+	}
+	if err := validateEnum("code_scanning.threat_model", c.ThreatModel, "remote", "remote_and_local"); err != nil {
+		return err
+	}
+	return validateLanguages("code_scanning", c.Languages, model.CodeScanningLanguages)
+}
+
+// ValidateCodeQuality checks the Code Quality field names, enum values, and
+// language list.
+func ValidateCodeQuality(cfg *Config) error {
+	if cfg.CodeQuality == nil {
+		return nil
+	}
+	if len(cfg.CodeQuality.Extra) > 0 {
+		return unrecognisedSettingError("code_quality", cfg.CodeQuality.Extra, settingNames(model.CodeQualitySettingFields(nil)))
+	}
+
+	c := cfg.CodeQuality
+	if err := validateEnum("code_quality.state", c.State, "configured", "not-configured"); err != nil {
+		return err
+	}
+	return validateLanguages("code_quality", c.Languages, model.CodeQualityLanguages)
+}
+
+// validateEnum checks that value, if set, is one of the allowed values.
+func validateEnum(name string, value *string, allowed ...string) error {
+	if value == nil || slices.Contains(allowed, *value) {
+		return nil
+	}
+	quoted := make([]string, len(allowed))
+	for i, v := range allowed {
+		quoted[i] = fmt.Sprintf("%q", v)
+	}
+	return fmt.Errorf("invalid %s %q; must be %s", name, *value, strings.Join(quoted, " or "))
+}
+
+// validateLanguages checks that every language, if set, is in the valid list
+// and appears only once.
+func validateLanguages(section string, languages *[]string, valid []string) error {
+	if languages == nil {
+		return nil
+	}
+	seen := make(map[string]bool, len(*languages))
+	for i, language := range *languages {
+		if !slices.Contains(valid, language) {
+			return fmt.Errorf("%s.languages[%d]: unrecognised language %q; valid languages: %s",
+				section, i, language, strings.Join(valid, ", "))
+		}
+		if seen[language] {
+			return fmt.Errorf("%s.languages[%d]: duplicate language %q", section, i, language)
+		}
+		seen[language] = true
+	}
+	return nil
+}
+
 // ValidateActions checks the Actions policy field names, enum values, and
 // selected-action field combinations, and rejects patterns_allowed entries
 // containing control characters.
@@ -117,7 +212,7 @@ func ValidateActions(cfg *Config) error {
 	return nil
 }
 
-func unrecognisedSettingError(section string, extra map[string]interface{}, valid []string) error {
+func unrecognisedSettingError(section string, extra map[string]any, valid []string) error {
 	keys := slices.Sorted(maps.Keys(extra))
 	return fmt.Errorf("unrecognised %s setting %q in config; valid settings: %s",
 		section, keys[0], strings.Join(valid, ", "))

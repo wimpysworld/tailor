@@ -41,6 +41,18 @@ type repoJSON struct {
 	Permissions              struct {
 		Admin bool `json:"admin"`
 	} `json:"permissions"`
+	// SecurityAndAnalysis is omitted when nil, which mirrors a token
+	// without admin access.
+	SecurityAndAnalysis *securityAndAnalysisJSON `json:"security_and_analysis,omitempty"`
+}
+
+type securityStatusJSON struct {
+	Status string `json:"status"`
+}
+
+type securityAndAnalysisJSON struct {
+	SecretScanning               securityStatusJSON `json:"secret_scanning"`
+	SecretScanningPushProtection securityStatusJSON `json:"secret_scanning_push_protection"`
 }
 
 // settingsServer creates an httptest server that responds to repo settings

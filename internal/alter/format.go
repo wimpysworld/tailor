@@ -74,10 +74,12 @@ func repoLines(results []RepoSettingResult, mode ApplyMode) []outputLine {
 			default:
 				text = r.Field
 			}
+		case WouldSkipSetup:
+			text = section + "." + r.Field
 		default:
 			continue
 		}
-		label := resultLabel(string(r.Category), r.Annotation, r.Category == WouldSkipScope, mode)
+		label := resultLabel(string(r.Category), r.Annotation, r.Category == WouldSkipScope || r.Category == WouldSkipSetup, mode)
 		lines = append(lines, outputLine{label, text})
 	}
 	return lines
@@ -161,6 +163,12 @@ func repoActionKind(r RepoSettingResult) (gh.OperationKind, bool) {
 			return group.writeOperation(), true
 		}
 	}
+	switch r.Section {
+	case "code_scanning":
+		return gh.OpSetCodeScanningSetup, true
+	case "code_quality":
+		return gh.OpSetCodeQualitySetup, true
+	}
 	switch r.Field {
 	case "private_vulnerability_reporting_enabled":
 		return gh.OpSetPrivateVulnerabilityReporting, true
@@ -189,11 +197,15 @@ func labelActionName(r LabelResult) (string, bool) {
 
 // resultLabel formats a status label, translating dry-run categories to
 // write-mode wording and embedding a skip annotation when present. For
-// example: "would skip (insufficient scope: token missing required scope):".
+// example: "would skip (insufficient scope: token missing required scope):"
+// or "would skip (not available):".
 func resultLabel(category, annotation string, isSkip bool, mode ApplyMode) string {
 	category = outputCategory(category, mode)
 	if annotation != "" && isSkip {
-		return "would skip (insufficient scope: " + annotation + "):"
+		if base, ok := strings.CutSuffix(category, ")"); ok {
+			return base + ": " + annotation + "):"
+		}
+		return category + " (" + annotation + "):"
 	}
 	return category + ":"
 }
@@ -255,7 +267,7 @@ func repoOrder(c RepoSettingCategory) int {
 		return 0
 	case RepoNoChange:
 		return 1
-	case WouldSkipScope:
+	case WouldSkipScope, WouldSkipSetup:
 		return 2
 	default:
 		return 3

@@ -26,6 +26,11 @@ const (
 	OpSetAutomatedSecurityFixes
 	OpPatchRepoSettings
 	OpSetTopics
+	OpFetchSecurityAnalysis
+	OpFetchCodeScanningSetup
+	OpSetCodeScanningSetup
+	OpFetchCodeQualitySetup
+	OpSetCodeQualitySetup
 	OpCreateLabel
 	OpUpdateLabel
 )
@@ -121,6 +126,16 @@ func (o Operation) String() string {
 		return "patch repo settings"
 	case OpSetTopics:
 		return "set topics"
+	case OpFetchSecurityAnalysis:
+		return "fetch security and analysis"
+	case OpFetchCodeScanningSetup:
+		return "fetch code scanning setup"
+	case OpSetCodeScanningSetup:
+		return "set code scanning setup"
+	case OpFetchCodeQualitySetup:
+		return "fetch code quality setup"
+	case OpSetCodeQualitySetup:
+		return "set code quality setup"
 	case OpCreateLabel:
 		return fmt.Sprintf("create label %q", o.Label)
 	case OpUpdateLabel:

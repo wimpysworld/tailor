@@ -22,6 +22,11 @@ type ErrInsufficientScope struct {
 }
 
 func (e *ErrInsufficientScope) Error() string {
+	// A successful response that omits an admin-only block carries no scope
+	// headers, so the message stands alone.
+	if e.StatusCode < http.StatusBadRequest {
+		return fmt.Sprintf("%s: %s", e.Operation, e.Message)
+	}
 	msg := fmt.Sprintf("%s: insufficient scope (have: %v, need: %v): %s",
 		e.Operation, e.HaveScopes, e.NeedScopes, e.Message)
 	if e.DocumentURL != "" {

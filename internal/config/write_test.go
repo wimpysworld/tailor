@@ -37,6 +37,8 @@ repository:
   automated_security_fixes_enabled: true
   default_workflow_permissions: read
   can_approve_pull_request_reviews: false
+  secret_scanning: enabled
+  secret_scanning_push_protection: enabled
 
 actions:
   enabled: true
@@ -51,6 +53,20 @@ actions:
     - "nick-fields/retry@*"
     - "robherley/go-test-action@*"
     - "softprops/action-gh-release@*"
+
+code_scanning:
+  state: configured
+  query_suite: default
+  threat_model: remote
+  # An empty list means GitHub detects the languages. Valid values:
+  # actions, c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift
+  languages: []
+
+code_quality:
+  state: not-configured
+  # An empty list means GitHub detects the languages. Valid values:
+  # csharp, go, java-kotlin, javascript-typescript, python, ruby
+  languages: []
 
 labels:
   - name: bug

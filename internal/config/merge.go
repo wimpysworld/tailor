@@ -31,8 +31,32 @@ func MergeDefaults(cfg *Config) (bool, error) {
 
 	repoChanged := mergeRepoSettingsFrom(cfg, defaults)
 	actionsChanged := mergeActionsFrom(cfg, defaults)
+	codeScanningChanged := mergeSettingsFrom(&cfg.CodeScanning, defaults.CodeScanning, model.CodeScanningSettingFields)
+	codeQualityChanged := mergeSettingsFrom(&cfg.CodeQuality, defaults.CodeQuality, model.CodeQualitySettingFields)
 	labelsChanged := mergeLabelsFrom(cfg, defaults)
-	return swatchesChanged || repoChanged || actionsChanged || labelsChanged, nil
+	return swatchesChanged || repoChanged || actionsChanged || codeScanningChanged || codeQualityChanged || labelsChanged, nil
+}
+
+// mergeSettingsFrom fills nil fields in the section from defaults, creating
+// the section when it is absent. Set fields are never modified. It reports
+// whether it changed anything.
+func mergeSettingsFrom[T any](section **T, defaults *T, fields func(*T) []model.SettingField) bool {
+	if defaults == nil {
+		return false
+	}
+	if *section == nil {
+		*section = new(T)
+	}
+
+	cv := reflect.ValueOf(*section).Elem()
+
+	changed := false
+	for _, field := range fields(defaults) {
+		if mergeSettingField(cv.Field(field.Index), field) {
+			changed = true
+		}
+	}
+	return changed
 }
 
 // actionsSelectedOnlyFields lists ActionsSettings YAML keys merged only when

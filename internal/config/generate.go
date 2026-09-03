@@ -55,6 +55,37 @@ func ApplyRepoDefaults(cfg *Config, name, url string) {
 	}
 }
 
+// MergeCodeScanningSetup copies the live code scanning state, query suite,
+// and threat model into cfg. Languages are always written as an empty list so
+// GitHub detects them.
+func MergeCodeScanningSetup(cfg *Config, live *model.CodeScanningSettings) {
+	if cfg.CodeScanning == nil {
+		cfg.CodeScanning = &model.CodeScanningSettings{}
+	}
+	if live.State != nil {
+		cfg.CodeScanning.State = live.State
+	}
+	if live.QuerySuite != nil {
+		cfg.CodeScanning.QuerySuite = live.QuerySuite
+	}
+	if live.ThreatModel != nil {
+		cfg.CodeScanning.ThreatModel = live.ThreatModel
+	}
+	cfg.CodeScanning.Languages = &[]string{}
+}
+
+// MergeCodeQualitySetup copies the live Code Quality state into cfg.
+// Languages are always written as an empty list so GitHub detects them.
+func MergeCodeQualitySetup(cfg *Config, live *model.CodeQualitySettings) {
+	if cfg.CodeQuality == nil {
+		cfg.CodeQuality = &model.CodeQualitySettings{}
+	}
+	if live.State != nil {
+		cfg.CodeQuality.State = live.State
+	}
+	cfg.CodeQuality.Languages = &[]string{}
+}
+
 // MergeRepoSettings assigns live to cfg.Repository and mutates live in place.
 // The description flag, when non-empty, overrides whatever the live settings
 // carried. Empty string pointer fields for Description and Homepage are

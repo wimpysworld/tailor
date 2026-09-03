@@ -34,6 +34,20 @@ type repoResponse struct {
 	Permissions              struct {
 		Admin bool `json:"admin"`
 	} `json:"permissions"`
+	// SecurityAndAnalysis is absent from the response when the token lacks
+	// admin access to the repository.
+	SecurityAndAnalysis *securityAndAnalysisResponse `json:"security_and_analysis"`
+}
+
+// securityAndAnalysisResponse holds the secret scanning statuses that the
+// repository response carries for administrators.
+type securityAndAnalysisResponse struct {
+	SecretScanning               *securityStatusResponse `json:"secret_scanning"`
+	SecretScanningPushProtection *securityStatusResponse `json:"secret_scanning_push_protection"`
+}
+
+type securityStatusResponse struct {
+	Status string `json:"status"`
 }
 
 type securityFeatureResponse struct {
@@ -137,7 +151,31 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 		return nil, nil, fmt.Errorf("%s: %w", feature.operation, err)
 	}
 
+	if warning := applySecurityAndAnalysis(repo.SecurityAndAnalysis, s); warning != nil {
+		warnings = append(warnings, warning)
+	}
+
 	return s, warnings, nil
+}
+
+// applySecurityAndAnalysis copies the secret scanning statuses into s. It
+// returns an access warning when the block is absent, because GitHub omits it
+// for tokens without admin access, and leaves both fields nil.
+func applySecurityAndAnalysis(block *securityAndAnalysisResponse, s *model.RepositorySettings) error {
+	if block == nil {
+		return &ErrInsufficientScope{
+			StatusCode: http.StatusOK,
+			Message:    "security_and_analysis is absent from the repository response; the token lacks admin access",
+			Operation:  Op(OpFetchSecurityAnalysis),
+		}
+	}
+	if block.SecretScanning != nil {
+		s.SecretScanning = new(block.SecretScanning.Status)
+	}
+	if block.SecretScanningPushProtection != nil {
+		s.SecretScanningPushProtection = new(block.SecretScanningPushProtection.Status)
+	}
+	return nil
 }
 
 // readSecurityFeature reads one security feature endpoint. statusOnly is for
@@ -388,8 +426,9 @@ type settingsPayload struct {
 	CanApprovePullRequestReviews *bool
 }
 
-// nonPatchFields lists yaml keys that must not appear in the PATCH body
-// because they are managed by separate API endpoints.
+// nonPatchFields lists yaml keys that must not appear in the flat PATCH body,
+// either because a separate API endpoint manages them or because the PATCH
+// body nests them under security_and_analysis.
 var nonPatchFields = map[string]bool{
 	"private_vulnerability_reporting_enabled": true,
 	"vulnerability_alerts_enabled":            true,
@@ -397,12 +436,15 @@ var nonPatchFields = map[string]bool{
 	"topics":                                  true,
 	"default_workflow_permissions":            true,
 	"can_approve_pull_request_reviews":        true,
+	"secret_scanning":                         true,
+	"secret_scanning_push_protection":         true,
 }
 
 // buildSettingsPayload uses reflection to build a map of non-nil fields from
 // settings, keyed by their yaml tags. Fields that require separate API
 // endpoints are extracted into the returned settingsPayload struct and never
-// appear in the PATCH body.
+// appear in the PATCH body. Secret scanning fields nest under
+// security_and_analysis in the PATCH body.
 func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 	p := settingsPayload{Body: make(map[string]any)}
 	if settings == nil {
@@ -425,5 +467,22 @@ func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 		p.Body[field.YAMLKey] = fv.Elem().Interface()
 	}
 
+	if security := securityAndAnalysisBody(settings); len(security) > 0 {
+		p.Body["security_and_analysis"] = security
+	}
+
 	return p
+}
+
+// securityAndAnalysisBody builds the nested security_and_analysis object from
+// the set secret scanning fields. It carries only the keys Tailor manages.
+func securityAndAnalysisBody(settings *model.RepositorySettings) map[string]any {
+	body := make(map[string]any)
+	if settings.SecretScanning != nil {
+		body["secret_scanning"] = map[string]any{"status": *settings.SecretScanning}
+	}
+	if settings.SecretScanningPushProtection != nil {
+		body["secret_scanning_push_protection"] = map[string]any{"status": *settings.SecretScanningPushProtection}
+	}
+	return body
 }
