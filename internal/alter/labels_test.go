@@ -56,13 +56,6 @@ func pathIsLabel(path string) bool {
 	return len(path) > len(prefix) && strings.HasPrefix(path, prefix)
 }
 
-func failingLabelsServer() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, `{"message":"Internal Server Error"}`)
-	}))
-}
-
 func TestProcessLabelsNoLabels(t *testing.T) {
 	cfg := &config.Config{}
 	results, err := alter.ProcessLabels(cfg, alter.DryRun, repoTarget(nil, "", "", false))
@@ -316,9 +309,7 @@ func TestProcessLabelsNoApplyWhenAllMatch(t *testing.T) {
 func TestProcessLabelsErrorPropagated(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	server := failingLabelsServer()
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
+	client := testutil.NewTestClient(t, testutil.FailingServer(t))
 
 	cfg := &config.Config{
 		Labels: []model.LabelEntry{

@@ -100,13 +100,6 @@ func settingsServer(repo repoJSON, patchCalled *atomic.Int32) *httptest.Server {
 	}))
 }
 
-func failingSettingsServer() *httptest.Server {
-	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, `{"message":"Internal Server Error"}`)
-	}))
-}
-
 func TestProcessRepoSettingsNilRepository(t *testing.T) {
 	cfg := &config.Config{}
 	results, err := alter.ProcessRepoSettings(cfg, alter.DryRun, repoTarget(nil, "", "", false))
@@ -308,9 +301,7 @@ func TestProcessRepoSettingsNoApplyWhenAllMatch(t *testing.T) {
 func TestProcessRepoSettingsErrorPropagated(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	server := failingSettingsServer()
-	t.Cleanup(server.Close)
-	client := testutil.NewTestClient(t, server)
+	client := testutil.NewTestClient(t, testutil.FailingServer(t))
 
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{

@@ -1,6 +1,7 @@
 package testutil
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -36,6 +37,18 @@ func NewTestClient(t *testing.T, server *httptest.Server) *api.RESTClient {
 		t.Fatalf("NewRESTClient: %v", err)
 	}
 	return client
+}
+
+// FailingServer creates an httptest server that replies 500 with a GitHub
+// style error body to every request. The server closes when the test ends.
+func FailingServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprint(w, `{"message":"Internal Server Error"}`)
+	}))
+	t.Cleanup(server.Close)
+	return server
 }
 
 // WriteFile writes content to filepath.Join(dir, name) and fails the test
