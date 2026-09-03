@@ -2,7 +2,7 @@
 
 ## Overview
 
-Tailor's golangci-lint configuration targets three goals: catch real bugs (resource leaks, error handling, security), prevent code quality issues (duplicate words, hardcoded constants, stale idioms), and keep contributor friction low. With 14 explicitly enabled linters and selective govet/revive rules, the config sits in the moderate tier of the Go ecosystem, comparable to Prometheus in philosophy but leaner in total linter count. Projects at the strict end (Traefik, Gitea, Moby) enable 25-50 linters; projects at the lenient end (GitHub CLI, Kubernetes) enable 14-19 but disable many sub-checks.
+Tailor's golangci-lint configuration targets three goals: catch real bugs (resource leaks, error handling, security), prevent code quality issues (duplicate words, hardcoded constants, stale idioms), and keep contributor friction low. With 15 explicitly enabled linters and selective govet/revive rules, the config sits in the moderate tier of the Go ecosystem, comparable to Prometheus in philosophy but leaner in total linter count. Projects at the strict end (Traefik, Gitea, Moby) enable 25-50 linters; projects at the lenient end (GitHub CLI, Kubernetes) enable 14-19 but disable many sub-checks.
 
 ## Enabled Linters
 
@@ -13,6 +13,7 @@ Tailor's golangci-lint configuration targets three goals: catch real bugs (resou
 | dupword | Catches duplicate words in comments and strings, particularly AI-generated repetition |
 | errorlint | Enforces correct use of `errors.Is` and `errors.As` over direct comparison |
 | gocritic | Default checker set covering a broad range of code improvement suggestions |
+| gocyclo | Reports functions with cyclomatic complexity above 30, excluding test files, replacing the standalone `gocyclo` tool |
 | gosec | Security-focused analysis (SQL injection, hardcoded credentials, weak crypto) |
 | misspell | Catches typos in comments, strings, and identifiers |
 | noctx | Flags HTTP requests made without an explicit context, enforcing cancellation support |
@@ -23,7 +24,7 @@ Tailor's golangci-lint configuration targets three goals: catch real bugs (resou
 | usestdlibvars | Flags hardcoded HTTP status codes and methods that should use `net/http` constants |
 | wastedassign | Detects assignments to variables that are never subsequently used |
 
-The configuration does not override the golangci-lint v2 default set, so the defaults `errcheck`, `govet`, `ineffassign`, `staticcheck`, and `unused` also run. In total 18 linters are enabled.
+The configuration does not override the golangci-lint v2 default set, so the defaults `errcheck`, `govet`, `ineffassign`, `staticcheck`, and `unused` also run. In total 19 linters are enabled.
 
 ## Configuration Choices
 
@@ -53,7 +54,7 @@ All configs examined were golangci-lint v2 format unless noted. "Linters enabled
 
 | Project | Linters enabled | Approach | govet | gocritic | revive rules | Formatter | Strictness |
 |---------|----------------|----------|-------|----------|-------------|-----------|------------|
-| **Tailor** | 14 | Selective enable | enable-all (minus fieldalignment, shadow) | Default checks | 18 rules | gofumpt | Moderate |
+| **Tailor** | 15 | Selective enable | enable-all (minus fieldalignment, shadow) | Default checks | 18 rules | gofumpt | Moderate |
 | **Moby/Docker** | 28 | Selective enable | enable-all (minus fieldalignment) | enable-all (38 checks disabled) | 7 rules | gofmt, goimports | High |
 | **Prometheus** | 19 | Selective enable | enable-all (minus shadow, fieldalignment) | enable-all (28 checks disabled) | 22 rules | gci, gofumpt, goimports | High |
 | **Caddy** | 26 | default: none, selective | default | default | none | gci, gofmt, gofumpt, goimports | High |
@@ -78,7 +79,7 @@ All configs examined were golangci-lint v2 format unless noted. "Linters enabled
 | prealloc | No other surveyed project enables it. Traefik explicitly disables it ("Too many false-positive"). Performance gains from pre-allocating slices are negligible outside hot paths. |
 | depguard | Prevents use of deprecated or unwanted packages. Every large project uses it, but tailor's dependency surface is small enough that code review suffices. |
 | exhaustive | Enum switch exhaustiveness. Only Moby and Caddy use it, both requiring configuration to avoid noise. |
-| funlen, gocognit, cyclop | Function length and complexity linters create significant contributor friction. Even Traefik sets funlen to 120 statements. |
+| funlen, gocognit, cyclop | Function length and complexity linters create significant contributor friction. Even Traefik sets funlen to 120 statements. `gocyclo` at 30 is the one complexity check that tailor keeps. |
 | wsl, nlreturn | Whitespace style linters. Traefik explicitly disables both ("Too strict"). |
 | testpackage, paralleltest, tparallel | Test structure linters. Traefik disables them ("Not relevant"). |
 | ireturn, wrapcheck, varnamelen | Traefik disables all three as too strict. |
