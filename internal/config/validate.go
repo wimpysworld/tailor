@@ -507,7 +507,27 @@ func validateRulesetRules(rules *model.RulesetRules) error {
 	if err := validateRulesetPullRequest(rules.PullRequest); err != nil {
 		return err
 	}
+	if err := validateLinearHistoryMergeMethods(rules); err != nil {
+		return err
+	}
 	return validateRulesetStatusChecks(rules.RequiredStatusChecks)
+}
+
+// validateLinearHistoryMergeMethods rejects required_linear_history with an
+// enabled pull request rule that allows merge commits only. GitHub requires
+// squash or rebase merging when history must be linear, so that ruleset
+// could never merge a pull request.
+func validateLinearHistoryMergeMethods(rules *model.RulesetRules) error {
+	pr := rules.PullRequest
+	if rules.RequiredLinearHistory == nil || !*rules.RequiredLinearHistory ||
+		pr == nil || pr.Enabled == nil || !*pr.Enabled || pr.Parameters == nil || pr.Parameters.AllowedMergeMethods == nil {
+		return nil
+	}
+	methods := *pr.Parameters.AllowedMergeMethods
+	if slices.Contains(methods, "squash") || slices.Contains(methods, "rebase") {
+		return nil
+	}
+	return fmt.Errorf("ruleset.rules.required_linear_history requires pull_request.parameters.allowed_merge_methods to include squash or rebase")
 }
 
 func validateRulesetPullRequest(rule *model.RulesetPullRequest) error {

@@ -373,7 +373,7 @@ The top-level `ruleset` section manages one branch ruleset named `Tailor`. Tailo
 | `rules.creation` | bool | Restrict creations |
 | `rules.update` | bool | Restrict updates. The `update_allows_fetch_and_merge` parameter is not managed |
 | `rules.deletion` | bool | Restrict deletions |
-| `rules.required_linear_history` | bool | Require linear history. GitHub requires squash or rebase merging to be allowed |
+| `rules.required_linear_history` | bool | Require linear history. GitHub requires squash or rebase merging to be allowed, so validation rejects `true` with an enabled pull request rule whose `allowed_merge_methods` is `merge` only |
 | `rules.required_signatures` | bool | Require signed commits |
 | `rules.non_fast_forward` | bool | Block force pushes |
 | `rules.pull_request.enabled` | bool | Require a pull request before merging |
