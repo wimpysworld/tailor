@@ -1,14 +1,12 @@
 package config
 
 import (
-	"io/fs"
 	"slices"
 	"strings"
 	"testing"
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/wimpysworld/tailor"
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
@@ -16,7 +14,7 @@ import (
 
 func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	// Parse the embedded config directly for comparison.
-	data, err := fs.ReadFile(tailor.SwatchFS, embeddedConfigPath)
+	data, err := swatch.Content(".tailor.yml")
 	if err != nil {
 		t.Fatalf("reading embedded config: %v", err)
 	}
