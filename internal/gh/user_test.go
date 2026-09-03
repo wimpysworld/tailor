@@ -34,11 +34,7 @@ func TestFetchUsernameSuccess(t *testing.T) {
 }
 
 func TestFetchUsernameAPIError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusUnauthorized)
-		fmt.Fprint(w, `{"message": "Bad credentials"}`)
-	}))
-	t.Cleanup(server.Close)
+	server := statusServer(t, http.StatusUnauthorized, `{"message": "Bad credentials"}`)
 
 	client := newTestClient(t, server)
 	_, err := FetchUsername(client)
@@ -52,19 +48,16 @@ func TestFetchUsernameHTTPErrorBoundsRenderedLiveResponse(t *testing.T) {
 	for i := range details {
 		details[i] = fmt.Sprintf("detail-%d-\x00\x1b[31m\t\r%s-PRIVATE-TAIL-%d", i, strings.Repeat("x", 300), i)
 	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		if err := json.NewEncoder(w).Encode(map[string]any{
-			"message": "Bad credentials\x1b[2J",
-			"errors":  details,
-		}); err != nil {
-			t.Errorf("encode response: %v", err)
-		}
-	}))
-	t.Cleanup(server.Close)
+	body, err := json.Marshal(map[string]any{
+		"message": "Bad credentials\x1b[2J",
+		"errors":  details,
+	})
+	if err != nil {
+		t.Fatalf("encode response: %v", err)
+	}
+	server := statusServer(t, http.StatusUnauthorized, string(body))
 
-	_, err := FetchUsername(newTestClient(t, server))
+	_, err = FetchUsername(newTestClient(t, server))
 	if err == nil {
 		t.Fatal("FetchUsername() error = nil, want HTTP error")
 	}
