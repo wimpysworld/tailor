@@ -165,7 +165,7 @@ func TestApplyRepoSettingsSecretScanningPatch(t *testing.T) {
 	client := testutil.NewTestClient(t, server)
 
 	settings := &model.RepositorySettings{SecretScanning: new("enabled")}
-	if _, err := ApplyRepoSettings(client, "testowner", "testrepo", settings); err != nil {
+	if _, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil); err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
 	if patches != 1 {
@@ -180,7 +180,7 @@ func TestApplyRepoSettingsSecretScanningPatch(t *testing.T) {
 	// which the apply records as a skip rather than an error.
 	patches = 0
 	topics := []string{"go"}
-	result, err := ApplyRepoSettings(client, "testowner", "testrepo", &model.RepositorySettings{Topics: &topics})
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", &model.RepositorySettings{Topics: &topics}, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}

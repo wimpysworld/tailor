@@ -521,7 +521,7 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 		AllowAutoMerge: new(false),
 	}
 
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -695,7 +695,7 @@ func TestApplyRepoSettingsPatchError(t *testing.T) {
 		HasWiki: new(true),
 	}
 
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err == nil {
 		t.Fatal("ApplyRepoSettings() expected error from PATCH, got nil")
 	}
@@ -713,7 +713,7 @@ func TestApplyRepoSettingsPatch403Skipped(t *testing.T) {
 		HasWiki: new(true),
 	}
 
-	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() unexpected hard error: %v", err)
 	}
@@ -745,7 +745,7 @@ func TestApplyRepoSettingsWorkflowPermsBothFields(t *testing.T) {
 		CanApprovePullRequestReviews: new(false),
 	}
 
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -792,7 +792,7 @@ func TestApplyRepoSettingsWorkflowPermsPartialFetchesCurrent(t *testing.T) {
 		DefaultWorkflowPermissions: new("read"),
 	}
 
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -822,7 +822,7 @@ func TestApplyRepoSettingsWorkflowPermsSkippedWhenBothNil(t *testing.T) {
 		HasWiki: new(true),
 	}
 
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -852,7 +852,7 @@ func TestApplyRepoSettingsWorkflowPermsGetError(t *testing.T) {
 		CanApprovePullRequestReviews: new(true),
 	}
 
-	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() unexpected hard error: %v", err)
 	}
@@ -877,7 +877,7 @@ func TestApplyRepoSettingsWorkflowPermsPutError(t *testing.T) {
 		CanApprovePullRequestReviews: new(false),
 	}
 
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err == nil {
 		t.Fatal("ApplyRepoSettings() expected error from PUT workflow permissions, got nil")
 	}
@@ -903,7 +903,7 @@ func TestApplyRepoSettingsTopicsPut(t *testing.T) {
 		Topics: &topics,
 	}
 
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -947,7 +947,7 @@ func TestApplyRepoSettingsTopicsPutEmpty(t *testing.T) {
 		Topics: &topics,
 	}
 
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -982,7 +982,7 @@ func TestApplyRepoSettingsTopicsSkippedWhenNil(t *testing.T) {
 		HasWiki: new(true),
 	}
 
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1009,7 +1009,7 @@ func TestApplyRepoSettingsTopicsError(t *testing.T) {
 		Topics: &topics,
 	}
 
-	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err == nil {
 		t.Fatal("ApplyRepoSettings() expected error from topics PUT, got nil")
 	}
@@ -1033,7 +1033,7 @@ func TestApplyRepoSettingsPartialTopics403(t *testing.T) {
 		Topics:  &topics,
 	}
 
-	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("unexpected hard error: %v", err)
 	}
@@ -1054,7 +1054,7 @@ func TestApplyRepoSettingsAllSkipped(t *testing.T) {
 		HasWiki: new(true),
 	}
 
-	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("unexpected hard error: %v", err)
 	}
@@ -1074,7 +1074,7 @@ func TestApplyRepoSettingsApplyResultPopulatedOnSuccess(t *testing.T) {
 		HasWiki: new(true),
 	}
 
-	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings)
+	result, err := ApplyRepoSettings(client, "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -1100,7 +1100,7 @@ func TestApplyRepoSettingsSecurityFeatureMethodsAndEnableOrder(t *testing.T) {
 		VulnerabilityAlertsEnabled:        new(true),
 		AutomatedSecurityFixesEnabled:     new(true),
 	}
-	if _, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings); err != nil {
+	if _, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings, nil); err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
 
@@ -1134,7 +1134,7 @@ func TestApplyRepoSettingsSecurityFeatureDisableOrder(t *testing.T) {
 		VulnerabilityAlertsEnabled:    new(false),
 		AutomatedSecurityFixesEnabled: new(false),
 	}
-	if _, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings); err != nil {
+	if _, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings, nil); err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
 
@@ -1156,7 +1156,7 @@ func TestApplyRepoSettingsDoesNotDisableAlertsWhenFixesAreUnmanaged(t *testing.T
 	t.Cleanup(server.Close)
 
 	settings := &model.RepositorySettings{VulnerabilityAlertsEnabled: new(false)}
-	_, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings)
+	_, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings, nil)
 	if err == nil || err.Error() != "cannot disable vulnerability alerts while automated security fixes are unmanaged" {
 		t.Fatalf("ApplyRepoSettings() error = %v, want unmanaged fixes error", err)
 	}
@@ -1173,7 +1173,7 @@ func TestApplyRepoSettingsSecurityFeatureAccessErrorIsSkipped(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	settings := &model.RepositorySettings{VulnerabilityAlertsEnabled: new(true)}
-	result, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings)
+	result, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings, nil)
 	if err != nil {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
@@ -1216,7 +1216,7 @@ func TestApplyRepoSettingsSecurityPrerequisiteStopsDependentWrite(t *testing.T) 
 				}))
 				t.Cleanup(server.Close)
 
-				result, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", tt.settings)
+				result, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", tt.settings, nil)
 				if status == http.StatusForbidden {
 					if err != nil || len(result.Skipped) != 2 {
 						t.Fatalf("ApplyRepoSettings() = %+v, %v, want skipped prerequisite and dependent", result, err)
@@ -1243,7 +1243,7 @@ func TestApplyRepoSettingsSecurityFeatureHardErrorStops(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	settings := &model.RepositorySettings{AutomatedSecurityFixesEnabled: new(true)}
-	if _, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings); err == nil {
+	if _, err := ApplyRepoSettings(testutil.NewTestClient(t, server), "testowner", "testrepo", settings, nil); err == nil {
 		t.Fatal("ApplyRepoSettings() error = nil, want hard error")
 	}
 }
