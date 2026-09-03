@@ -33,6 +33,9 @@ const (
 	OpSetCodeQualitySetup
 	OpCreateLabel
 	OpUpdateLabel
+	OpListRulesets
+	OpFetchRuleset
+	OpSetRuleset
 )
 
 // Operation identifies one GitHub API operation. Enable selects the enable or
@@ -140,6 +143,12 @@ func (o Operation) String() string {
 		return fmt.Sprintf("create label %q", o.Label)
 	case OpUpdateLabel:
 		return fmt.Sprintf("update label %q", o.Label)
+	case OpListRulesets:
+		return "list rulesets"
+	case OpFetchRuleset:
+		return "fetch ruleset"
+	case OpSetRuleset:
+		return "set ruleset"
 	default:
 		return ""
 	}

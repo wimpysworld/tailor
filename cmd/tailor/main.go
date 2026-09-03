@@ -143,6 +143,28 @@ func mergeLiveSetup(cfg *config.Config, client *api.RESTClient, repo gh.Repo, st
 	default:
 		return err
 	}
+	return mergeLiveRuleset(cfg, client, repo, stderr)
+}
+
+// mergeLiveRuleset copies the live Tailor ruleset into cfg. An absent
+// ruleset keeps the built-in section. A read that is skipped, or a token
+// that can read but not write the ruleset, keeps the built-in section and
+// warns. Other read errors stop the command.
+func mergeLiveRuleset(cfg *config.Config, client *api.RESTClient, repo gh.Repo, stderr io.Writer) error {
+	var skipped *gh.ErrSetupSkipped
+	var scope *gh.ErrInsufficientScope
+
+	ruleset, _, err := gh.ReadTailorRuleset(client, repo.Owner, repo.Name)
+	switch {
+	case err == nil && ruleset != nil:
+		config.MergeRulesetSetup(cfg, ruleset)
+	case err == nil:
+		// The Tailor ruleset does not exist yet; the built-in section stands.
+	case errors.As(err, &skipped), errors.As(err, &scope):
+		fmt.Fprintf(stderr, "warning: %v\n", err)
+	default:
+		return err
+	}
 	return nil
 }
 

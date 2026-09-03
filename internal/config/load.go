@@ -127,6 +127,9 @@ func validate(cfg *Config) error {
 	if err := ValidateCodeQuality(cfg); err != nil {
 		return err
 	}
+	if err := ValidateRuleset(cfg); err != nil {
+		return err
+	}
 	if err := ValidateTopics(cfg); err != nil {
 		return err
 	}

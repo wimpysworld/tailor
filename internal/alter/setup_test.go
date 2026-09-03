@@ -120,6 +120,19 @@ code_scanning:
   state: configured
 code_quality:
   state: configured
+ruleset:
+  enforcement: active
+  bypass_actors: []
+  conditions:
+    ref_name:
+      include:
+        - ~DEFAULT_BRANCH
+      exclude: []
+  rules:
+    pull_request:
+      enabled: false
+    required_status_checks:
+      enabled: false
 labels:
   - name: bug
     color: d73a4a
@@ -131,6 +144,7 @@ swatches: []
 	output := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 	requireContains(t, output, "code_scanning.state = configured")
 	requireContains(t, output, "code_quality.state = configured")
+	requireContains(t, output, "ruleset.enforcement = active")
 
 	var reads []string
 	for _, call := range tc.Calls() {
@@ -143,6 +157,7 @@ swatches: []
 		"/repos/testowner/testrepo/actions/permissions",
 		"/repos/testowner/testrepo/code-scanning/default-setup",
 		"/repos/testowner/testrepo/code-quality/setup",
+		"/repos/testowner/testrepo/rulesets",
 		"/repos/testowner/testrepo/labels",
 	}
 	if got := ordered(reads, want); !got {
@@ -157,6 +172,15 @@ swatches: []
 		if !ordered(writes, []string{path}) {
 			t.Errorf("mutating calls = %v, missing %s", writes, path)
 		}
+	}
+	var posts []string
+	for _, call := range tc.Calls() {
+		if call.Method == http.MethodPost {
+			posts = append(posts, call.Path)
+		}
+	}
+	if !ordered(posts, []string{"/repos/testowner/testrepo/rulesets", "/repos/testowner/testrepo/labels"}) {
+		t.Errorf("POST order = %v, want the ruleset before labels", posts)
 	}
 }
 

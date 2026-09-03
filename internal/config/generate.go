@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"io/fs"
+	"reflect"
 
 	"github.com/wimpysworld/tailor"
 	"github.com/wimpysworld/tailor/internal/model"
@@ -84,6 +85,17 @@ func MergeCodeQualitySetup(cfg *Config, live *model.CodeQualitySettings) {
 		cfg.CodeQuality.State = live.State
 	}
 	cfg.CodeQuality.Languages = &[]string{}
+}
+
+// MergeRulesetSetup copies every set field of the live ruleset over cfg,
+// creating the section when it is absent. Fields that live leaves nil keep
+// their existing value, so the built-in parameters of a rule that GitHub
+// does not carry stay in the config.
+func MergeRulesetSetup(cfg *Config, live *model.RulesetSettings) {
+	if cfg.Ruleset == nil {
+		cfg.Ruleset = &model.RulesetSettings{}
+	}
+	fillNilFields(reflect.ValueOf(cfg.Ruleset).Elem(), reflect.ValueOf(live).Elem(), true)
 }
 
 // MergeRepoSettings assigns live to cfg.Repository and mutates live in place.

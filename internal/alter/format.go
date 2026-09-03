@@ -71,6 +71,8 @@ func repoLines(results []RepoSettingResult, mode ApplyMode) []outputLine {
 				text = r.Operation.String()
 			case r.Section == "actions" && isActionsPolicyField(r.Field):
 				text = "actions." + r.Field
+			case r.Section == rulesetSection:
+				text = rulesetSection + "." + r.Field
 			default:
 				text = r.Field
 			}
@@ -168,6 +170,8 @@ func repoActionKind(r RepoSettingResult) (gh.OperationKind, bool) {
 		return gh.OpSetCodeScanningSetup, true
 	case "code_quality":
 		return gh.OpSetCodeQualitySetup, true
+	case rulesetSection:
+		return gh.OpSetRuleset, true
 	}
 	switch r.Field {
 	case "private_vulnerability_reporting_enabled":
@@ -252,8 +256,12 @@ func sortResults[T any](results []T, order func(T) int, key func(T) string) []T 
 }
 
 // repoSortKey returns the field name, or the skipped operation text for
-// write-skip results, which have no field name.
+// write-skip results, which have no field name. Ruleset fields sort in
+// config order.
 func repoSortKey(r RepoSettingResult) string {
+	if r.Section == rulesetSection {
+		return rulesetSortKey(r.Field)
+	}
 	if r.Field != "" {
 		return r.Field
 	}

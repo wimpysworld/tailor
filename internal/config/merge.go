@@ -33,8 +33,97 @@ func MergeDefaults(cfg *Config) (bool, error) {
 	actionsChanged := mergeActionsFrom(cfg, defaults)
 	codeScanningChanged := mergeSettingsFrom(&cfg.CodeScanning, defaults.CodeScanning, model.CodeScanningSettingFields)
 	codeQualityChanged := mergeSettingsFrom(&cfg.CodeQuality, defaults.CodeQuality, model.CodeQualitySettingFields)
+	rulesetChanged := mergeRulesetFrom(cfg, defaults)
 	labelsChanged := mergeLabelsFrom(cfg, defaults)
-	return swatchesChanged || repoChanged || actionsChanged || codeScanningChanged || codeQualityChanged || labelsChanged, nil
+	return swatchesChanged || repoChanged || actionsChanged || codeScanningChanged || codeQualityChanged || rulesetChanged || labelsChanged, nil
+}
+
+// mergeRulesetFrom adds the complete default ruleset when cfg has none, and
+// otherwise fills nil fields at every level without changing set values.
+// Lists count as one field: a set list is kept whole. It reports whether it
+// changed anything.
+func mergeRulesetFrom(cfg *Config, defaults *Config) bool {
+	if defaults.Ruleset == nil {
+		return false
+	}
+	if cfg.Ruleset == nil {
+		cfg.Ruleset = &model.RulesetSettings{}
+	}
+	return fillNilFields(reflect.ValueOf(cfg.Ruleset).Elem(), reflect.ValueOf(defaults.Ruleset).Elem(), false)
+}
+
+// fillNilFields walks the yaml-tagged pointer fields of two structs of the
+// same type. A nil dst field takes a deep copy of the src field. When both
+// point to structs it recurses. When overwrite is true a set src field
+// replaces the dst field instead, which copies live values over defaults.
+// It reports whether it changed dst.
+func fillNilFields(dst, src reflect.Value, overwrite bool) bool {
+	changed := false
+	for i := range dst.NumField() {
+		tag := dst.Type().Field(i).Tag.Get("yaml")
+		if tag == "" || tag == ",inline" {
+			continue
+		}
+		df, sf := dst.Field(i), src.Field(i)
+		if sf.Kind() != reflect.Pointer || sf.IsNil() {
+			continue
+		}
+		switch {
+		case df.IsNil():
+			df.Set(deepCopy(sf))
+			changed = true
+		case sf.Elem().Kind() == reflect.Struct:
+			if fillNilFields(df.Elem(), sf.Elem(), overwrite) {
+				changed = true
+			}
+		case overwrite:
+			df.Set(deepCopy(sf))
+			changed = true
+		}
+	}
+	return changed
+}
+
+// deepCopy returns a copy of v that shares no pointers, slices, or maps
+// with the original.
+func deepCopy(v reflect.Value) reflect.Value {
+	switch v.Kind() {
+	case reflect.Pointer:
+		if v.IsNil() {
+			return v
+		}
+		copied := reflect.New(v.Type().Elem())
+		copied.Elem().Set(deepCopy(v.Elem()))
+		return copied
+	case reflect.Slice:
+		if v.IsNil() {
+			return v
+		}
+		copied := reflect.MakeSlice(v.Type(), v.Len(), v.Len())
+		for i := range v.Len() {
+			copied.Index(i).Set(deepCopy(v.Index(i)))
+		}
+		return copied
+	case reflect.Map:
+		if v.IsNil() {
+			return v
+		}
+		copied := reflect.MakeMapWithSize(v.Type(), v.Len())
+		for _, key := range v.MapKeys() {
+			copied.SetMapIndex(key, deepCopy(v.MapIndex(key)))
+		}
+		return copied
+	case reflect.Struct:
+		copied := reflect.New(v.Type()).Elem()
+		for i := range v.NumField() {
+			if copied.Field(i).CanSet() {
+				copied.Field(i).Set(deepCopy(v.Field(i)))
+			}
+		}
+		return copied
+	default:
+		return v
+	}
 }
 
 // mergeSettingsFrom fills nil fields in the section from defaults, creating

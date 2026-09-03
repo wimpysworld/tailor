@@ -2,6 +2,7 @@ package model
 
 import (
 	"reflect"
+	"slices"
 	"strings"
 )
 
@@ -168,4 +169,179 @@ func settingFields[T any](settings *T) []SettingField {
 		fields = append(fields, field)
 	}
 	return fields
+}
+
+// RulesetName is the name of the one branch ruleset that Tailor manages.
+const RulesetName = "Tailor"
+
+// RulesetTarget is the target of the managed ruleset. Tailor manages branch
+// rulesets only.
+const RulesetTarget = "branch"
+
+// RulesetEnforcements lists the enforcement levels that Tailor accepts.
+// GitHub also accepts "evaluate", which is available only on GitHub
+// Enterprise, so Tailor rejects it.
+var RulesetEnforcements = []string{"active", "disabled"}
+
+// RulesetActorTypes lists the bypass actor types in the order the config
+// template documents them.
+var RulesetActorTypes = []string{"RepositoryRole", "Team", "User", "Integration", "DeployKey"}
+
+// RulesetBypassModes lists the bypass modes in the order the config template
+// documents them.
+var RulesetBypassModes = []string{"always", "pull_request", "exempt"}
+
+// RulesetMergeMethods lists the merge methods a pull request rule accepts, in
+// the order the config template documents them.
+var RulesetMergeMethods = []string{"merge", "squash", "rebase"}
+
+// RulesetRepositoryRole pairs a RepositoryRole actor_id with its name.
+type RulesetRepositoryRole struct {
+	ID   int
+	Name string
+}
+
+// RulesetRepositoryRoles lists the built-in repository roles that a
+// RepositoryRole bypass actor can name, in the order the config template
+// documents them.
+var RulesetRepositoryRoles = []RulesetRepositoryRole{{2, "maintain"}, {4, "write"}, {5, "admin"}}
+
+// RulesetSettings holds the managed fields of the Tailor branch ruleset.
+// Pointer types distinguish absent fields from zero values.
+type RulesetSettings struct {
+	Enforcement  *string               `yaml:"enforcement,omitempty"` // active | disabled
+	BypassActors *[]RulesetBypassActor `yaml:"bypass_actors,omitempty"`
+	Conditions   *RulesetConditions    `yaml:"conditions,omitempty"`
+	Rules        *RulesetRules         `yaml:"rules,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	// ValidateRuleset uses this to reject unrecognised settings.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetBypassActor describes one actor that can bypass the ruleset.
+// ActorID is nil for a DeployKey actor.
+type RulesetBypassActor struct {
+	ActorID    *int    `yaml:"actor_id,omitempty"`
+	ActorType  *string `yaml:"actor_type,omitempty"`
+	BypassMode *string `yaml:"bypass_mode,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetConditions holds the conditions that select the branches the
+// ruleset governs.
+type RulesetConditions struct {
+	RefName *RulesetRefName `yaml:"ref_name,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetRefName holds the branch name patterns the ruleset includes and
+// excludes.
+type RulesetRefName struct {
+	Include *[]string `yaml:"include,omitempty"`
+	Exclude *[]string `yaml:"exclude,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetRules holds the rule types that Tailor manages. A true Boolean adds
+// the rule of that type to the ruleset.
+type RulesetRules struct {
+	Creation              *bool                `yaml:"creation,omitempty"`
+	Update                *bool                `yaml:"update,omitempty"`
+	Deletion              *bool                `yaml:"deletion,omitempty"`
+	RequiredLinearHistory *bool                `yaml:"required_linear_history,omitempty"`
+	RequiredSignatures    *bool                `yaml:"required_signatures,omitempty"`
+	NonFastForward        *bool                `yaml:"non_fast_forward,omitempty"`
+	PullRequest           *RulesetPullRequest  `yaml:"pull_request,omitempty"`
+	RequiredStatusChecks  *RulesetStatusChecks `yaml:"required_status_checks,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetPullRequest holds the pull request rule and its parameters.
+type RulesetPullRequest struct {
+	Enabled    *bool                         `yaml:"enabled,omitempty"`
+	Parameters *RulesetPullRequestParameters `yaml:"parameters,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetPullRequestParameters holds the managed parameters of the pull
+// request rule.
+type RulesetPullRequestParameters struct {
+	RequiredApprovingReviewCount               *int      `yaml:"required_approving_review_count,omitempty"`
+	DismissStaleReviewsOnPush                  *bool     `yaml:"dismiss_stale_reviews_on_push,omitempty"`
+	RequireCodeOwnerReview                     *bool     `yaml:"require_code_owner_review,omitempty"`
+	RequireLastPushApproval                    *bool     `yaml:"require_last_push_approval,omitempty"`
+	RequiredReviewThreadResolution             *bool     `yaml:"required_review_thread_resolution,omitempty"`
+	RequireExtraApprovalForUnattributedChanges *bool     `yaml:"require_extra_approval_for_unattributed_changes,omitempty"`
+	AllowedMergeMethods                        *[]string `yaml:"allowed_merge_methods,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetStatusChecks holds the required status checks rule and its
+// parameters.
+type RulesetStatusChecks struct {
+	Enabled    *bool                          `yaml:"enabled,omitempty"`
+	Parameters *RulesetStatusChecksParameters `yaml:"parameters,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetStatusChecksParameters holds the managed parameters of the required
+// status checks rule.
+type RulesetStatusChecksParameters struct {
+	StrictRequiredStatusChecksPolicy *bool                 `yaml:"strict_required_status_checks_policy,omitempty"`
+	DoNotEnforceOnCreate             *bool                 `yaml:"do_not_enforce_on_create,omitempty"`
+	RequiredStatusChecks             *[]RulesetStatusCheck `yaml:"required_status_checks,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// RulesetStatusCheck names one required status check. IntegrationID is
+// optional and restricts the check to one GitHub App.
+type RulesetStatusCheck struct {
+	Context       string `yaml:"context"`
+	IntegrationID *int   `yaml:"integration_id,omitempty"`
+
+	// Extra captures any YAML keys not mapped to struct fields above.
+	Extra map[string]any `yaml:",inline"`
+}
+
+// Sorted yaml key names for each ruleset level. Validation reports them
+// when it rejects an unrecognised key.
+var (
+	RulesetSettingNames               = yamlKeys[RulesetSettings]()
+	RulesetBypassActorNames           = yamlKeys[RulesetBypassActor]()
+	RulesetConditionsNames            = yamlKeys[RulesetConditions]()
+	RulesetRefNameNames               = yamlKeys[RulesetRefName]()
+	RulesetRulesNames                 = yamlKeys[RulesetRules]()
+	RulesetRuleNames                  = yamlKeys[RulesetPullRequest]()
+	RulesetPullRequestParameterNames  = yamlKeys[RulesetPullRequestParameters]()
+	RulesetStatusChecksParameterNames = yamlKeys[RulesetStatusChecksParameters]()
+	RulesetStatusCheckNames           = yamlKeys[RulesetStatusCheck]()
+)
+
+// yamlKeys returns the sorted yaml tag names of T, excluding the inline
+// Extra field.
+func yamlKeys[T any]() []string {
+	fields := settingFields[T](nil)
+	names := make([]string, 0, len(fields))
+	for _, field := range fields {
+		names = append(names, field.YAMLKey)
+	}
+	slices.Sort(names)
+	return names
 }

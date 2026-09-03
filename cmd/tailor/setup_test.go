@@ -21,13 +21,34 @@ const (
 	liveCodeQualityJSON  = `{"state":"configured","languages":["go"],"runner_type":"standard","runner_label":null,"ai_findings_option":"disabled"}`
 )
 
+// fitRulesets controls the fake rulesets endpoints that fit reads.
+type fitRulesets struct {
+	listStatus int    // zero: 200
+	listBody   string // empty: no rulesets
+	readBody   string // served for GET /rulesets/1
+}
+
 // fitSetupServer fakes the endpoints that fit reads. setupStatus and the two
-// bodies control the code scanning and Code Quality setup reads.
-func fitSetupServer(t *testing.T, setupStatus int, codeScanningJSON, codeQualityJSON string) {
+// bodies control the code scanning and Code Quality setup reads. rulesets
+// controls the rulesets reads; a zero value lists no rulesets.
+func fitSetupServer(t *testing.T, setupStatus int, codeScanningJSON, codeQualityJSON string, rulesets fitRulesets) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case strings.HasSuffix(r.URL.Path, "/rulesets"):
+			if rulesets.listStatus != 0 {
+				w.WriteHeader(rulesets.listStatus)
+				fmt.Fprint(w, `{"message":"error"}`)
+				return
+			}
+			if rulesets.listBody == "" {
+				fmt.Fprint(w, `[]`)
+				return
+			}
+			fmt.Fprint(w, rulesets.listBody)
+		case strings.HasSuffix(r.URL.Path, "/rulesets/1"):
+			fmt.Fprint(w, rulesets.readBody)
 		case strings.HasSuffix(r.URL.Path, "/user"):
 			fmt.Fprint(w, `{"login":"octocat"}`)
 		case strings.HasSuffix(r.URL.Path, "/code-scanning/default-setup"):
@@ -60,7 +81,7 @@ func fitSetupServer(t *testing.T, setupStatus int, codeScanningJSON, codeQuality
 func TestFitWritesLiveSetupWithEmptyLanguages(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeRepo(t, "octocat", "my-project")
-	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON)
+	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{})
 
 	dir := t.TempDir()
 	var stdout, stderr strings.Builder
@@ -96,7 +117,7 @@ func TestFitWritesLiveSetupWithEmptyLanguages(t *testing.T) {
 func TestFitSetupEmptyFieldsKeepBuiltInDefaults(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeRepo(t, "octocat", "my-project")
-	fitSetupServer(t, http.StatusOK, `{"state":"not-configured","languages":[]}`, `{"state":"not-configured","languages":[]}`)
+	fitSetupServer(t, http.StatusOK, `{"state":"not-configured","languages":[]}`, `{"state":"not-configured","languages":[]}`, fitRulesets{})
 
 	dir := t.TempDir()
 	var stdout, stderr strings.Builder
@@ -128,7 +149,7 @@ func TestFitSetupEmptyFieldsKeepBuiltInDefaults(t *testing.T) {
 func TestFitSetupReadHardErrorStopsCommand(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeRepo(t, "octocat", "my-project")
-	fitSetupServer(t, http.StatusInternalServerError, `{"message":"boom"}`, `{"message":"boom"}`)
+	fitSetupServer(t, http.StatusInternalServerError, `{"message":"boom"}`, `{"message":"boom"}`, fitRulesets{})
 
 	dir := t.TempDir()
 	var stdout, stderr strings.Builder
@@ -146,7 +167,7 @@ func TestFitSetupReadHardErrorStopsCommand(t *testing.T) {
 func TestFitSetupNotAvailableUsesBuiltIn(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeRepo(t, "octocat", "my-project")
-	fitSetupServer(t, http.StatusNotFound, `{"message":"Not Found"}`, `{"message":"Not Found"}`)
+	fitSetupServer(t, http.StatusNotFound, `{"message":"Not Found"}`, `{"message":"Not Found"}`, fitRulesets{})
 
 	dir := t.TempDir()
 	var stdout, stderr strings.Builder
@@ -171,5 +192,121 @@ func TestFitSetupNotAvailableUsesBuiltIn(t *testing.T) {
 		if !strings.Contains(content, want) {
 			t.Errorf("config missing built-in section %q:\n%s", want, content)
 		}
+	}
+}
+
+const (
+	tailorRulesetList = `[{"id":1,"name":"Tailor","target":"branch","enforcement":"disabled","source_type":"Repository"}]`
+	liveRulesetJSON   = `{"id":1,"name":"Tailor","target":"branch","enforcement":"disabled",` +
+		`"bypass_actors":[{"actor_id":4,"actor_type":"RepositoryRole","bypass_mode":"pull_request"},{"actor_id":null,"actor_type":"DeployKey","bypass_mode":"always"}],` +
+		`"conditions":{"ref_name":{"include":["refs/heads/main","release/*"],"exclude":["refs/heads/wip/*"]}},` +
+		`"rules":[{"type":"creation"},{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":true,"do_not_enforce_on_create":false,` +
+		`"required_status_checks":[{"context":"lint","integration_id":15368}]}}]}`
+)
+
+func TestFitWritesLiveRuleset(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeRepo(t, "octocat", "my-project")
+	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: liveRulesetJSON})
+
+	dir := t.TempDir()
+	var stdout, stderr strings.Builder
+	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	if stderr.String() != "" {
+		t.Errorf("stderr = %q, want empty", stderr.String())
+	}
+
+	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		"\nruleset:\n",
+		"  enforcement: disabled\n",
+		"    - actor_id: 4\n      actor_type: RepositoryRole\n      bypass_mode: pull_request\n    - actor_type: DeployKey\n      bypass_mode: always\n",
+		"      include:\n        - refs/heads/main\n        - \"release/*\"\n      exclude:\n        - \"refs/heads/wip/*\"\n",
+		"    creation: true\n    update: false\n    deletion: false\n",
+		// The live ruleset has no pull request rule, so the built-in
+		// parameters stay for the day the rule is enabled.
+		"    pull_request:\n      enabled: false\n      parameters:\n        required_approving_review_count: 1\n",
+		"    required_status_checks:\n      enabled: true\n      parameters:\n        # Require branches to be up to date before merging.\n        strict_required_status_checks_policy: true\n",
+		"        required_status_checks:\n          - context: lint\n            integration_id: 15368\n",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("config missing %q:\n%s", want, content)
+		}
+	}
+	if _, err := config.Load(dir); err != nil {
+		t.Fatalf("config.Load() error: %v", err)
+	}
+}
+
+func TestFitRulesetFallbackUsesBuiltIn(t *testing.T) {
+	tests := []struct {
+		name       string
+		rulesets   fitRulesets
+		wantStderr string
+	}{
+		{name: "absent", rulesets: fitRulesets{}},
+		{name: "other rulesets only", rulesets: fitRulesets{listBody: `[{"id":9,"name":"Other"}]`}},
+		{name: "forbidden", rulesets: fitRulesets{listStatus: http.StatusForbidden}, wantStderr: "warning: list rulesets: not available (HTTP 403)\n"},
+		{
+			name:       "bypass actors omitted",
+			rulesets:   fitRulesets{listBody: tailorRulesetList, readBody: `{"id":1,"name":"Tailor","enforcement":"active","conditions":{"ref_name":{"include":["~ALL"],"exclude":[]}},"rules":[]}`},
+			wantStderr: "warning: fetch ruleset: response omitted bypass_actors; the token cannot manage the ruleset\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ghfake.FakeAuth(t, "gho_test")
+			ghfake.FakeRepo(t, "octocat", "my-project")
+			fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, tt.rulesets)
+
+			dir := t.TempDir()
+			var stdout, stderr strings.Builder
+			if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
+				t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+			}
+			if stderr.String() != tt.wantStderr {
+				t.Errorf("stderr = %q, want %q", stderr.String(), tt.wantStderr)
+			}
+			data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			content := string(data)
+			for _, want := range []string{
+				"\nruleset:\n",
+				"  enforcement: active\n",
+				"    - actor_id: 5\n      actor_type: RepositoryRole\n      bypass_mode: always\n",
+				"      include:\n        - ~DEFAULT_BRANCH\n      exclude: []\n",
+				"    pull_request:\n      enabled: true\n",
+			} {
+				if !strings.Contains(content, want) {
+					t.Errorf("config missing built-in ruleset text %q:\n%s", want, content)
+				}
+			}
+		})
+	}
+}
+
+func TestFitRulesetHardErrorStopsCommand(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeRepo(t, "octocat", "my-project")
+	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listStatus: http.StatusInternalServerError})
+
+	dir := t.TempDir()
+	var stdout, stderr strings.Builder
+	if code := run([]string{"fit", dir}, &stdout, &stderr); code == 0 {
+		t.Fatal("run() = 0, want failure for a 500 rulesets read")
+	}
+	if !strings.Contains(stderr.String(), "list rulesets") {
+		t.Errorf("stderr = %q, want the API error", stderr.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".tailor.yml")); err == nil {
+		t.Error("fit wrote .tailor.yml despite the failed rulesets read")
 	}
 }
