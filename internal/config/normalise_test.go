@@ -32,17 +32,10 @@ func TestNormaliseSecurityPrerequisites(t *testing.T) {
 			if got := NormaliseSecurityPrerequisites(cfg); got != tt.wantChanged {
 				t.Fatalf("NormaliseSecurityPrerequisites() = %t, want %t", got, tt.wantChanged)
 			}
-			testutil.AssertPtr(t, cfg.Repository.VulnerabilityAlertsEnabled, tt.wantAlerts == nil, valueOrFalse(tt.wantAlerts), "vulnerability_alerts_enabled")
+			testutil.AssertPtrEqual(t, cfg.Repository.VulnerabilityAlertsEnabled, tt.wantAlerts, "vulnerability_alerts_enabled")
 			if got := NormaliseSecurityPrerequisites(cfg); got {
 				t.Fatal("second NormaliseSecurityPrerequisites() call changed the config")
 			}
 		})
 	}
-}
-
-func valueOrFalse(value *bool) bool {
-	if value == nil {
-		return false
-	}
-	return *value
 }

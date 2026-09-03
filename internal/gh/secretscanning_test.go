@@ -62,9 +62,9 @@ func TestReadRepoSettingsSecurityAndAnalysis(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ReadRepoSettings() error: %v", err)
 			}
-			testutil.AssertPtr(t, settings.SecretScanning, tt.wantScanning == nil, derefString(tt.wantScanning), "secret_scanning")
-			testutil.AssertPtr(t, settings.SecretScanningPushProtection, tt.wantPushProtection == nil, derefString(tt.wantPushProtection), "secret_scanning_push_protection")
-			testutil.AssertPtr(t, settings.SecretScanningNonProviderPatterns, tt.wantNonProvider == nil, derefString(tt.wantNonProvider), "secret_scanning_non_provider_patterns")
+			testutil.AssertPtrEqual(t, settings.SecretScanning, tt.wantScanning, "secret_scanning")
+			testutil.AssertPtrEqual(t, settings.SecretScanningPushProtection, tt.wantPushProtection, "secret_scanning_push_protection")
+			testutil.AssertPtrEqual(t, settings.SecretScanningNonProviderPatterns, tt.wantNonProvider, "secret_scanning_non_provider_patterns")
 			if !tt.wantWarning {
 				if len(warnings) != 0 {
 					t.Fatalf("warnings = %v, want none", warnings)
@@ -84,13 +84,6 @@ func TestReadRepoSettingsSecurityAndAnalysis(t *testing.T) {
 			}
 		})
 	}
-}
-
-func derefString(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }
 
 func TestBuildSettingsPayloadSecurityAndAnalysis(t *testing.T) {

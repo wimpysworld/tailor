@@ -160,19 +160,12 @@ func TestNormaliseSecretScanningPrerequisites(t *testing.T) {
 			if cfg.Repository == nil {
 				return
 			}
-			testutil.AssertPtr(t, cfg.Repository.SecretScanning, tt.wantScanning == nil, valueOrEmpty(tt.wantScanning), "secret_scanning")
+			testutil.AssertPtrEqual(t, cfg.Repository.SecretScanning, tt.wantScanning, "secret_scanning")
 			if got := NormaliseSecretScanningPrerequisites(cfg); len(got) != 0 {
 				t.Fatalf("second NormaliseSecretScanningPrerequisites() call changed the config: %q", got)
 			}
 		})
 	}
-}
-
-func valueOrEmpty(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
 }
 
 func TestDefaultConfigSetupSections(t *testing.T) {

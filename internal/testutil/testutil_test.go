@@ -151,3 +151,11 @@ func TestAssertPtrString(t *testing.T) {
 	AssertPtr(t, &val, false, "read", "string_field")
 	AssertPtr(t, nil, true, "", "string_field")
 }
+
+func TestAssertPtrEqual(t *testing.T) {
+	val := "read"
+	AssertPtrEqual(t, &val, &val, "string_field")
+	AssertPtrEqual[string](t, nil, nil, "string_field")
+	flag := true
+	AssertPtrEqual(t, &flag, new(true), "bool_field")
+}
