@@ -161,16 +161,22 @@ func validateLanguages(section string, languages *[]string, valid []string) erro
 	if languages == nil {
 		return nil
 	}
-	seen := make(map[string]bool, len(*languages))
-	for i, language := range *languages {
-		if !slices.Contains(valid, language) {
-			return fmt.Errorf("%s.languages[%d]: unrecognised language %q; valid languages: %s",
-				section, i, language, strings.Join(valid, ", "))
+	return validateMembers(section+".languages", "language", *languages, valid)
+}
+
+// validateMembers checks that every value in list is in the valid list and
+// appears only once. The noun names one value in the error messages.
+func validateMembers(list, noun string, values, valid []string) error {
+	seen := make(map[string]bool, len(values))
+	for i, value := range values {
+		if !slices.Contains(valid, value) {
+			return fmt.Errorf("%s[%d]: unrecognised %s %q; valid %ss: %s",
+				list, i, noun, value, noun, strings.Join(valid, ", "))
 		}
-		if seen[language] {
-			return fmt.Errorf("%s.languages[%d]: duplicate language %q", section, i, language)
+		if seen[value] {
+			return fmt.Errorf("%s[%d]: duplicate %s %q", list, i, noun, value)
 		}
-		seen[language] = true
+		seen[value] = true
 	}
 	return nil
 }
@@ -555,18 +561,7 @@ func validateRulesetPullRequest(rule *model.RulesetPullRequest) error {
 	if len(*p.AllowedMergeMethods) == 0 {
 		return fmt.Errorf("%s.parameters.allowed_merge_methods must contain at least one method", name)
 	}
-	seen := make(map[string]bool, len(*p.AllowedMergeMethods))
-	for i, method := range *p.AllowedMergeMethods {
-		if !slices.Contains(model.RulesetMergeMethods, method) {
-			return fmt.Errorf("%s.parameters.allowed_merge_methods[%d]: unrecognised method %q; valid methods: %s",
-				name, i, method, strings.Join(model.RulesetMergeMethods, ", "))
-		}
-		if seen[method] {
-			return fmt.Errorf("%s.parameters.allowed_merge_methods[%d]: duplicate method %q", name, i, method)
-		}
-		seen[method] = true
-	}
-	return nil
+	return validateMembers(name+".parameters.allowed_merge_methods", "method", *p.AllowedMergeMethods, model.RulesetMergeMethods)
 }
 
 func validateRulesetStatusChecks(rule *model.RulesetStatusChecks) error {
