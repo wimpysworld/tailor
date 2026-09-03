@@ -472,7 +472,29 @@ func validateRulesetConditions(conditions *model.RulesetConditions) error {
 	if err := validateRefPatterns("ruleset.conditions.ref_name.include", refName.Include); err != nil {
 		return err
 	}
-	return validateRefPatterns("ruleset.conditions.ref_name.exclude", refName.Exclude)
+	if err := validateRefPatterns("ruleset.conditions.ref_name.exclude", refName.Exclude); err != nil {
+		return err
+	}
+	return rejectIncludeTokens(refName.Exclude)
+}
+
+// rulesetIncludeTokens are the special values that GitHub accepts in the
+// include list only.
+var rulesetIncludeTokens = []string{"~DEFAULT_BRANCH", "~ALL"}
+
+// rejectIncludeTokens rejects the include-only special values in the
+// exclude list, where GitHub treats them as a plain pattern that matches
+// no branch.
+func rejectIncludeTokens(exclude *[]string) error {
+	if exclude == nil {
+		return nil
+	}
+	for i, pattern := range *exclude {
+		if slices.Contains(rulesetIncludeTokens, pattern) {
+			return fmt.Errorf("ruleset.conditions.ref_name.exclude[%d]: %s is valid in include only", i, pattern)
+		}
+	}
+	return nil
 }
 
 // validateRefPatterns rejects empty, control-bearing, and duplicate
