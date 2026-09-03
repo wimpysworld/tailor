@@ -129,6 +129,12 @@ ruleset:
         - ~DEFAULT_BRANCH
       exclude: []
   rules:
+    creation: false
+    update: false
+    deletion: true
+    required_linear_history: false
+    required_signatures: false
+    non_fast_forward: true
     pull_request:
       enabled: false
     required_status_checks:

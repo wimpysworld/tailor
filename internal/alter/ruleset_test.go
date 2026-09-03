@@ -444,6 +444,12 @@ ruleset:
         - ~DEFAULT_BRANCH
       exclude: []
   rules:
+    creation: false
+    update: false
+    deletion: true
+    required_linear_history: false
+    required_signatures: false
+    non_fast_forward: true
     pull_request:
       enabled: true
       parameters:
@@ -534,29 +540,63 @@ swatches:
 func TestAlterRunRulesetPartialSectionStopsBeforeWrite(t *testing.T) {
 	// A first-fit config swatch without --recut never merges defaults, so
 	// the partial section must fail validation before any API write.
-	configYAML := `license: none
-ruleset:
-  enforcement: active
+	tests := []struct {
+		name    string
+		section string
+		wantErr string
+	}{
+		{
+			name: "missing bypass actors",
+			section: `  enforcement: active
   rules:
     deletion: true
     pull_request:
       enabled: false
     required_status_checks:
       enabled: false
-swatches:
-  - path: .tailor.yml
-    alteration: first-fit
-`
-	tc := setupAlterTest(t, configYAML, withRuleset(liveTailorRulesetJSON))
-	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
-	cfg := loadTestConfig(t, tc.Dir)
-	err := alter.Run(cfg, tc.Dir, alter.Apply, tc.Client, io.Discard, io.Discard)
-	if err == nil || !strings.Contains(err.Error(), "ruleset requires bypass_actors") {
-		t.Fatalf("alter.Run() error = %v, want incomplete ruleset error", err)
+`,
+			wantErr: "ruleset requires bypass_actors",
+		},
+		{
+			// An omitted Boolean key would send no rule of that type and
+			// remove a live rule without a report line.
+			name: "missing boolean rule",
+			section: `  enforcement: active
+  bypass_actors: []
+  conditions:
+    ref_name:
+      include:
+        - ~DEFAULT_BRANCH
+      exclude: []
+  rules:
+    update: false
+    deletion: true
+    required_linear_history: false
+    required_signatures: false
+    non_fast_forward: true
+    pull_request:
+      enabled: false
+    required_status_checks:
+      enabled: false
+`,
+			wantErr: "ruleset.rules requires creation",
+		},
 	}
-	for _, call := range tc.Calls() {
-		if call.Method != http.MethodGet {
-			t.Errorf("partial ruleset reached a write: %s %s", call.Method, call.Path)
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			configYAML := "license: none\nruleset:\n" + tt.section + "swatches:\n  - path: .tailor.yml\n    alteration: first-fit\n"
+			tc := setupAlterTest(t, configYAML, withRuleset(liveTailorRulesetJSON))
+			writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
+			cfg := loadTestConfig(t, tc.Dir)
+			err := alter.Run(cfg, tc.Dir, alter.Apply, tc.Client, io.Discard, io.Discard)
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("alter.Run() error = %v, want %q", err, tt.wantErr)
+			}
+			for _, call := range tc.Calls() {
+				if call.Method != http.MethodGet {
+					t.Errorf("partial ruleset reached a write: %s %s", call.Method, call.Path)
+				}
+			}
+		})
 	}
 }

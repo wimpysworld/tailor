@@ -591,10 +591,11 @@ func validateRulesetStatusChecks(rule *model.RulesetStatusChecks) error {
 
 // ValidateCompleteRuleset checks that the ruleset carries every field the
 // rulesets API requires after default merging: the enforcement level, the
-// bypass actor list, both branch condition lists, the pull request rule
-// with its seven parameters, and the required status checks rule with its
-// two policy flags. A write sends every list whole, so an absent list would
-// clear the live value without a report line.
+// bypass actor list, both branch condition lists, the six Boolean rule
+// keys, the pull request rule with its seven parameters, and the required
+// status checks rule with its two policy flags. A write sends the whole
+// ruleset, so an absent list or Boolean would clear the live value without
+// a report line.
 func ValidateCompleteRuleset(cfg *Config) error {
 	r := cfg.Ruleset
 	if r == nil {
@@ -615,10 +616,35 @@ func ValidateCompleteRuleset(cfg *Config) error {
 	if r.Rules == nil {
 		return fmt.Errorf("ruleset requires rules")
 	}
+	if err := validateCompleteBooleanRules(r.Rules); err != nil {
+		return err
+	}
 	if err := validateCompletePullRequest(r.Rules.PullRequest); err != nil {
 		return err
 	}
 	return validateCompleteStatusChecks(r.Rules.RequiredStatusChecks)
+}
+
+// validateCompleteBooleanRules requires the six Boolean rule keys. A write
+// sends a rule only when its key is true, so an absent key would remove the
+// live rule without a report line.
+func validateCompleteBooleanRules(rules *model.RulesetRules) error {
+	for _, rule := range []struct {
+		key   string
+		value *bool
+	}{
+		{"creation", rules.Creation},
+		{"update", rules.Update},
+		{"deletion", rules.Deletion},
+		{"required_linear_history", rules.RequiredLinearHistory},
+		{"required_signatures", rules.RequiredSignatures},
+		{"non_fast_forward", rules.NonFastForward},
+	} {
+		if rule.value == nil {
+			return fmt.Errorf("ruleset.rules requires %s", rule.key)
+		}
+	}
+	return nil
 }
 
 func validateCompletePullRequest(rule *model.RulesetPullRequest) error {
