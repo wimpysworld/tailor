@@ -65,6 +65,12 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	if err := config.ValidateCompleteActions(cfg); err != nil {
 		return err
 	}
+	if err := config.ValidateCompleteRuleset(cfg); err != nil {
+		return err
+	}
+	for _, warning := range config.RulesetMergeMethodWarnings(cfg) {
+		fmt.Fprintln(stderr, warning)
+	}
 
 	repo, hasRepo, err := gh.RepoContextAt(dir)
 	if err != nil {
@@ -142,7 +148,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 }
 
 // processRepoStages runs the repository API stages in order: repository
-// settings, Actions policy, code scanning, then Code Quality.
+// settings, Actions policy, code scanning, Code Quality, then the ruleset.
 func processRepoStages(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]RepoSettingResult, error) {
 	var results []RepoSettingResult
 	for _, stage := range []func(*config.Config, ApplyMode, RepoTarget) ([]RepoSettingResult, error){
@@ -150,6 +156,7 @@ func processRepoStages(cfg *config.Config, mode ApplyMode, target RepoTarget) ([
 		ProcessActions,
 		ProcessCodeScanning,
 		ProcessCodeQuality,
+		ProcessRuleset,
 	} {
 		stageResults, err := stage(cfg, mode, target)
 		if err != nil {
@@ -180,7 +187,10 @@ func validateConfig(cfg *config.Config) error {
 	if err := config.ValidateCodeScanning(cfg); err != nil {
 		return err
 	}
-	return config.ValidateCodeQuality(cfg)
+	if err := config.ValidateCodeQuality(cfg); err != nil {
+		return err
+	}
+	return config.ValidateRuleset(cfg)
 }
 
 // shouldMerge reports whether the config merge step should run. It looks up

@@ -153,7 +153,7 @@ Tailor embeds 16 default swatches:
 
 ### Configuration
 
-All state lives in `.tailor.yml` with seven sections: `license`, `repository`, `actions`, `code_scanning`, `code_quality`, `labels`, and `swatches`.
+All state lives in `.tailor.yml` with eight sections: `license`, `repository`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, and `swatches`.
 
 Tailor opens `.tailor.yml` relative to the project root. The config must be a regular file no larger than 1 MiB.
 
@@ -206,6 +206,57 @@ code_quality:
   # An empty list means GitHub detects the languages. Valid values:
   # csharp, go, java-kotlin, javascript-typescript, python, ruby
   languages: []
+
+ruleset:
+  # Tailor manages one ruleset named "Tailor" and owns it entirely.
+  # active enforces the rules. disabled keeps the ruleset on GitHub but
+  # GitHub ignores it, so a hand-made ruleset can govern instead.
+  enforcement: active
+  bypass_actors:
+    # actor_type: RepositoryRole, Team, User, Integration, DeployKey
+    # RepositoryRole actor_id: 2 maintain, 4 write, 5 admin
+    # bypass_mode: always, pull_request, exempt
+    - actor_id: 5
+      actor_type: RepositoryRole
+      bypass_mode: always
+  conditions:
+    ref_name:
+      # Branch names or fnmatch patterns in refs/heads/<name> form.
+      # include also accepts ~DEFAULT_BRANCH and ~ALL.
+      include:
+        - ~DEFAULT_BRANCH
+      exclude: []
+  rules:
+    creation: false
+    update: false
+    deletion: true
+    required_linear_history: false
+    required_signatures: false
+    non_fast_forward: true
+    pull_request:
+      enabled: true
+      parameters:
+        required_approving_review_count: 1
+        dismiss_stale_reviews_on_push: true
+        require_code_owner_review: false
+        require_last_push_approval: false
+        required_review_thread_resolution: true
+        require_extra_approval_for_unattributed_changes: true
+        # Any combination of merge, squash, rebase. At least one.
+        allowed_merge_methods:
+          - squash
+          - rebase
+    required_status_checks:
+      enabled: false
+      parameters:
+        # Require branches to be up to date before merging.
+        strict_required_status_checks_policy: false
+        # Do not require status checks on creation.
+        do_not_enforce_on_create: false
+        # context is the check name as shown on a pull request. For a GitHub
+        # Actions job that is the job's name. integration_id is optional and
+        # restricts the check to one app; 15368 is GitHub Actions.
+        required_status_checks: []
 
 swatches:
   - path: SECURITY.md
@@ -309,6 +360,31 @@ The top-level `code_quality` section manages GitHub Code Quality. Generated conf
 
 An empty `languages` list sends no `languages` field, so GitHub detects the languages and keeps the current set afterwards. Tailor sends only the fields it manages, so `ai_findings_option`, `runner_type`, and `runner_label` keep the value set in the GitHub UI, and Tailor never spends AI credit on a public repository. The skip results match code scanning.
 
+## Ruleset
+
+The top-level `ruleset` section manages one branch ruleset named `Tailor`. Tailor owns that ruleset entirely: every write sends the complete ruleset, so a rule, bypass actor, or condition added by hand to the `Tailor` ruleset is removed on the next `alter` run. Tailor never deletes the ruleset and never reads or writes any other ruleset. Set `enforcement: disabled` to keep the `Tailor` ruleset on GitHub while a ruleset made in the GitHub UI governs the repository instead. Generated configs reproduce the GitHub UI default ruleset: restrict deletions, block force pushes, and require a pull request with one approval on the default branch, bypassed by the repository admin role.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `enforcement` | string | `active` or `disabled`. `disabled` keeps the ruleset on GitHub, and GitHub ignores it. `evaluate` is Enterprise only and is rejected |
+| `bypass_actors` | list | Complete set of bypass actors. Each entry has `actor_id` (integer), `actor_type` (`RepositoryRole`, `Team`, `User`, `Integration`, or `DeployKey`), and `bypass_mode` (`always`, `pull_request`, or `exempt`). `actor_id` is null for `DeployKey`. `RepositoryRole` ids are `2` maintain, `4` write, `5` admin. An empty list means no bypass |
+| `conditions.ref_name.include` | string[] | Branch names, `refs/heads/` fnmatch patterns, `~DEFAULT_BRANCH`, or `~ALL`. At least one entry |
+| `conditions.ref_name.exclude` | string[] | Branch names or `refs/heads/` fnmatch patterns |
+| `rules.creation` | bool | Restrict creations |
+| `rules.update` | bool | Restrict updates. The `update_allows_fetch_and_merge` parameter is not managed |
+| `rules.deletion` | bool | Restrict deletions |
+| `rules.required_linear_history` | bool | Require linear history. GitHub requires squash or rebase merging to be allowed |
+| `rules.required_signatures` | bool | Require signed commits |
+| `rules.non_fast_forward` | bool | Block force pushes |
+| `rules.pull_request.enabled` | bool | Require a pull request before merging |
+| `rules.pull_request.parameters` | object | `required_approving_review_count` (0 to 10), `dismiss_stale_reviews_on_push`, `require_code_owner_review`, `require_last_push_approval`, `required_review_thread_resolution`, `require_extra_approval_for_unattributed_changes` (bools), and `allowed_merge_methods` (any combination of `merge`, `squash`, `rebase`, at least one) |
+| `rules.required_status_checks.enabled` | bool | Require status checks to pass |
+| `rules.required_status_checks.parameters` | object | `strict_required_status_checks_policy` and `do_not_enforce_on_create` (bools), and `required_status_checks`, a list of `context` (check name, not empty) and optional `integration_id` (positive integer) |
+
+Each key in the `rules` map is a GitHub rule type. The `enabled` key on `pull_request` and `required_status_checks` is Tailor's own, because both rules carry parameters that stay in the config while the rule is off. `required_status_checks` is off by default with an empty list, because a required check that never reports blocks every merge. Enable it per repository and name an aggregating job, for example one that depends on every other job and fails when any of them failed.
+
+GitHub blocks a merge when the ruleset allows a method that the repository disables. When `allowed_merge_methods` names a method whose `repository` setting is `false` in the same config, Tailor shows `warning: ruleset allows <method> merging but repository.<field> is false` and continues without changing either value. When rulesets are not available to the repository, Tailor reports `would skip (not available)`. When the token lacks write access to the ruleset, Tailor reports `would skip (insufficient scope)`. When GitHub rejects the ruleset body, Tailor stops with the API error.
+
 ## Labels
 
 The `labels` section manages GitHub issue labels declaratively. Tailor ships 12 default labels (the 9 GitHub defaults plus `dependencies`, `github_actions`, and `hacktoberfest-accepted`) with colours from the [Catppuccin Latte](https://catppuccin.com/palette/) palette.
@@ -333,10 +409,6 @@ To skip label management, omit the `labels` section and set the `.tailor.yml` sw
 ## Sponsorships
 
 Tailor places `.github/FUNDING.yml` as a `first-fit` swatch, but the GitHub API does not expose the "Sponsorships" checkbox. After running `alter`, tick **Settings > General > Features > Sponsorships** manually to display the Sponsor button on the repository.
-
-### Branch protection
-
-Branch protection rules and rulesets require `Administration: write`. Tailor does not manage them. Configure branch protection through the GitHub UI or `gh api`.
 
 ### Retired workflow cleanup
 
@@ -364,11 +436,11 @@ tailor fit ./my-project --license=none
 tailor fit ./my-project --description="Short description"
 ```
 
-When a GitHub remote exists, `fit` queries the live repository configuration for the `repository`, `code_scanning`, and `code_quality` sections. Otherwise, built-in defaults are used. When a default setup read returns an access error or `404`, `fit` warns and writes the built-in section. `fit` always writes `languages: []`. Exits with an error if `.tailor.yml` already exists.
+When a GitHub remote exists, `fit` queries the live repository configuration for the `repository`, `code_scanning`, `code_quality`, and `ruleset` sections. Otherwise, built-in defaults are used. When a default setup read returns an access error or `404`, `fit` warns and writes the built-in section. `fit` always writes `languages: []`. `fit` reads the `Tailor` ruleset when it exists and writes its live values. When the ruleset does not exist, or the read returns an access error or `403`, `fit` writes the built-in `ruleset` section. Exits with an error if `.tailor.yml` already exists.
 
 ### `alter`
 
-Reads `.tailor.yml` in the current directory and applies repository settings, Actions policy, code scanning, Code Quality, labels, licence, and swatches in that order.
+Reads `.tailor.yml` in the current directory and applies repository settings, Actions policy, code scanning, Code Quality, the ruleset, labels, licence, and swatches in that order.
 
 ```bash
 tailor alter            # Apply changes

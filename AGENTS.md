@@ -63,7 +63,7 @@ tailor/
 - Swatches are embedded at build time via `//go:embed swatches/*`
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
-- Run `alter` stages in this order: config migration and update, retired workflow cleanup, repository settings, Actions policy, code scanning, Code Quality, labels, licence, then swatches
+- Run `alter` stages in this order: config migration and update, retired workflow cleanup, repository settings, Actions policy, code scanning, Code Quality, ruleset, labels, licence, then swatches
 - Before strict path and mode validation, prune `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml` from config
 - Accept legacy `triggered` only for these retired entries during migration
 - Always check both fixed retired paths, regardless of config or mode
@@ -82,10 +82,16 @@ tailor/
 - Free features only: expose no setting that needs a paid plan, an Advanced Security or Secret Protection licence, a self-hosted runner, or AI credit spend; never manage `runner_type`, `runner_label`, `ai_findings_option`, or other `security_and_analysis` keys
 - An empty `languages` list in `code_scanning` or `code_quality` sends no `languages` field, so GitHub detects the languages; a non-empty list is the complete set, compared as a set (unlike `topics`, where an empty list clears all topics)
 - Default setup writes return `202`; report `409` as `would skip (setup in progress)` and `403` as `would skip (not available)`, and continue
+- `ruleset` is a top-level config section that manages one branch ruleset named `Tailor` with its own API layer (`internal/gh/ruleset.go`) and alter layer (`internal/alter/ruleset.go`); it uses list, get, `POST`, and `PUT` on `/repos/{owner}/{repo}/rulesets`
+- Tailor owns the `Tailor` ruleset entirely: every write sends the complete ruleset, and Tailor never deletes it or touches any other ruleset
+- The `rules` map keys are API rule types; `enabled` on `pull_request` and `required_status_checks` is Tailor's own key, because both rules carry parameters that stay in the config while the rule is off
+- `enforcement` accepts `active` or `disabled` only; `evaluate` is Enterprise only and is rejected
+- When `allowed_merge_methods` names a method whose `repository` setting is `false`, emit `warning: ruleset allows <method> merging but repository.<field> is false` and continue without changing either value
+- Ruleset writes return `201` (`POST`) or `200` (`PUT`); report `403` as `would skip (not available)` and a read without `bypass_actors` as `would skip (insufficient scope)`, and continue; stop on `422`
 - `validate.go` includes enum validation for `default_workflow_permissions` ("read"|"write"), topic format validation (lowercase alphanumeric start, max 50 chars, lowercase alphanumerics and hyphens only), and label validation (name length, hex colour, description length, duplicate detection)
 - Dry-run output uses dynamically computed label width for `baste` and fixed 16 chars for `measure`
 - `measure` output order: `missing`, `warning`, `present`, then config-diff categories (`not-configured`, `config-only`, `mode-differs`)
-- Branch protection (classic rules and rulesets) is out of scope
+- Classic branch protection rules are out of scope; rulesets outside the `Tailor` ruleset are out of scope
 
 ## Commit guidelines
 
@@ -109,7 +115,7 @@ tailor/
 - Never make alteration modes runtime-configurable; `always`, `first-fit`, `never` are compile-time constants
 - Keep Tailor as a local terminal CLI; never add GitHub Actions runtime detection, execution fallbacks, or installation-token handling
 - Keep Tailor's own CI, the Dependabot swatch, and repository workflow permission settings
-- Never implement branch protection (classic rules or rulesets) - out of scope by design
+- Never implement classic branch protection rules, and never read, write, or delete a ruleset other than `Tailor`
 - Never log or store GitHub tokens
 - Field names in `repository` config must match GitHub REST API names exactly; never rename or alias them
 - Swatch-to-path mappings are hardcoded in source, not configurable at runtime

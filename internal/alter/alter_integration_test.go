@@ -98,6 +98,9 @@ type alterServerConfig struct {
 	licenceError      int                // non-zero: return this HTTP status for GET /licenses/*
 	patchError        int                // non-zero: return this HTTP status for PATCH /repos/*
 	securityEndpoints bool
+	rulesetJSON       string // non-empty: GET /rulesets lists the Tailor ruleset as id 1 and serves this body for it
+	rulesetListStatus int    // non-zero: return this HTTP status for GET /rulesets
+	rulesetWriteError int    // non-zero: return this HTTP status for POST /rulesets and PUT /rulesets/1
 	alertPutError     int
 }
 
@@ -150,6 +153,13 @@ func WithLicenceError(statusCode int) testOption {
 // WithPatchError makes PATCH /repos/* return the given HTTP status code.
 func WithPatchError(statusCode int) testOption {
 	return func(c *alterServerConfig) { c.patchError = statusCode }
+}
+
+// withRuleset serves rulesetJSON as the live Tailor ruleset with id 1.
+func withRuleset(rulesetJSON string) testOption {
+	return func(c *alterServerConfig) {
+		c.rulesetJSON = rulesetJSON
+	}
 }
 
 func withSecurityEndpoints(alertPutError int) testOption {
@@ -279,6 +289,35 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusAccepted)
 			fmt.Fprint(w, `{"run_id":42,"run_url":"https://api.github.com/repos/testowner/testrepo/actions/runs/42"}`)
+
+		case r.Method == http.MethodGet && path == repoPath+"/rulesets":
+			w.Header().Set("Content-Type", "application/json")
+			if sc.rulesetListStatus != 0 {
+				w.WriteHeader(sc.rulesetListStatus)
+				fmt.Fprint(w, `{"message":"error"}`)
+				return
+			}
+			if sc.rulesetJSON == "" {
+				fmt.Fprint(w, `[]`)
+				return
+			}
+			fmt.Fprint(w, `[{"id":1,"name":"Tailor","target":"branch","enforcement":"active","source_type":"Repository"}]`)
+
+		case r.Method == http.MethodGet && path == repoPath+"/rulesets/1":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, sc.rulesetJSON)
+
+		case (r.Method == http.MethodPost && path == repoPath+"/rulesets") || (r.Method == http.MethodPut && path == repoPath+"/rulesets/1"):
+			w.Header().Set("Content-Type", "application/json")
+			if sc.rulesetWriteError != 0 {
+				w.WriteHeader(sc.rulesetWriteError)
+				fmt.Fprint(w, `{"message":"Validation Failed"}`)
+				return
+			}
+			if r.Method == http.MethodPost {
+				w.WriteHeader(http.StatusCreated)
+			}
+			fmt.Fprint(w, `{"id":1}`)
 
 		case r.Method == http.MethodGet && path == repoPath+"/labels":
 			w.Header().Set("Content-Type", "application/json")
@@ -2037,6 +2076,23 @@ func allDefaultSetupYAML(t *testing.T) string {
 	return sb.String()
 }
 
+// allDefaultRulesetYAML returns YAML for the default ruleset section.
+func allDefaultRulesetYAML(t *testing.T) string {
+	t.Helper()
+	defaults, err := config.DefaultConfig("none")
+	if err != nil {
+		t.Fatalf("loading default config: %v", err)
+	}
+	if defaults.Ruleset == nil {
+		t.Fatal("default ruleset section is nil")
+	}
+	data, err := yaml.Marshal(map[string]any{"ruleset": defaults.Ruleset})
+	if err != nil {
+		t.Fatalf("marshalling default ruleset: %v", err)
+	}
+	return string(data)
+}
+
 func allDefaultActionsYAML(t *testing.T) string {
 	t.Helper()
 	defaults, err := config.DefaultConfig("none")
@@ -2136,6 +2192,7 @@ func TestConfigMergeAllPresentApply(t *testing.T) {
 		allDefaultRepoSettingsYAML(t) +
 		allDefaultActionsYAML(t) +
 		allDefaultSetupYAML(t) +
+		allDefaultRulesetYAML(t) +
 		allDefaultLabelsYAML(t) +
 		"swatches:\n" +
 		"  - path: .tailor.yml\n    alteration: always\n" +
@@ -2639,6 +2696,7 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 		}
 	}
 	sb.WriteString("\n" + allDefaultSetupYAML(t))
+	sb.WriteString("\n" + allDefaultRulesetYAML(t))
 
 	sb.WriteString("\nlabels:\n")
 	for _, l := range defaults.Labels {

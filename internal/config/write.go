@@ -100,6 +100,196 @@ var templateFuncs = template.FuncMap{
 		lines, err := settingLines(model.CodeQualitySettingFields(c))
 		return withLanguagesComment(lines, model.CodeQualityLanguages), err
 	},
+	"rulesetLines": rulesetLines,
+}
+
+// rulesetWriter collects the indented lines of the ruleset section. The
+// guidance comments come from the model slices so the documented values
+// cannot drift from the values validation accepts.
+type rulesetWriter struct {
+	lines []string
+	err   error
+}
+
+func (w *rulesetWriter) line(indent int, format string, args ...any) {
+	w.lines = append(w.lines, strings.Repeat(" ", indent)+fmt.Sprintf(format, args...))
+}
+
+// scalar renders one string scalar. prefix is "- " for the first line of a
+// sequence entry, "  " for a later line of that entry, and "" otherwise.
+func (w *rulesetWriter) scalar(indent int, prefix, key, value string) {
+	encoded, err := yamlVal(value)
+	if err != nil && w.err == nil {
+		w.err = err
+	}
+	w.line(indent, "%s%s: %s", prefix, key, encoded)
+}
+
+func (w *rulesetWriter) boolean(indent int, key string, value *bool) {
+	if value != nil {
+		w.line(indent, "%s: %t", key, *value)
+	}
+}
+
+// list renders a string list as a block sequence, or [] when empty.
+func (w *rulesetWriter) list(indent int, key string, values []string) {
+	if len(values) == 0 {
+		w.line(indent, "%s: []", key)
+		return
+	}
+	w.line(indent, "%s:", key)
+	for _, value := range values {
+		encoded, err := yamlVal(value)
+		if err != nil && w.err == nil {
+			w.err = err
+		}
+		w.line(indent+2, "- %s", encoded)
+	}
+}
+
+// rulesetLines renders the ruleset section, comments included, for the
+// config template.
+func rulesetLines(r *model.RulesetSettings) ([]string, error) {
+	w := &rulesetWriter{}
+	w.line(2, "# Tailor manages one ruleset named %q and owns it entirely.", model.RulesetName)
+	w.line(2, "# %s enforces the rules. %s keeps the ruleset on GitHub but", model.RulesetEnforcements[0], model.RulesetEnforcements[1])
+	w.line(2, "# GitHub ignores it, so a hand-made ruleset can govern instead.")
+	if r.Enforcement != nil {
+		w.scalar(2, "", "enforcement", *r.Enforcement)
+	}
+	if r.BypassActors != nil {
+		w.bypassActors(*r.BypassActors)
+	}
+	if r.Conditions != nil && r.Conditions.RefName != nil {
+		w.refName(r.Conditions.RefName)
+	}
+	if r.Rules != nil {
+		w.rules(r.Rules)
+	}
+	return w.lines, w.err
+}
+
+func (w *rulesetWriter) bypassActors(actors []model.RulesetBypassActor) {
+	roles := make([]string, 0, len(model.RulesetRepositoryRoles))
+	for _, role := range model.RulesetRepositoryRoles {
+		roles = append(roles, fmt.Sprintf("%d %s", role.ID, role.Name))
+	}
+	comments := []string{
+		"# actor_type: " + strings.Join(model.RulesetActorTypes, ", "),
+		"# RepositoryRole actor_id: " + strings.Join(roles, ", "),
+		"# bypass_mode: " + strings.Join(model.RulesetBypassModes, ", "),
+	}
+	if len(actors) == 0 {
+		for _, comment := range comments {
+			w.line(2, "%s", comment)
+		}
+		w.line(2, "bypass_actors: []")
+		return
+	}
+	w.line(2, "bypass_actors:")
+	for _, comment := range comments {
+		w.line(4, "%s", comment)
+	}
+	for _, actor := range actors {
+		prefix := "- "
+		if actor.ActorID != nil {
+			w.line(4, "%sactor_id: %d", prefix, *actor.ActorID)
+			prefix = "  "
+		}
+		if actor.ActorType != nil {
+			w.scalar(4, prefix, "actor_type", *actor.ActorType)
+			prefix = "  "
+		}
+		if actor.BypassMode != nil {
+			w.scalar(4, prefix, "bypass_mode", *actor.BypassMode)
+		}
+	}
+}
+
+func (w *rulesetWriter) refName(refName *model.RulesetRefName) {
+	w.line(2, "conditions:")
+	w.line(4, "ref_name:")
+	w.line(6, "# Branch names or fnmatch patterns in refs/heads/<name> form.")
+	w.line(6, "# include also accepts ~DEFAULT_BRANCH and ~ALL.")
+	if refName.Include != nil {
+		w.list(6, "include", *refName.Include)
+	}
+	if refName.Exclude != nil {
+		w.list(6, "exclude", *refName.Exclude)
+	}
+}
+
+func (w *rulesetWriter) rules(rules *model.RulesetRules) {
+	w.line(2, "rules:")
+	w.boolean(4, "creation", rules.Creation)
+	w.boolean(4, "update", rules.Update)
+	w.boolean(4, "deletion", rules.Deletion)
+	w.boolean(4, "required_linear_history", rules.RequiredLinearHistory)
+	w.boolean(4, "required_signatures", rules.RequiredSignatures)
+	w.boolean(4, "non_fast_forward", rules.NonFastForward)
+	if rules.PullRequest != nil {
+		w.pullRequest(rules.PullRequest)
+	}
+	if rules.RequiredStatusChecks != nil {
+		w.statusChecks(rules.RequiredStatusChecks)
+	}
+}
+
+func (w *rulesetWriter) pullRequest(rule *model.RulesetPullRequest) {
+	w.line(4, "pull_request:")
+	w.boolean(6, "enabled", rule.Enabled)
+	p := rule.Parameters
+	if p == nil {
+		return
+	}
+	w.line(6, "parameters:")
+	if p.RequiredApprovingReviewCount != nil {
+		w.line(8, "required_approving_review_count: %d", *p.RequiredApprovingReviewCount)
+	}
+	w.boolean(8, "dismiss_stale_reviews_on_push", p.DismissStaleReviewsOnPush)
+	w.boolean(8, "require_code_owner_review", p.RequireCodeOwnerReview)
+	w.boolean(8, "require_last_push_approval", p.RequireLastPushApproval)
+	w.boolean(8, "required_review_thread_resolution", p.RequiredReviewThreadResolution)
+	w.boolean(8, "require_extra_approval_for_unattributed_changes", p.RequireExtraApprovalForUnattributedChanges)
+	if p.AllowedMergeMethods != nil {
+		w.line(8, "# Any combination of %s. At least one.", strings.Join(model.RulesetMergeMethods, ", "))
+		w.list(8, "allowed_merge_methods", *p.AllowedMergeMethods)
+	}
+}
+
+func (w *rulesetWriter) statusChecks(rule *model.RulesetStatusChecks) {
+	w.line(4, "required_status_checks:")
+	w.boolean(6, "enabled", rule.Enabled)
+	p := rule.Parameters
+	if p == nil {
+		return
+	}
+	w.line(6, "parameters:")
+	if p.StrictRequiredStatusChecksPolicy != nil {
+		w.line(8, "# Require branches to be up to date before merging.")
+		w.boolean(8, "strict_required_status_checks_policy", p.StrictRequiredStatusChecksPolicy)
+	}
+	if p.DoNotEnforceOnCreate != nil {
+		w.line(8, "# Do not require status checks on creation.")
+		w.boolean(8, "do_not_enforce_on_create", p.DoNotEnforceOnCreate)
+	}
+	if p.RequiredStatusChecks == nil {
+		return
+	}
+	w.line(8, "# context is the check name as shown on a pull request. For a GitHub")
+	w.line(8, "# Actions job that is the job's name. integration_id is optional and")
+	w.line(8, "# restricts the check to one app; 15368 is GitHub Actions.")
+	if len(*p.RequiredStatusChecks) == 0 {
+		w.line(8, "required_status_checks: []")
+		return
+	}
+	w.line(8, "required_status_checks:")
+	for _, check := range *p.RequiredStatusChecks {
+		w.scalar(10, "- ", "context", check.Context)
+		if check.IntegrationID != nil {
+			w.line(10, "  integration_id: %d", *check.IntegrationID)
+		}
+	}
 }
 
 // withLanguagesComment inserts the languages guidance comment before the
@@ -150,6 +340,13 @@ code_scanning:
 
 code_quality:
 {{- range codeQualityLines .CodeQuality }}
+{{ . }}
+{{- end }}
+{{- end }}
+{{- if .Ruleset }}
+
+ruleset:
+{{- range rulesetLines .Ruleset }}
 {{ . }}
 {{- end }}
 {{- end }}

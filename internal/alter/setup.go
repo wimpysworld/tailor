@@ -42,21 +42,23 @@ func setupLanguagesResult(section string, declared, live *[]string) (RepoSetting
 	return RepoSettingResult{Section: section, Field: "languages", Category: category, Value: strings.Join(desired, ", ")}, true
 }
 
-// setupSkipResult returns the skip result for one field and reason.
-func setupSkipResult(result RepoSettingResult, reason gh.SetupSkipReason) RepoSettingResult {
+// skipResult returns the skip result for one field, keeping its section
+// and name and carrying the category and annotation.
+func skipResult(result RepoSettingResult, category RepoSettingCategory, annotation string) RepoSettingResult {
 	return RepoSettingResult{
 		Section:    result.Section,
 		Field:      result.Field,
-		Category:   WouldSkipSetup,
-		Annotation: string(reason),
+		Category:   category,
+		Annotation: annotation,
 	}
 }
 
-// setupSkipResults replaces every result with a skip result for the reason.
-func setupSkipResults(results []RepoSettingResult, reason gh.SetupSkipReason) []RepoSettingResult {
+// skipResults replaces every result with a skip result for the category
+// and annotation.
+func skipResults(results []RepoSettingResult, category RepoSettingCategory, annotation string) []RepoSettingResult {
 	skipped := make([]RepoSettingResult, 0, len(results))
 	for _, result := range results {
-		skipped = append(skipped, setupSkipResult(result, reason))
+		skipped = append(skipped, skipResult(result, category, annotation))
 	}
 	return skipped
 }
@@ -73,7 +75,7 @@ func applySetup(results []RepoSettingResult, write func() error) ([]RepoSettingR
 	applied := make([]RepoSettingResult, 0, len(results))
 	for _, result := range results {
 		if result.Category == WouldSet {
-			result = setupSkipResult(result, skipped.Reason)
+			result = skipResult(result, WouldSkipSetup, string(skipped.Reason))
 		}
 		applied = append(applied, result)
 	}

@@ -28,7 +28,7 @@ func validateTopLevelSettings(cfg *Config) error {
 		return nil
 	}
 
-	valid := []string{"actions", "code_quality", "code_scanning", "labels", "license", "repository", "swatches"}
+	valid := []string{"actions", "code_quality", "code_scanning", "labels", "license", "repository", "ruleset", "swatches"}
 	return unrecognisedSettingError("top-level", cfg.Extra, valid)
 }
 
@@ -365,4 +365,327 @@ func settingNames(fields []model.SettingField) []string {
 	}
 	slices.Sort(names)
 	return names
+}
+
+// rulesetEnterpriseEnforcement is the enforcement level that GitHub offers
+// only on GitHub Enterprise plans.
+const rulesetEnterpriseEnforcement = "evaluate"
+
+// maxRulesetReviewCount is the largest required_approving_review_count that
+// the rulesets API accepts.
+const maxRulesetReviewCount = 10
+
+// ValidateRuleset checks the ruleset field names, enum values, bypass
+// actors, branch conditions, and rule parameters. Fields that default
+// merging fills are checked only when set; ValidateCompleteRuleset checks
+// for their presence after merging.
+func ValidateRuleset(cfg *Config) error {
+	r := cfg.Ruleset
+	if r == nil {
+		return nil
+	}
+	if err := rejectExtra("ruleset", r.Extra, model.RulesetSettingNames); err != nil {
+		return err
+	}
+	if err := validateRulesetEnforcement(r.Enforcement); err != nil {
+		return err
+	}
+	if err := validateBypassActors(r.BypassActors); err != nil {
+		return err
+	}
+	if err := validateRulesetConditions(r.Conditions); err != nil {
+		return err
+	}
+	return validateRulesetRules(r.Rules)
+}
+
+func validateRulesetEnforcement(enforcement *string) error {
+	if enforcement != nil && *enforcement == rulesetEnterpriseEnforcement {
+		return fmt.Errorf("invalid ruleset.enforcement %q; evaluate is available only on GitHub Enterprise", *enforcement)
+	}
+	return validateEnum("ruleset.enforcement", enforcement, model.RulesetEnforcements...)
+}
+
+// validateBypassActors checks every bypass actor and rejects duplicate
+// actors, which share an actor_type and actor_id.
+func validateBypassActors(actors *[]model.RulesetBypassActor) error {
+	if actors == nil {
+		return nil
+	}
+	seen := make(map[string]bool, len(*actors))
+	for i, actor := range *actors {
+		name := fmt.Sprintf("ruleset.bypass_actors[%d]", i)
+		if err := rejectExtra(name, actor.Extra, model.RulesetBypassActorNames); err != nil {
+			return err
+		}
+		if actor.ActorType == nil {
+			return fmt.Errorf("%s: actor_type must not be empty", name)
+		}
+		if err := validateEnum(name+".actor_type", actor.ActorType, model.RulesetActorTypes...); err != nil {
+			return err
+		}
+		if actor.BypassMode == nil {
+			return fmt.Errorf("%s: bypass_mode must not be empty", name)
+		}
+		if err := validateEnum(name+".bypass_mode", actor.BypassMode, model.RulesetBypassModes...); err != nil {
+			return err
+		}
+		key := *actor.ActorType
+		if *actor.ActorType == "DeployKey" {
+			if actor.ActorID != nil {
+				return fmt.Errorf("%s: actor_id must be absent for a DeployKey actor", name)
+			}
+			if *actor.BypassMode == "pull_request" {
+				return fmt.Errorf("%s: bypass_mode %q is not valid for a DeployKey actor", name, *actor.BypassMode)
+			}
+		} else {
+			if actor.ActorID == nil {
+				return fmt.Errorf("%s: actor_id is required for a %s actor", name, *actor.ActorType)
+			}
+			key = fmt.Sprintf("%s:%d", *actor.ActorType, *actor.ActorID)
+		}
+		if seen[key] {
+			return fmt.Errorf("%s: duplicate bypass actor %s", name, key)
+		}
+		seen[key] = true
+	}
+	return nil
+}
+
+func validateRulesetConditions(conditions *model.RulesetConditions) error {
+	if conditions == nil {
+		return nil
+	}
+	if err := rejectExtra("ruleset.conditions", conditions.Extra, model.RulesetConditionsNames); err != nil {
+		return err
+	}
+	refName := conditions.RefName
+	if refName == nil {
+		return nil
+	}
+	if err := rejectExtra("ruleset.conditions.ref_name", refName.Extra, model.RulesetRefNameNames); err != nil {
+		return err
+	}
+	if refName.Include != nil && len(*refName.Include) == 0 {
+		return fmt.Errorf("ruleset.conditions.ref_name.include must contain at least one entry")
+	}
+	if err := validateRefPatterns("ruleset.conditions.ref_name.include", refName.Include); err != nil {
+		return err
+	}
+	return validateRefPatterns("ruleset.conditions.ref_name.exclude", refName.Exclude)
+}
+
+// validateRefPatterns rejects empty, control-bearing, and duplicate
+// patterns in a branch condition list.
+func validateRefPatterns(name string, patterns *[]string) error {
+	if patterns == nil {
+		return nil
+	}
+	seen := make(map[string]bool, len(*patterns))
+	for i, pattern := range *patterns {
+		if pattern == "" {
+			return fmt.Errorf("%s[%d]: pattern must not be empty", name, i)
+		}
+		if containsControl(pattern) {
+			return fmt.Errorf("%s[%d]: pattern %q contains control characters", name, i, pattern)
+		}
+		if seen[pattern] {
+			return fmt.Errorf("%s[%d]: duplicate pattern %q", name, i, pattern)
+		}
+		seen[pattern] = true
+	}
+	return nil
+}
+
+func validateRulesetRules(rules *model.RulesetRules) error {
+	if rules == nil {
+		return nil
+	}
+	if err := rejectExtra("ruleset.rules", rules.Extra, model.RulesetRulesNames); err != nil {
+		return err
+	}
+	if err := validateRulesetPullRequest(rules.PullRequest); err != nil {
+		return err
+	}
+	return validateRulesetStatusChecks(rules.RequiredStatusChecks)
+}
+
+func validateRulesetPullRequest(rule *model.RulesetPullRequest) error {
+	if rule == nil {
+		return nil
+	}
+	const name = "ruleset.rules.pull_request"
+	if err := rejectExtra(name, rule.Extra, model.RulesetRuleNames); err != nil {
+		return err
+	}
+	p := rule.Parameters
+	if p == nil {
+		return nil
+	}
+	if err := rejectExtra(name+".parameters", p.Extra, model.RulesetPullRequestParameterNames); err != nil {
+		return err
+	}
+	if p.RequiredApprovingReviewCount != nil && (*p.RequiredApprovingReviewCount < 0 || *p.RequiredApprovingReviewCount > maxRulesetReviewCount) {
+		return fmt.Errorf("%s.parameters.required_approving_review_count must be between 0 and %d, got %d", name, maxRulesetReviewCount, *p.RequiredApprovingReviewCount)
+	}
+	if p.AllowedMergeMethods == nil {
+		return nil
+	}
+	if len(*p.AllowedMergeMethods) == 0 {
+		return fmt.Errorf("%s.parameters.allowed_merge_methods must contain at least one method", name)
+	}
+	seen := make(map[string]bool, len(*p.AllowedMergeMethods))
+	for i, method := range *p.AllowedMergeMethods {
+		if !slices.Contains(model.RulesetMergeMethods, method) {
+			return fmt.Errorf("%s.parameters.allowed_merge_methods[%d]: unrecognised method %q; valid methods: %s",
+				name, i, method, strings.Join(model.RulesetMergeMethods, ", "))
+		}
+		if seen[method] {
+			return fmt.Errorf("%s.parameters.allowed_merge_methods[%d]: duplicate method %q", name, i, method)
+		}
+		seen[method] = true
+	}
+	return nil
+}
+
+func validateRulesetStatusChecks(rule *model.RulesetStatusChecks) error {
+	if rule == nil {
+		return nil
+	}
+	const name = "ruleset.rules.required_status_checks"
+	if err := rejectExtra(name, rule.Extra, model.RulesetRuleNames); err != nil {
+		return err
+	}
+	p := rule.Parameters
+	if p == nil {
+		return nil
+	}
+	if err := rejectExtra(name+".parameters", p.Extra, model.RulesetStatusChecksParameterNames); err != nil {
+		return err
+	}
+	if p.RequiredStatusChecks == nil {
+		return nil
+	}
+	seen := make(map[string]bool, len(*p.RequiredStatusChecks))
+	for i, check := range *p.RequiredStatusChecks {
+		entry := fmt.Sprintf("%s.parameters.required_status_checks[%d]", name, i)
+		if err := rejectExtra(entry, check.Extra, model.RulesetStatusCheckNames); err != nil {
+			return err
+		}
+		if check.Context == "" {
+			return fmt.Errorf("%s: context must not be empty", entry)
+		}
+		if containsControl(check.Context) {
+			return fmt.Errorf("%s: context %q contains control characters", entry, check.Context)
+		}
+		if check.IntegrationID != nil && *check.IntegrationID <= 0 {
+			return fmt.Errorf("%s: integration_id must be positive, got %d", entry, *check.IntegrationID)
+		}
+		if seen[check.Context] {
+			return fmt.Errorf("%s: duplicate context %q", entry, check.Context)
+		}
+		seen[check.Context] = true
+	}
+	return nil
+}
+
+// ValidateCompleteRuleset checks that the ruleset carries every field the
+// rulesets API requires after default merging: the enforcement level, the
+// bypass actor list, both branch condition lists, the pull request rule
+// with its seven parameters, and the required status checks rule with its
+// two policy flags. A write sends every list whole, so an absent list would
+// clear the live value without a report line.
+func ValidateCompleteRuleset(cfg *Config) error {
+	r := cfg.Ruleset
+	if r == nil {
+		return nil
+	}
+	if r.Enforcement == nil {
+		return fmt.Errorf("ruleset requires enforcement")
+	}
+	if r.BypassActors == nil {
+		return fmt.Errorf("ruleset requires bypass_actors")
+	}
+	if r.Conditions == nil || r.Conditions.RefName == nil || r.Conditions.RefName.Include == nil {
+		return fmt.Errorf("ruleset requires conditions.ref_name.include")
+	}
+	if r.Conditions.RefName.Exclude == nil {
+		return fmt.Errorf("ruleset requires conditions.ref_name.exclude")
+	}
+	if r.Rules == nil {
+		return fmt.Errorf("ruleset requires rules")
+	}
+	if err := validateCompletePullRequest(r.Rules.PullRequest); err != nil {
+		return err
+	}
+	return validateCompleteStatusChecks(r.Rules.RequiredStatusChecks)
+}
+
+func validateCompletePullRequest(rule *model.RulesetPullRequest) error {
+	const name = "ruleset.rules.pull_request"
+	if rule == nil || rule.Enabled == nil {
+		return fmt.Errorf("%s requires enabled", name)
+	}
+	if !*rule.Enabled {
+		return nil
+	}
+	p := rule.Parameters
+	if p == nil || p.RequiredApprovingReviewCount == nil || p.DismissStaleReviewsOnPush == nil ||
+		p.RequireCodeOwnerReview == nil || p.RequireLastPushApproval == nil ||
+		p.RequiredReviewThreadResolution == nil || p.RequireExtraApprovalForUnattributedChanges == nil ||
+		p.AllowedMergeMethods == nil {
+		return fmt.Errorf("%s requires every parameter when enabled: %s", name, strings.Join(model.RulesetPullRequestParameterNames, ", "))
+	}
+	return nil
+}
+
+func validateCompleteStatusChecks(rule *model.RulesetStatusChecks) error {
+	const name = "ruleset.rules.required_status_checks"
+	if rule == nil || rule.Enabled == nil {
+		return fmt.Errorf("%s requires enabled", name)
+	}
+	if !*rule.Enabled {
+		return nil
+	}
+	p := rule.Parameters
+	if p == nil || p.StrictRequiredStatusChecksPolicy == nil || p.DoNotEnforceOnCreate == nil || p.RequiredStatusChecks == nil {
+		return fmt.Errorf("%s requires every parameter when enabled: %s", name, strings.Join(model.RulesetStatusChecksParameterNames, ", "))
+	}
+	return nil
+}
+
+// RulesetMergeMethodWarnings reports every merge method that the ruleset
+// allows but the repository settings in the same config disable. Neither
+// value is changed; the warning tells the user that the two disagree.
+func RulesetMergeMethodWarnings(cfg *Config) []string {
+	if cfg.Ruleset == nil || cfg.Repository == nil || cfg.Ruleset.Rules == nil ||
+		cfg.Ruleset.Rules.PullRequest == nil || cfg.Ruleset.Rules.PullRequest.Parameters == nil ||
+		cfg.Ruleset.Rules.PullRequest.Parameters.AllowedMergeMethods == nil {
+		return nil
+	}
+	repositoryFields := map[string]struct {
+		field string
+		value *bool
+	}{
+		"merge":  {"allow_merge_commit", cfg.Repository.AllowMergeCommit},
+		"squash": {"allow_squash_merge", cfg.Repository.AllowSquashMerge},
+		"rebase": {"allow_rebase_merge", cfg.Repository.AllowRebaseMerge},
+	}
+	var warnings []string
+	for _, method := range *cfg.Ruleset.Rules.PullRequest.Parameters.AllowedMergeMethods {
+		setting, ok := repositoryFields[method]
+		if !ok || setting.value == nil || *setting.value {
+			continue
+		}
+		warnings = append(warnings, fmt.Sprintf("warning: ruleset allows %s merging but repository.%s is false", method, setting.field))
+	}
+	return warnings
+}
+
+// rejectExtra returns the unrecognised setting error when extra holds keys.
+func rejectExtra(section string, extra map[string]any, valid []string) error {
+	if len(extra) == 0 {
+		return nil
+	}
+	return unrecognisedSettingError(section, extra, valid)
 }

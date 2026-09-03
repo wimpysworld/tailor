@@ -154,3 +154,33 @@ func TestRepositorySettingFieldsValues(t *testing.T) {
 		t.Error("homepage Set = true, want false")
 	}
 }
+
+func TestRulesetNames(t *testing.T) {
+	tests := []struct {
+		name string
+		got  []string
+		want []string
+	}{
+		{name: "settings", got: RulesetSettingNames, want: []string{"bypass_actors", "conditions", "enforcement", "rules"}},
+		{name: "bypass actor", got: RulesetBypassActorNames, want: []string{"actor_id", "actor_type", "bypass_mode"}},
+		{name: "conditions", got: RulesetConditionsNames, want: []string{"ref_name"}},
+		{name: "ref_name", got: RulesetRefNameNames, want: []string{"exclude", "include"}},
+		{name: "rules", got: RulesetRulesNames, want: []string{"creation", "deletion", "non_fast_forward", "pull_request", "required_linear_history", "required_signatures", "required_status_checks", "update"}},
+		{name: "rule", got: RulesetRuleNames, want: []string{"enabled", "parameters"}},
+		{name: "pull request parameters", got: RulesetPullRequestParameterNames, want: []string{"allowed_merge_methods", "dismiss_stale_reviews_on_push", "require_code_owner_review", "require_extra_approval_for_unattributed_changes", "require_last_push_approval", "required_approving_review_count", "required_review_thread_resolution"}},
+		{name: "status checks parameters", got: RulesetStatusChecksParameterNames, want: []string{"do_not_enforce_on_create", "required_status_checks", "strict_required_status_checks_policy"}},
+		{name: "status check", got: RulesetStatusCheckNames, want: []string{"context", "integration_id"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.got) != len(tt.want) {
+				t.Fatalf("names = %v, want %v", tt.got, tt.want)
+			}
+			for i := range tt.want {
+				if tt.got[i] != tt.want[i] {
+					t.Errorf("names[%d] = %q, want %q", i, tt.got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}

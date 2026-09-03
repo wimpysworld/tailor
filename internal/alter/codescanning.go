@@ -24,7 +24,7 @@ func ProcessCodeScanning(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 	live, err := gh.ReadCodeScanningSetup(target.Client, target.Owner, target.Name)
 	var skipped *gh.ErrSetupSkipped
 	if errors.As(err, &skipped) {
-		return setupSkipResults(declared, skipped.Reason), nil
+		return skipResults(declared, WouldSkipSetup, string(skipped.Reason)), nil
 	}
 	if err != nil {
 		return nil, err
