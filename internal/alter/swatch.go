@@ -83,7 +83,7 @@ func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode
 		return SwatchResult{Path: entry.Path, Category: Skipped, Reason: SkipModeNever}, nil
 	}
 
-	if err := validateSwatchParents(root, entry.Path); err != nil {
+	if err := checkParents(root, entry.Path, "swatch parent"); err != nil {
 		return SwatchResult{}, err
 	}
 
@@ -117,7 +117,10 @@ func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode
 	return SwatchResult{Path: entry.Path, Category: WouldCopy}, nil
 }
 
-func validateSwatchParents(root *os.Root, path string) error {
+// checkParents walks each parent directory of the root-relative path and
+// rejects a symlink or a non-directory. A missing parent is not an error.
+// subject prefixes each error message, for example "swatch parent".
+func checkParents(root *os.Root, path, subject string) error {
 	parent := filepath.Dir(path)
 	if parent == "." {
 		return nil
@@ -131,13 +134,13 @@ func validateSwatchParents(root *os.Root, path string) error {
 			if errors.Is(err, os.ErrNotExist) {
 				return nil
 			}
-			return fmt.Errorf("checking swatch parent %q: %w", current, err)
+			return fmt.Errorf("checking %s %q: %w", subject, current, err)
 		}
 		if info.Mode()&os.ModeSymlink != 0 {
-			return fmt.Errorf("swatch parent %q is a symlink", current)
+			return fmt.Errorf("%s %q is a symlink", subject, current)
 		}
 		if !info.IsDir() {
-			return fmt.Errorf("swatch parent %q is not a directory", current)
+			return fmt.Errorf("%s %q is not a directory", subject, current)
 		}
 	}
 	return nil
