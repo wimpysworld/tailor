@@ -93,7 +93,11 @@ func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode
 	}
 
 	if mode == Recut {
-		return processRecut(root, entry, content, exists)
+		category := WouldOverwrite
+		if !exists {
+			category = WouldCopy
+		}
+		return writeSwatch(root, entry, content, category, true)
 	}
 
 	switch entry.Alteration {
@@ -109,12 +113,18 @@ func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode
 		return SwatchResult{}, fmt.Errorf("unknown alteration mode %q for swatch %q", entry.Alteration, entry.Path)
 	}
 
-	if mode.ShouldWrite() {
+	return writeSwatch(root, entry, content, WouldCopy, mode.ShouldWrite())
+}
+
+// writeSwatch writes content to the entry path when write is true and
+// returns the result with the given category.
+func writeSwatch(root *os.Root, entry config.SwatchEntry, content []byte, category SwatchCategory, write bool) (SwatchResult, error) {
+	if write {
 		if err := writeFile(root, entry.Path, content); err != nil {
 			return SwatchResult{}, err
 		}
 	}
-	return SwatchResult{Path: entry.Path, Category: WouldCopy}, nil
+	return SwatchResult{Path: entry.Path, Category: category}, nil
 }
 
 // checkParents walks each parent directory of the root-relative path and
@@ -181,23 +191,7 @@ func processAlways(root *os.Root, entry config.SwatchEntry, content []byte, mode
 		return SwatchResult{Path: entry.Path, Category: NoChange}, nil
 	}
 
-	if mode.ShouldWrite() {
-		if err := writeFile(root, entry.Path, content); err != nil {
-			return SwatchResult{}, err
-		}
-	}
-	return SwatchResult{Path: entry.Path, Category: WouldOverwrite}, nil
-}
-
-func processRecut(root *os.Root, entry config.SwatchEntry, content []byte, exists bool) (SwatchResult, error) {
-	category := WouldOverwrite
-	if !exists {
-		category = WouldCopy
-	}
-	if err := writeFile(root, entry.Path, content); err != nil {
-		return SwatchResult{}, err
-	}
-	return SwatchResult{Path: entry.Path, Category: category}, nil
+	return writeSwatch(root, entry, content, WouldOverwrite, mode.ShouldWrite())
 }
 
 // writeFile creates parent directories and writes data to a root-relative path.
