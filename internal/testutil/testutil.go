@@ -38,25 +38,29 @@ func NewTestClient(t *testing.T, server *httptest.Server) *api.RESTClient {
 	return client
 }
 
+// WriteFile writes content to filepath.Join(dir, name) and fails the test
+// on error. The parent directory must already exist.
+func WriteFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
 // CreateFile creates a file at filepath.Join(dir, name) with dummy content.
 // Parent directories are created as needed.
 func CreateFile(t *testing.T, dir, name string) {
 	t.Helper()
-	path := filepath.Join(dir, name)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	WriteFile(t, dir, name, "test")
 }
 
 // WriteConfig writes a .tailor.yml file in dir with the given content.
 func WriteConfig(t *testing.T, dir, content string) {
 	t.Helper()
-	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	WriteFile(t, dir, ".tailor.yml", content)
 }
 
 // AssertPtr checks a pointer field. When wantNil is true, it expects got to

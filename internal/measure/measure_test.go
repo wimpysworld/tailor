@@ -1,8 +1,6 @@
 package measure
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -312,10 +310,7 @@ func TestIntegrationOutputOrderAndPadding(t *testing.T) {
 func TestIntegrationLicenseWithPlaceholders(t *testing.T) {
 	dir := t.TempDir()
 
-	content := "MIT License\n\nCopyright (c) [year] [fullname]\n"
-	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	testutil.WriteFile(t, dir, "LICENSE", "MIT License\n\nCopyright (c) [year] [fullname]\n")
 	testutil.CreateFile(t, dir, "README.md")
 
 	health := CheckHealth(dir)
@@ -332,10 +327,7 @@ func TestIntegrationLicenseWithPlaceholders(t *testing.T) {
 func TestIntegrationLicenseWithMarkdownLinkIsPresent(t *testing.T) {
 	dir := t.TempDir()
 
-	content := "Copyright (c) [year](#year) The Authors.\n"
-	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	testutil.WriteFile(t, dir, "LICENSE", "Copyright (c) [year](#year) The Authors.\n")
 	testutil.CreateFile(t, dir, "README.md")
 
 	health := CheckHealth(dir)
