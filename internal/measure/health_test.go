@@ -9,6 +9,19 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
+// findResult returns the health result for path and fails the test when
+// no result carries that path.
+func findResult(t *testing.T, results []HealthResult, path string) HealthResult {
+	t.Helper()
+	for _, r := range results {
+		if r.Path == path {
+			return r
+		}
+	}
+	t.Fatalf("%s not found in results", path)
+	return HealthResult{}
+}
+
 func TestHasUnresolvedPlaceholdersSupportedNames(t *testing.T) {
 	names := []string{
 		"year",
@@ -261,108 +274,22 @@ func TestCheckHealthDirectoryNotCountedAsFile(t *testing.T) {
 		t.Fatalf("MkdirAll: %v", err)
 	}
 
-	results := CheckHealth(dir)
-
-	for _, r := range results {
-		if r.Path == "LICENSE" {
-			if r.Status != Missing {
-				t.Errorf("LICENSE directory should be reported as missing, got %q", r.Status)
-			}
-			return
-		}
+	r := findResult(t, CheckHealth(dir), "LICENSE")
+	if r.Status != Missing {
+		t.Errorf("LICENSE directory should be reported as missing, got %q", r.Status)
 	}
-	t.Error("LICENSE not found in results")
-}
-
-func TestCheckHealthLicenseWithPlaceholders(t *testing.T) {
-	dir := t.TempDir()
-
-	// Write a LICENSE with unresolved placeholders.
-	content := "MIT License\n\nCopyright (c) [year] [fullname]\n"
-	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	results := CheckHealth(dir)
-
-	for _, r := range results {
-		if r.Path == "LICENSE" {
-			if r.Status != Warning {
-				t.Errorf("LICENSE with placeholders: status = %q, want %q", r.Status, Warning)
-			}
-			if r.Detail != "(contains unresolved placeholders)" {
-				t.Errorf("LICENSE detail = %q, want %q", r.Detail, "(contains unresolved placeholders)")
-			}
-			return
-		}
-	}
-	t.Error("LICENSE not found in results")
-}
-
-func TestCheckHealthLicenseResolved(t *testing.T) {
-	dir := t.TempDir()
-
-	// Write a LICENSE without placeholders.
-	content := "MIT License\n\nCopyright (c) 2024 Jane Smith\n"
-	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	results := CheckHealth(dir)
-
-	for _, r := range results {
-		if r.Path == "LICENSE" {
-			if r.Status != Present {
-				t.Errorf("resolved LICENSE: status = %q, want %q", r.Status, Present)
-			}
-			if r.Detail != "" {
-				t.Errorf("resolved LICENSE: detail = %q, want empty", r.Detail)
-			}
-			return
-		}
-	}
-	t.Error("LICENSE not found in results")
-}
-
-func TestCheckHealthLicenseWithBracePlaceholders(t *testing.T) {
-	dir := t.TempDir()
-
-	// Write a LICENSE with curly-brace placeholders.
-	content := "Apache License 2.0\n\nCopyright {project}\n"
-	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-
-	results := CheckHealth(dir)
-
-	for _, r := range results {
-		if r.Path == "LICENSE" {
-			if r.Status != Warning {
-				t.Errorf("LICENSE with brace placeholders: status = %q, want %q", r.Status, Warning)
-			}
-			return
-		}
-	}
-	t.Error("LICENSE not found in results")
 }
 
 func TestCheckHealthReadmeMissing(t *testing.T) {
 	dir := t.TempDir()
 
-	results := CheckHealth(dir)
-
-	for _, r := range results {
-		if r.Path == "README.md" {
-			if r.Status != Warning {
-				t.Errorf("missing README.md: status = %q, want %q", r.Status, Warning)
-			}
-			if r.Detail != "(not managed by tailor)" {
-				t.Errorf("README.md detail = %q, want %q", r.Detail, "(not managed by tailor)")
-			}
-			return
-		}
+	r := findResult(t, CheckHealth(dir), "README.md")
+	if r.Status != Warning {
+		t.Errorf("missing README.md: status = %q, want %q", r.Status, Warning)
 	}
-	t.Error("README.md not found in results")
+	if r.Detail != "(not managed by tailor)" {
+		t.Errorf("README.md detail = %q, want %q", r.Detail, "(not managed by tailor)")
+	}
 }
 
 func TestCheckHealthReadmePresent(t *testing.T) {
@@ -423,6 +350,17 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 			wantDetail: "(contains unresolved placeholders)",
 		},
 		{
+			name: "licence with brace placeholders warns",
+			setup: func(t *testing.T, dir string) {
+				content := "Apache License 2.0\n\nCopyright {project}\n"
+				if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
+					t.Fatalf("WriteFile: %v", err)
+				}
+			},
+			wantStatus: Warning,
+			wantDetail: "(contains unresolved placeholders)",
+		},
+		{
 			name: "resolved licence is present",
 			setup: func(t *testing.T, dir string) {
 				content := "MIT License\n\nCopyright (c) 2024 Jane Smith\n"
@@ -439,20 +377,13 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 			dir := t.TempDir()
 			tt.setup(t, dir)
 
-			results := CheckHealth(dir)
-
-			for _, r := range results {
-				if r.Path == "LICENSE" {
-					if r.Status != tt.wantStatus {
-						t.Errorf("LICENSE status = %q, want %q", r.Status, tt.wantStatus)
-					}
-					if r.Detail != tt.wantDetail {
-						t.Errorf("LICENSE detail = %q, want %q", r.Detail, tt.wantDetail)
-					}
-					return
-				}
+			r := findResult(t, CheckHealth(dir), "LICENSE")
+			if r.Status != tt.wantStatus {
+				t.Errorf("LICENSE status = %q, want %q", r.Status, tt.wantStatus)
 			}
-			t.Error("LICENSE not found in results")
+			if r.Detail != tt.wantDetail {
+				t.Errorf("LICENSE detail = %q, want %q", r.Detail, tt.wantDetail)
+			}
 		})
 	}
 }
@@ -527,17 +458,10 @@ func TestCheckHealthSymlinkedReadmeWarns(t *testing.T) {
 		t.Fatalf("Symlink: %v", err)
 	}
 
-	results := CheckHealth(dir)
-
-	for _, r := range results {
-		if r.Path == "README.md" {
-			if r.Status != Warning {
-				t.Errorf("symlinked README.md: status = %q, want %q", r.Status, Warning)
-			}
-			return
-		}
+	r := findResult(t, CheckHealth(dir), "README.md")
+	if r.Status != Warning {
+		t.Errorf("symlinked README.md: status = %q, want %q", r.Status, Warning)
 	}
-	t.Error("README.md not found in results")
 }
 
 func TestHasUnresolvedPlaceholdersAdversarialContent(t *testing.T) {
