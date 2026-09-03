@@ -2,21 +2,18 @@ package config
 
 import (
 	"fmt"
-	"io/fs"
 	"reflect"
 	"slices"
 
-	"github.com/wimpysworld/tailor"
 	"github.com/wimpysworld/tailor/internal/model"
+	"github.com/wimpysworld/tailor/internal/swatch"
 )
-
-const embeddedConfigPath = "swatches/.tailor.yml"
 
 // DefaultConfig returns the embedded default configuration with the given
 // license. It parses swatches/.tailor.yml from the embedded filesystem,
 // validates its contents, and overrides the license field.
 func DefaultConfig(license string) (*Config, error) {
-	data, err := fs.ReadFile(tailor.SwatchFS, embeddedConfigPath)
+	data, err := swatch.Content(".tailor.yml")
 	if err != nil {
 		return nil, fmt.Errorf("reading embedded config: %w", err)
 	}
