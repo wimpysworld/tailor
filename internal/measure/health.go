@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"regexp"
 	"slices"
 	"strings"
 
@@ -31,20 +30,17 @@ type HealthResult struct {
 	Detail string
 }
 
-var (
-	placeholderWhitespaceRe = regexp.MustCompile(`[ \t\n\v\f\r]+`)
-	placeholderNames        = map[string]struct{}{
-		"year":                     {},
-		"yyyy":                     {},
-		"fullname":                 {},
-		"name of copyright owner":  {},
-		"name of copyright holder": {},
-		"software name":            {},
-		"project":                  {},
-		"projecturl":               {},
-		"email":                    {},
-	}
-)
+var placeholderNames = map[string]struct{}{
+	"year":                     {},
+	"yyyy":                     {},
+	"fullname":                 {},
+	"name of copyright owner":  {},
+	"name of copyright holder": {},
+	"software name":            {},
+	"project":                  {},
+	"projecturl":               {},
+	"email":                    {},
+}
 
 // completeInlineLinks returns, for each '(' in data, whether it starts a
 // balanced Markdown inline-link destination. Backslashes escape the
@@ -94,8 +90,7 @@ func hasUnresolvedPlaceholders(data []byte) bool {
 				continue
 			}
 
-			name := placeholderWhitespaceRe.ReplaceAllString(string(data[start+1:end]), " ")
-			name = strings.ToLower(strings.Trim(name, " "))
+			name := strings.ToLower(strings.Join(strings.Fields(string(data[start+1:end])), " "))
 			if _, ok := placeholderNames[name]; ok {
 				return true
 			}
