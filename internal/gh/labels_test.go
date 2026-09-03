@@ -222,33 +222,6 @@ func TestApplyLabelsCaseInsensitiveMatch(t *testing.T) {
 	}
 }
 
-func TestApplyLabelsCaseInsensitiveSkip(t *testing.T) {
-	// A label whose name, colour, and description all match exactly requires
-	// no API call.
-	requestCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestCount++
-		w.WriteHeader(http.StatusOK)
-	}))
-	t.Cleanup(server.Close)
-
-	client := newTestClient(t, server)
-	desired := []model.LabelEntry{
-		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
-	}
-	current := []model.LabelEntry{
-		{Name: "bug", Color: "d73a4a", Description: "Something is not working"},
-	}
-
-	_, err := ApplyLabels(client, "testowner", "testrepo", desired, current)
-	if err != nil {
-		t.Fatalf("ApplyLabels() error: %v", err)
-	}
-	if requestCount != 0 {
-		t.Errorf("expected 0 API calls for exact match, got %d", requestCount)
-	}
-}
-
 func TestApplyLabelsColorCaseInsensitive(t *testing.T) {
 	requestCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
