@@ -95,14 +95,11 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 
 		if !found {
 			if err := createLabel(client, owner, repo, d); err != nil {
-				opName := CreateLabelOp(d.Name)
-				if limitErr := labelRateLimitError(err, opName, applied, remainingLabelChanges(desired[i:], currentMap)); limitErr != nil {
-					return nil, limitErr
-				}
-				if recordAccessError(result, opName, err) {
+				skip, writeErr := labelWriteError(result, CreateLabelOp(d.Name), err, applied, remainingLabelChanges(desired[i:], currentMap))
+				if skip {
 					continue
 				}
-				return nil, err
+				return nil, writeErr
 			}
 			applied++
 			continue
@@ -110,14 +107,11 @@ func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []
 
 		if model.LabelNeedsUpdate(existing, d) {
 			if err := updateLabel(client, owner, repo, existing.Name, d); err != nil {
-				opName := UpdateLabelOp(d.Name)
-				if limitErr := labelRateLimitError(err, opName, applied, remainingLabelChanges(desired[i:], currentMap)); limitErr != nil {
-					return nil, limitErr
-				}
-				if recordAccessError(result, opName, err) {
+				skip, writeErr := labelWriteError(result, UpdateLabelOp(d.Name), err, applied, remainingLabelChanges(desired[i:], currentMap))
+				if skip {
 					continue
 				}
-				return nil, err
+				return nil, writeErr
 			}
 			applied++
 		}
@@ -135,6 +129,20 @@ func remainingLabelChanges(desired []model.LabelEntry, current map[string]model.
 		}
 	}
 	return remaining
+}
+
+// labelWriteError handles a failed label create or update. A rate-limit error
+// is returned wrapped with the partial-completion report. An access error is
+// recorded in result and skip is true, so the caller moves to the next label.
+// Every other error is returned unchanged with skip false.
+func labelWriteError(result *ApplyResult, operation Operation, err error, applied, remaining int) (skip bool, writeErr error) {
+	if limitErr := labelRateLimitError(err, operation, applied, remaining); limitErr != nil {
+		return false, limitErr
+	}
+	if recordAccessError(result, operation, err) {
+		return true, nil
+	}
+	return false, err
 }
 
 // labelRateLimitError classifies err and, when it is a rate-limit error,
