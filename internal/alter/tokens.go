@@ -12,36 +12,24 @@ type TokenContext struct {
 	Name           string // from repo context; empty if no context
 }
 
-// HasRepoContext reports whether owner and name are set.
-func (tc *TokenContext) HasRepoContext() bool {
-	return tc.Owner != "" && tc.Name != ""
-}
-
-// AdvisoryURL returns the constructed advisory URL, or the raw token if no repo context.
-func (tc *TokenContext) AdvisoryURL() string {
-	if !tc.HasRepoContext() {
-		return "{{ADVISORY_URL}}"
-	}
-	return fmt.Sprintf("https://github.com/%s/%s/security/advisories/new", tc.Owner, tc.Name)
-}
-
-// SupportURL returns the constructed support URL, or the raw token if no repo context.
-func (tc *TokenContext) SupportURL() string {
-	if !tc.HasRepoContext() {
-		return "{{SUPPORT_URL}}"
-	}
-	return fmt.Sprintf("https://github.com/%s/%s/blob/HEAD/SUPPORT.md", tc.Owner, tc.Name)
-}
-
 // Substitute replaces tokens in content based on the swatch path.
+// The repository URL tokens stay unchanged when owner or name is empty.
 func (tc *TokenContext) Substitute(content []byte, path string) []byte {
 	switch path {
 	case ".github/FUNDING.yml":
 		return bytes.ReplaceAll(content, []byte("{{GITHUB_USERNAME}}"), []byte(tc.GitHubUsername))
 	case "SECURITY.md":
-		return bytes.ReplaceAll(content, []byte("{{ADVISORY_URL}}"), []byte(tc.AdvisoryURL()))
+		if tc.Owner == "" || tc.Name == "" {
+			return content
+		}
+		url := fmt.Sprintf("https://github.com/%s/%s/security/advisories/new", tc.Owner, tc.Name)
+		return bytes.ReplaceAll(content, []byte("{{ADVISORY_URL}}"), []byte(url))
 	case ".github/ISSUE_TEMPLATE/config.yml":
-		return bytes.ReplaceAll(content, []byte("{{SUPPORT_URL}}"), []byte(tc.SupportURL()))
+		if tc.Owner == "" || tc.Name == "" {
+			return content
+		}
+		url := fmt.Sprintf("https://github.com/%s/%s/blob/HEAD/SUPPORT.md", tc.Owner, tc.Name)
+		return bytes.ReplaceAll(content, []byte("{{SUPPORT_URL}}"), []byte(url))
 	default:
 		return content
 	}
