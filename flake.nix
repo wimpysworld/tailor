@@ -22,15 +22,6 @@
         "aarch64-linux"
       ];
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
-      goFor =
-        pkgs:
-        pkgs.go_1_26.overrideAttrs (_: rec {
-          version = "1.26.6";
-          src = pkgs.fetchurl {
-            url = "https://go.dev/dl/go${version}.src.tar.gz";
-            hash = "sha256-oHIcVMaIkBRI13rZs+x+p8R0cwdV/4kTgukuy5P/LLE=";
-          };
-        });
     in
     {
       devShells = forAllSystems (
@@ -47,7 +38,7 @@
                 actionlint
                 cosign
                 gh
-                (goFor pkgs)
+                go_1_26
                 golangci-lint
                 goreleaser
                 just
@@ -61,10 +52,8 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
-          go = goFor pkgs;
-          buildGoModule = pkgs.buildGo126Module.override { inherit go; };
           version = "0.0.0-${self.sourceInfo.shortRev or (self.sourceInfo.dirtyShortRev or "dirty")}";
-          tailor = buildGoModule {
+          tailor = pkgs.buildGo126Module {
             pname = "tailor";
             inherit version;
             src = ./.;
