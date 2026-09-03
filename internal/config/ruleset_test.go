@@ -98,11 +98,24 @@ func TestValidateRuleset(t *testing.T) {
 }
 
 func TestValidateCompleteRuleset(t *testing.T) {
-	disabledRules := func() *model.RulesetRules {
+	// booleanRules returns the six Boolean rule keys, all false.
+	booleanRules := func() *model.RulesetRules {
 		return &model.RulesetRules{
-			PullRequest:          &model.RulesetPullRequest{Enabled: new(false)},
-			RequiredStatusChecks: &model.RulesetStatusChecks{Enabled: new(false)},
+			Creation: new(false), Update: new(false), Deletion: new(false),
+			RequiredLinearHistory: new(false), RequiredSignatures: new(false), NonFastForward: new(false),
 		}
+	}
+	disabledRules := func() *model.RulesetRules {
+		rules := booleanRules()
+		rules.PullRequest = &model.RulesetPullRequest{Enabled: new(false)}
+		rules.RequiredStatusChecks = &model.RulesetStatusChecks{Enabled: new(false)}
+		return rules
+	}
+	withPullRequest := func(rules *model.RulesetRules) *model.RulesetRules {
+		complete := booleanRules()
+		complete.PullRequest = rules.PullRequest
+		complete.RequiredStatusChecks = rules.RequiredStatusChecks
+		return complete
 	}
 	// complete wraps rules with the other required fields present.
 	complete := func(rules *model.RulesetRules) *model.RulesetSettings {
@@ -127,17 +140,19 @@ func TestValidateCompleteRuleset(t *testing.T) {
 		{name: "missing include", section: &model.RulesetSettings{Enforcement: new("active"), BypassActors: &[]model.RulesetBypassActor{}, Conditions: refName(nil, &[]string{}), Rules: disabledRules()}, wantErr: "ruleset requires conditions.ref_name.include"},
 		{name: "missing exclude", section: &model.RulesetSettings{Enforcement: new("active"), BypassActors: &[]model.RulesetBypassActor{}, Conditions: refName(&[]string{"~ALL"}, nil), Rules: disabledRules()}, wantErr: "ruleset requires conditions.ref_name.exclude"},
 		{name: "missing rules", section: complete(nil), wantErr: "ruleset requires rules"},
-		{name: "missing pull request", section: complete(&model.RulesetRules{}), wantErr: "ruleset.rules.pull_request requires enabled"},
-		{name: "pull request enabled without parameters", section: complete(pullRequestRule(nil)), wantErr: "ruleset.rules.pull_request requires every parameter when enabled: allowed_merge_methods, dismiss_stale_reviews_on_push"},
-		{name: "pull request missing one parameter", section: complete(pullRequestRule(&model.RulesetPullRequestParameters{
+		{name: "missing boolean rule", section: complete(&model.RulesetRules{}), wantErr: "ruleset.rules requires creation"},
+		{name: "missing one boolean rule", section: complete(&model.RulesetRules{Creation: new(false), Update: new(false), Deletion: new(true), RequiredLinearHistory: new(false), RequiredSignatures: new(false)}), wantErr: "ruleset.rules requires non_fast_forward"},
+		{name: "missing pull request", section: complete(booleanRules()), wantErr: "ruleset.rules.pull_request requires enabled"},
+		{name: "pull request enabled without parameters", section: complete(withPullRequest(pullRequestRule(nil))), wantErr: "ruleset.rules.pull_request requires every parameter when enabled: allowed_merge_methods, dismiss_stale_reviews_on_push"},
+		{name: "pull request missing one parameter", section: complete(withPullRequest(pullRequestRule(&model.RulesetPullRequestParameters{
 			RequiredApprovingReviewCount: new(1), DismissStaleReviewsOnPush: new(true), RequireCodeOwnerReview: new(false),
 			RequireLastPushApproval: new(false), RequiredReviewThreadResolution: new(true), AllowedMergeMethods: &[]string{"squash"},
-		})), wantErr: "ruleset.rules.pull_request requires every parameter when enabled"},
-		{name: "missing status checks", section: complete(&model.RulesetRules{PullRequest: &model.RulesetPullRequest{Enabled: new(false)}}), wantErr: "ruleset.rules.required_status_checks requires enabled"},
-		{name: "status checks enabled without parameters", section: complete(&model.RulesetRules{
+		}))), wantErr: "ruleset.rules.pull_request requires every parameter when enabled"},
+		{name: "missing status checks", section: complete(withPullRequest(&model.RulesetRules{PullRequest: &model.RulesetPullRequest{Enabled: new(false)}})), wantErr: "ruleset.rules.required_status_checks requires enabled"},
+		{name: "status checks enabled without parameters", section: complete(withPullRequest(&model.RulesetRules{
 			PullRequest:          &model.RulesetPullRequest{Enabled: new(false)},
 			RequiredStatusChecks: &model.RulesetStatusChecks{Enabled: new(true), Parameters: &model.RulesetStatusChecksParameters{StrictRequiredStatusChecksPolicy: new(false)}},
-		}), wantErr: "ruleset.rules.required_status_checks requires every parameter when enabled: do_not_enforce_on_create, required_status_checks, strict_required_status_checks_policy"},
+		})), wantErr: "ruleset.rules.required_status_checks requires every parameter when enabled: do_not_enforce_on_create, required_status_checks, strict_required_status_checks_policy"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
