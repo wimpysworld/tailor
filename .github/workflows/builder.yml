@@ -129,9 +129,7 @@ jobs:
     name: Snapshot 📦
     needs: [sentinel]
     if: >-
-      always()
-      && needs.sentinel.result == 'success'
-      && github.repository_owner == 'wimpysworld'
+      github.repository_owner == 'wimpysworld'
       && github.event_name != 'schedule'
       && (github.ref == 'refs/heads/main' || github.event_name == 'pull_request')
     runs-on: ubuntu-latest
@@ -164,9 +162,7 @@ jobs:
     name: Release 📦
     needs: [sentinel]
     if: >-
-      always()
-      && needs.sentinel.result == 'success'
-      && github.repository_owner == 'wimpysworld'
+      github.repository_owner == 'wimpysworld'
       && startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     permissions:
