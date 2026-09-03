@@ -11,8 +11,8 @@ import (
 // It fits the longest label, "not-configured:", plus one trailing space.
 const labelWidth = 16
 
-// AdvisoryMessage is printed when no .tailor.yml is found.
-const AdvisoryMessage = "No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks."
+// advisoryMessage is printed when no .tailor.yml is found.
+const advisoryMessage = "No .tailor.yml found. Run `tailor fit <path>` to initialise, or create `.tailor.yml` manually to enable configuration alignment checks."
 
 // FormatOutput produces the measure command output: health results first,
 // then diff results. When hasConfig is false, the advisory message is
@@ -30,7 +30,7 @@ func FormatOutput(health []HealthResult, diff []DiffResult, hasConfig bool) stri
 
 	if !hasConfig {
 		b.WriteString("\n")
-		b.WriteString(AdvisoryMessage)
+		b.WriteString(advisoryMessage)
 		b.WriteString("\n")
 	}
 

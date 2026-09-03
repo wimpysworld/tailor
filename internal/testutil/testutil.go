@@ -10,13 +10,13 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 )
 
-// TestTransport redirects all requests to the test server, preserving the
+// testTransport redirects all requests to the test server, preserving the
 // original request path so the test handler can route by path.
-type TestTransport struct {
+type testTransport struct {
 	Server *httptest.Server
 }
 
-func (t *TestTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+func (t *testTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
 	clone.URL.Scheme = "http"
 	clone.URL.Host = t.Server.Listener.Addr().String()
@@ -30,7 +30,7 @@ func NewTestClient(t *testing.T, server *httptest.Server) *api.RESTClient {
 	client, err := api.NewRESTClient(api.ClientOptions{
 		Host:      "github.com",
 		AuthToken: "test-token",
-		Transport: &TestTransport{Server: server},
+		Transport: &testTransport{Server: server},
 	})
 	if err != nil {
 		t.Fatalf("NewRESTClient: %v", err)
