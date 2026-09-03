@@ -320,15 +320,22 @@ func codeScanningFromJSON(raw json.RawMessage) *model.RulesetCodeScanning {
 // rulesetBody builds the complete request body for a ruleset write. Every
 // managed field is sent; nothing else is.
 func rulesetBody(desired *model.RulesetSettings) map[string]any {
+	refName := map[string]any{"include": []string{}, "exclude": []string{}}
+	if desired.Conditions != nil && desired.Conditions.RefName != nil {
+		if desired.Conditions.RefName.Include != nil {
+			refName["include"] = *desired.Conditions.RefName.Include
+		}
+		if desired.Conditions.RefName.Exclude != nil {
+			refName["exclude"] = *desired.Conditions.RefName.Exclude
+		}
+	}
 	body := map[string]any{
 		"name":          model.RulesetName,
 		"target":        model.RulesetTarget,
 		"enforcement":   "",
 		"bypass_actors": []any{},
-		"conditions": map[string]any{
-			"ref_name": map[string]any{"include": []string{}, "exclude": []string{}},
-		},
-		"rules": []any{},
+		"conditions":    map[string]any{"ref_name": refName},
+		"rules":         []any{},
 	}
 	if desired.Enforcement != nil {
 		body["enforcement"] = *desired.Enforcement
@@ -349,15 +356,6 @@ func rulesetBody(desired *model.RulesetSettings) map[string]any {
 			actors = append(actors, entry)
 		}
 		body["bypass_actors"] = actors
-	}
-	if desired.Conditions != nil && desired.Conditions.RefName != nil {
-		refName := body["conditions"].(map[string]any)["ref_name"].(map[string]any)
-		if desired.Conditions.RefName.Include != nil {
-			refName["include"] = *desired.Conditions.RefName.Include
-		}
-		if desired.Conditions.RefName.Exclude != nil {
-			refName["exclude"] = *desired.Conditions.RefName.Exclude
-		}
 	}
 	if desired.Rules != nil {
 		body["rules"] = rulesToList(desired.Rules)
