@@ -59,15 +59,8 @@ swatches: []
 
 func TestActionsOmittedWhenAbsent(t *testing.T) {
 	cfg := &Config{License: "none", Swatches: []SwatchEntry{}}
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-08-24", "Refitted"); err != nil {
-		t.Fatal(err)
-	}
-	written, err := os.ReadFile(filepath.Join(dir, ConfigSwatchPath))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(written), "actions:") {
+	written := writeConfig(t, cfg, "2026-08-24", "Refitted")
+	if strings.Contains(written, "actions:") {
 		t.Fatalf("config contains actions section:\n%s", written)
 	}
 }
@@ -341,15 +334,8 @@ func TestWriteActionsEmptyPatterns(t *testing.T) {
 		AllowedActions:  new("selected"),
 		PatternsAllowed: &[]string{},
 	}}
-	dir := t.TempDir()
-	if err := Write(dir, cfg, "2026-08-24", "Refitted"); err != nil {
-		t.Fatal(err)
-	}
-	written, err := os.ReadFile(filepath.Join(dir, ConfigSwatchPath))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(written), "  patterns_allowed: []\n") {
+	written := writeConfig(t, cfg, "2026-08-24", "Refitted")
+	if !strings.Contains(written, "  patterns_allowed: []\n") {
 		t.Fatalf("config does not contain explicit empty patterns list:\n%s", written)
 	}
 }

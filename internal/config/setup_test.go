@@ -1,8 +1,6 @@
 package config
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -299,15 +297,7 @@ func TestWriteSetupSections(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dir := t.TempDir()
-			if err := Write(dir, tt.cfg, "2026-03-02", "Refitted"); err != nil {
-				t.Fatalf("Write() error: %v", err)
-			}
-			data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			content := string(data)
+			content := writeConfig(t, tt.cfg, "2026-03-02", "Refitted")
 			for _, want := range tt.want {
 				if !strings.Contains(content, want) {
 					t.Errorf("config missing %q:\n%s", want, content)
