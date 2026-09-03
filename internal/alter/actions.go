@@ -200,14 +200,7 @@ func suppressActionsReadWarnings(results []RepoSettingResult, warnings []error, 
 			}
 		}
 		for _, field := range fields {
-			index := slices.IndexFunc(results, func(result RepoSettingResult) bool {
-				return result.Field == field
-			})
-			if index == -1 {
-				continue
-			}
-			results = slices.Delete(results, index, index+1)
-			results = append(results, RepoSettingResult{Section: "actions", Field: field, Category: WouldSkipScope, Annotation: skipAnnotation})
+			results = replaceWithScopeSkip(results, "actions", field)
 		}
 	}
 	return results

@@ -50,10 +50,6 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 		return nil, err
 	}
 
-	// Convert read-path warnings into skip results and collect the affected
-	// field names so the corresponding WouldSet entries can be suppressed.
-	skipResults, skippedFields := readWarningsToResults(warnings, cfg.Repository, live)
-
 	if cfg.Repository.AutomatedSecurityFixesEnabled != nil &&
 		*cfg.Repository.AutomatedSecurityFixesEnabled &&
 		(cfg.Repository.VulnerabilityAlertsEnabled == nil || !*cfg.Repository.VulnerabilityAlertsEnabled) &&
@@ -62,22 +58,7 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 		fmt.Fprintln(target.stderr(), "warning: automated_security_fixes_enabled is true but vulnerability alerts are disabled on GitHub; enable vulnerability_alerts_enabled first")
 	}
 
-	results := compareSettings(cfg.Repository, live)
-
-	// Remove false-positive WouldSet entries for fields whose live value is
-	// nil only because the read returned a 403.
-	if len(skippedFields) > 0 {
-		filtered := results[:0]
-		for _, r := range results {
-			if skippedFields[r.Field] {
-				continue
-			}
-			filtered = append(filtered, r)
-		}
-		results = filtered
-	}
-
-	results = append(results, skipResults...)
+	results := readWarningsToResults(compareSettings(cfg.Repository, live), warnings, cfg.Repository, live)
 
 	if mode.ShouldWrite() && hasChanges(results) {
 		applyResult, err := gh.ApplyRepoSettings(target.Client, target.Owner, target.Name, settingsForApply(cfg.Repository, results), live)
@@ -197,22 +178,12 @@ var readWarningOperationFields = map[gh.OperationKind][]string{
 	gh.OpFetchSecurityAnalysis:              {"secret_scanning", "secret_scanning_push_protection", "secret_scanning_non_provider_patterns"},
 }
 
-// readWarningsToResults converts read-path access-error warnings into
-// RepoSettingResult entries with the appropriate skip category. Only fields
-// that the user declared in their config produce results. Undeclared fields
-// are silently ignored. It also returns a set of field names that should be
-// suppressed from compareSettings output (because their nil live value is due
-// to a 403, not a real diff).
-func readWarningsToResults(warnings []error, declared, live *model.RepositorySettings) ([]RepoSettingResult, map[string]bool) {
-	if len(warnings) == 0 {
-		return nil, nil
-	}
-
-	declaredFields := declaredFieldNames(declared)
-
-	var results []RepoSettingResult
-	skippedFields := make(map[string]bool)
-
+// readWarningsToResults replaces the compare result of each field affected by
+// a read-path access-error warning with a WouldSkipScope result. A field whose
+// live value is nil only because the read returned a 403 is not a real diff.
+// Only fields that the user declared in their config have a compare result, so
+// undeclared fields are silently ignored.
+func readWarningsToResults(results []RepoSettingResult, warnings []error, declared, live *model.RepositorySettings) []RepoSettingResult {
 	for _, w := range warnings {
 		op := warningOperation(w)
 		fields, ok := readWarningOperationFields[op]
@@ -221,18 +192,7 @@ func readWarningsToResults(warnings []error, declared, live *model.RepositorySet
 		}
 
 		for _, f := range fields {
-			if !declaredFields[f] {
-				continue
-			}
-			if skippedFields[f] {
-				continue
-			}
-			skippedFields[f] = true
-			results = append(results, RepoSettingResult{
-				Field:      f,
-				Category:   WouldSkipScope,
-				Annotation: skipAnnotation,
-			})
+			results = replaceWithScopeSkip(results, "", f)
 		}
 
 		dependent := ""
@@ -244,32 +204,12 @@ func readWarningsToResults(warnings []error, declared, live *model.RepositorySet
 			live.VulnerabilityAlertsEnabled != nil && *live.VulnerabilityAlertsEnabled:
 			dependent = "vulnerability_alerts_enabled"
 		}
-		if dependent != "" && !skippedFields[dependent] {
-			skippedFields[dependent] = true
-			results = append(results, RepoSettingResult{
-				Field:      dependent,
-				Category:   WouldSkipScope,
-				Annotation: skipAnnotation,
-			})
+		if dependent != "" {
+			results = replaceWithScopeSkip(results, "", dependent)
 		}
 	}
 
-	return results, skippedFields
-}
-
-// declaredFieldNames returns the set of YAML field names that have non-nil
-// values in the given RepositorySettings.
-func declaredFieldNames(s *model.RepositorySettings) map[string]bool {
-	if s == nil {
-		return nil
-	}
-	names := make(map[string]bool)
-	for _, field := range model.RepositorySettingFields(s) {
-		if field.Set {
-			names[field.YAMLKey] = true
-		}
-	}
-	return names
+	return results
 }
 
 // warningOperation extracts the operation kind from a read-path warning.
