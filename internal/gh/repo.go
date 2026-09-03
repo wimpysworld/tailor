@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 
 	"github.com/cli/go-gh/v2/pkg/auth"
@@ -141,12 +142,7 @@ func resolvedRepository(dir string, remotes map[string]repository.Repository, ac
 }
 
 func isKnownHost(host string, knownHosts []string) bool {
-	for _, knownHost := range knownHosts {
-		if strings.EqualFold(host, knownHost) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(knownHosts, func(knownHost string) bool { return strings.EqualFold(host, knownHost) })
 }
 
 // remotePriority ranks origin above upstream: tailor manages the repository
