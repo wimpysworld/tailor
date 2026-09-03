@@ -119,7 +119,7 @@ func TestReadTailorRuleset(t *testing.T) {
 			if stub.ReadQuery != "includes_parents=false" {
 				t.Errorf("read query = %q, want parents excluded", stub.ReadQuery)
 			}
-			testutil.AssertPtr(t, live.Enforcement, false, "disabled", "enforcement")
+			testutil.AssertPtrEqual(t, live.Enforcement, new("disabled"), "enforcement")
 			wantActors := []model.RulesetBypassActor{
 				{ActorID: new(5), ActorType: new("RepositoryRole"), BypassMode: new("always")},
 				{ActorType: new("DeployKey"), BypassMode: new("exempt")},
@@ -131,29 +131,29 @@ func TestReadTailorRuleset(t *testing.T) {
 				t.Errorf("conditions = %+v", *live.Conditions.RefName)
 			}
 			rules := live.Rules
-			testutil.AssertPtr(t, rules.Creation, false, false, "rules.creation")
-			testutil.AssertPtr(t, rules.Deletion, false, true, "rules.deletion")
-			testutil.AssertPtr(t, rules.NonFastForward, false, true, "rules.non_fast_forward")
-			testutil.AssertPtr(t, rules.PullRequest.Enabled, false, true, "rules.pull_request.enabled")
+			testutil.AssertPtrEqual(t, rules.Creation, new(false), "rules.creation")
+			testutil.AssertPtrEqual(t, rules.Deletion, new(true), "rules.deletion")
+			testutil.AssertPtrEqual(t, rules.NonFastForward, new(true), "rules.non_fast_forward")
+			testutil.AssertPtrEqual(t, rules.PullRequest.Enabled, new(true), "rules.pull_request.enabled")
 			p := rules.PullRequest.Parameters
-			testutil.AssertPtr(t, p.RequiredApprovingReviewCount, false, 1, "required_approving_review_count")
-			testutil.AssertPtr(t, p.DismissStaleReviewsOnPush, false, true, "dismiss_stale_reviews_on_push")
-			testutil.AssertPtr(t, p.RequireCodeOwnerReview, false, false, "require_code_owner_review")
-			testutil.AssertPtr(t, p.RequireLastPushApproval, false, false, "require_last_push_approval")
-			testutil.AssertPtr(t, p.RequiredReviewThreadResolution, false, true, "required_review_thread_resolution")
-			testutil.AssertPtr(t, p.RequireExtraApprovalForUnattributedChanges, false, true, "require_extra_approval_for_unattributed_changes")
+			testutil.AssertPtrEqual(t, p.RequiredApprovingReviewCount, new(1), "required_approving_review_count")
+			testutil.AssertPtrEqual(t, p.DismissStaleReviewsOnPush, new(true), "dismiss_stale_reviews_on_push")
+			testutil.AssertPtrEqual(t, p.RequireCodeOwnerReview, new(false), "require_code_owner_review")
+			testutil.AssertPtrEqual(t, p.RequireLastPushApproval, new(false), "require_last_push_approval")
+			testutil.AssertPtrEqual(t, p.RequiredReviewThreadResolution, new(true), "required_review_thread_resolution")
+			testutil.AssertPtrEqual(t, p.RequireExtraApprovalForUnattributedChanges, new(true), "require_extra_approval_for_unattributed_changes")
 			if !reflect.DeepEqual(*p.AllowedMergeMethods, []string{"squash", "rebase"}) {
 				t.Errorf("allowed_merge_methods = %v", *p.AllowedMergeMethods)
 			}
-			testutil.AssertPtr(t, rules.RequiredStatusChecks.Enabled, false, true, "rules.required_status_checks.enabled")
+			testutil.AssertPtrEqual(t, rules.RequiredStatusChecks.Enabled, new(true), "rules.required_status_checks.enabled")
 			checks := rules.RequiredStatusChecks.Parameters
-			testutil.AssertPtr(t, checks.StrictRequiredStatusChecksPolicy, false, true, "strict_required_status_checks_policy")
-			testutil.AssertPtr(t, checks.DoNotEnforceOnCreate, false, false, "do_not_enforce_on_create")
+			testutil.AssertPtrEqual(t, checks.StrictRequiredStatusChecksPolicy, new(true), "strict_required_status_checks_policy")
+			testutil.AssertPtrEqual(t, checks.DoNotEnforceOnCreate, new(false), "do_not_enforce_on_create")
 			wantChecks := []model.RulesetStatusCheck{{Context: "Sentinel 👁️"}, {Context: "lint", IntegrationID: new(15368)}}
 			if !reflect.DeepEqual(*checks.RequiredStatusChecks, wantChecks) {
 				t.Errorf("required_status_checks = %+v, want %+v", *checks.RequiredStatusChecks, wantChecks)
 			}
-			testutil.AssertPtr(t, rules.CodeScanning.Enabled, false, true, "rules.code_scanning.enabled")
+			testutil.AssertPtrEqual(t, rules.CodeScanning.Enabled, new(true), "rules.code_scanning.enabled")
 			wantTools := []model.RulesetCodeScanningTool{{Tool: "CodeQL", AlertsThreshold: "errors", SecurityAlertsThreshold: "high_or_higher"}}
 			if !reflect.DeepEqual(*rules.CodeScanning.Parameters.CodeScanningTools, wantTools) {
 				t.Errorf("code_scanning_tools = %+v, want %+v", *rules.CodeScanning.Parameters.CodeScanningTools, wantTools)
@@ -180,7 +180,7 @@ func TestReadTailorRulesetAbsentRulesAreDisabled(t *testing.T) {
 		"required_status_checks":  live.Rules.RequiredStatusChecks.Enabled,
 		"code_scanning":           live.Rules.CodeScanning.Enabled,
 	} {
-		testutil.AssertPtr(t, value, false, false, name)
+		testutil.AssertPtrEqual(t, value, new(false), name)
 	}
 	if live.Rules.PullRequest.Parameters != nil || live.Rules.RequiredStatusChecks.Parameters != nil || live.Rules.CodeScanning.Parameters != nil {
 		t.Error("absent rules carry parameters")
@@ -198,7 +198,7 @@ func TestCodeScanningFromJSONWithoutParameters(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			rule := codeScanningFromJSON(raw)
-			testutil.AssertPtr(t, rule.Enabled, false, true, "enabled")
+			testutil.AssertPtrEqual(t, rule.Enabled, new(true), "enabled")
 			if rule.Parameters != nil {
 				t.Errorf("parameters = %+v, want nil", rule.Parameters)
 			}

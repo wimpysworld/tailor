@@ -76,25 +76,6 @@ func WriteConfig(t *testing.T, dir, content string) {
 	WriteFile(t, dir, ".tailor.yml", content)
 }
 
-// AssertPtr checks a pointer field. When wantNil is true, it expects got to
-// be nil. Otherwise it expects got to be non-nil with value wantVal.
-func AssertPtr[T comparable](t *testing.T, got *T, wantNil bool, wantVal T, field string) {
-	t.Helper()
-	if wantNil {
-		if got != nil {
-			t.Errorf("%s = %#v, want nil", field, *got)
-		}
-		return
-	}
-	if got == nil {
-		t.Errorf("%s is nil, want %#v", field, wantVal)
-		return
-	}
-	if *got != wantVal {
-		t.Errorf("%s = %#v, want %#v", field, *got, wantVal)
-	}
-}
-
 // AssertPtrEqual checks a pointer field against a pointer expectation. When
 // want is nil, it expects got to be nil. Otherwise it expects got to be
 // non-nil with the value that want points to.

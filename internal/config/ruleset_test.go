@@ -274,33 +274,33 @@ func TestLoadRejectsInvalidRuleset(t *testing.T) {
 
 func TestDefaultConfigRuleset(t *testing.T) {
 	r := defaultConfig(t).Ruleset
-	testutil.AssertPtr(t, r.Enforcement, false, "active", "enforcement")
+	testutil.AssertPtrEqual(t, r.Enforcement, new("active"), "enforcement")
 	if r.BypassActors == nil || len(*r.BypassActors) != 1 {
 		t.Fatalf("bypass_actors = %v, want one actor", r.BypassActors)
 	}
 	a := (*r.BypassActors)[0]
-	testutil.AssertPtr(t, a.ActorID, false, 5, "actor_id")
-	testutil.AssertPtr(t, a.ActorType, false, "RepositoryRole", "actor_type")
-	testutil.AssertPtr(t, a.BypassMode, false, "always", "bypass_mode")
+	testutil.AssertPtrEqual(t, a.ActorID, new(5), "actor_id")
+	testutil.AssertPtrEqual(t, a.ActorType, new("RepositoryRole"), "actor_type")
+	testutil.AssertPtrEqual(t, a.BypassMode, new("always"), "bypass_mode")
 	if r.Conditions == nil || r.Conditions.RefName == nil || r.Conditions.RefName.Include == nil || !reflect.DeepEqual(*r.Conditions.RefName.Include, []string{"~DEFAULT_BRANCH"}) {
 		t.Errorf("include = %v, want [~DEFAULT_BRANCH]", r.Conditions)
 	}
 	if r.Conditions.RefName.Exclude == nil || len(*r.Conditions.RefName.Exclude) != 0 {
 		t.Errorf("exclude = %v, want empty list", r.Conditions.RefName.Exclude)
 	}
-	testutil.AssertPtr(t, r.Rules.Deletion, false, true, "rules.deletion")
-	testutil.AssertPtr(t, r.Rules.NonFastForward, false, true, "rules.non_fast_forward")
-	testutil.AssertPtr(t, r.Rules.Creation, false, false, "rules.creation")
-	testutil.AssertPtr(t, r.Rules.PullRequest.Enabled, false, true, "rules.pull_request.enabled")
-	testutil.AssertPtr(t, r.Rules.PullRequest.Parameters.RequiredApprovingReviewCount, false, 1, "required_approving_review_count")
+	testutil.AssertPtrEqual(t, r.Rules.Deletion, new(true), "rules.deletion")
+	testutil.AssertPtrEqual(t, r.Rules.NonFastForward, new(true), "rules.non_fast_forward")
+	testutil.AssertPtrEqual(t, r.Rules.Creation, new(false), "rules.creation")
+	testutil.AssertPtrEqual(t, r.Rules.PullRequest.Enabled, new(true), "rules.pull_request.enabled")
+	testutil.AssertPtrEqual(t, r.Rules.PullRequest.Parameters.RequiredApprovingReviewCount, new(1), "required_approving_review_count")
 	if !reflect.DeepEqual(*r.Rules.PullRequest.Parameters.AllowedMergeMethods, []string{"squash", "rebase"}) {
 		t.Errorf("allowed_merge_methods = %v, want [squash rebase]", *r.Rules.PullRequest.Parameters.AllowedMergeMethods)
 	}
-	testutil.AssertPtr(t, r.Rules.RequiredStatusChecks.Enabled, false, false, "rules.required_status_checks.enabled")
+	testutil.AssertPtrEqual(t, r.Rules.RequiredStatusChecks.Enabled, new(false), "rules.required_status_checks.enabled")
 	if r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks == nil || len(*r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks) != 0 {
 		t.Errorf("required_status_checks = %v, want empty list", r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks)
 	}
-	testutil.AssertPtr(t, r.Rules.CodeScanning.Enabled, false, false, "rules.code_scanning.enabled")
+	testutil.AssertPtrEqual(t, r.Rules.CodeScanning.Enabled, new(false), "rules.code_scanning.enabled")
 	if !reflect.DeepEqual(*r.Rules.CodeScanning.Parameters.CodeScanningTools, []model.RulesetCodeScanningTool{codeQLTool()}) {
 		t.Errorf("code_scanning_tools = %v, want [CodeQL errors high_or_higher]", *r.Rules.CodeScanning.Parameters.CodeScanningTools)
 	}
@@ -351,7 +351,7 @@ func TestMergeDefaultsFillsRulesetFields(t *testing.T) {
 		t.Fatalf("MergeDefaults() error: %v", err)
 	}
 	r := cfg.Ruleset
-	testutil.AssertPtr(t, r.Enforcement, false, "disabled", "enforcement")
+	testutil.AssertPtrEqual(t, r.Enforcement, new("disabled"), "enforcement")
 	if len(*r.BypassActors) != 0 {
 		t.Errorf("bypass_actors = %v, want the explicit empty list", *r.BypassActors)
 	}
@@ -361,16 +361,16 @@ func TestMergeDefaultsFillsRulesetFields(t *testing.T) {
 	if r.Conditions.RefName.Exclude == nil || len(*r.Conditions.RefName.Exclude) != 0 {
 		t.Errorf("exclude = %v, want the default empty list", r.Conditions.RefName.Exclude)
 	}
-	testutil.AssertPtr(t, r.Rules.Deletion, false, false, "rules.deletion")
-	testutil.AssertPtr(t, r.Rules.NonFastForward, false, true, "rules.non_fast_forward")
-	testutil.AssertPtr(t, r.Rules.PullRequest.Enabled, false, false, "rules.pull_request.enabled")
-	testutil.AssertPtr(t, r.Rules.PullRequest.Parameters.RequiredApprovingReviewCount, false, 1, "required_approving_review_count")
-	testutil.AssertPtr(t, r.Rules.RequiredStatusChecks.Enabled, false, true, "rules.required_status_checks.enabled")
-	testutil.AssertPtr(t, r.Rules.RequiredStatusChecks.Parameters.StrictRequiredStatusChecksPolicy, false, false, "strict_required_status_checks_policy")
+	testutil.AssertPtrEqual(t, r.Rules.Deletion, new(false), "rules.deletion")
+	testutil.AssertPtrEqual(t, r.Rules.NonFastForward, new(true), "rules.non_fast_forward")
+	testutil.AssertPtrEqual(t, r.Rules.PullRequest.Enabled, new(false), "rules.pull_request.enabled")
+	testutil.AssertPtrEqual(t, r.Rules.PullRequest.Parameters.RequiredApprovingReviewCount, new(1), "required_approving_review_count")
+	testutil.AssertPtrEqual(t, r.Rules.RequiredStatusChecks.Enabled, new(true), "rules.required_status_checks.enabled")
+	testutil.AssertPtrEqual(t, r.Rules.RequiredStatusChecks.Parameters.StrictRequiredStatusChecksPolicy, new(false), "strict_required_status_checks_policy")
 	if !reflect.DeepEqual(*r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks, []model.RulesetStatusCheck{{Context: "lint"}}) {
 		t.Errorf("required_status_checks = %v, want the explicit list", *r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks)
 	}
-	testutil.AssertPtr(t, r.Rules.CodeScanning.Enabled, false, false, "rules.code_scanning.enabled")
+	testutil.AssertPtrEqual(t, r.Rules.CodeScanning.Enabled, new(false), "rules.code_scanning.enabled")
 	if !reflect.DeepEqual(*r.Rules.CodeScanning.Parameters.CodeScanningTools, []model.RulesetCodeScanningTool{codeQLTool()}) {
 		t.Errorf("code_scanning_tools = %v, want the default list", *r.Rules.CodeScanning.Parameters.CodeScanningTools)
 	}
@@ -415,26 +415,26 @@ func TestMergeRulesetSetup(t *testing.T) {
 	}
 	MergeRulesetSetup(cfg, live)
 	r := cfg.Ruleset
-	testutil.AssertPtr(t, r.Enforcement, false, "disabled", "enforcement")
+	testutil.AssertPtrEqual(t, r.Enforcement, new("disabled"), "enforcement")
 	if len(*r.BypassActors) != 0 {
 		t.Errorf("bypass_actors = %v, want the live empty list", *r.BypassActors)
 	}
 	if !reflect.DeepEqual(*r.Conditions.RefName.Exclude, []string{"refs/heads/wip/*"}) {
 		t.Errorf("exclude = %v, want the live list", *r.Conditions.RefName.Exclude)
 	}
-	testutil.AssertPtr(t, r.Rules.Creation, false, true, "rules.creation")
-	testutil.AssertPtr(t, r.Rules.Deletion, false, false, "rules.deletion")
-	testutil.AssertPtr(t, r.Rules.NonFastForward, false, true, "rules.non_fast_forward")
-	testutil.AssertPtr(t, r.Rules.PullRequest.Enabled, false, false, "rules.pull_request.enabled")
+	testutil.AssertPtrEqual(t, r.Rules.Creation, new(true), "rules.creation")
+	testutil.AssertPtrEqual(t, r.Rules.Deletion, new(false), "rules.deletion")
+	testutil.AssertPtrEqual(t, r.Rules.NonFastForward, new(true), "rules.non_fast_forward")
+	testutil.AssertPtrEqual(t, r.Rules.PullRequest.Enabled, new(false), "rules.pull_request.enabled")
 	// The live ruleset carries no pull request rule, so the built-in
 	// parameters stay in the config for the day the rule is enabled.
-	testutil.AssertPtr(t, r.Rules.PullRequest.Parameters.RequiredApprovingReviewCount, false, 1, "required_approving_review_count")
-	testutil.AssertPtr(t, r.Rules.RequiredStatusChecks.Enabled, false, true, "rules.required_status_checks.enabled")
-	testutil.AssertPtr(t, r.Rules.RequiredStatusChecks.Parameters.StrictRequiredStatusChecksPolicy, false, true, "strict_required_status_checks_policy")
+	testutil.AssertPtrEqual(t, r.Rules.PullRequest.Parameters.RequiredApprovingReviewCount, new(1), "required_approving_review_count")
+	testutil.AssertPtrEqual(t, r.Rules.RequiredStatusChecks.Enabled, new(true), "rules.required_status_checks.enabled")
+	testutil.AssertPtrEqual(t, r.Rules.RequiredStatusChecks.Parameters.StrictRequiredStatusChecksPolicy, new(true), "strict_required_status_checks_policy")
 	if !reflect.DeepEqual(*r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks, []model.RulesetStatusCheck{{Context: "lint", IntegrationID: new(15368)}}) {
 		t.Errorf("required_status_checks = %v, want the live list", *r.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks)
 	}
-	testutil.AssertPtr(t, r.Rules.CodeScanning.Enabled, false, true, "rules.code_scanning.enabled")
+	testutil.AssertPtrEqual(t, r.Rules.CodeScanning.Enabled, new(true), "rules.code_scanning.enabled")
 	wantTools := []model.RulesetCodeScanningTool{{Tool: "CodeQL", AlertsThreshold: "all", SecurityAlertsThreshold: "critical"}}
 	if !reflect.DeepEqual(*r.Rules.CodeScanning.Parameters.CodeScanningTools, wantTools) {
 		t.Errorf("code_scanning_tools = %v, want the live list", *r.Rules.CodeScanning.Parameters.CodeScanningTools)
@@ -448,7 +448,7 @@ func TestMergeRulesetSetupKeepsBuiltInCodeScanningTools(t *testing.T) {
 	// list stays in the config for the day the rule is enabled.
 	cfg := &Config{Ruleset: defaultConfig(t).Ruleset}
 	MergeRulesetSetup(cfg, &model.RulesetSettings{Rules: &model.RulesetRules{CodeScanning: &model.RulesetCodeScanning{Enabled: new(false)}}})
-	testutil.AssertPtr(t, cfg.Ruleset.Rules.CodeScanning.Enabled, false, false, "rules.code_scanning.enabled")
+	testutil.AssertPtrEqual(t, cfg.Ruleset.Rules.CodeScanning.Enabled, new(false), "rules.code_scanning.enabled")
 	if !reflect.DeepEqual(*cfg.Ruleset.Rules.CodeScanning.Parameters.CodeScanningTools, []model.RulesetCodeScanningTool{codeQLTool()}) {
 		t.Errorf("code_scanning_tools = %v, want the built-in list", *cfg.Ruleset.Rules.CodeScanning.Parameters.CodeScanningTools)
 	}
@@ -460,9 +460,9 @@ func TestMergeRulesetSetupSkipsUnmanagedEnforcement(t *testing.T) {
 	if !MergeRulesetSetup(cfg, live) {
 		t.Error("MergeRulesetSetup() = false, want true for an evaluate enforcement")
 	}
-	testutil.AssertPtr(t, cfg.Ruleset.Enforcement, false, "active", "enforcement")
-	testutil.AssertPtr(t, cfg.Ruleset.Rules.Creation, false, true, "rules.creation")
-	testutil.AssertPtr(t, live.Enforcement, false, "evaluate", "live enforcement")
+	testutil.AssertPtrEqual(t, cfg.Ruleset.Enforcement, new("active"), "enforcement")
+	testutil.AssertPtrEqual(t, cfg.Ruleset.Rules.Creation, new(true), "rules.creation")
+	testutil.AssertPtrEqual(t, live.Enforcement, new("evaluate"), "live enforcement")
 	if err := ValidateRuleset(cfg); err != nil {
 		t.Errorf("ValidateRuleset() error after merge: %v", err)
 	}
@@ -470,7 +470,7 @@ func TestMergeRulesetSetupSkipsUnmanagedEnforcement(t *testing.T) {
 	if MergeRulesetSetup(cfg, &model.RulesetSettings{Enforcement: new("disabled")}) {
 		t.Error("MergeRulesetSetup() = true, want false for a disabled enforcement")
 	}
-	testutil.AssertPtr(t, cfg.Ruleset.Enforcement, false, "disabled", "enforcement")
+	testutil.AssertPtrEqual(t, cfg.Ruleset.Enforcement, new("disabled"), "enforcement")
 }
 
 func TestWriteRulesetSection(t *testing.T) {

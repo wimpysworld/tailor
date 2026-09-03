@@ -173,19 +173,19 @@ func TestDefaultConfigSetupSections(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultConfig() error: %v", err)
 	}
-	testutil.AssertPtr(t, got.Repository.SecretScanning, false, "enabled", "secret_scanning")
-	testutil.AssertPtr(t, got.Repository.SecretScanningPushProtection, false, "enabled", "secret_scanning_push_protection")
-	testutil.AssertPtr(t, got.Repository.SecretScanningNonProviderPatterns, false, "enabled", "secret_scanning_non_provider_patterns")
+	testutil.AssertPtrEqual(t, got.Repository.SecretScanning, new("enabled"), "secret_scanning")
+	testutil.AssertPtrEqual(t, got.Repository.SecretScanningPushProtection, new("enabled"), "secret_scanning_push_protection")
+	testutil.AssertPtrEqual(t, got.Repository.SecretScanningNonProviderPatterns, new("enabled"), "secret_scanning_non_provider_patterns")
 	if got.CodeScanning == nil || got.CodeQuality == nil {
 		t.Fatal("default code_scanning or code_quality section is nil")
 	}
-	testutil.AssertPtr(t, got.CodeScanning.State, false, "configured", "code_scanning.state")
-	testutil.AssertPtr(t, got.CodeScanning.QuerySuite, false, "default", "code_scanning.query_suite")
-	testutil.AssertPtr(t, got.CodeScanning.ThreatModel, false, "remote", "code_scanning.threat_model")
+	testutil.AssertPtrEqual(t, got.CodeScanning.State, new("configured"), "code_scanning.state")
+	testutil.AssertPtrEqual(t, got.CodeScanning.QuerySuite, new("default"), "code_scanning.query_suite")
+	testutil.AssertPtrEqual(t, got.CodeScanning.ThreatModel, new("remote"), "code_scanning.threat_model")
 	if got.CodeScanning.Languages == nil || len(*got.CodeScanning.Languages) != 0 {
 		t.Errorf("code_scanning.languages = %v, want empty list", got.CodeScanning.Languages)
 	}
-	testutil.AssertPtr(t, got.CodeQuality.State, false, "not-configured", "code_quality.state")
+	testutil.AssertPtrEqual(t, got.CodeQuality.State, new("not-configured"), "code_quality.state")
 	if got.CodeQuality.Languages == nil || len(*got.CodeQuality.Languages) != 0 {
 		t.Errorf("code_quality.languages = %v, want empty list", got.CodeQuality.Languages)
 	}
@@ -200,19 +200,19 @@ func TestMergeDefaultsAddsSetupSections(t *testing.T) {
 	if !changed {
 		t.Fatal("expected changed=true for an empty config")
 	}
-	testutil.AssertPtr(t, cfg.Repository.SecretScanning, false, "enabled", "secret_scanning")
-	testutil.AssertPtr(t, cfg.Repository.SecretScanningPushProtection, false, "enabled", "secret_scanning_push_protection")
-	testutil.AssertPtr(t, cfg.Repository.SecretScanningNonProviderPatterns, false, "enabled", "secret_scanning_non_provider_patterns")
+	testutil.AssertPtrEqual(t, cfg.Repository.SecretScanning, new("enabled"), "secret_scanning")
+	testutil.AssertPtrEqual(t, cfg.Repository.SecretScanningPushProtection, new("enabled"), "secret_scanning_push_protection")
+	testutil.AssertPtrEqual(t, cfg.Repository.SecretScanningNonProviderPatterns, new("enabled"), "secret_scanning_non_provider_patterns")
 	if cfg.CodeScanning == nil || cfg.CodeQuality == nil {
 		t.Fatal("merged config is missing a setup section")
 	}
-	testutil.AssertPtr(t, cfg.CodeScanning.State, false, "configured", "code_scanning.state")
-	testutil.AssertPtr(t, cfg.CodeScanning.QuerySuite, false, "default", "code_scanning.query_suite")
-	testutil.AssertPtr(t, cfg.CodeScanning.ThreatModel, false, "remote", "code_scanning.threat_model")
+	testutil.AssertPtrEqual(t, cfg.CodeScanning.State, new("configured"), "code_scanning.state")
+	testutil.AssertPtrEqual(t, cfg.CodeScanning.QuerySuite, new("default"), "code_scanning.query_suite")
+	testutil.AssertPtrEqual(t, cfg.CodeScanning.ThreatModel, new("remote"), "code_scanning.threat_model")
 	if cfg.CodeScanning.Languages == nil || len(*cfg.CodeScanning.Languages) != 0 {
 		t.Errorf("code_scanning.languages = %v, want empty list", cfg.CodeScanning.Languages)
 	}
-	testutil.AssertPtr(t, cfg.CodeQuality.State, false, "not-configured", "code_quality.state")
+	testutil.AssertPtrEqual(t, cfg.CodeQuality.State, new("not-configured"), "code_quality.state")
 	if cfg.CodeQuality.Languages == nil || len(*cfg.CodeQuality.Languages) != 0 {
 		t.Errorf("code_quality.languages = %v, want empty list", cfg.CodeQuality.Languages)
 	}
@@ -227,12 +227,12 @@ func TestMergeDefaultsKeepsExistingSetupEntries(t *testing.T) {
 	if _, err := MergeDefaults(cfg); err != nil {
 		t.Fatalf("MergeDefaults() error: %v", err)
 	}
-	testutil.AssertPtr(t, cfg.CodeScanning.State, false, "not-configured", "code_scanning.state")
-	testutil.AssertPtr(t, cfg.CodeScanning.QuerySuite, false, "default", "code_scanning.query_suite")
+	testutil.AssertPtrEqual(t, cfg.CodeScanning.State, new("not-configured"), "code_scanning.state")
+	testutil.AssertPtrEqual(t, cfg.CodeScanning.QuerySuite, new("default"), "code_scanning.query_suite")
 	if cfg.CodeScanning.Languages == nil || len(*cfg.CodeScanning.Languages) != 1 {
 		t.Errorf("code_scanning.languages = %v, want [go]", cfg.CodeScanning.Languages)
 	}
-	testutil.AssertPtr(t, cfg.CodeQuality.State, false, "configured", "code_quality.state")
+	testutil.AssertPtrEqual(t, cfg.CodeQuality.State, new("configured"), "code_quality.state")
 	if cfg.CodeQuality.Languages == nil || len(*cfg.CodeQuality.Languages) != 0 {
 		t.Errorf("code_quality.languages = %v, want empty list", cfg.CodeQuality.Languages)
 	}
@@ -319,7 +319,7 @@ func TestWriteSetupSectionsRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() error: %v", err)
 	}
-	testutil.AssertPtr(t, loaded.CodeScanning.QuerySuite, false, "extended", "code_scanning.query_suite")
+	testutil.AssertPtrEqual(t, loaded.CodeScanning.QuerySuite, new("extended"), "code_scanning.query_suite")
 	if loaded.CodeScanning.Languages == nil || len(*loaded.CodeScanning.Languages) != 1 || (*loaded.CodeScanning.Languages)[0] != "go" {
 		t.Errorf("code_scanning.languages = %v, want [go]", loaded.CodeScanning.Languages)
 	}
@@ -336,13 +336,13 @@ func TestMergeSetupWritesEmptyLanguages(t *testing.T) {
 	})
 	MergeCodeQualitySetup(cfg, &model.CodeQualitySettings{State: new("configured"), Languages: &[]string{"go"}})
 
-	testutil.AssertPtr(t, cfg.CodeScanning.State, false, "configured", "code_scanning.state")
-	testutil.AssertPtr(t, cfg.CodeScanning.QuerySuite, false, "extended", "code_scanning.query_suite")
-	testutil.AssertPtr(t, cfg.CodeScanning.ThreatModel, false, "remote_and_local", "code_scanning.threat_model")
+	testutil.AssertPtrEqual(t, cfg.CodeScanning.State, new("configured"), "code_scanning.state")
+	testutil.AssertPtrEqual(t, cfg.CodeScanning.QuerySuite, new("extended"), "code_scanning.query_suite")
+	testutil.AssertPtrEqual(t, cfg.CodeScanning.ThreatModel, new("remote_and_local"), "code_scanning.threat_model")
 	if cfg.CodeScanning.Languages == nil || len(*cfg.CodeScanning.Languages) != 0 {
 		t.Errorf("code_scanning.languages = %v, want empty list", cfg.CodeScanning.Languages)
 	}
-	testutil.AssertPtr(t, cfg.CodeQuality.State, false, "configured", "code_quality.state")
+	testutil.AssertPtrEqual(t, cfg.CodeQuality.State, new("configured"), "code_quality.state")
 	if cfg.CodeQuality.Languages == nil || len(*cfg.CodeQuality.Languages) != 0 {
 		t.Errorf("code_quality.languages = %v, want empty list", cfg.CodeQuality.Languages)
 	}

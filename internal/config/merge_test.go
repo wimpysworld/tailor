@@ -313,9 +313,9 @@ func TestMergeRepoSettingsAddsSecurityDefaults(t *testing.T) {
 		t.Fatal("expected changed=true for missing security settings")
 	}
 
-	testutil.AssertPtr(t, cfg.Repository.PrivateVulnerabilityReportEnabled, false, true, "private_vulnerability_reporting_enabled")
-	testutil.AssertPtr(t, cfg.Repository.VulnerabilityAlertsEnabled, false, true, "vulnerability_alerts_enabled")
-	testutil.AssertPtr(t, cfg.Repository.AutomatedSecurityFixesEnabled, false, true, "automated_security_fixes_enabled")
+	testutil.AssertPtrEqual(t, cfg.Repository.PrivateVulnerabilityReportEnabled, new(true), "private_vulnerability_reporting_enabled")
+	testutil.AssertPtrEqual(t, cfg.Repository.VulnerabilityAlertsEnabled, new(true), "vulnerability_alerts_enabled")
+	testutil.AssertPtrEqual(t, cfg.Repository.AutomatedSecurityFixesEnabled, new(true), "automated_security_fixes_enabled")
 }
 
 func TestMergeRepoSettingsPreservesExplicitFalseSecuritySettings(t *testing.T) {
@@ -329,9 +329,9 @@ func TestMergeRepoSettingsPreservesExplicitFalseSecuritySettings(t *testing.T) {
 		t.Fatal("expected changed=true for other missing repository settings")
 	}
 
-	testutil.AssertPtr(t, cfg.Repository.PrivateVulnerabilityReportEnabled, false, false, "private_vulnerability_reporting_enabled")
-	testutil.AssertPtr(t, cfg.Repository.VulnerabilityAlertsEnabled, false, false, "vulnerability_alerts_enabled")
-	testutil.AssertPtr(t, cfg.Repository.AutomatedSecurityFixesEnabled, false, false, "automated_security_fixes_enabled")
+	testutil.AssertPtrEqual(t, cfg.Repository.PrivateVulnerabilityReportEnabled, new(false), "private_vulnerability_reporting_enabled")
+	testutil.AssertPtrEqual(t, cfg.Repository.VulnerabilityAlertsEnabled, new(false), "vulnerability_alerts_enabled")
+	testutil.AssertPtrEqual(t, cfg.Repository.AutomatedSecurityFixesEnabled, new(false), "automated_security_fixes_enabled")
 }
 
 func TestMergeRepoSettingsFullRepository(t *testing.T) {
@@ -383,11 +383,11 @@ func TestMergeActionsNilActions(t *testing.T) {
 	}
 
 	// The default policy is "selected", so selected-only fields merge too.
-	testutil.AssertPtr(t, cfg.Actions.Enabled, false, true, "enabled")
-	testutil.AssertPtr(t, cfg.Actions.AllowedActions, false, "selected", "allowed_actions")
-	testutil.AssertPtr(t, cfg.Actions.SHAPinningRequired, false, false, "sha_pinning_required")
-	testutil.AssertPtr(t, cfg.Actions.GitHubOwnedAllowed, false, true, "github_owned_allowed")
-	testutil.AssertPtr(t, cfg.Actions.VerifiedAllowed, false, true, "verified_allowed")
+	testutil.AssertPtrEqual(t, cfg.Actions.Enabled, new(true), "enabled")
+	testutil.AssertPtrEqual(t, cfg.Actions.AllowedActions, new("selected"), "allowed_actions")
+	testutil.AssertPtrEqual(t, cfg.Actions.SHAPinningRequired, new(false), "sha_pinning_required")
+	testutil.AssertPtrEqual(t, cfg.Actions.GitHubOwnedAllowed, new(true), "github_owned_allowed")
+	testutil.AssertPtrEqual(t, cfg.Actions.VerifiedAllowed, new(true), "verified_allowed")
 	if cfg.Actions.PatternsAllowed == nil || len(*cfg.Actions.PatternsAllowed) == 0 {
 		t.Error("patterns_allowed should be set from defaults")
 	}
@@ -401,10 +401,10 @@ func TestMergeActionsSkipsSelectedFieldsForOtherPolicies(t *testing.T) {
 		t.Fatal("expected changed=true for missing non-selected fields")
 	}
 
-	testutil.AssertPtr(t, cfg.Actions.Enabled, false, true, "enabled")
-	testutil.AssertPtr(t, cfg.Actions.AllowedActions, false, "all", "allowed_actions")
-	testutil.AssertPtr(t, cfg.Actions.GitHubOwnedAllowed, true, false, "github_owned_allowed")
-	testutil.AssertPtr(t, cfg.Actions.VerifiedAllowed, true, false, "verified_allowed")
+	testutil.AssertPtrEqual(t, cfg.Actions.Enabled, new(true), "enabled")
+	testutil.AssertPtrEqual(t, cfg.Actions.AllowedActions, new("all"), "allowed_actions")
+	testutil.AssertPtrEqual(t, cfg.Actions.GitHubOwnedAllowed, nil, "github_owned_allowed")
+	testutil.AssertPtrEqual(t, cfg.Actions.VerifiedAllowed, nil, "verified_allowed")
 	if cfg.Actions.PatternsAllowed != nil {
 		t.Error("patterns_allowed should remain nil for non-selected policy")
 	}

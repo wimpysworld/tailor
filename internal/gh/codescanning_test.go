@@ -61,9 +61,9 @@ func TestReadCodeScanningSetup(t *testing.T) {
 			if err != nil {
 				return
 			}
-			testutil.AssertPtr(t, got.State, false, "not-configured", "state")
-			testutil.AssertPtr(t, got.QuerySuite, false, "default", "query_suite")
-			testutil.AssertPtr(t, got.ThreatModel, false, "remote", "threat_model")
+			testutil.AssertPtrEqual(t, got.State, new("not-configured"), "state")
+			testutil.AssertPtrEqual(t, got.QuerySuite, new("default"), "query_suite")
+			testutil.AssertPtrEqual(t, got.ThreatModel, new("remote"), "threat_model")
 			if got.Languages == nil || len(*got.Languages) != 2 {
 				t.Fatalf("languages = %v, want [actions go]", got.Languages)
 			}
@@ -125,16 +125,16 @@ func TestReadSetupLeavesEmptyFieldsNil(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ReadCodeScanningSetup() error: %v", err)
 	}
-	testutil.AssertPtr(t, scanning.State, false, "not-configured", "state")
-	testutil.AssertPtr(t, scanning.QuerySuite, true, "", "query_suite")
-	testutil.AssertPtr(t, scanning.ThreatModel, true, "", "threat_model")
+	testutil.AssertPtrEqual(t, scanning.State, new("not-configured"), "state")
+	testutil.AssertPtrEqual(t, scanning.QuerySuite, nil, "query_suite")
+	testutil.AssertPtrEqual(t, scanning.ThreatModel, nil, "threat_model")
 
 	qualityServer := setupServer(t, "/repos/acme/widget/code-quality/setup", http.StatusOK, `{"languages":[]}`, nil)
 	quality, err := ReadCodeQualitySetup(testutil.NewTestClient(t, qualityServer), "acme", "widget")
 	if err != nil {
 		t.Fatalf("ReadCodeQualitySetup() error: %v", err)
 	}
-	testutil.AssertPtr(t, quality.State, true, "", "state")
+	testutil.AssertPtrEqual(t, quality.State, nil, "state")
 }
 
 func TestApplyCodeScanningSetupSendsNothingWhenEmpty(t *testing.T) {
