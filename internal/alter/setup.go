@@ -3,6 +3,7 @@ package alter
 import (
 	"errors"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/wimpysworld/tailor/internal/gh"
@@ -13,33 +14,77 @@ import (
 // run is in progress. Annotation carries the reason.
 const WouldSkipSetup RepoSettingCategory = "would skip"
 
-// setupStringResult compares one declared string field against its live
-// value. It reports false when the field is not declared.
-func setupStringResult(section, field string, declared, live *string) (RepoSettingResult, bool) {
-	if declared == nil {
-		return RepoSettingResult{}, false
-	}
-	category := WouldSet
-	if live != nil && *live == *declared {
-		category = RepoNoChange
-	}
-	return RepoSettingResult{Section: section, Field: field, Category: category, Value: *declared}, true
+// resultComparer collects one result per declared field of one config
+// section. A nil live value means the field is absent, so it would be set.
+type resultComparer struct {
+	section string
+	results []RepoSettingResult
 }
 
-// setupLanguagesResult compares a declared language list against the live
-// list as a set. An empty declared list means GitHub detects the languages,
-// so it produces no result.
-func setupLanguagesResult(section string, declared, live *[]string) (RepoSettingResult, bool) {
+func (c *resultComparer) add(field, value string, equal bool) {
+	category := WouldSet
+	if equal {
+		category = RepoNoChange
+	}
+	c.results = append(c.results, RepoSettingResult{Section: c.section, Field: field, Category: category, Value: value})
+}
+
+func (c *resultComparer) str(field string, declared, live *string) {
+	if declared != nil {
+		c.add(field, *declared, live != nil && *live == *declared)
+	}
+}
+
+func (c *resultComparer) boolean(field string, declared, live *bool) {
+	if declared != nil {
+		c.add(field, strconv.FormatBool(*declared), live != nil && *live == *declared)
+	}
+}
+
+func (c *resultComparer) enabled(field string, declared, live *bool) {
+	if declared != nil {
+		c.add(field, enabledText(*declared), live != nil && *live == *declared)
+	}
+}
+
+func (c *resultComparer) count(field string, declared, live *int) {
+	if declared != nil {
+		c.add(field, strconv.Itoa(*declared), live != nil && *live == *declared)
+	}
+}
+
+// set compares two lists as sets and renders the declared list joined by
+// ", ", or "(none)" when empty.
+func (c *resultComparer) set(field string, declared, live *[]string) {
+	if declared != nil {
+		c.add(field, listText(*declared), live != nil && equalStringSets(*declared, *live))
+	}
+}
+
+// languages compares a declared language list against the live list as a
+// set and renders the declared list sorted. An empty declared list means
+// GitHub detects the languages, so it produces no result.
+func (c *resultComparer) languages(declared, live *[]string) {
 	if declared == nil || len(*declared) == 0 {
-		return RepoSettingResult{}, false
+		return
 	}
 	desired := slices.Clone(*declared)
 	slices.Sort(desired)
-	category := WouldSet
-	if live != nil && equalStringSets(desired, *live) {
-		category = RepoNoChange
+	c.add("languages", strings.Join(desired, ", "), live != nil && equalStringSets(desired, *live))
+}
+
+func enabledText(enabled bool) string {
+	if enabled {
+		return "enabled"
 	}
-	return RepoSettingResult{Section: section, Field: "languages", Category: category, Value: strings.Join(desired, ", ")}, true
+	return "disabled"
+}
+
+func listText(values []string) string {
+	if len(values) == 0 {
+		return "(none)"
+	}
+	return strings.Join(values, ", ")
 }
 
 // skipResult returns the skip result for one field, keeping its section

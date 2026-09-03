@@ -29,19 +29,10 @@ func ProcessCodeScanning(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 }
 
 func compareCodeScanning(declared, live *model.CodeScanningSettings) []RepoSettingResult {
-	const section = "code_scanning"
-	var results []RepoSettingResult
-	if result, ok := setupStringResult(section, "state", declared.State, live.State); ok {
-		results = append(results, result)
-	}
-	if result, ok := setupStringResult(section, "query_suite", declared.QuerySuite, live.QuerySuite); ok {
-		results = append(results, result)
-	}
-	if result, ok := setupStringResult(section, "threat_model", declared.ThreatModel, live.ThreatModel); ok {
-		results = append(results, result)
-	}
-	if result, ok := setupLanguagesResult(section, declared.Languages, live.Languages); ok {
-		results = append(results, result)
-	}
-	return results
+	c := &resultComparer{section: "code_scanning"}
+	c.str("state", declared.State, live.State)
+	c.str("query_suite", declared.QuerySuite, live.QuerySuite)
+	c.str("threat_model", declared.ThreatModel, live.ThreatModel)
+	c.languages(declared.Languages, live.Languages)
+	return c.results
 }
