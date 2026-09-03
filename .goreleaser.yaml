@@ -14,10 +14,6 @@ builds:
     goarch:
       - amd64
       - arm64
-    goamd64:
-      - v1
-    goarm64:
-      - v8.0
     ldflags:
       - "-s -w -X main.version={{ .Version }}"
 
@@ -31,12 +27,8 @@ archives:
     formats:
       - tar.gz
     name_template: "tailor_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-    files:
-      - LICENSE
-      - README.md
 
 checksum:
-  algorithm: sha256
   name_template: "tailor_{{ .Version }}_checksums.txt"
 
 changelog:
@@ -50,7 +42,6 @@ changelog:
       - "^ci:"
 
 release:
-  draft: false
   prerelease: auto
   footer: |
     ## Install
@@ -73,7 +64,6 @@ release:
 
 nfpms:
   - id: packages
-    package_name: tailor
     vendor: Martin Wimpress
     maintainer: "Martin Wimpress <code@wimpress.io>"
     description: "Ready-to-wear project templates for GitHub repositories."
@@ -88,8 +78,6 @@ nfpms:
 homebrew_casks:
   - ids:
       - compressed
-    binaries:
-      - tailor
     repository:
       owner: wimpysworld
       name: homebrew-tap
