@@ -2,7 +2,6 @@ package gh
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,7 +11,6 @@ import (
 	"sync/atomic"
 	"testing"
 
-	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
@@ -598,33 +596,9 @@ func TestActionsHTTPErrorBoundsRenderedLiveResponse(t *testing.T) {
 	if err == nil {
 		t.Fatal("putActionsPolicy() error = nil, want HTTP error")
 	}
-	var httpErr *api.HTTPError
-	if !errors.As(err, &httpErr) {
-		t.Fatalf("putActionsPolicy() error type = %T, want *api.HTTPError", err)
-	}
-	if httpErr.StatusCode != http.StatusConflict {
-		t.Errorf("status = %d, want %d", httpErr.StatusCode, http.StatusConflict)
-	}
+	httpErr := assertBoundedHTTPError(t, err, http.StatusConflict, details)
 	if got, want := httpErr.RequestURL.String(), server.URL+"/"+path; got != want {
 		t.Errorf("request URL = %q, want %q", got, want)
-	}
-	if len(httpErr.Errors) != 3 {
-		t.Errorf("detail count = %d, want 3", len(httpErr.Errors))
-	}
-	rendered := err.Error()
-	if strings.ContainsAny(rendered, "\x00\x1b\r\t") {
-		t.Errorf("error contains terminal control characters: %q", rendered)
-	}
-	for i := range details {
-		if strings.Contains(rendered, details[i]) || strings.Contains(rendered, fmt.Sprintf("PRIVATE-TAIL-%d", i)) {
-			t.Errorf("error contains unbounded detail %d: %q", i, rendered)
-		}
-	}
-	if strings.Contains(rendered, "detail-3-") {
-		t.Errorf("error contains fourth detail: %q", rendered)
-	}
-	if len(rendered) > 1200 {
-		t.Errorf("rendered error length = %d, want at most 1200", len(rendered))
 	}
 }
 
