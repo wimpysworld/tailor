@@ -1,4 +1,4 @@
-# Refitted by tailor on 2026-08-24
+# Refitted by tailor on 2026-09-03
 license: BlueOak-1.0.0
 
 repository:
@@ -22,6 +22,8 @@ repository:
   automated_security_fixes_enabled: true
   default_workflow_permissions: read
   can_approve_pull_request_reviews: true
+  secret_scanning: enabled
+  secret_scanning_push_protection: enabled
   topics:
     - community-health-files
     - github-community-health
@@ -50,6 +52,20 @@ actions:
     - "robherley/go-test-action@*"
     - "softprops/action-gh-release@*"
 
+code_scanning:
+  state: configured
+  query_suite: default
+  threat_model: remote
+  # An empty list means GitHub detects the languages. Valid values:
+  # actions, c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift
+  languages: []
+
+code_quality:
+  state: not-configured
+  # An empty list means GitHub detects the languages. Valid values:
+  # csharp, go, java-kotlin, javascript-typescript, python, ruby
+  languages: []
+
 labels:
   - name: bug
     color: d20f39
@@ -72,7 +88,7 @@ labels:
     description: Good for newcomers
 
   - name: help wanted
-    color: 179299
+    color: "179299"
     description: Extra attention needed
 
   - name: invalid
