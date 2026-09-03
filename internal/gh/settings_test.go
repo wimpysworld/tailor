@@ -564,7 +564,7 @@ func TestApplyRepoSettingsPatchBody(t *testing.T) {
 	}
 }
 
-func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
+func TestBuildSettingsPayloadExcludesNonPatchFields(t *testing.T) {
 	topics := []string{"go", "cli"}
 	settings := &model.RepositorySettings{
 		Description:                       new("desc"),
@@ -577,14 +577,17 @@ func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
 		CanApprovePullRequestReviews:      new(true),
 	}
 
-	p := buildSettingsPayload(settings)
+	body := buildSettingsPayload(settings)
 
 	// PATCH body should contain only the PATCH-eligible fields.
-	if _, ok := p.Body["description"]; !ok {
+	if _, ok := body["description"]; !ok {
 		t.Error("description missing from PATCH body")
 	}
-	if _, ok := p.Body["has_wiki"]; !ok {
+	if _, ok := body["has_wiki"]; !ok {
 		t.Error("has_wiki missing from PATCH body")
+	}
+	if len(body) != 2 {
+		t.Errorf("body = %v, want only description and has_wiki", body)
 	}
 
 	// Non-PATCH fields must not appear in the body.
@@ -596,71 +599,17 @@ func TestBuildSettingsPayloadExtractsAllNonPatchFields(t *testing.T) {
 		"default_workflow_permissions",
 		"can_approve_pull_request_reviews",
 	} {
-		if _, ok := p.Body[key]; ok {
+		if _, ok := body[key]; ok {
 			t.Errorf("%s should not be in PATCH body", key)
 		}
-	}
-
-	// Non-PATCH fields are extracted into their endpoint-specific payloads.
-	if p.Topics == nil {
-		t.Fatal("Topics is nil, want non-nil")
-	}
-	if p.PrivateVulnerabilityReporting == nil || !*p.PrivateVulnerabilityReporting {
-		t.Errorf("PrivateVulnerabilityReporting = %v, want ptr(true)", p.PrivateVulnerabilityReporting)
-	}
-	if p.VulnerabilityAlerts == nil || *p.VulnerabilityAlerts {
-		t.Errorf("VulnerabilityAlerts = %v, want ptr(false)", p.VulnerabilityAlerts)
-	}
-	if p.AutomatedSecurityFixes == nil || !*p.AutomatedSecurityFixes {
-		t.Errorf("AutomatedSecurityFixes = %v, want ptr(true)", p.AutomatedSecurityFixes)
-	}
-	if len(*p.Topics) != 2 || (*p.Topics)[0] != "go" || (*p.Topics)[1] != "cli" {
-		t.Errorf("Topics = %v, want [go cli]", *p.Topics)
-	}
-	if p.DefaultWorkflowPermissions == nil || *p.DefaultWorkflowPermissions != "read" {
-		t.Errorf("DefaultWorkflowPermissions = %v, want ptr(read)", p.DefaultWorkflowPermissions)
-	}
-	if p.CanApprovePullRequestReviews == nil || *p.CanApprovePullRequestReviews != true {
-		t.Errorf("CanApprovePullRequestReviews = %v, want ptr(true)", p.CanApprovePullRequestReviews)
-	}
-}
-
-func TestBuildSettingsPayloadNilFieldsStayNil(t *testing.T) {
-	settings := &model.RepositorySettings{
-		HasWiki: new(true),
-	}
-
-	p := buildSettingsPayload(settings)
-
-	if p.Topics != nil {
-		t.Errorf("Topics = %v, want nil", p.Topics)
-	}
-	if p.PrivateVulnerabilityReporting != nil || p.VulnerabilityAlerts != nil || p.AutomatedSecurityFixes != nil {
-		t.Error("security feature payloads are non-nil for absent settings")
-	}
-	if p.DefaultWorkflowPermissions != nil {
-		t.Errorf("DefaultWorkflowPermissions = %v, want nil", p.DefaultWorkflowPermissions)
-	}
-	if p.CanApprovePullRequestReviews != nil {
-		t.Errorf("CanApprovePullRequestReviews = %v, want nil", p.CanApprovePullRequestReviews)
-	}
-
-	if _, ok := p.Body["has_wiki"]; !ok {
-		t.Error("has_wiki missing from PATCH body")
 	}
 }
 
 func TestBuildSettingsPayloadNilSettings(t *testing.T) {
-	p := buildSettingsPayload(nil)
+	body := buildSettingsPayload(nil)
 
-	if p.Body == nil || len(p.Body) != 0 {
-		t.Errorf("Body = %v, want non-nil empty map", p.Body)
-	}
-	if p.PrivateVulnerabilityReporting != nil || p.VulnerabilityAlerts != nil || p.AutomatedSecurityFixes != nil {
-		t.Error("security feature payloads are non-nil for nil settings")
-	}
-	if p.Topics != nil || p.DefaultWorkflowPermissions != nil || p.CanApprovePullRequestReviews != nil {
-		t.Error("dedicated endpoint payloads are non-nil for nil settings")
+	if body == nil || len(body) != 0 {
+		t.Errorf("body = %v, want non-nil empty map", body)
 	}
 }
 
@@ -670,15 +619,9 @@ func TestBuildSettingsPayloadEmptyTopics(t *testing.T) {
 		Topics: &topics,
 	}
 
-	p := buildSettingsPayload(settings)
+	body := buildSettingsPayload(settings)
 
-	if p.Topics == nil {
-		t.Fatal("Topics is nil, want non-nil empty slice")
-	}
-	if len(*p.Topics) != 0 {
-		t.Errorf("Topics length = %d, want 0", len(*p.Topics))
-	}
-	if _, ok := p.Body["topics"]; ok {
+	if _, ok := body["topics"]; ok {
 		t.Error("topics should not be in PATCH body")
 	}
 }
