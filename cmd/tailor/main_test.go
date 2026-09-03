@@ -101,9 +101,7 @@ func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 	dir := t.TempDir()
 
 	// Pre-create .tailor.yml.
-	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte("license: BlueOak-1.0.0\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	testutil.WriteConfig(t, dir, "license: BlueOak-1.0.0\n")
 
 	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0"}
 	err := cmd.Run()
@@ -222,21 +220,12 @@ swatches:
   - path: SUPPORT.md
     alteration: always
 `
-	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte(cfg), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
+	testutil.WriteConfig(t, dir, cfg)
+	if err := os.MkdirAll(filepath.Join(dir, ".github"), 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
 	}
-	for path, content := range map[string]string{
-		".envrc":                           "custom envrc\n",
-		".github/pull_request_template.md": "custom pull request template\n",
-	} {
-		fullPath := filepath.Join(dir, path)
-		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
-			t.Fatalf("MkdirAll: %v", err)
-		}
-		if err := os.WriteFile(fullPath, []byte(content), 0o644); err != nil {
-			t.Fatalf("WriteFile: %v", err)
-		}
-	}
+	testutil.WriteFile(t, dir, ".envrc", "custom envrc\n")
+	testutil.WriteFile(t, dir, ".github/pull_request_template.md", "custom pull request template\n")
 	t.Chdir(dir)
 	return dir
 }
@@ -328,9 +317,7 @@ func TestRunAlterMalformedConfigError(t *testing.T) {
 	ghfake.FakeNoRepo(t)
 
 	dir := t.TempDir()
-	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte("unknown: true\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	testutil.WriteConfig(t, dir, "unknown: true\n")
 	t.Chdir(dir)
 
 	err := runAlter(alter.DryRun, io.Discard, io.Discard)
@@ -565,9 +552,7 @@ func TestRunBasteUsesCommandWriters(t *testing.T) {
 
 	dir := t.TempDir()
 	configYAML := "license: none\nswatches:\n  - path: .gitignore\n    alteration: first-fit\n"
-	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte(configYAML), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	testutil.WriteConfig(t, dir, configYAML)
 	t.Chdir(dir)
 
 	var stdout, stderr strings.Builder
