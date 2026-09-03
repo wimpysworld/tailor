@@ -29,10 +29,10 @@ func MergeDefaults(cfg *Config) (bool, error) {
 		return swatchesChanged, fmt.Errorf("loading default config: %w", err)
 	}
 
-	repoChanged := mergeRepoSettingsFrom(cfg, defaults)
-	actionsChanged := mergeActionsFrom(cfg, defaults)
-	codeScanningChanged := mergeSettingsFrom(&cfg.CodeScanning, defaults.CodeScanning, model.CodeScanningSettingFields)
-	codeQualityChanged := mergeSettingsFrom(&cfg.CodeQuality, defaults.CodeQuality, model.CodeQualitySettingFields)
+	repoChanged := mergeSettingsFrom(&cfg.Repository, defaults.Repository, model.RepositorySettingFields, skipRepoField)
+	actionsChanged := mergeSettingsFrom(&cfg.Actions, defaults.Actions, model.ActionsSettingFields, skipActionsField(cfg))
+	codeScanningChanged := mergeSettingsFrom(&cfg.CodeScanning, defaults.CodeScanning, model.CodeScanningSettingFields, nil)
+	codeQualityChanged := mergeSettingsFrom(&cfg.CodeQuality, defaults.CodeQuality, model.CodeQualitySettingFields, nil)
 	rulesetChanged := mergeRulesetFrom(cfg, defaults)
 	labelsChanged := mergeLabelsFrom(cfg, defaults)
 	return swatchesChanged || repoChanged || actionsChanged || codeScanningChanged || codeQualityChanged || rulesetChanged || labelsChanged, nil
@@ -127,9 +127,10 @@ func deepCopy(v reflect.Value) reflect.Value {
 }
 
 // mergeSettingsFrom fills nil fields in the section from defaults, creating
-// the section when it is absent. Set fields are never modified. It reports
-// whether it changed anything.
-func mergeSettingsFrom[T any](section **T, defaults *T, fields func(*T) []model.SettingField) bool {
+// the section when it is absent. Set fields are never modified. A non-nil
+// skip excludes the fields it reports true for. It reports whether it
+// changed anything.
+func mergeSettingsFrom[T any](section **T, defaults *T, fields func(*T) []model.SettingField, skip func(model.SettingField) bool) bool {
 	if defaults == nil {
 		return false
 	}
@@ -141,11 +142,20 @@ func mergeSettingsFrom[T any](section **T, defaults *T, fields func(*T) []model.
 
 	changed := false
 	for _, field := range fields(defaults) {
+		if skip != nil && skip(field) {
+			continue
+		}
 		if mergeSettingField(cv.Field(field.Index), field) {
 			changed = true
 		}
 	}
 	return changed
+}
+
+// skipRepoField reports whether a RepositorySettings field is excluded from
+// default merging.
+func skipRepoField(field model.SettingField) bool {
+	return repoSettingsSkipFields[field.YAMLKey]
 }
 
 // actionsSelectedOnlyFields lists ActionsSettings YAML keys merged only when
@@ -156,62 +166,18 @@ var actionsSelectedOnlyFields = map[string]bool{
 	"patterns_allowed":     true,
 }
 
-// mergeRepoSettingsFrom fills nil pointer fields in cfg.Repository from the
-// provided defaults.
-func mergeRepoSettingsFrom(cfg *Config, defaults *Config) bool {
-	if defaults.Repository == nil {
-		return false
-	}
-
-	if cfg.Repository == nil {
-		cfg.Repository = &model.RepositorySettings{}
-	}
-
-	cv := reflect.ValueOf(cfg.Repository).Elem()
-
-	changed := false
-
-	for _, field := range model.RepositorySettingFields(defaults.Repository) {
-		if repoSettingsSkipFields[field.YAMLKey] {
-			continue
+// skipActionsField returns a skip function that excludes selected-action
+// fields unless the effective allowed_actions policy is selected. The
+// function reads cfg.Actions when called, and allowed_actions precedes the
+// selected-action fields in struct order, so the check sees the merged value.
+func skipActionsField(cfg *Config) func(model.SettingField) bool {
+	return func(field model.SettingField) bool {
+		if !actionsSelectedOnlyFields[field.YAMLKey] {
+			return false
 		}
-		if mergeSettingField(cv.Field(field.Index), field) {
-			changed = true
-		}
+		policy := cfg.Actions.AllowedActions
+		return policy == nil || *policy != "selected"
 	}
-
-	return changed
-}
-
-// mergeActionsFrom fills missing Actions policy fields from the defaults.
-// Selected-action fields apply only when the effective policy is selected;
-// allowed_actions precedes them in struct order, so the policy check sees
-// the merged value.
-func mergeActionsFrom(cfg *Config, defaults *Config) bool {
-	if defaults.Actions == nil {
-		return false
-	}
-	if cfg.Actions == nil {
-		cfg.Actions = &model.ActionsSettings{}
-	}
-
-	cv := reflect.ValueOf(cfg.Actions).Elem()
-
-	changed := false
-
-	for _, field := range model.ActionsSettingFields(defaults.Actions) {
-		if actionsSelectedOnlyFields[field.YAMLKey] {
-			policy := cfg.Actions.AllowedActions
-			if policy == nil || *policy != "selected" {
-				continue
-			}
-		}
-		if mergeSettingField(cv.Field(field.Index), field) {
-			changed = true
-		}
-	}
-
-	return changed
 }
 
 // mergeSettingField copies a set default field into cfv when cfv is nil,

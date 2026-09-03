@@ -208,7 +208,8 @@ func defaultConfig(t *testing.T) *Config {
 
 func mergeRepoDefaultsForTest(t *testing.T, cfg *Config) bool {
 	t.Helper()
-	return mergeRepoSettingsFrom(cfg, defaultConfig(t))
+	defaults := defaultConfig(t)
+	return mergeSettingsFrom(&cfg.Repository, defaults.Repository, model.RepositorySettingFields, skipRepoField)
 }
 
 func mergeLabelsDefaultsForTest(t *testing.T, cfg *Config) bool {
@@ -381,6 +382,11 @@ func TestMergeRepoSettingsFullRepository(t *testing.T) {
 func mergeActionsDefaultsForTest(t *testing.T, cfg *Config) bool {
 	t.Helper()
 	return mergeActionsFrom(cfg, defaultConfig(t))
+}
+
+// mergeActionsFrom merges the Actions section as MergeDefaults does.
+func mergeActionsFrom(cfg, defaults *Config) bool {
+	return mergeSettingsFrom(&cfg.Actions, defaults.Actions, model.ActionsSettingFields, skipActionsField(cfg))
 }
 
 func TestMergeActionsNilActions(t *testing.T) {
