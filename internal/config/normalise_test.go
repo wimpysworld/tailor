@@ -15,11 +15,11 @@ func TestNormaliseSecurityPrerequisites(t *testing.T) {
 		wantChanged bool
 		wantAlerts  *bool
 	}{
-		{name: "nil alerts", fixes: boolPointer(true), wantChanged: true, wantAlerts: boolPointer(true)},
-		{name: "false alerts", alerts: boolPointer(false), fixes: boolPointer(true), wantChanged: true, wantAlerts: boolPointer(true)},
-		{name: "true alerts", alerts: boolPointer(true), fixes: boolPointer(true), wantAlerts: boolPointer(true)},
-		{name: "false fixes", alerts: boolPointer(false), fixes: boolPointer(false), wantAlerts: boolPointer(false)},
-		{name: "nil fixes", alerts: boolPointer(false), wantAlerts: boolPointer(false)},
+		{name: "nil alerts", fixes: new(true), wantChanged: true, wantAlerts: new(true)},
+		{name: "false alerts", alerts: new(false), fixes: new(true), wantChanged: true, wantAlerts: new(true)},
+		{name: "true alerts", alerts: new(true), fixes: new(true), wantAlerts: new(true)},
+		{name: "false fixes", alerts: new(false), fixes: new(false), wantAlerts: new(false)},
+		{name: "nil fixes", alerts: new(false), wantAlerts: new(false)},
 	}
 
 	for _, tt := range tests {
@@ -39,8 +39,6 @@ func TestNormaliseSecurityPrerequisites(t *testing.T) {
 		})
 	}
 }
-
-func boolPointer(value bool) *bool { return &value }
 
 func valueOrFalse(value *bool) bool {
 	if value == nil {
