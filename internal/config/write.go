@@ -68,19 +68,13 @@ func settingLines(fields []model.SettingField) ([]string, error) {
 
 // listLines renders a string-list field as a block sequence, or [] when empty.
 func listLines(key string, v reflect.Value) (string, error) {
-	if v.Len() == 0 {
-		return fmt.Sprintf("  %s: []", key), nil
+	values := make([]string, v.Len())
+	for i := range values {
+		values[i] = v.Index(i).String()
 	}
-	var b strings.Builder
-	fmt.Fprintf(&b, "  %s:", key)
-	for i := range v.Len() {
-		value, err := yamlVal(v.Index(i).String())
-		if err != nil {
-			return "", err
-		}
-		fmt.Fprintf(&b, "\n    - %s", value)
-	}
-	return b.String(), nil
+	w := &rulesetWriter{}
+	w.list(2, key, values)
+	return strings.Join(w.lines, "\n"), w.err
 }
 
 // templateFuncs provides helpers for the config template.
