@@ -3,7 +3,6 @@ package gh
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -107,11 +106,7 @@ func TestReadLabelsPaginated(t *testing.T) {
 }
 
 func TestReadLabelsAPIError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprint(w, `{"message": "Not Found"}`)
-	}))
-	t.Cleanup(server.Close)
+	server := statusServer(t, http.StatusNotFound, `{"message": "Not Found"}`)
 
 	client := newTestClient(t, server)
 	_, err := ReadLabels(client, "testowner", "testrepo")
@@ -121,19 +116,7 @@ func TestReadLabelsAPIError(t *testing.T) {
 }
 
 func TestApplyLabelsCreatesMissing(t *testing.T) {
-	var gotMethod string
-	var gotPath string
-	var gotBody map[string]string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotMethod = r.Method
-		gotPath = r.URL.Path
-		body, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(body, &gotBody)
-		w.WriteHeader(http.StatusCreated)
-		fmt.Fprint(w, `{"name":"bug","color":"d73a4a","description":"Something is not working"}`)
-	}))
-	t.Cleanup(server.Close)
+	server, got := recordingServer(t)
 
 	client := newTestClient(t, server)
 	desired := []model.LabelEntry{
@@ -144,37 +127,25 @@ func TestApplyLabelsCreatesMissing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
-	if gotMethod != http.MethodPost {
-		t.Errorf("method = %s, want POST", gotMethod)
+	if got.Method != http.MethodPost {
+		t.Errorf("method = %s, want POST", got.Method)
 	}
-	if gotPath != "/repos/testowner/testrepo/labels" {
-		t.Errorf("path = %s, want /repos/testowner/testrepo/labels", gotPath)
+	if got.Path != "/repos/testowner/testrepo/labels" {
+		t.Errorf("path = %s, want /repos/testowner/testrepo/labels", got.Path)
 	}
-	if gotBody["name"] != "bug" {
-		t.Errorf("body name = %q, want %q", gotBody["name"], "bug")
+	if got.Body["name"] != "bug" {
+		t.Errorf("body name = %q, want %q", got.Body["name"], "bug")
 	}
-	if gotBody["color"] != "d73a4a" {
-		t.Errorf("body color = %q, want %q", gotBody["color"], "d73a4a")
+	if got.Body["color"] != "d73a4a" {
+		t.Errorf("body color = %q, want %q", got.Body["color"], "d73a4a")
 	}
-	if gotBody["description"] != "Something is not working" {
-		t.Errorf("body description = %q, want %q", gotBody["description"], "Something is not working")
+	if got.Body["description"] != "Something is not working" {
+		t.Errorf("body description = %q, want %q", got.Body["description"], "Something is not working")
 	}
 }
 
 func TestApplyLabelsPatchesChanged(t *testing.T) {
-	var gotMethod string
-	var gotPath string
-	var gotBody map[string]string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotMethod = r.Method
-		gotPath = r.URL.Path
-		body, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(body, &gotBody)
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"name":"bug","color":"ff0000","description":"Updated desc"}`)
-	}))
-	t.Cleanup(server.Close)
+	server, got := recordingServer(t)
 
 	client := newTestClient(t, server)
 	desired := []model.LabelEntry{
@@ -188,17 +159,17 @@ func TestApplyLabelsPatchesChanged(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
-	if gotMethod != http.MethodPatch {
-		t.Errorf("method = %s, want PATCH", gotMethod)
+	if got.Method != http.MethodPatch {
+		t.Errorf("method = %s, want PATCH", got.Method)
 	}
-	if gotPath != "/repos/testowner/testrepo/labels/bug" {
-		t.Errorf("path = %s, want /repos/testowner/testrepo/labels/bug", gotPath)
+	if got.Path != "/repos/testowner/testrepo/labels/bug" {
+		t.Errorf("path = %s, want /repos/testowner/testrepo/labels/bug", got.Path)
 	}
-	if gotBody["color"] != "ff0000" {
-		t.Errorf("body color = %q, want %q", gotBody["color"], "ff0000")
+	if got.Body["color"] != "ff0000" {
+		t.Errorf("body color = %q, want %q", got.Body["color"], "ff0000")
 	}
-	if gotBody["description"] != "Updated desc" {
-		t.Errorf("body description = %q, want %q", gotBody["description"], "Updated desc")
+	if got.Body["description"] != "Updated desc" {
+		t.Errorf("body description = %q, want %q", got.Body["description"], "Updated desc")
 	}
 }
 
@@ -228,16 +199,7 @@ func TestApplyLabelsSkipsMatched(t *testing.T) {
 }
 
 func TestApplyLabelsCaseInsensitiveMatch(t *testing.T) {
-	var gotMethod string
-	var gotPath string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotMethod = r.Method
-		gotPath = r.URL.Path
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"name":"Bug","color":"ff0000","description":"Updated"}`)
-	}))
-	t.Cleanup(server.Close)
+	server, got := recordingServer(t)
 
 	client := newTestClient(t, server)
 	desired := []model.LabelEntry{
@@ -251,12 +213,12 @@ func TestApplyLabelsCaseInsensitiveMatch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
-	if gotMethod != http.MethodPatch {
-		t.Errorf("method = %s, want PATCH", gotMethod)
+	if got.Method != http.MethodPatch {
+		t.Errorf("method = %s, want PATCH", got.Method)
 	}
 	// URL must use the current GitHub name, not the desired name.
-	if gotPath != "/repos/testowner/testrepo/labels/Bug" {
-		t.Errorf("path = %s, want /repos/testowner/testrepo/labels/Bug", gotPath)
+	if got.Path != "/repos/testowner/testrepo/labels/Bug" {
+		t.Errorf("path = %s, want /repos/testowner/testrepo/labels/Bug", got.Path)
 	}
 }
 
@@ -380,11 +342,7 @@ func TestApplyLabelsMixedOperations(t *testing.T) {
 }
 
 func TestApplyLabelsCreateError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		fmt.Fprint(w, `{"message": "Validation Failed"}`)
-	}))
-	t.Cleanup(server.Close)
+	server := statusServer(t, http.StatusUnprocessableEntity, `{"message": "Validation Failed"}`)
 
 	client := newTestClient(t, server)
 	desired := []model.LabelEntry{
@@ -398,11 +356,7 @@ func TestApplyLabelsCreateError(t *testing.T) {
 }
 
 func TestApplyLabelsPatchError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, `{"message": "Internal Server Error"}`)
-	}))
-	t.Cleanup(server.Close)
+	server := statusServer(t, http.StatusInternalServerError, `{"message": "Internal Server Error"}`)
 
 	client := newTestClient(t, server)
 	desired := []model.LabelEntry{
@@ -436,19 +390,7 @@ func TestHasNextPage(t *testing.T) {
 }
 
 func TestApplyLabelsPatchesCasingChange(t *testing.T) {
-	var gotMethod string
-	var gotPath string
-	var gotBody map[string]string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotMethod = r.Method
-		gotPath = r.URL.Path
-		body, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(body, &gotBody)
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{"name":"Bug","color":"d73a4a","description":"Something is not working"}`)
-	}))
-	t.Cleanup(server.Close)
+	server, got := recordingServer(t)
 
 	client := newTestClient(t, server)
 	desired := []model.LabelEntry{
@@ -462,27 +404,19 @@ func TestApplyLabelsPatchesCasingChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
-	if gotMethod != http.MethodPatch {
-		t.Errorf("method = %s, want PATCH for casing-only change", gotMethod)
+	if got.Method != http.MethodPatch {
+		t.Errorf("method = %s, want PATCH for casing-only change", got.Method)
 	}
-	if gotPath != "/repos/testowner/testrepo/labels/bug" {
-		t.Errorf("path = %s, want /repos/testowner/testrepo/labels/bug", gotPath)
+	if got.Path != "/repos/testowner/testrepo/labels/bug" {
+		t.Errorf("path = %s, want /repos/testowner/testrepo/labels/bug", got.Path)
 	}
-	if gotBody["new_name"] != "Bug" {
-		t.Errorf("body new_name = %q, want %q", gotBody["new_name"], "Bug")
+	if got.Body["new_name"] != "Bug" {
+		t.Errorf("body new_name = %q, want %q", got.Body["new_name"], "Bug")
 	}
 }
 
 func TestUpdateLabelSendsNewName(t *testing.T) {
-	var gotBody map[string]string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		_ = json.Unmarshal(body, &gotBody)
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{}`)
-	}))
-	t.Cleanup(server.Close)
+	server, got := recordingServer(t)
 
 	client := newTestClient(t, server)
 	desired := []model.LabelEntry{
@@ -496,20 +430,13 @@ func TestUpdateLabelSendsNewName(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
-	if gotBody["new_name"] != "Enhancement" {
-		t.Errorf("body new_name = %q, want %q", gotBody["new_name"], "Enhancement")
+	if got.Body["new_name"] != "Enhancement" {
+		t.Errorf("body new_name = %q, want %q", got.Body["new_name"], "Enhancement")
 	}
 }
 
 func TestApplyLabelsDescriptionOnlyChange(t *testing.T) {
-	var gotMethod string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotMethod = r.Method
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, `{}`)
-	}))
-	t.Cleanup(server.Close)
+	server, got := recordingServer(t)
 
 	client := newTestClient(t, server)
 	desired := []model.LabelEntry{
@@ -523,8 +450,8 @@ func TestApplyLabelsDescriptionOnlyChange(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyLabels() error: %v", err)
 	}
-	if gotMethod != http.MethodPatch {
-		t.Errorf("method = %s, want PATCH for description-only change", gotMethod)
+	if got.Method != http.MethodPatch {
+		t.Errorf("method = %s, want PATCH for description-only change", got.Method)
 	}
 }
 
@@ -660,12 +587,7 @@ func TestApplyLabelsUpdate404Aborts(t *testing.T) {
 
 func TestApplyLabelsNon403ErrorStillAborts(t *testing.T) {
 	// A non-access error (e.g. 500) on create should still abort.
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		fmt.Fprint(w, `{"message": "Internal Server Error"}`)
-	}))
-	t.Cleanup(server.Close)
+	server := statusServer(t, http.StatusInternalServerError, `{"message": "Internal Server Error"}`)
 
 	client := newTestClient(t, server)
 	desired := []model.LabelEntry{

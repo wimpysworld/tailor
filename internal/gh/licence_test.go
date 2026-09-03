@@ -31,11 +31,7 @@ func TestFetchLicenceSuccess(t *testing.T) {
 }
 
 func TestFetchLicenceAPIError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprint(w, `{"message":"Not Found"}`)
-	}))
-	t.Cleanup(server.Close)
+	server := statusServer(t, http.StatusNotFound, `{"message":"Not Found"}`)
 
 	client := newTestClient(t, server)
 	_, err := FetchLicence(client, "nonexistent")
@@ -45,12 +41,8 @@ func TestFetchLicenceAPIError(t *testing.T) {
 }
 
 func TestFetchLicenceBoundsAPIErrorBody(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, `{"message":"Not Found\u001b[2J\t%s-PRIVATE-TAIL"}`, strings.Repeat("x", 500))
-	}))
-	t.Cleanup(server.Close)
+	body := fmt.Sprintf(`{"message":"Not Found\u001b[2J\t%s-PRIVATE-TAIL"}`, strings.Repeat("x", 500))
+	server := statusServer(t, http.StatusNotFound, body)
 
 	client := newTestClient(t, server)
 	_, err := FetchLicence(client, "nonexistent")
