@@ -13,7 +13,6 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/alter"
-	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/ghfake"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -216,8 +215,15 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 	}
 }
 
-func setupSwatchCommandTest(t *testing.T) (string, *strings.Builder, func(alter.ApplyMode) error) {
+// setupSwatchCommandTest fakes the auth and API paths that runAlter needs,
+// writes a three-swatch config with pre-existing first-fit and never files
+// into a fresh project directory, and changes into that directory.
+func setupSwatchCommandTest(t *testing.T) string {
 	t.Helper()
+
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeUserAPI(t, http.StatusOK, "octocat")
+	ghfake.FakeNoRepo(t)
 
 	dir := t.TempDir()
 	cfg := `license: none
@@ -244,21 +250,8 @@ swatches:
 			t.Fatalf("WriteFile: %v", err)
 		}
 	}
-
-	var output strings.Builder
-	run := func(mode alter.ApplyMode) error {
-		cfg, err := config.Load(dir)
-		if err != nil {
-			return err
-		}
-		results, err := alter.ProcessSwatches(cfg, dir, mode, &alter.TokenContext{})
-		if err != nil {
-			return err
-		}
-		output.WriteString(alter.FormatOutput(nil, nil, results, mode))
-		return nil
-	}
-	return dir, &output, run
+	t.Chdir(dir)
+	return dir
 }
 
 func requireFileContent(t *testing.T, path, want string) {
@@ -272,18 +265,29 @@ func requireFileContent(t *testing.T, path, want string) {
 	}
 }
 
-func TestBasteCmdRun(t *testing.T) {
-	dir, output, run := setupSwatchCommandTest(t)
-	cmd := BasteCmd{run: run}
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("BasteCmd.Run() error: %v", err)
+func requireSwatchContent(t *testing.T, dir, path string) {
+	t.Helper()
+	want, err := swatch.Content(path)
+	if err != nil {
+		t.Fatalf("swatch.Content(%q): %v", path, err)
 	}
+	requireFileContent(t, filepath.Join(dir, path), string(want))
+}
 
+func TestRunBaste(t *testing.T) {
+	dir := setupSwatchCommandTest(t)
+
+	var stdout, stderr strings.Builder
+	code := run([]string{"baste"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+	}
 	want := "would copy:                          SUPPORT.md\n" +
 		"skipped:                             .envrc (first-fit, exists)\n" +
 		"skipped:                             .github/pull_request_template.md (mode never)\n"
-	if output.String() != want {
-		t.Errorf("stdout =\n%s\nwant:\n%s", output.String(), want)
+	if stdout.String() != want {
+		t.Errorf("stdout =\n%s\nwant:\n%s", stdout.String(), want)
 	}
 	requireFileContent(t, filepath.Join(dir, ".envrc"), "custom envrc\n")
 	requireFileContent(t, filepath.Join(dir, ".github/pull_request_template.md"), "custom pull request template\n")
@@ -292,52 +296,44 @@ func TestBasteCmdRun(t *testing.T) {
 	}
 }
 
-func TestAlterCmdRun(t *testing.T) {
-	dir, output, run := setupSwatchCommandTest(t)
-	cmd := AlterCmd{run: run}
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("AlterCmd.Run() error: %v", err)
-	}
+func TestRunAlter(t *testing.T) {
+	dir := setupSwatchCommandTest(t)
 
+	var stdout, stderr strings.Builder
+	code := run([]string{"alter"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+	}
 	want := "copied:                              SUPPORT.md\n" +
 		"skipped:                             .envrc (first-fit, exists)\n" +
 		"skipped:                             .github/pull_request_template.md (mode never)\n"
-	if output.String() != want {
-		t.Errorf("stdout =\n%s\nwant:\n%s", output.String(), want)
+	if stdout.String() != want {
+		t.Errorf("stdout =\n%s\nwant:\n%s", stdout.String(), want)
 	}
 	requireFileContent(t, filepath.Join(dir, ".envrc"), "custom envrc\n")
 	requireFileContent(t, filepath.Join(dir, ".github/pull_request_template.md"), "custom pull request template\n")
-	wantSupport, err := swatch.Content("SUPPORT.md")
-	if err != nil {
-		t.Fatalf("swatch.Content(): %v", err)
-	}
-	requireFileContent(t, filepath.Join(dir, "SUPPORT.md"), string(wantSupport))
+	requireSwatchContent(t, dir, "SUPPORT.md")
 }
 
-func TestAlterCmdRunRecut(t *testing.T) {
-	dir, output, run := setupSwatchCommandTest(t)
-	cmd := AlterCmd{Recut: true, run: run}
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("AlterCmd{Recut: true}.Run() error: %v", err)
-	}
+func TestRunAlterRecut(t *testing.T) {
+	dir := setupSwatchCommandTest(t)
 
+	var stdout, stderr strings.Builder
+	code := run([]string{"alter", "--recut"}, &stdout, &stderr)
+
+	if code != 0 {
+		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+	}
 	want := "copied:                              SUPPORT.md\n" +
 		"overwritten:                         .envrc\n" +
 		"skipped:                             .github/pull_request_template.md (mode never)\n"
-	if output.String() != want {
-		t.Errorf("stdout =\n%s\nwant:\n%s", output.String(), want)
+	if stdout.String() != want {
+		t.Errorf("stdout =\n%s\nwant:\n%s", stdout.String(), want)
 	}
-	wantEnvrc, err := swatch.Content(".envrc")
-	if err != nil {
-		t.Fatalf("swatch.Content(): %v", err)
-	}
-	requireFileContent(t, filepath.Join(dir, ".envrc"), string(wantEnvrc))
+	requireSwatchContent(t, dir, ".envrc")
 	requireFileContent(t, filepath.Join(dir, ".github/pull_request_template.md"), "custom pull request template\n")
-	wantSupport, err := swatch.Content("SUPPORT.md")
-	if err != nil {
-		t.Fatalf("swatch.Content(): %v", err)
-	}
-	requireFileContent(t, filepath.Join(dir, "SUPPORT.md"), string(wantSupport))
+	requireSwatchContent(t, dir, "SUPPORT.md")
 }
 
 func TestRunAlterMalformedConfigError(t *testing.T) {
