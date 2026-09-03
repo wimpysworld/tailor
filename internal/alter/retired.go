@@ -4,8 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/wimpysworld/tailor/internal/config"
 )
@@ -49,23 +47,8 @@ func ProcessRetiredWorkflows(dir string, mode ApplyMode) ([]SwatchResult, error)
 }
 
 func lstatRetiredWorkflow(root *os.Root, path string) (os.FileInfo, bool, error) {
-	parent := filepath.Dir(path)
-	current := ""
-	for _, component := range strings.Split(parent, string(filepath.Separator)) {
-		current = filepath.Join(current, component)
-		info, err := root.Lstat(current)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				return nil, false, nil
-			}
-			return nil, false, fmt.Errorf("checking retired workflow parent %q: %w", current, err)
-		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			return nil, false, fmt.Errorf("retired workflow parent %q is a symlink", current)
-		}
-		if !info.IsDir() {
-			return nil, false, fmt.Errorf("retired workflow parent %q is not a directory", current)
-		}
+	if err := checkParents(root, path, "retired workflow parent"); err != nil {
+		return nil, false, err
 	}
 
 	info, err := root.Lstat(path)
