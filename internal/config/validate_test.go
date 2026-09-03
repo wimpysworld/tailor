@@ -141,14 +141,14 @@ swatches: []
 		t.Fatal("ValidateRepoSettings() expected error for unknown setting, got nil")
 	}
 	want := fmt.Sprintf("unrecognised repository setting %q in config; valid settings: %s",
-		"bogus_setting", strings.Join(repoSettingNames(), ", "))
+		"bogus_setting", strings.Join(settingNames(model.RepositorySettingFields(nil)), ", "))
 	if err.Error() != want {
 		t.Errorf("error = %q, want %q", err, want)
 	}
 }
 
-func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
-	names := repoSettingNames()
+func TestRepositorySettingNamesContainsExpectedFields(t *testing.T) {
+	names := settingNames(model.RepositorySettingFields(nil))
 	expected := []string{
 		"allow_auto_merge",
 		"allow_merge_commit",
@@ -178,11 +178,11 @@ func TestRepoSettingNamesContainsExpectedFields(t *testing.T) {
 		"web_commit_signoff_required",
 	}
 	if len(names) != len(expected) {
-		t.Fatalf("repoSettingNames() returned %d names, want %d", len(names), len(expected))
+		t.Fatalf("settingNames(RepositorySettingFields) returned %d names, want %d", len(names), len(expected))
 	}
 	for i, name := range names {
 		if name != expected[i] {
-			t.Errorf("repoSettingNames()[%d] = %q, want %q", i, name, expected[i])
+			t.Errorf("settingNames(RepositorySettingFields)[%d] = %q, want %q", i, name, expected[i])
 		}
 	}
 }

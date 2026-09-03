@@ -24,12 +24,8 @@ var (
 const maxLabels = 1000
 
 func validateTopLevelSettings(cfg *Config) error {
-	if len(cfg.Extra) == 0 {
-		return nil
-	}
-
 	valid := []string{"actions", "code_quality", "code_scanning", "labels", "license", "repository", "ruleset", "swatches"}
-	return unrecognisedSettingError("top-level", cfg.Extra, valid)
+	return rejectExtra("top-level", cfg.Extra, valid)
 }
 
 // ValidatePaths checks that every swatch path in cfg matches a known embedded
@@ -66,10 +62,7 @@ func ValidateRepoSettings(cfg *Config) error {
 		return nil
 	}
 
-	if len(cfg.Repository.Extra) > 0 {
-		return unrecognisedSettingError("repository", cfg.Repository.Extra, repoSettingNames())
-	}
-	return nil
+	return rejectExtra("repository", cfg.Repository.Extra, settingNames(model.RepositorySettingFields(nil)))
 }
 
 // ValidateWorkflowPermissions checks that default_workflow_permissions, if set,
@@ -109,8 +102,8 @@ func ValidateCodeScanning(cfg *Config) error {
 	if cfg.CodeScanning == nil {
 		return nil
 	}
-	if len(cfg.CodeScanning.Extra) > 0 {
-		return unrecognisedSettingError("code_scanning", cfg.CodeScanning.Extra, settingNames(model.CodeScanningSettingFields(nil)))
+	if err := rejectExtra("code_scanning", cfg.CodeScanning.Extra, settingNames(model.CodeScanningSettingFields(nil))); err != nil {
+		return err
 	}
 
 	c := cfg.CodeScanning
@@ -132,8 +125,8 @@ func ValidateCodeQuality(cfg *Config) error {
 	if cfg.CodeQuality == nil {
 		return nil
 	}
-	if len(cfg.CodeQuality.Extra) > 0 {
-		return unrecognisedSettingError("code_quality", cfg.CodeQuality.Extra, settingNames(model.CodeQualitySettingFields(nil)))
+	if err := rejectExtra("code_quality", cfg.CodeQuality.Extra, settingNames(model.CodeQualitySettingFields(nil))); err != nil {
+		return err
 	}
 
 	c := cfg.CodeQuality
@@ -189,8 +182,8 @@ func ValidateActions(cfg *Config) error {
 	if cfg.Actions == nil {
 		return nil
 	}
-	if len(cfg.Actions.Extra) > 0 {
-		return unrecognisedSettingError("actions", cfg.Actions.Extra, settingNames(model.ActionsSettingFields(nil)))
+	if err := rejectExtra("actions", cfg.Actions.Extra, settingNames(model.ActionsSettingFields(nil))); err != nil {
+		return err
 	}
 
 	a := cfg.Actions
@@ -338,12 +331,6 @@ func ValidateLabels(cfg *Config) error {
 		seen[key] = true
 	}
 	return nil
-}
-
-// repoSettingNames returns the sorted list of recognised yaml tag names from
-// RepositorySettings, excluding the inline Extra field.
-func repoSettingNames() []string {
-	return settingNames(model.RepositorySettingFields(nil))
 }
 
 // settingNames returns the sorted yaml tag names for fields.
