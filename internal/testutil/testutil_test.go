@@ -51,7 +51,7 @@ func TestTestTransportRedirectsArbitraryHost(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequestWithContext: %v", err)
 	}
-	httpClient := &http.Client{Transport: &TestTransport{Server: server}}
+	httpClient := &http.Client{Transport: &testTransport{Server: server}}
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		t.Fatalf("Do: %v", err)
@@ -78,7 +78,7 @@ func TestTestTransportDoesNotMutateRequest(t *testing.T) {
 	}
 	req.Header.Set("Authorization", "token test-token")
 
-	transport := &TestTransport{Server: server}
+	transport := &testTransport{Server: server}
 	resp, err := transport.RoundTrip(req)
 	if err != nil {
 		t.Fatalf("RoundTrip: %v", err)
