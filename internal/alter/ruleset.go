@@ -1,7 +1,6 @@
 package alter
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strconv"
@@ -23,31 +22,19 @@ func ProcessRuleset(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]Re
 	if cfg.Ruleset == nil || !target.HasRepo {
 		return nil, nil
 	}
-	declared := compareRuleset(cfg.Ruleset, nil)
-	if len(declared) == 0 {
-		return nil, nil
-	}
-
-	live, id, err := gh.ReadTailorRuleset(target.Client, target.Owner, target.Name)
-	var skipped *gh.ErrSetupSkipped
-	if errors.As(err, &skipped) {
-		return skipResults(declared, WouldSkipSetup, string(skipped.Reason)), nil
-	}
-	var scope *gh.ErrInsufficientScope
-	if errors.As(err, &scope) {
-		return skipResults(declared, WouldSkipScope, skipAnnotation), nil
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	results := compareRuleset(cfg.Ruleset, live)
-	if !mode.ShouldWrite() || !hasChanges(results) {
-		return results, nil
-	}
-	return applySetup(results, func() error {
-		return gh.ApplyRuleset(target.Client, target.Owner, target.Name, id, cfg.Ruleset)
-	})
+	var id int64
+	return processSetup(compareRuleset(cfg.Ruleset, nil), mode,
+		func() ([]RepoSettingResult, error) {
+			live, liveID, err := gh.ReadTailorRuleset(target.Client, target.Owner, target.Name)
+			if err != nil {
+				return nil, err
+			}
+			id = liveID
+			return compareRuleset(cfg.Ruleset, live), nil
+		},
+		func([]RepoSettingResult) error {
+			return gh.ApplyRuleset(target.Client, target.Owner, target.Name, id, cfg.Ruleset)
+		})
 }
 
 // rulesetComparer collects one result per declared managed field. A nil
