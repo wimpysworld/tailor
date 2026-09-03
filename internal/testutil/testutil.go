@@ -94,3 +94,23 @@ func AssertPtr[T comparable](t *testing.T, got *T, wantNil bool, wantVal T, fiel
 		t.Errorf("%s = %#v, want %#v", field, *got, wantVal)
 	}
 }
+
+// AssertPtrEqual checks a pointer field against a pointer expectation. When
+// want is nil, it expects got to be nil. Otherwise it expects got to be
+// non-nil with the value that want points to.
+func AssertPtrEqual[T comparable](t *testing.T, got, want *T, field string) {
+	t.Helper()
+	if want == nil {
+		if got != nil {
+			t.Errorf("%s = %#v, want nil", field, *got)
+		}
+		return
+	}
+	if got == nil {
+		t.Errorf("%s is nil, want %#v", field, *want)
+		return
+	}
+	if *got != *want {
+		t.Errorf("%s = %#v, want %#v", field, *got, *want)
+	}
+}
