@@ -2,7 +2,6 @@ package alter
 
 import (
 	"fmt"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -218,43 +217,4 @@ func checkTexts(checks *[]model.RulesetStatusCheck) *[]string {
 		}
 		return check.Context
 	})
-}
-
-// rulesetFieldOrder keeps ruleset results in config order in the output,
-// where other sections sort fields by name.
-var rulesetFieldOrder = []string{
-	"enforcement",
-	"bypass_actors",
-	"conditions.ref_name.include",
-	"conditions.ref_name.exclude",
-	"rules.creation",
-	"rules.update",
-	"rules.deletion",
-	"rules.required_linear_history",
-	"rules.required_signatures",
-	"rules.non_fast_forward",
-	"rules.pull_request",
-	"rules.pull_request.parameters.required_approving_review_count",
-	"rules.pull_request.parameters.dismiss_stale_reviews_on_push",
-	"rules.pull_request.parameters.require_code_owner_review",
-	"rules.pull_request.parameters.require_last_push_approval",
-	"rules.pull_request.parameters.required_review_thread_resolution",
-	"rules.pull_request.parameters.require_extra_approval_for_unattributed_changes",
-	"rules.pull_request.parameters.allowed_merge_methods",
-	"rules.required_status_checks",
-	"rules.required_status_checks.parameters.strict_required_status_checks_policy",
-	"rules.required_status_checks.parameters.do_not_enforce_on_create",
-	"rules.required_status_checks.parameters.required_status_checks",
-	"rules.code_scanning",
-	"rules.code_scanning.parameters.code_scanning_tools",
-}
-
-// rulesetSortKey returns a zero-padded config position so ruleset fields
-// keep config order within their category.
-func rulesetSortKey(field string) string {
-	index := slices.Index(rulesetFieldOrder, field)
-	if index == -1 {
-		index = len(rulesetFieldOrder)
-	}
-	return fmt.Sprintf("%03d %s", index, field)
 }

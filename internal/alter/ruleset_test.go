@@ -497,11 +497,11 @@ func TestProcessRulesetWriteValidationError(t *testing.T) {
 
 func TestFormatOutputRulesetKeepsConfigOrder(t *testing.T) {
 	results := []alter.RepoSettingResult{
-		{Section: "ruleset", Field: "rules.pull_request.parameters.required_approving_review_count", Category: alter.RepoNoChange, Value: "1"},
-		{Section: "ruleset", Field: "rules.pull_request", Category: alter.RepoNoChange, Value: "enabled"},
-		{Section: "ruleset", Field: "rules.required_status_checks.parameters.required_status_checks", Category: alter.WouldSet, Value: "Sentinel 👁️"},
 		{Section: "ruleset", Field: "enforcement", Category: alter.WouldSet, Value: "active"},
 		{Section: "ruleset", Field: "conditions.ref_name.exclude", Category: alter.RepoNoChange, Value: "(none)"},
+		{Section: "ruleset", Field: "rules.pull_request", Category: alter.RepoNoChange, Value: "enabled"},
+		{Section: "ruleset", Field: "rules.pull_request.parameters.required_approving_review_count", Category: alter.RepoNoChange, Value: "1"},
+		{Section: "ruleset", Field: "rules.required_status_checks.parameters.required_status_checks", Category: alter.WouldSet, Value: "Sentinel 👁️"},
 	}
 	got := alter.FormatOutput(results, nil, nil, alter.DryRun)
 	want := "would set:                           ruleset.enforcement = active\n" +
