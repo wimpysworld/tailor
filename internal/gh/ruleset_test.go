@@ -39,6 +39,7 @@ func TestReadTailorRuleset(t *testing.T) {
 		wantID     int64
 		wantAbsent bool
 		wantReason SetupSkipReason
+		wantKind   OperationKind
 		wantScope  bool
 		wantErr    string
 	}{
@@ -54,23 +55,23 @@ func TestReadTailorRuleset(t *testing.T) {
 		{name: "list forbidden", configure: func(s *testutil.RulesetStub) {
 			s.ListStatus = http.StatusForbidden
 			s.ListBody = `{"message":"Forbidden"}`
-		}, wantReason: SetupNotAvailable},
+		}, wantReason: SetupNotAvailable, wantKind: OpListRulesets},
 		{name: "list not found", configure: func(s *testutil.RulesetStub) {
 			s.ListStatus = http.StatusNotFound
 			s.ListBody = `{"message":"Not Found"}`
-		}, wantReason: SetupNotAvailable},
+		}, wantReason: SetupNotAvailable, wantKind: OpListRulesets},
 		{name: "list server error", configure: func(s *testutil.RulesetStub) {
 			s.ListStatus = http.StatusInternalServerError
 			s.ListBody = `{"message":"boom"}`
-		}, wantErr: "list rulesets"},
+		}, wantErr: "list rulesets", wantKind: OpListRulesets},
 		{name: "list rate limited", configure: func(s *testutil.RulesetStub) {
 			s.ListStatus = http.StatusTooManyRequests
 			s.ListBody = `{"message":"rate limit exceeded"}`
-		}, wantErr: "rate limited"},
+		}, wantErr: "rate limited", wantKind: OpListRulesets},
 		{name: "read forbidden", configure: func(s *testutil.RulesetStub) {
 			s.ReadStatus = http.StatusForbidden
 			s.ReadBody = `{"message":"Forbidden"}`
-		}, wantReason: SetupNotAvailable},
+		}, wantReason: SetupNotAvailable, wantKind: OpFetchRuleset},
 		{name: "read not found is absent", configure: func(s *testutil.RulesetStub) {
 			s.ReadStatus = http.StatusNotFound
 			s.ReadBody = `{"message":"Not Found"}`
@@ -78,7 +79,7 @@ func TestReadTailorRuleset(t *testing.T) {
 		{name: "read server error", configure: func(s *testutil.RulesetStub) {
 			s.ReadStatus = http.StatusInternalServerError
 			s.ReadBody = `{"message":"boom"}`
-		}, wantErr: "fetch ruleset"},
+		}, wantErr: "fetch ruleset", wantKind: OpFetchRuleset},
 		{name: "bypass actors omitted", configure: func(s *testutil.RulesetStub) {
 			s.ReadBody = `{"id":42,"name":"Tailor","enforcement":"active","conditions":{"ref_name":{"include":["~DEFAULT_BRANCH"],"exclude":[]}},"rules":[]}`
 		}, wantScope: true},
@@ -99,11 +100,7 @@ func TestReadTailorRuleset(t *testing.T) {
 				}
 				return
 			case tt.wantReason != "" || tt.wantErr != "":
-				kind := OpListRulesets
-				if strings.HasPrefix(tt.name, "read") {
-					kind = OpFetchRuleset
-				}
-				assertSetupOutcome(t, err, tt.wantReason, tt.wantErr, kind)
+				assertSetupOutcome(t, err, tt.wantReason, tt.wantErr, tt.wantKind)
 				return
 			case err != nil:
 				t.Fatalf("unexpected error: %v", err)
