@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -238,13 +239,8 @@ func TestParseCSVScopes(t *testing.T) {
 				}
 				return
 			}
-			if len(got) != len(tt.want) {
-				t.Fatalf("parseCSVScopes(%q) len = %d, want %d", tt.input, len(got), len(tt.want))
-			}
-			for i, v := range got {
-				if v != tt.want[i] {
-					t.Errorf("parseCSVScopes(%q)[%d] = %q, want %q", tt.input, i, v, tt.want[i])
-				}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("parseCSVScopes(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}

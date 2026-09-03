@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -197,7 +198,7 @@ func TestApplyActionsPolicyRestrictsEnabledAllToSelected(t *testing.T) {
 				"allowed_actions":      "selected",
 				"sha_pinning_required": false,
 			}
-			if !mapsEqual(body, want) {
+			if !maps.Equal(body, want) {
 				t.Errorf("core body = %v, want %v", body, want)
 			}
 		case "/repos/acme/widget/actions/permissions/selected-actions":
@@ -560,18 +561,6 @@ func TestApplyActionsPolicyPreDisabledSelectedAccessErrorSkipsCore(t *testing.T)
 	if coreWrites.Load() != 0 {
 		t.Fatalf("core writes = %d, want 0", coreWrites.Load())
 	}
-}
-
-func mapsEqual(got, want map[string]any) bool {
-	if len(got) != len(want) {
-		return false
-	}
-	for key, value := range want {
-		if got[key] != value {
-			return false
-		}
-	}
-	return true
 }
 
 func TestActionsHTTPErrorBoundsRenderedLiveResponse(t *testing.T) {

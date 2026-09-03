@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync/atomic"
 	"testing"
 
@@ -199,14 +200,8 @@ func TestReadRepoSettings(t *testing.T) {
 				if settings.Topics == nil {
 					t.Fatal("topics is nil, want non-nil")
 				}
-				got := *settings.Topics
-				if len(got) != len(tt.wantTopics) {
-					t.Fatalf("topics length = %d, want %d", len(got), len(tt.wantTopics))
-				}
-				for i, v := range got {
-					if v != tt.wantTopics[i] {
-						t.Errorf("topics[%d] = %q, want %q", i, v, tt.wantTopics[i])
-					}
+				if !slices.Equal(*settings.Topics, tt.wantTopics) {
+					t.Errorf("topics = %q, want %q", *settings.Topics, tt.wantTopics)
 				}
 			}
 		})
@@ -994,7 +989,7 @@ func TestApplyRepoSettingsSecurityFeatureDisableOrder(t *testing.T) {
 		"/repos/testowner/testrepo/automated-security-fixes",
 		"/repos/testowner/testrepo/vulnerability-alerts",
 	}
-	if fmt.Sprint(paths) != fmt.Sprint(want) {
+	if !slices.Equal(paths, want) {
 		t.Errorf("paths = %v, want %v", paths, want)
 	}
 }
