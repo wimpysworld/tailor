@@ -80,6 +80,9 @@ func TestValidateRuleset(t *testing.T) {
 		{name: "exclude empty list", section: &model.RulesetSettings{Conditions: refName(nil, &[]string{})}},
 		{name: "exclude empty string", section: &model.RulesetSettings{Conditions: refName(nil, &[]string{""})}, wantErr: `ruleset.conditions.ref_name.exclude[0]: pattern must not be empty`},
 		{name: "exclude duplicate", section: &model.RulesetSettings{Conditions: refName(nil, &[]string{"refs/heads/wip", "refs/heads/wip"})}, wantErr: `ruleset.conditions.ref_name.exclude[1]: duplicate pattern "refs/heads/wip"`},
+		{name: "exclude default branch token", section: &model.RulesetSettings{Conditions: refName(nil, &[]string{"refs/heads/wip", "~DEFAULT_BRANCH"})}, wantErr: `ruleset.conditions.ref_name.exclude[1]: ~DEFAULT_BRANCH is valid in include only`},
+		{name: "exclude all token", section: &model.RulesetSettings{Conditions: refName(nil, &[]string{"~ALL"})}, wantErr: `ruleset.conditions.ref_name.exclude[0]: ~ALL is valid in include only`},
+		{name: "exclude pattern", section: &model.RulesetSettings{Conditions: refName(nil, &[]string{"refs/heads/wip/*"})}},
 		{name: "rules unknown key", section: &model.RulesetSettings{Rules: &model.RulesetRules{Extra: map[string]any{"workflows": nil}}}, wantErr: `unrecognised ruleset.rules setting "workflows" in config; valid settings: creation, deletion, non_fast_forward, pull_request, required_linear_history, required_signatures, required_status_checks, update`},
 		{name: "pull request unknown key", section: &model.RulesetSettings{Rules: &model.RulesetRules{PullRequest: &model.RulesetPullRequest{Extra: map[string]any{"type": "pull_request"}}}}, wantErr: `unrecognised ruleset.rules.pull_request setting "type" in config; valid settings: enabled, parameters`},
 		{name: "pull request parameters unknown key", section: &model.RulesetSettings{Rules: pullRequestRule(&model.RulesetPullRequestParameters{Extra: map[string]any{"required_reviewers": nil}})}, wantErr: `unrecognised ruleset.rules.pull_request.parameters setting "required_reviewers" in config; valid settings: allowed_merge_methods, dismiss_stale_reviews_on_push, require_code_owner_review, require_extra_approval_for_unattributed_changes, require_last_push_approval, required_approving_review_count, required_review_thread_resolution`},
@@ -511,7 +514,7 @@ func TestWriteRulesetRoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	want := defaultRuleset(t)
 	(*want.BypassActors) = append(*want.BypassActors, actor("DeployKey", nil, "exempt"))
-	*want.Conditions.RefName.Exclude = []string{"refs/heads/wip/*", "~ALL"}
+	*want.Conditions.RefName.Exclude = []string{"refs/heads/wip/*", "~release"}
 	*want.Rules.RequiredStatusChecks.Parameters.RequiredStatusChecks = []model.RulesetStatusCheck{{Context: "Sentinel 👁️"}, {Context: "lint", IntegrationID: new(15368)}}
 	if err := Write(dir, &Config{License: "none", Ruleset: want}, "2026-03-02", "Refitted"); err != nil {
 		t.Fatalf("Write() error: %v", err)

@@ -169,7 +169,7 @@ The built-in default sets `state: not-configured` and `languages: []`. The `lang
 | `enforcement` | string | `active` or `disabled`. `disabled` keeps the ruleset on GitHub, and GitHub ignores it. `evaluate` is Enterprise only and is rejected |
 | `bypass_actors` | list | Complete set of bypass actors. Each entry has `actor_id` (integer), `actor_type` (`RepositoryRole`, `Team`, `User`, `Integration`, or `DeployKey`), and `bypass_mode` (`always`, `pull_request`, or `exempt`). `actor_id` is null for `DeployKey`. `RepositoryRole` ids are `2` maintain, `4` write, `5` admin. An empty list means no bypass |
 | `conditions.ref_name.include` | string array | Branch names, `refs/heads/` fnmatch patterns, `~DEFAULT_BRANCH`, or `~ALL`. At least one entry |
-| `conditions.ref_name.exclude` | string array | Branch names or `refs/heads/` fnmatch patterns |
+| `conditions.ref_name.exclude` | string array | Branch names or `refs/heads/` fnmatch patterns. `~DEFAULT_BRANCH` and `~ALL` are rejected |
 | `rules.creation` | bool | Restrict creations |
 | `rules.update` | bool | Restrict updates. The `update_allows_fetch_and_merge` parameter is not managed |
 | `rules.deletion` | bool | Restrict deletions |
