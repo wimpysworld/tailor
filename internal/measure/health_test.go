@@ -318,9 +318,7 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 			name: "symlinked licence is missing",
 			setup: func(t *testing.T, dir string) {
 				target := filepath.Join(dir, "target.txt")
-				if err := os.WriteFile(target, []byte(placeholderContent), 0o644); err != nil {
-					t.Fatalf("WriteFile: %v", err)
-				}
+				testutil.WriteFile(t, dir, "target.txt", placeholderContent)
 				if err := os.Symlink(target, filepath.Join(dir, "LICENSE")); err != nil {
 					t.Fatalf("Symlink: %v", err)
 				}
@@ -332,9 +330,7 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 			setup: func(t *testing.T, dir string) {
 				content := make([]byte, 1<<20+1)
 				copy(content, placeholderContent)
-				if err := os.WriteFile(filepath.Join(dir, "LICENSE"), content, 0o644); err != nil {
-					t.Fatalf("WriteFile: %v", err)
-				}
+				testutil.WriteFile(t, dir, "LICENSE", string(content))
 			},
 			wantStatus: Warning,
 			wantDetail: "(not inspected: exceeds 1 MiB)",
@@ -342,9 +338,7 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 		{
 			name: "licence with placeholders warns",
 			setup: func(t *testing.T, dir string) {
-				if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(placeholderContent), 0o644); err != nil {
-					t.Fatalf("WriteFile: %v", err)
-				}
+				testutil.WriteFile(t, dir, "LICENSE", placeholderContent)
 			},
 			wantStatus: Warning,
 			wantDetail: "(contains unresolved placeholders)",
@@ -352,10 +346,7 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 		{
 			name: "licence with brace placeholders warns",
 			setup: func(t *testing.T, dir string) {
-				content := "Apache License 2.0\n\nCopyright {project}\n"
-				if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
-					t.Fatalf("WriteFile: %v", err)
-				}
+				testutil.WriteFile(t, dir, "LICENSE", "Apache License 2.0\n\nCopyright {project}\n")
 			},
 			wantStatus: Warning,
 			wantDetail: "(contains unresolved placeholders)",
@@ -363,10 +354,7 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 		{
 			name: "resolved licence is present",
 			setup: func(t *testing.T, dir string) {
-				content := "MIT License\n\nCopyright (c) 2024 Jane Smith\n"
-				if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
-					t.Fatalf("WriteFile: %v", err)
-				}
+				testutil.WriteFile(t, dir, "LICENSE", "MIT License\n\nCopyright (c) 2024 Jane Smith\n")
 			},
 			wantStatus: Present,
 		},
@@ -391,9 +379,7 @@ func TestCheckHealthLicenseHardening(t *testing.T) {
 func TestReadLicenceRejectsSymlinkOutsideProject(t *testing.T) {
 	base := t.TempDir()
 	target := filepath.Join(base, "target.txt")
-	if err := os.WriteFile(target, []byte("MIT License\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	testutil.WriteFile(t, base, "target.txt", "MIT License\n")
 
 	dir := filepath.Join(base, "project")
 	if err := os.Mkdir(dir, 0o755); err != nil {
@@ -451,9 +437,7 @@ func TestCheckHealthSymlinkedParentEscapingProjectIsMissing(t *testing.T) {
 func TestCheckHealthSymlinkedReadmeWarns(t *testing.T) {
 	dir := t.TempDir()
 	target := filepath.Join(dir, "target.md")
-	if err := os.WriteFile(target, []byte("# Project\n"), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	testutil.WriteFile(t, dir, "target.md", "# Project\n")
 	if err := os.Symlink(target, filepath.Join(dir, "README.md")); err != nil {
 		t.Fatalf("Symlink: %v", err)
 	}
@@ -501,10 +485,7 @@ func TestCheckHealthSingleResultPerPath(t *testing.T) {
 	dir := t.TempDir()
 
 	// LICENSE with placeholders should appear once as warning, not also as present.
-	content := "MIT License\n\nCopyright (c) [year] [fullname]\n"
-	if err := os.WriteFile(filepath.Join(dir, "LICENSE"), []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
+	testutil.WriteFile(t, dir, "LICENSE", "MIT License\n\nCopyright (c) [year] [fullname]\n")
 
 	results := CheckHealth(dir)
 
