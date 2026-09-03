@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io/fs"
 	"reflect"
+	"slices"
 
 	"github.com/wimpysworld/tailor"
 	"github.com/wimpysworld/tailor/internal/model"
@@ -90,12 +91,21 @@ func MergeCodeQualitySetup(cfg *Config, live *model.CodeQualitySettings) {
 // MergeRulesetSetup copies every set field of the live ruleset over cfg,
 // creating the section when it is absent. Fields that live leaves nil keep
 // their existing value, so the built-in parameters of a rule that GitHub
-// does not carry stay in the config.
-func MergeRulesetSetup(cfg *Config, live *model.RulesetSettings) {
+// does not carry stay in the config. An enforcement level that
+// ValidateRuleset rejects, such as evaluate, is not copied, so the
+// existing level stands. It reports whether it left the live enforcement
+// out.
+func MergeRulesetSetup(cfg *Config, live *model.RulesetSettings) bool {
 	if cfg.Ruleset == nil {
 		cfg.Ruleset = &model.RulesetSettings{}
 	}
-	fillNilFields(reflect.ValueOf(cfg.Ruleset).Elem(), reflect.ValueOf(live).Elem(), true)
+	source := *live
+	skipped := source.Enforcement != nil && !slices.Contains(model.RulesetEnforcements, *source.Enforcement)
+	if skipped {
+		source.Enforcement = nil
+	}
+	fillNilFields(reflect.ValueOf(cfg.Ruleset).Elem(), reflect.ValueOf(&source).Elem(), true)
+	return skipped
 }
 
 // MergeRepoSettings assigns live to cfg.Repository and mutates live in place.

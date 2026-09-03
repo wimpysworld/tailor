@@ -399,6 +399,25 @@ func TestMergeRulesetSetup(t *testing.T) {
 	MergeRulesetSetup(&Config{}, live)
 }
 
+func TestMergeRulesetSetupSkipsUnmanagedEnforcement(t *testing.T) {
+	cfg := &Config{Ruleset: defaultRuleset(t)}
+	live := &model.RulesetSettings{Enforcement: new("evaluate"), Rules: &model.RulesetRules{Creation: new(true)}}
+	if !MergeRulesetSetup(cfg, live) {
+		t.Error("MergeRulesetSetup() = false, want true for an evaluate enforcement")
+	}
+	testutil.AssertPtr(t, cfg.Ruleset.Enforcement, false, "active", "enforcement")
+	testutil.AssertPtr(t, cfg.Ruleset.Rules.Creation, false, true, "rules.creation")
+	testutil.AssertPtr(t, live.Enforcement, false, "evaluate", "live enforcement")
+	if err := ValidateRuleset(cfg); err != nil {
+		t.Errorf("ValidateRuleset() error after merge: %v", err)
+	}
+
+	if MergeRulesetSetup(cfg, &model.RulesetSettings{Enforcement: new("disabled")}) {
+		t.Error("MergeRulesetSetup() = true, want false for a disabled enforcement")
+	}
+	testutil.AssertPtr(t, cfg.Ruleset.Enforcement, false, "disabled", "enforcement")
+}
+
 func TestWriteRulesetSection(t *testing.T) {
 	tests := []struct {
 		name        string

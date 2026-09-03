@@ -293,6 +293,39 @@ func TestFitRulesetFallbackUsesBuiltIn(t *testing.T) {
 	}
 }
 
+func TestFitRulesetEvaluateEnforcementKeepsBuiltIn(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeRepo(t, "octocat", "my-project")
+	evaluateRulesetJSON := strings.Replace(liveRulesetJSON, `"enforcement":"disabled"`, `"enforcement":"evaluate"`, 1)
+	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: evaluateRulesetJSON})
+
+	dir := t.TempDir()
+	var stdout, stderr strings.Builder
+	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	want := "warning: the Tailor ruleset enforcement \"evaluate\" is not managed; wrote enforcement: active\n"
+	if stderr.String() != want {
+		t.Errorf("stderr = %q, want %q", stderr.String(), want)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	for _, want := range []string{
+		"  enforcement: active\n",
+		"    creation: true\n",
+	} {
+		if !strings.Contains(content, want) {
+			t.Errorf("config missing %q:\n%s", want, content)
+		}
+	}
+	if _, err := config.Load(dir); err != nil {
+		t.Fatalf("config.Load() error: %v", err)
+	}
+}
+
 func TestFitRulesetHardErrorStopsCommand(t *testing.T) {
 	ghfake.FakeAuth(t, "gho_test")
 	ghfake.FakeRepo(t, "octocat", "my-project")
