@@ -13,15 +13,14 @@ import (
 
 func TestErrInsufficientScope_Error(t *testing.T) {
 	err := &ErrInsufficientScope{
-		StatusCode:  403,
-		HaveScopes:  []string{"public_repo"},
-		NeedScopes:  []string{"repo"},
-		Message:     "Must have admin rights to Repository.",
-		DocumentURL: "https://docs.github.com/rest/repos/repos#update-a-repository",
-		Operation:   SecurityFeatureOp(true, OpSetVulnerabilityAlerts),
+		StatusCode: 403,
+		HaveScopes: []string{"public_repo"},
+		NeedScopes: []string{"repo"},
+		Message:    "Must have admin rights to Repository.",
+		Operation:  SecurityFeatureOp(true, OpSetVulnerabilityAlerts),
 	}
 
-	want := "enable vulnerability alerts: insufficient scope (have: [public_repo], need: [repo]): Must have admin rights to Repository. (see https://docs.github.com/rest/repos/repos#update-a-repository)"
+	want := "enable vulnerability alerts: insufficient scope (have: [public_repo], need: [repo]): Must have admin rights to Repository."
 	if got := err.Error(); got != want {
 		t.Errorf("Error() =\n  %q\nwant:\n  %q", got, want)
 	}
@@ -42,7 +41,7 @@ func TestErrInsufficientScope_ErrorEmptyScopes(t *testing.T) {
 	}
 }
 
-func TestErrInsufficientScope_ErrorWithoutDocURL(t *testing.T) {
+func TestErrInsufficientScope_ErrorPatchRepoSettings(t *testing.T) {
 	err := &ErrInsufficientScope{
 		StatusCode: 403,
 		HaveScopes: []string{"public_repo"},
