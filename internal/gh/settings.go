@@ -210,30 +210,30 @@ func readSecurityFeature(client *api.RESTClient, path string, statusOnly, allow4
 // current is the live repository state, used to skip redundant security
 // feature writes. Pass nil when the live state is unknown.
 func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings, current *model.RepositorySettings) (*ApplyResult, error) {
-	p := buildSettingsPayload(settings)
+	body := buildSettingsPayload(settings)
 	result := &ApplyResult{}
 
-	if len(p.Body) > 0 {
-		if err := sendJSON(client, http.MethodPatch, fmt.Sprintf("repos/%s/%s", owner, name), p.Body); err != nil {
+	if len(body) > 0 {
+		if err := sendJSON(client, http.MethodPatch, fmt.Sprintf("repos/%s/%s", owner, name), body); err != nil {
 			if !recordAccessError(result, Op(OpPatchRepoSettings), err) {
 				return nil, fmt.Errorf("patching repo settings: %w", err)
 			}
 		}
 	}
 
-	if err := applyPrivateVulnerabilityReporting(client, owner, name, p, result); err != nil {
+	if err := applyPrivateVulnerabilityReporting(client, owner, name, settings, result); err != nil {
 		return nil, err
 	}
 
-	if err := applyVulnerabilityAlertsAndFixes(client, owner, name, p, current, result); err != nil {
+	if err := applyVulnerabilityAlertsAndFixes(client, owner, name, settings, current, result); err != nil {
 		return nil, err
 	}
 
-	if err := applyWorkflowPermissions(client, owner, name, p, result); err != nil {
+	if err := applyWorkflowPermissions(client, owner, name, settings, result); err != nil {
 		return nil, err
 	}
 
-	if err := applyTopics(client, owner, name, p, result); err != nil {
+	if err := applyTopics(client, owner, name, settings, result); err != nil {
 		return nil, err
 	}
 
@@ -242,12 +242,12 @@ func ApplyRepoSettings(client *api.RESTClient, owner, name string, settings, cur
 
 // applyPrivateVulnerabilityReporting toggles the private vulnerability
 // reporting endpoint when the field is declared.
-func applyPrivateVulnerabilityReporting(client *api.RESTClient, owner, name string, p settingsPayload, result *ApplyResult) error {
-	if p.PrivateVulnerabilityReporting == nil {
+func applyPrivateVulnerabilityReporting(client *api.RESTClient, owner, name string, settings *model.RepositorySettings, result *ApplyResult) error {
+	if settings == nil || settings.PrivateVulnerabilityReportEnabled == nil {
 		return nil
 	}
 	path := fmt.Sprintf("repos/%s/%s/private-vulnerability-reporting", owner, name)
-	_, err := applySecuritySetting(client, path, *p.PrivateVulnerabilityReporting, OpSetPrivateVulnerabilityReporting, result)
+	_, err := applySecuritySetting(client, path, *settings.PrivateVulnerabilityReportEnabled, OpSetPrivateVulnerabilityReporting, result)
 	return err
 }
 
@@ -257,35 +257,38 @@ func applyPrivateVulnerabilityReporting(client *api.RESTClient, owner, name stri
 // vulnerability alerts, and enable vulnerability alerts before enabling
 // automated security fixes. current, when non-nil, supplies the live state so
 // an already disabled fixes feature is not disabled again.
-func applyVulnerabilityAlertsAndFixes(client *api.RESTClient, owner, name string, p settingsPayload, current *model.RepositorySettings, result *ApplyResult) error {
+func applyVulnerabilityAlertsAndFixes(client *api.RESTClient, owner, name string, settings, current *model.RepositorySettings, result *ApplyResult) error {
+	if settings == nil {
+		return nil
+	}
 	alertsPath := fmt.Sprintf("repos/%s/%s/vulnerability-alerts", owner, name)
 	fixesPath := fmt.Sprintf("repos/%s/%s/automated-security-fixes", owner, name)
 	fixesDisabled := current != nil && isFalse(current.AutomatedSecurityFixesEnabled)
-	if isFalse(p.AutomatedSecurityFixes) && !fixesDisabled {
+	if isFalse(settings.AutomatedSecurityFixesEnabled) && !fixesDisabled {
 		var err error
 		fixesDisabled, err = applySecuritySetting(client, fixesPath, false, OpSetAutomatedSecurityFixes, result)
 		if err != nil {
 			return err
 		}
 	}
-	if !fixesDisabled && isFalse(p.VulnerabilityAlerts) {
-		if p.AutomatedSecurityFixes == nil {
+	if !fixesDisabled && isFalse(settings.VulnerabilityAlertsEnabled) {
+		if settings.AutomatedSecurityFixesEnabled == nil {
 			return fmt.Errorf("cannot disable vulnerability alerts while automated security fixes are unmanaged")
 		}
 		appendSkippedDependency(result, SecurityFeatureOp(false, OpSetVulnerabilityAlerts))
 	}
 	alertsApplied := true
-	if p.VulnerabilityAlerts != nil && (*p.VulnerabilityAlerts || fixesDisabled) {
+	if settings.VulnerabilityAlertsEnabled != nil && (*settings.VulnerabilityAlertsEnabled || fixesDisabled) {
 		var err error
-		alertsApplied, err = applySecuritySetting(client, alertsPath, *p.VulnerabilityAlerts, OpSetVulnerabilityAlerts, result)
+		alertsApplied, err = applySecuritySetting(client, alertsPath, *settings.VulnerabilityAlertsEnabled, OpSetVulnerabilityAlerts, result)
 		if err != nil {
 			return err
 		}
-		if !alertsApplied && isTrue(p.AutomatedSecurityFixes) {
+		if !alertsApplied && isTrue(settings.AutomatedSecurityFixesEnabled) {
 			appendSkippedDependency(result, SecurityFeatureOp(true, OpSetAutomatedSecurityFixes))
 		}
 	}
-	if isTrue(p.AutomatedSecurityFixes) && alertsApplied {
+	if isTrue(settings.AutomatedSecurityFixesEnabled) && alertsApplied {
 		if _, err := applySecuritySetting(client, fixesPath, true, OpSetAutomatedSecurityFixes, result); err != nil {
 			return err
 		}
@@ -294,13 +297,13 @@ func applyVulnerabilityAlertsAndFixes(client *api.RESTClient, owner, name string
 }
 
 // applyTopics replaces the repository topics when the field is declared.
-func applyTopics(client *api.RESTClient, owner, name string, p settingsPayload, result *ApplyResult) error {
-	if p.Topics == nil {
+func applyTopics(client *api.RESTClient, owner, name string, settings *model.RepositorySettings, result *ApplyResult) error {
+	if settings == nil || settings.Topics == nil {
 		return nil
 	}
 	topicsBody := struct {
 		Names []string `json:"names"`
-	}{Names: *p.Topics}
+	}{Names: *settings.Topics}
 	if err := sendJSON(client, http.MethodPut, fmt.Sprintf("repos/%s/%s/topics", owner, name), topicsBody); err != nil {
 		if !recordAccessError(result, Op(OpSetTopics), err) {
 			return fmt.Errorf("setting topics: %w", err)
@@ -344,11 +347,11 @@ func appendSkippedDependency(result *ApplyResult, operation Operation) {
 // atomically, so when only one field is declared in the config, the other is
 // fetched from the current repository state. Access errors are recorded in
 // result rather than returned.
-func applyWorkflowPermissions(client *api.RESTClient, owner, name string, p settingsPayload, result *ApplyResult) error {
-	if p.DefaultWorkflowPermissions == nil && p.CanApprovePullRequestReviews == nil {
+func applyWorkflowPermissions(client *api.RESTClient, owner, name string, settings *model.RepositorySettings, result *ApplyResult) error {
+	if settings == nil || (settings.DefaultWorkflowPermissions == nil && settings.CanApprovePullRequestReviews == nil) {
 		return nil
 	}
-	if err := putWorkflowPermissions(client, owner, name, p); err != nil {
+	if err := putWorkflowPermissions(client, owner, name, settings); err != nil {
 		if !recordAccessError(result, Op(OpSetWorkflowPermissions), err) {
 			return err
 		}
@@ -357,11 +360,11 @@ func applyWorkflowPermissions(client *api.RESTClient, owner, name string, p sett
 }
 
 // putWorkflowPermissions builds the complete PUT body and sends it.
-func putWorkflowPermissions(client *api.RESTClient, owner, name string, p settingsPayload) error {
+func putWorkflowPermissions(client *api.RESTClient, owner, name string, settings *model.RepositorySettings) error {
 	wfpPath := fmt.Sprintf("repos/%s/%s/actions/permissions/workflow", owner, name)
 
-	perms := p.DefaultWorkflowPermissions
-	approve := p.CanApprovePullRequestReviews
+	perms := settings.DefaultWorkflowPermissions
+	approve := settings.CanApprovePullRequestReviews
 
 	// When one field is missing, read the current value from the API so the
 	// PUT body is always complete.
@@ -388,22 +391,6 @@ func putWorkflowPermissions(client *api.RESTClient, owner, name string, p settin
 	return nil
 }
 
-// settingsPayload holds the separated output of buildSettingsPayload. Fields
-// that require their own API endpoints are extracted from the PATCH body.
-type settingsPayload struct {
-	// Body is the map sent as PATCH /repos/{owner}/{repo}.
-	Body                          map[string]any
-	PrivateVulnerabilityReporting *bool
-	VulnerabilityAlerts           *bool
-	AutomatedSecurityFixes        *bool
-	// Topics is non-nil when the field is declared.
-	Topics *[]string
-	// DefaultWorkflowPermissions is non-nil when the field is declared.
-	DefaultWorkflowPermissions *string
-	// CanApprovePullRequestReviews is non-nil when the field is declared.
-	CanApprovePullRequestReviews *bool
-}
-
 // nonPatchFields lists yaml keys that must not appear in the flat PATCH body,
 // either because a separate API endpoint manages them or because the PATCH
 // body nests them under security_and_analysis.
@@ -419,23 +406,16 @@ var nonPatchFields = map[string]bool{
 	"secret_scanning_non_provider_patterns":   true,
 }
 
-// buildSettingsPayload uses reflection to build a map of non-nil fields from
-// settings, keyed by their yaml tags. Fields that require separate API
-// endpoints are extracted into the returned settingsPayload struct and never
-// appear in the PATCH body. Secret scanning fields nest under
+// buildSettingsPayload uses reflection to build the PATCH /repos/{owner}/{repo}
+// body from the non-nil fields of settings, keyed by their yaml tags. Fields
+// listed in nonPatchFields never appear in the body because their own
+// endpoints manage them. Secret scanning fields nest under
 // security_and_analysis in the PATCH body.
-func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
-	p := settingsPayload{Body: make(map[string]any)}
+func buildSettingsPayload(settings *model.RepositorySettings) map[string]any {
+	body := make(map[string]any)
 	if settings == nil {
-		return p
+		return body
 	}
-
-	p.PrivateVulnerabilityReporting = settings.PrivateVulnerabilityReportEnabled
-	p.VulnerabilityAlerts = settings.VulnerabilityAlertsEnabled
-	p.AutomatedSecurityFixes = settings.AutomatedSecurityFixesEnabled
-	p.Topics = settings.Topics
-	p.DefaultWorkflowPermissions = settings.DefaultWorkflowPermissions
-	p.CanApprovePullRequestReviews = settings.CanApprovePullRequestReviews
 
 	for _, field := range model.RepositorySettingFields(settings) {
 		if !field.Set || nonPatchFields[field.YAMLKey] {
@@ -443,14 +423,14 @@ func buildSettingsPayload(settings *model.RepositorySettings) settingsPayload {
 		}
 
 		fv := field.Value
-		p.Body[field.YAMLKey] = fv.Elem().Interface()
+		body[field.YAMLKey] = fv.Elem().Interface()
 	}
 
 	if security := securityAndAnalysisBody(settings); len(security) > 0 {
-		p.Body["security_and_analysis"] = security
+		body["security_and_analysis"] = security
 	}
 
-	return p
+	return body
 }
 
 // securityAndAnalysisBody builds the nested security_and_analysis object from

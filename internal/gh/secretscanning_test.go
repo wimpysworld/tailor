@@ -125,13 +125,13 @@ func TestBuildSettingsPayloadSecurityAndAnalysis(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := buildSettingsPayload(tt.settings)
+			body := buildSettingsPayload(tt.settings)
 			for _, key := range []string{"secret_scanning", "secret_scanning_push_protection", "secret_scanning_non_provider_patterns"} {
-				if _, ok := p.Body[key]; ok {
+				if _, ok := body[key]; ok {
 					t.Errorf("%s must not appear in the flat PATCH body", key)
 				}
 			}
-			got, ok := p.Body["security_and_analysis"]
+			got, ok := body["security_and_analysis"]
 			if tt.want == nil {
 				if ok {
 					t.Fatalf("security_and_analysis = %v, want absent", got)
