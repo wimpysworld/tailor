@@ -48,7 +48,6 @@
                 cosign
                 gh
                 (goFor pkgs)
-                gocyclo
                 golangci-lint
                 goreleaser
                 just

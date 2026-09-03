@@ -6,6 +6,7 @@ linters:
     - dupword
     - errorlint
     - gocritic
+    - gocyclo
     - gosec
     - misspell
     - noctx
@@ -16,6 +17,8 @@ linters:
     - usestdlibvars
     - wastedassign
   settings:
+    gocyclo:
+      min-complexity: 30
     gosec:
       excludes:
         - G306
@@ -51,6 +54,10 @@ linters:
       - common-false-positives
       - legacy
       - std-error-handling
+    rules:
+      - path: '(.+)_test\.go'
+        linters:
+          - gocyclo
 formatters:
   enable:
     - gofumpt

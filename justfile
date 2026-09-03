@@ -26,7 +26,6 @@ check:
 
 # Run linters
 lint:
-    @gocyclo -over 30 -top 20 -avg -ignore '_test\.go$' .
     @golangci-lint run
     @actionlint
 
