@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strings"
 	"text/template"
+	"unicode"
 
 	"github.com/wimpysworld/tailor/internal/model"
 	"gopkg.in/yaml.v3"
@@ -33,7 +34,19 @@ func yamlVal(v string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("encoding YAML scalar: %w", err)
 	}
-	return strings.TrimSuffix(string(encoded), "\n"), nil
+	result := strings.TrimSuffix(string(encoded), "\n")
+	// yaml.v3 escapes all non-BMP characters, although YAML permits them.
+	// Match escaped backslashes first to preserve literal escape-looking text.
+	replacements := []string{`\\`, `\\`}
+	for _, r := range v {
+		if r > '\uFFFF' && unicode.IsPrint(r) {
+			replacements = append(replacements, fmt.Sprintf(`\U%08X`, r), string(r))
+		}
+	}
+	if len(replacements) > 2 {
+		result = strings.NewReplacer(replacements...).Replace(result)
+	}
+	return result, nil
 }
 
 // settingLines renders one "  key: value" line per set field. Scalar fields
