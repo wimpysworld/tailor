@@ -550,6 +550,50 @@ func TestWriteYAMLSpecialCharactersQuoted(t *testing.T) {
 	}
 }
 
+func TestWriteDescriptionUnicode(t *testing.T) {
+	tests := []struct {
+		name        string
+		description string
+		literal     string
+	}{
+		{"emoji", "Tailor 🪡", "🪡"},
+		{"quoted emoji", `Tailor: "🪡" #templates`, "🪡"},
+		{"emoji sequence", "Tools 👩🏽‍💻 🇬🇧 ❤️", "👩🏽‍💻 🇬🇧 ❤️"},
+		{"non-BMP text", "Letters 𐐀 and 𠮷", "𐐀 and 𠮷"},
+		{"literal escape", `Literal \U0001FAA1`, `\U0001FAA1`},
+		{"emoji and literal escape", `🪡: \U0001FAA1 \\U0001FAA1`, "🪡"},
+		{"backslash before emoji", `\🪡 \\🪡`, "🪡"},
+		{"non-printable non-BMP", "🪡\U000E0001", `\U000E0001`},
+		{"control characters", "🪡\n\t\r\x00\x1b\u0085\u2028\u2029", "🪡"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				License: "MIT",
+				Repository: &model.RepositorySettings{
+					Description: &tt.description,
+				},
+			}
+			for _, verb := range []string{"Initially fitted", "Refitted"} {
+				written := writeConfig(t, cfg, "2026-09-06", verb)
+				if !strings.Contains(written, tt.literal) {
+					t.Errorf("%s output does not contain literal %q: %s", verb, tt.literal, written)
+				}
+				var parsed Config
+				if err := yaml.Unmarshal([]byte(written), &parsed); err != nil {
+					t.Fatalf("%s output is not valid YAML: %v", verb, err)
+				}
+				if parsed.Repository == nil || parsed.Repository.Description == nil {
+					t.Fatal("parsed Repository.Description is nil")
+				}
+				if *parsed.Repository.Description != tt.description {
+					t.Errorf("%s description = %q, want %q", verb, *parsed.Repository.Description, tt.description)
+				}
+			}
+		})
+	}
+}
+
 func TestWriteDynamicScalarsRoundTrip(t *testing.T) {
 	topics := []string{"? topic"}
 	patterns := []string{"- actions pattern"}
