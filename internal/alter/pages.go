@@ -129,9 +129,12 @@ func processPages(cfg *config.Config, dir string, mode ApplyMode, target RepoTar
 		if err := preparePagesWorkflow(p.prepared, dir, mode, p.prepared.Branch); err != nil {
 			return results, nil, err
 		}
-		workflow, err = writeSwatch(root, p.prepared.Entry, p.prepared.Content, p.prepared.Result.Category, true)
-		if err != nil {
-			return results, nil, err
+		workflow = p.prepared.Result
+		if workflow.Category == WouldCopy || workflow.Category == WouldOverwrite {
+			workflow, err = writeSwatch(root, p.prepared.Entry, p.prepared.Content, workflow.Category, true)
+			if err != nil {
+				return results, nil, err
+			}
 		}
 	}
 	if reconcileErr == nil {

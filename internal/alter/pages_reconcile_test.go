@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
@@ -129,6 +130,103 @@ func TestPagesPartialReconciliation(t *testing.T) {
 				}
 			} else if workflow != nil || !os.IsNotExist(fileErr) {
 				t.Fatalf("workflow written after hard error: %v %v", workflow, fileErr)
+			}
+		})
+	}
+}
+
+func TestPagesWorkflowRecheckPreservesCurrentFile(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		alteration swatch.AlterationMode
+		exists     bool
+		category   SwatchCategory
+		reason     SwatchReason
+	}{
+		{name: "first-fit created", alteration: swatch.FirstFit, category: Skipped, reason: SkipFirstFitExists},
+		{name: "always created", alteration: swatch.Always, category: NoChange},
+		{name: "always updated", alteration: swatch.Always, exists: true, category: NoChange},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			workflowPath := filepath.Join(dir, swatch.PagesDestination)
+			if err := os.MkdirAll(filepath.Dir(workflowPath), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if tt.exists {
+				content, err := swatch.PagesContent("static", "pages", "old")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(workflowPath, content, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					t.Errorf("unexpected write: %s %s", r.Method, r.URL.Path)
+				}
+				switch r.URL.Path {
+				case "/repos/owner/repo":
+					w.Header().Set("X-OAuth-Scopes", "repo")
+					fmt.Fprint(w, `{"private":false,"default_branch":"main","permissions":{"admin":true}}`)
+				case "/repos/owner/repo/pages":
+					fmt.Fprint(w, `{"build_type":"workflow","https_enforced":true}`)
+				case "/repos/owner/repo/environments/github-pages":
+					fmt.Fprint(w, `{"name":"github-pages","deployment_branch_policy":null}`)
+				case "/repos/owner/repo/actions/permissions":
+					fmt.Fprint(w, `{"enabled":true,"allowed_actions":"all"}`)
+				default:
+					t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+					w.WriteHeader(http.StatusNotFound)
+				}
+			}))
+			defer server.Close()
+			target := RepoTarget{Client: testutil.NewTestClient(t, server), Owner: "owner", Name: "repo", HasRepo: true}
+			cfg := &config.Config{Pages: &model.PagesSettings{Enabled: new(true)}}
+			prepared := &pagesPreparation{Generator: "static", Path: "pages", Entry: config.SwatchEntry{Path: swatch.PagesDestination, Alteration: tt.alteration}}
+			p, err := preflightPages(cfg, dir, Apply, target, prepared)
+			if err != nil {
+				t.Fatal(err)
+			}
+			wantInitial := WouldCopy
+			if tt.exists {
+				wantInitial = WouldOverwrite
+			}
+			if prepared.Result.Category != wantInitial {
+				t.Fatalf("initial result = %+v, want %s", prepared.Result, wantInitial)
+			}
+			content := bytes.Clone(prepared.Content)
+			if tt.alteration == swatch.FirstFit {
+				content = append(content, []byte("\n# Keep this local comment.\n")...)
+			}
+			if err := os.WriteFile(workflowPath, content, 0o644); err != nil {
+				t.Fatal(err)
+			}
+			modified := time.Unix(1000000000, 0)
+			if err := os.Chtimes(workflowPath, modified, modified); err != nil {
+				t.Fatal(err)
+			}
+			_, workflow, err := processPages(cfg, dir, Apply, target, p)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if workflow == nil || workflow.Category != tt.category || workflow.Reason != tt.reason {
+				t.Errorf("workflow = %+v, want %s (%s)", workflow, tt.category, tt.reason)
+			}
+			got, err := os.ReadFile(workflowPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Equal(got, content) {
+				t.Error("workflow changed after the recheck")
+			}
+			info, err := os.Stat(workflowPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !info.ModTime().Equal(modified) {
+				t.Error("workflow was rewritten after the recheck")
 			}
 		})
 	}
