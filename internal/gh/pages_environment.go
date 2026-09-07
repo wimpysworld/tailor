@@ -150,8 +150,7 @@ func ApplyPagesEnvironment(client *api.RESTClient, owner, name string, state *Pa
 	if current.Missing {
 		body := map[string]any{"deployment_branch_policy": map[string]bool{"protected_branches": false, "custom_branch_policies": true}}
 		if err := sendJSON(client, http.MethodPut, path, body); err != nil {
-			var httpErr *api.HTTPError
-			if !errors.As(err, &httpErr) || (httpErr.StatusCode != http.StatusConflict && httpErr.StatusCode != http.StatusUnprocessableEntity) {
+			if !pagesCreationConflict(err) {
 				return result, classifyHTTPError(err, Op(OpPutPagesEnvironment))
 			}
 			recheck, readErr := ReadPagesEnvironment(client, owner, name, current.Branch, state.access)
