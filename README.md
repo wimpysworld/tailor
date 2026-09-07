@@ -153,7 +153,9 @@ Tailor embeds 16 default swatches:
 
 ### Configuration
 
-All state lives in `.tailor.yml` with eight sections: `license`, `repository`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, and `swatches`.
+All state lives in `.tailor.yml` with nine sections: `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, and `swatches`.
+
+Release immutability defaults to `immutable_releases.enabled: false`. Before enabling it, change release CI to upload every asset to a draft, then publish. Workflows that upload or replace assets after publication will fail. Enabling protects future releases only. Disabling does not unlock existing immutable releases. Tailor skips disabling when the repository owner enforces immutability. An omitted section or `enabled` key stays unmanaged, including during default merging. For an existing repository, `fit` preserves the live setting.
 
 Tailor opens `.tailor.yml` relative to the project root. The config must be a regular file no larger than 1 MiB.
 
@@ -179,6 +181,9 @@ repository:
   secret_scanning: enabled
   secret_scanning_push_protection: enabled
   secret_scanning_non_provider_patterns: enabled
+
+immutable_releases:
+  enabled: false
 
 actions:
   enabled: true
@@ -458,7 +463,7 @@ When a GitHub remote exists, `fit` queries the live repository configuration for
 
 ### `alter`
 
-Reads `.tailor.yml` in the current directory and applies repository settings, Actions policy, code scanning, Code Quality, the ruleset, labels, licence, and swatches in that order.
+Reads `.tailor.yml` in the current directory and applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, licence, and swatches in that order.
 
 ```bash
 tailor alter            # Apply changes

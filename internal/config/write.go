@@ -358,6 +358,13 @@ repository:
 {{ . }}
 {{- end }}
 {{- end }}
+{{- if .ImmutableReleases }}
+{{- if ne .ImmutableReleases.Enabled nil }}
+
+immutable_releases:
+  enabled: {{ .ImmutableReleases.Enabled }}
+{{- end }}
+{{- end }}
 {{- if .Actions }}
 
 actions:

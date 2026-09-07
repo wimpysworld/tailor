@@ -39,6 +39,8 @@ func fitSetupServer(t *testing.T, setupStatus int, codeScanningJSON, codeQuality
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case strings.HasSuffix(r.URL.Path, "/immutable-releases"):
+			fmt.Fprint(w, `{"enabled":true,"enforced_by_owner":false}`)
 		case strings.HasSuffix(r.URL.Path, "/rulesets"):
 			if rulesets.listStatus != 0 {
 				w.WriteHeader(rulesets.listStatus)
@@ -116,6 +118,7 @@ func TestFitWritesLiveSetupWithEmptyLanguages(t *testing.T) {
 	}
 
 	for _, want := range []string{
+		"\nimmutable_releases:\n  enabled: true\n",
 		"  secret_scanning: enabled\n  secret_scanning_push_protection: disabled\n  secret_scanning_non_provider_patterns: enabled\n",
 		"\ncode_scanning:\n  state: configured\n  query_suite: extended\n  threat_model: remote_and_local\n" +
 			"  # An empty list means GitHub detects the languages. Valid values:\n" +

@@ -7,14 +7,15 @@ import (
 
 // Config represents the contents of .tailor.yml.
 type Config struct {
-	License      string                      `yaml:"license"`
-	Repository   *model.RepositorySettings   `yaml:"repository,omitempty"`
-	Actions      *model.ActionsSettings      `yaml:"actions,omitempty"`
-	CodeScanning *model.CodeScanningSettings `yaml:"code_scanning,omitempty"`
-	CodeQuality  *model.CodeQualitySettings  `yaml:"code_quality,omitempty"`
-	Ruleset      *model.RulesetSettings      `yaml:"ruleset,omitempty"`
-	Labels       []model.LabelEntry          `yaml:"labels,omitempty"`
-	Swatches     []SwatchEntry               `yaml:"swatches"`
+	ImmutableReleases *model.ImmutableReleasesSettings `yaml:"immutable_releases,omitempty"`
+	License           string                           `yaml:"license"`
+	Repository        *model.RepositorySettings        `yaml:"repository,omitempty"`
+	Actions           *model.ActionsSettings           `yaml:"actions,omitempty"`
+	CodeScanning      *model.CodeScanningSettings      `yaml:"code_scanning,omitempty"`
+	CodeQuality       *model.CodeQualitySettings       `yaml:"code_quality,omitempty"`
+	Ruleset           *model.RulesetSettings           `yaml:"ruleset,omitempty"`
+	Labels            []model.LabelEntry               `yaml:"labels,omitempty"`
+	Swatches          []SwatchEntry                    `yaml:"swatches"`
 
 	// Extra captures any YAML keys not mapped to fields above.
 	// validate rejects these unrecognised top-level settings.

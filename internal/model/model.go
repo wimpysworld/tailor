@@ -6,6 +6,12 @@ import (
 	"strings"
 )
 
+// ImmutableReleasesSettings holds the repository release immutability toggle.
+type ImmutableReleasesSettings struct {
+	Enabled *bool          `yaml:"enabled,omitempty"`
+	Extra   map[string]any `yaml:",inline"`
+}
+
 // LabelEntry describes a single GitHub label in the config file.
 type LabelEntry struct {
 	Name        string `yaml:"name" json:"name"`

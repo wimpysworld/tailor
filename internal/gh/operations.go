@@ -36,6 +36,8 @@ const (
 	OpListRulesets
 	OpFetchRuleset
 	OpSetRuleset
+	OpFetchImmutableReleases
+	OpSetImmutableReleases
 )
 
 // Operation identifies one GitHub API operation. Enable selects the enable or
@@ -109,6 +111,10 @@ func UpdateLabelOp(name string) Operation {
 // "enable vulnerability alerts".
 func (o Operation) String() string {
 	switch o.Kind {
+	case OpFetchImmutableReleases:
+		return "fetch immutable releases"
+	case OpSetImmutableReleases:
+		return securityFeatureText(o.Enable, "immutable releases")
 	case OpFetchActionsPermissions:
 		return "fetch actions permissions"
 	case OpFetchSelectedActionsPermissions:

@@ -41,6 +41,9 @@ repository:
   secret_scanning_push_protection: enabled
   secret_scanning_non_provider_patterns: enabled
 
+immutable_releases:
+  enabled: false
+
 actions:
   enabled: true
   allowed_actions: selected

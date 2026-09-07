@@ -24,8 +24,16 @@ var (
 const maxLabels = 1000
 
 func validateTopLevelSettings(cfg *Config) error {
-	valid := []string{"actions", "code_quality", "code_scanning", "labels", "license", "repository", "ruleset", "swatches"}
+	valid := []string{"actions", "code_quality", "code_scanning", "immutable_releases", "labels", "license", "repository", "ruleset", "swatches"}
 	return rejectExtra("top-level", cfg.Extra, valid)
+}
+
+// ValidateImmutableReleases rejects unsupported release immutability keys.
+func ValidateImmutableReleases(cfg *Config) error {
+	if cfg.ImmutableReleases == nil {
+		return nil
+	}
+	return rejectExtra("immutable_releases", cfg.ImmutableReleases.Extra, []string{"enabled"})
 }
 
 // ValidatePaths checks that every swatch path in cfg matches a known embedded
