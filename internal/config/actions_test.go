@@ -332,3 +332,94 @@ func TestWriteActionsEmptyPatterns(t *testing.T) {
 		t.Fatalf("config does not contain explicit empty patterns list:\n%s", written)
 	}
 }
+
+func TestActionsRetentionParsingAndWriting(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		wantDays *int
+		wantErr  string
+	}{
+		{name: "omitted", input: "{}"},
+		{name: "missing days", input: "\n  artifact_and_log_retention: {}"},
+		{name: "null days", input: "\n  artifact_and_log_retention:\n    days: null"},
+		{name: "minimum", input: "\n  artifact_and_log_retention:\n    days: 1", wantDays: new(1)},
+		{name: "maximum", input: "\n  artifact_and_log_retention:\n    days: 90", wantDays: new(90)},
+		{name: "zero", input: "\n  artifact_and_log_retention:\n    days: 0", wantErr: "must be between 1 and 90"},
+		{name: "negative", input: "\n  artifact_and_log_retention:\n    days: -1", wantErr: "must be between 1 and 90"},
+		{name: "above maximum", input: "\n  artifact_and_log_retention:\n    days: 91", wantErr: "must be between 1 and 90"},
+		{name: "unknown nested key", input: "\n  artifact_and_log_retention:\n    day: 30", wantErr: "unrecognised actions.artifact_and_log_retention setting"},
+		{name: "live cap is not configurable", input: "\n  artifact_and_log_retention:\n    days: 30\n    maximum_allowed_days: 90", wantErr: "unrecognised actions.artifact_and_log_retention setting"},
+		{name: "non integer", input: "\n  artifact_and_log_retention:\n    days: invalid", wantErr: "cannot unmarshal"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			testutil.WriteConfig(t, dir, "license: none\nactions: "+tt.input+"\nswatches: []\n")
+			cfg, err := Load(dir)
+			assertErrorContains(t, err, tt.wantErr)
+			if tt.wantErr != "" {
+				return
+			}
+			if err := ValidateCompleteActions(cfg); err != nil {
+				t.Fatalf("retention-only config requires selected fields: %v", err)
+			}
+			if tt.wantDays != nil {
+				if cfg.Actions.ArtifactAndLogRetention == nil || cfg.Actions.ArtifactAndLogRetention.Days == nil || *cfg.Actions.ArtifactAndLogRetention.Days != *tt.wantDays {
+					t.Fatalf("retention = %+v, want days %d", cfg.Actions.ArtifactAndLogRetention, *tt.wantDays)
+				}
+			} else if cfg.Actions.ArtifactAndLogRetention != nil && cfg.Actions.ArtifactAndLogRetention.Days != nil {
+				t.Fatal("missing days became managed")
+			}
+			if err := Write(dir, cfg, "2026-09-07", "Refitted"); err != nil {
+				t.Fatal(err)
+			}
+			written, err := os.ReadFile(filepath.Join(dir, ConfigSwatchPath))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := strings.Contains(string(written), "  artifact_and_log_retention:\n    days: "); got != (tt.wantDays != nil) {
+				t.Fatalf("written retention presence = %t, want %t", got, tt.wantDays != nil)
+			}
+			reloaded, err := Load(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.wantDays != nil && (reloaded.Actions == nil || reloaded.Actions.ArtifactAndLogRetention == nil || reloaded.Actions.ArtifactAndLogRetention.Days == nil || *reloaded.Actions.ArtifactAndLogRetention.Days != *tt.wantDays) {
+				t.Fatalf("written retention did not preserve %d days", *tt.wantDays)
+			}
+		})
+	}
+}
+
+func TestActionsRetentionDefaults(t *testing.T) {
+	defaults := defaultConfig(t)
+	if defaults.Actions == nil || defaults.Actions.ArtifactAndLogRetention != nil {
+		t.Fatal("default Actions config must omit retention")
+	}
+	if strings.Contains(writeConfig(t, defaults, "2026-09-07", "Fitted"), "artifact_and_log_retention") {
+		t.Fatal("written defaults contain retention")
+	}
+	for _, days := range []*int{nil, new(30)} {
+		name := "omitted"
+		cfg := &Config{}
+		if days != nil {
+			name = "explicit"
+			cfg.Actions = &model.ActionsSettings{ArtifactAndLogRetention: &model.ArtifactAndLogRetentionSettings{Days: days}}
+		}
+		t.Run(name, func(t *testing.T) {
+			for range 2 {
+				if _, err := MergeDefaults(cfg); err != nil {
+					t.Fatal(err)
+				}
+				if days == nil {
+					if cfg.Actions.ArtifactAndLogRetention != nil {
+						t.Fatal("default merging added retention")
+					}
+				} else if cfg.Actions.ArtifactAndLogRetention == nil || cfg.Actions.ArtifactAndLogRetention.Days != days || *days != 30 {
+					t.Fatal("default merging changed explicit days")
+				}
+			}
+		})
+	}
+}

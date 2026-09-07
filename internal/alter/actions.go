@@ -13,16 +13,20 @@ import (
 
 // actionsFieldGroup identifies the endpoint group an Actions policy field
 // belongs to: core fields write through the actions permissions endpoint,
-// selected fields through the selected-actions endpoint.
+// selected fields through selected-actions, and retention through its endpoint.
 type actionsFieldGroup int
 
 const (
 	actionsCore actionsFieldGroup = iota
 	actionsSelected
+	actionsRetention
 )
 
 // writeOperation returns the gh write operation kind for the group.
 func (g actionsFieldGroup) writeOperation() gh.OperationKind {
+	if g == actionsRetention {
+		return gh.OpSetActionsRetention
+	}
 	if g == actionsSelected {
 		return gh.OpSetSelectedActionsPermissions
 	}
@@ -41,6 +45,17 @@ type actionsFieldSpec struct {
 // actionsFieldTable is the single source of Actions field-to-group knowledge.
 // Entry order sets the comparison and skip output order.
 var actionsFieldTable = []actionsFieldSpec{
+	{
+		name:  "artifact_and_log_retention.days",
+		group: actionsRetention,
+		set: func(a *model.ActionsSettings) bool {
+			return a.ArtifactAndLogRetention != nil && a.ArtifactAndLogRetention.Days != nil
+		},
+		compare: func(declared, live *model.ActionsSettings) (string, bool) {
+			days := *declared.ArtifactAndLogRetention.Days
+			return fmt.Sprint(days), live.ArtifactAndLogRetention != nil && live.ArtifactAndLogRetention.Days != nil && days == *live.ArtifactAndLogRetention.Days
+		},
+	},
 	{
 		name:  "enabled",
 		group: actionsCore,
@@ -140,16 +155,47 @@ func ProcessActions(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]Re
 	}
 
 	selected := actionsGroupSet(cfg.Actions, actionsSelected)
-	live, warnings, err := gh.ReadActionsPolicy(target.Client, target.Owner, target.Name, selected)
-	if err != nil {
-		return nil, err
+	live := &model.ActionsSettings{}
+	var warnings []error
+	if actionsGroupSet(cfg.Actions, actionsCore) || selected {
+		var err error
+		live, warnings, err = gh.ReadActionsPolicy(target.Client, target.Owner, target.Name, selected)
+		if err != nil {
+			return nil, err
+		}
+	}
+	var retention *gh.ActionsRetentionResponse
+	if actionsGroupSet(cfg.Actions, actionsRetention) {
+		var retentionWarnings []error
+		var err error
+		retention, retentionWarnings, err = gh.ReadActionsRetention(target.Client, target.Owner, target.Name)
+		if err != nil {
+			return nil, err
+		}
+		warnings = append(warnings, retentionWarnings...)
+		if retention != nil {
+			if err := retention.ValidateDays(*cfg.Actions.ArtifactAndLogRetention.Days); err != nil {
+				return nil, err
+			}
+			live.ArtifactAndLogRetention = &model.ArtifactAndLogRetentionSettings{Days: retention.Days}
+		}
 	}
 	results := compareActions(cfg.Actions, live)
 	results = suppressActionsReadWarnings(results, warnings, cfg.Actions, live)
 
-	coreChanged, selectedChanged := actionsChanges(results)
+	coreChanged, selectedChanged, retentionChanged := actionsChanges(results)
 	if mode.ShouldWrite() && (coreChanged || selectedChanged) {
 		applied, err := gh.ApplyActionsPolicy(target.Client, target.Owner, target.Name, cfg.Actions, live, coreChanged, selectedChanged)
+		if err != nil {
+			return nil, err
+		}
+		for _, result := range skippedToResults(applied) {
+			result.Section = "actions"
+			results = append(results, result)
+		}
+	}
+	if mode.ShouldWrite() && retentionChanged {
+		applied, err := gh.ApplyActionsRetention(target.Client, target.Owner, target.Name, *cfg.Actions.ArtifactAndLogRetention.Days, retention)
 		if err != nil {
 			return nil, err
 		}
@@ -162,7 +208,7 @@ func ProcessActions(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]Re
 }
 
 func actionsConfigured(a *model.ActionsSettings) bool {
-	return actionsGroupSet(a, actionsCore) || actionsGroupSet(a, actionsSelected)
+	return actionsGroupSet(a, actionsCore) || actionsGroupSet(a, actionsSelected) || actionsGroupSet(a, actionsRetention)
 }
 
 func compareActions(declared, live *model.ActionsSettings) []RepoSettingResult {
@@ -189,6 +235,8 @@ func suppressActionsReadWarnings(results []RepoSettingResult, warnings []error, 
 		}
 		fields := actionsFieldNames(actionsCore)
 		switch scopeErr.Operation.Kind {
+		case gh.OpFetchActionsRetention:
+			fields = actionsFieldNames(actionsRetention)
 		case gh.OpFetchActionsPermissions:
 			fields = actionsFieldNames(actionsCore, actionsSelected)
 		case gh.OpFetchSelectedActionsPermissions:
@@ -221,7 +269,7 @@ func actionsCoreBroadening(result RepoSettingResult, declared, live *model.Actio
 	}
 }
 
-func actionsChanges(results []RepoSettingResult) (core, selected bool) {
+func actionsChanges(results []RepoSettingResult) (core, selected, retention bool) {
 	for _, result := range results {
 		if result.Category != WouldSet {
 			continue
@@ -235,7 +283,9 @@ func actionsChanges(results []RepoSettingResult) (core, selected bool) {
 			core = true
 		case actionsSelected:
 			selected = true
+		case actionsRetention:
+			retention = true
 		}
 	}
-	return core, selected
+	return core, selected, retention
 }

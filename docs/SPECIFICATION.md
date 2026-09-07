@@ -124,7 +124,7 @@ When Tailor enables alerts and automated fixes together, it enables alerts first
 
 **Actions workflow permissions**: `default_workflow_permissions` accepts `read` or `write`. The PUT endpoint sends both `default_workflow_permissions` and `can_approve_pull_request_reviews` atomically. GitHub labels the latter setting “Allow GitHub Actions to create and approve pull requests”. Tailor keeps the REST API field name because repository config keys map directly to API fields. Enabling it permits the repository `GITHUB_TOKEN` to create pull requests and submit approval reviews when the workflow has `pull-requests: write`. The setting does not permit merges, bypass branch rules, or affect personal access tokens or separate GitHub App tokens. The tailor defaults (`read` and `false`) follow the principle of least privilege. If the API rejects the read or write, Tailor reports `would skip (insufficient scope)` in `baste` and skips the operation in `alter`. Use a token with the required repository permissions.
 
-Supported top-level Actions policy settings:
+Supported settings in the top-level `actions` section:
 
 | Field | Type | Description |
 |---|---|---|
@@ -134,12 +134,29 @@ Supported top-level Actions policy settings:
 | `github_owned_allowed` | bool | Allow GitHub-owned actions under the selected policy |
 | `verified_allowed` | bool | Allow actions from verified creators under the selected policy |
 | `patterns_allowed` | string array | Complete set of allowed action and reusable workflow patterns |
+| `artifact_and_log_retention.days` | integer | Opt-in retention for new artifacts and logs, from 1 to 90 days, within the live owner cap |
 
-Tailor reads and writes `enabled`, `allowed_actions`, and `sha_pinning_required` through `/repos/{owner}/{repo}/actions/permissions`. Tailor uses `/repos/{owner}/{repo}/actions/permissions/selected-actions` for the other fields. The three selected-action fields are valid only with `allowed_actions: selected`. The selected endpoint replaces `patterns_allowed`; comparison sorts both lists because GitHub order has no policy meaning.
+Tailor reads and writes `enabled`, `allowed_actions`, and `sha_pinning_required` through `/repos/{owner}/{repo}/actions/permissions`. Tailor uses `/repos/{owner}/{repo}/actions/permissions/selected-actions` for `github_owned_allowed`, `verified_allowed`, and `patterns_allowed`. The three selected-action fields are valid only with `allowed_actions: selected`. The selected endpoint replaces `patterns_allowed`; comparison sorts both lists because GitHub order has no policy meaning.
 
 Each Actions policy field uses pointer semantics, so default merging preserves explicit Boolean values, an explicit custom list, and an explicit empty list. When the section is absent, Tailor adds the complete default policy. When the effective policy is `selected`, Tailor appends each missing selected-action field. A missing `patterns_allowed` field receives the six approved defaults. After default merging, a selected policy must include `github_owned_allowed`, `verified_allowed`, and `patterns_allowed`. When the policy is `all` or `local_only`, Tailor appends only missing core fields and leaves selected-action fields absent so the result remains valid.
 
-The table summarises every valid write order. `core` means `/repos/{owner}/{repo}/actions/permissions`, and `selected` means the matching `/selected-actions` endpoint. Tailor writes only changed endpoint groups, except for temporary `core` writes that keep a partial failure fail-closed.
+Artifact and log retention is opt-in. A retention-only declaration requires no core or selected-action fields:
+
+```yaml
+actions:
+  artifact_and_log_retention:
+    days: 30
+```
+
+`days` is an optional integer. Local validation rejects values outside 1 to 90 before any mutation. An absent retention object or absent or null `days` leaves retention unmanaged and causes no retention calls. Bootstrap, default merging, and `--recut` never insert active retention defaults. Default merging preserves explicit days and applies the existing core and selected-action defaults independently.
+
+Tailor reads `GET /repos/{owner}/{repo}/actions/permissions/artifact-and-log-retention` to obtain `days` and `maximum_allowed_days`. Both live fields must be present and positive. A declared value above `maximum_allowed_days` stops the command before the retention write, with the allowed maximum in the error. The cap is read-only, not a config key. Denied or unavailable reads stay unknown, produce `would skip (insufficient scope)`, and cannot cause a retention write. Missing or invalid live fields stop the command.
+
+`baste` reports a difference as `actions.artifact_and_log_retention.days = 30` with the `would set` label, without writes. Apply sends one `PUT` to the same retention endpoint for a difference and none for a match. The PUT body contains only `days`, and success returns `204`. Retention never travels through the core or selected-actions endpoint. Retention writes follow core and selected-action writes without changing their order. Access failures produce skip results, and other API failures stop the command.
+
+Retention changes affect only new artifacts and logs. Tailor does not change existing artifacts, logs, caches, or owner policy. See the [GitHub retention REST contract](https://docs.github.com/en/rest/actions/permissions#set-artifact-and-log-retention-settings-for-a-repository).
+
+The table summarises valid core and selected-action write orders. `core` means `/repos/{owner}/{repo}/actions/permissions`, and `selected` means the matching `/selected-actions` endpoint. Tailor writes only changed endpoint groups, except for temporary `core` writes that keep a partial failure fail-closed.
 
 | Current and requested state | Write order |
 |---|---|

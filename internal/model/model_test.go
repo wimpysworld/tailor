@@ -102,6 +102,7 @@ func TestActionsSettingFieldsMetadata(t *testing.T) {
 		"github_owned_allowed",
 		"verified_allowed",
 		"patterns_allowed",
+		"artifact_and_log_retention",
 	}
 
 	if len(fields) != len(wantKeys) {

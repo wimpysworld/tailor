@@ -22,15 +22,21 @@ type LabelEntry struct {
 // ActionsSettings holds repository GitHub Actions policy fields.
 // Pointer types distinguish absent fields from zero values.
 type ActionsSettings struct {
-	Enabled            *bool     `yaml:"enabled,omitempty"`
-	AllowedActions     *string   `yaml:"allowed_actions,omitempty"`
-	SHAPinningRequired *bool     `yaml:"sha_pinning_required,omitempty"`
-	GitHubOwnedAllowed *bool     `yaml:"github_owned_allowed,omitempty"`
-	VerifiedAllowed    *bool     `yaml:"verified_allowed,omitempty"`
-	PatternsAllowed    *[]string `yaml:"patterns_allowed,omitempty"`
+	Enabled                 *bool                            `yaml:"enabled,omitempty"`
+	AllowedActions          *string                          `yaml:"allowed_actions,omitempty"`
+	SHAPinningRequired      *bool                            `yaml:"sha_pinning_required,omitempty"`
+	GitHubOwnedAllowed      *bool                            `yaml:"github_owned_allowed,omitempty"`
+	VerifiedAllowed         *bool                            `yaml:"verified_allowed,omitempty"`
+	PatternsAllowed         *[]string                        `yaml:"patterns_allowed,omitempty"`
+	ArtifactAndLogRetention *ArtifactAndLogRetentionSettings `yaml:"artifact_and_log_retention,omitempty"`
 
 	// Extra captures any YAML keys not mapped to struct fields above.
 	// ValidateActions uses this to reject unrecognised settings.
+	Extra map[string]any `yaml:",inline"`
+}
+
+type ArtifactAndLogRetentionSettings struct {
+	Days  *int           `yaml:"days,omitempty"`
 	Extra map[string]any `yaml:",inline"`
 }
 

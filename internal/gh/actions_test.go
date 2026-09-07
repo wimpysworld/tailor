@@ -15,6 +15,112 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
+func TestActionsRetentionReadAndWrite(t *testing.T) {
+	var calls []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls = append(calls, r.Method+" "+r.URL.Path)
+		switch r.Method {
+		case http.MethodGet:
+			fmt.Fprint(w, `{"days":30,"maximum_allowed_days":60}`)
+		case http.MethodPut:
+			body, err := io.ReadAll(r.Body)
+			if err != nil || strings.TrimSpace(string(body)) != `{"days":14}` {
+				t.Errorf("PUT body = %s, error = %v", body, err)
+			}
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected method %s", r.Method)
+		}
+	}))
+	t.Cleanup(server.Close)
+	client := newTestClient(t, server)
+	current, warnings, err := ReadActionsRetention(client, "acme", "widget")
+	if err != nil || len(warnings) != 0 || current == nil || current.Days == nil || *current.Days != 30 || current.MaximumAllowedDays == nil || *current.MaximumAllowedDays != 60 {
+		t.Fatalf("read = %+v, %v, %v", current, warnings, err)
+	}
+	result, err := ApplyActionsRetention(client, "acme", "widget", 14, current)
+	if err != nil || len(result.Skipped) != 0 {
+		t.Fatalf("apply = %+v, %v", result, err)
+	}
+	path := "/repos/acme/widget/actions/permissions/artifact-and-log-retention"
+	if !slices.Equal(calls, []string{"GET " + path, "PUT " + path}) {
+		t.Fatalf("calls = %v", calls)
+	}
+}
+
+func TestActionsRetentionReadErrors(t *testing.T) {
+	for _, status := range []int{403, 404, 500} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(status)
+				fmt.Fprint(w, `{"message":"unavailable"}`)
+			}))
+			t.Cleanup(server.Close)
+			current, warnings, err := ReadActionsRetention(newTestClient(t, server), "acme", "widget")
+			if current != nil {
+				t.Fatalf("current = %+v, want unknown", current)
+			}
+			if status == 500 {
+				if err == nil {
+					t.Fatal("want hard error")
+				}
+			} else if err != nil || len(warnings) != 1 {
+				t.Fatalf("warnings = %v, error = %v", warnings, err)
+			}
+		})
+	}
+}
+
+func TestActionsRetentionApplyFailsClosed(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		current   *ActionsRetentionResponse
+		days      int
+		wantError string
+	}{
+		{"unknown", nil, 14, "unknown"},
+		{"missing days", &ActionsRetentionResponse{MaximumAllowedDays: new(90)}, 14, "days is unknown"},
+		{"invalid days", &ActionsRetentionResponse{Days: new(0), MaximumAllowedDays: new(90)}, 14, "days is unknown"},
+		{"missing cap", &ActionsRetentionResponse{Days: new(30)}, 14, "maximum_allowed_days"},
+		{"zero cap", &ActionsRetentionResponse{Days: new(30), MaximumAllowedDays: new(0)}, 14, "maximum_allowed_days"},
+		{"negative cap", &ActionsRetentionResponse{Days: new(30), MaximumAllowedDays: new(-1)}, 14, "maximum_allowed_days"},
+		{"above cap", &ActionsRetentionResponse{Days: new(14), MaximumAllowedDays: new(20)}, 30, "maximum of 20 days"},
+		{"invalid desired", &ActionsRetentionResponse{Days: new(30), MaximumAllowedDays: new(90)}, 0, "between 1 and 90"},
+		{"matching", &ActionsRetentionResponse{Days: new(14), MaximumAllowedDays: new(90)}, 14, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := ApplyActionsRetention(nil, "acme", "widget", tc.days, tc.current)
+			if tc.wantError == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+				t.Fatalf("error = %v, want %q", err, tc.wantError)
+			}
+		})
+	}
+}
+
+func TestActionsRetentionWriteErrors(t *testing.T) {
+	for _, status := range []int{403, 404, 422, 500} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(status)
+				fmt.Fprint(w, `{"message":"rejected"}`)
+			}))
+			t.Cleanup(server.Close)
+			result, err := ApplyActionsRetention(newTestClient(t, server), "acme", "widget", 14, &ActionsRetentionResponse{Days: new(30), MaximumAllowedDays: new(90)})
+			if status == 403 || status == 404 {
+				if err != nil || len(result.Skipped) != 1 || result.Skipped[0].Operation.Kind != OpSetActionsRetention {
+					t.Fatalf("apply = %+v, %v", result, err)
+				}
+			} else if err == nil {
+				t.Fatal("want hard error")
+			}
+		})
+	}
+}
+
 func TestReadActionsPolicy(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {

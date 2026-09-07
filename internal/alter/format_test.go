@@ -91,6 +91,32 @@ func TestFormatOutputEmpty(t *testing.T) {
 	}
 }
 
+func TestFormatOutputRetentionWriteSkipIsolation(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		operation gh.OperationKind
+		present   string
+		absent    string
+	}{
+		{"retention denied", gh.OpSetActionsRetention, "actions.enabled = true", "actions.artifact_and_log_retention.days = 14"},
+		{"core denied", gh.OpSetActionsPermissions, "actions.artifact_and_log_retention.days = 14", "actions.enabled = true"},
+		{"selected denied", gh.OpSetSelectedActionsPermissions, "actions.artifact_and_log_retention.days = 14", "actions.verified_allowed = true"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			results := []RepoSettingResult{
+				{Section: "actions", Field: "enabled", Category: WouldSet, Value: "true"},
+				{Section: "actions", Field: "verified_allowed", Category: WouldSet, Value: "true"},
+				{Section: "actions", Field: "artifact_and_log_retention.days", Category: WouldSet, Value: "14"},
+				{Section: "actions", Operation: gh.Op(tc.operation), Category: WouldSkipScope},
+			}
+			output := FormatOutput(results, nil, nil, Apply)
+			if !strings.Contains(output, tc.present) || strings.Contains(output, tc.absent) {
+				t.Fatalf("output = %q, want %q but not %q", output, tc.present, tc.absent)
+			}
+		})
+	}
+}
+
 func TestFormatOutputEmptySlices(t *testing.T) {
 	got := FormatOutput([]RepoSettingResult{}, nil, []SwatchResult{}, DryRun)
 	if got != "" {

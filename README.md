@@ -348,8 +348,23 @@ The top-level `actions` section manages the repository Actions policy. Generated
 | `github_owned_allowed` | bool | Allow GitHub-owned actions when `allowed_actions` is `selected` |
 | `verified_allowed` | bool | Allow actions from verified creators when `allowed_actions` is `selected` |
 | `patterns_allowed` | string[] | Complete set of allowed action and reusable workflow patterns |
+| `artifact_and_log_retention.days` | integer | Opt-in retention for new artifacts and logs, from 1 to 90 days, within the live owner cap |
 
 The selected-action fields require `allowed_actions: selected`. A selected policy must include `github_owned_allowed`, `verified_allowed`, and `patterns_allowed` after default merging. The `patterns_allowed` field replaces the full GitHub list. Tailor ignores list order during comparison. Default merging adds a missing `actions` section and fills missing fields without changing explicit values. For `all` and `local_only`, Tailor does not add selected-only fields. For `selected`, Tailor adds each missing selected-only field. A missing `patterns_allowed` field receives the six approved defaults. Tailor preserves an explicit custom list or `patterns_allowed: []`.
+
+To manage artifact and log retention, add this field to your `actions` section:
+
+```yaml
+actions:
+  artifact_and_log_retention:
+    days: 30
+```
+
+Retention alone requires no core or selected-action fields. Tailor never adds a retention default during `fit`, default merging, or `alter --recut`. An omitted `days` field causes no retention API calls. Other Actions defaults still follow the merge rules above.
+
+Tailor validates the integer range before any changes. It then checks GitHub's live `maximum_allowed_days` cap and rejects a higher value with the allowed maximum in the error. Denied or unavailable reads stay unknown and cannot cause a retention write. Missing or invalid live values stop the command.
+
+`baste` reports the declared retention value when it differs, without writes. `alter` sends one update for a difference and none for a match. Tailor uses the separate [retention GET/PUT endpoint](https://docs.github.com/en/rest/actions/permissions#set-artifact-and-log-retention-settings-for-a-repository) and sends only `days` in the PUT body. Changes affect only new artifacts and logs, not existing artifacts, logs, caches, or owner policy.
 
 For an enabled transition from `all` to an enabled `selected` policy, Tailor first changes `allowed_actions` to `selected`. This write keeps SHA pinning enabled when the final policy disables it. Tailor then applies the complete selected rules and disables SHA pinning in a final core write. When the final policy keeps or enables SHA pinning, the first core write applies that value and Tailor omits the final write. A hard first-write failure leaves `all` active. A selected-rule failure leaves the narrower `selected` policy active and preserves SHA pinning. A final SHA write failure leaves the selected rules and SHA pinning active. Each hard failure stops the command.
 

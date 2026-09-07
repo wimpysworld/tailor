@@ -201,6 +201,14 @@ func ValidateActions(cfg *Config) error {
 	}
 
 	a := cfg.Actions
+	if retention := a.ArtifactAndLogRetention; retention != nil {
+		if err := rejectExtra("actions.artifact_and_log_retention", retention.Extra, []string{"days"}); err != nil {
+			return err
+		}
+		if retention.Days != nil && (*retention.Days < 1 || *retention.Days > 90) {
+			return fmt.Errorf("actions.artifact_and_log_retention.days must be between 1 and 90")
+		}
+	}
 	if err := validateEnum("allowed_actions", a.AllowedActions, "all", "local_only", "selected"); err != nil {
 		return err
 	}

@@ -38,6 +38,8 @@ const (
 	OpSetRuleset
 	OpFetchImmutableReleases
 	OpSetImmutableReleases
+	OpFetchActionsRetention
+	OpSetActionsRetention
 )
 
 // Operation identifies one GitHub API operation. Enable selects the enable or
@@ -111,6 +113,10 @@ func UpdateLabelOp(name string) Operation {
 // "enable vulnerability alerts".
 func (o Operation) String() string {
 	switch o.Kind {
+	case OpFetchActionsRetention:
+		return "fetch actions artifact and log retention"
+	case OpSetActionsRetention:
+		return "set actions artifact and log retention"
 	case OpFetchImmutableReleases:
 		return "fetch immutable releases"
 	case OpSetImmutableReleases:
@@ -157,10 +163,8 @@ func (o Operation) String() string {
 		return "fetch code quality setup"
 	case OpSetCodeQualitySetup:
 		return "set code quality setup"
-	case OpCreateLabel:
-		return fmt.Sprintf("create label %q", o.Label)
-	case OpUpdateLabel:
-		return fmt.Sprintf("update label %q", o.Label)
+	case OpCreateLabel, OpUpdateLabel:
+		return labelOperationText(o.Kind, o.Label)
 	case OpListRulesets:
 		return "list rulesets"
 	case OpFetchRuleset:
@@ -170,6 +174,14 @@ func (o Operation) String() string {
 	default:
 		return ""
 	}
+}
+
+func labelOperationText(kind OperationKind, label string) string {
+	verb := "create"
+	if kind == OpUpdateLabel {
+		verb = "update"
+	}
+	return fmt.Sprintf("%s label %q", verb, label)
 }
 
 func securityFeatureText(enable bool, feature string) string {
