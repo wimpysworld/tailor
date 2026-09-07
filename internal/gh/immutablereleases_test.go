@@ -19,20 +19,21 @@ func TestReadImmutableReleases(t *testing.T) {
 		admin        bool
 		workflow     int
 		wantError    bool
+		wantScope    bool
 		wantEnabled  bool
 		wantEnforced bool
 	}{
-		{"enabled", 200, `{"enabled":true,"enforced_by_owner":false}`, false, 200, false, true, false},
-		{"disabled JSON", 200, `{"enabled":false,"enforced_by_owner":false}`, false, 200, false, false, false},
-		{"owner", 200, `{"enabled":true,"enforced_by_owner":true}`, false, 200, false, true, true},
-		{"disabled 404", 404, `{}`, true, 200, false, false, false},
-		{"ambiguous 404", 404, `{}`, false, 200, true, false, false},
-		{"token denied", 404, `{}`, true, 403, true, false, false},
-		{"forbidden", 403, `{}`, false, 200, true, false, false},
-		{"server", 500, `{}`, false, 200, true, false, false},
-		{"missing enabled", 200, `{"enforced_by_owner":false}`, false, 200, true, false, false},
-		{"missing owner", 200, `{"enabled":true}`, false, 200, true, false, false},
-		{"malformed", 200, `no`, false, 200, true, false, false},
+		{"enabled", 200, `{"enabled":true,"enforced_by_owner":false}`, false, 200, false, false, true, false},
+		{"disabled JSON", 200, `{"enabled":false,"enforced_by_owner":false}`, false, 200, false, false, false, false},
+		{"owner", 200, `{"enabled":true,"enforced_by_owner":true}`, false, 200, false, false, true, true},
+		{"disabled 404", 404, `{}`, true, 200, false, false, false, false},
+		{"ambiguous 404", 404, `{}`, false, 200, true, true, false, false},
+		{"token denied", 404, `{}`, true, 403, true, true, false, false},
+		{"forbidden", 403, `{}`, false, 200, true, true, false, false},
+		{"server", 500, `{}`, false, 200, true, false, false, false},
+		{"missing enabled", 200, `{"enforced_by_owner":false}`, false, 200, true, false, false, false},
+		{"missing owner", 200, `{"enabled":true}`, false, 200, true, false, false, false},
+		{"malformed", 200, `no`, false, 200, true, false, false, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -56,6 +57,10 @@ func TestReadImmutableReleases(t *testing.T) {
 			state, err := ReadImmutableReleases(newTestClient(t, server), "o", "r")
 			if (err != nil) != tt.wantError {
 				t.Fatalf("error = %v", err)
+			}
+			var scopeErr *ErrInsufficientScope
+			if errors.As(err, &scopeErr) != tt.wantScope {
+				t.Fatalf("insufficient scope = %t, want %t (error = %v)", scopeErr != nil, tt.wantScope, err)
 			}
 			if err == nil && (*state.Enabled != tt.wantEnabled || *state.EnforcedByOwner != tt.wantEnforced) {
 				t.Fatalf("state = %+v", state)
