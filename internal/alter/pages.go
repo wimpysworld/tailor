@@ -37,14 +37,14 @@ func preflightPages(cfg *config.Config, dir string, mode ApplyMode, target RepoT
 	}
 	repository, accessErr := gh.ReadPagesRepository(target.Client, target.Owner, target.Name)
 	p.repository = repository
+	if accessErr != nil {
+		p.skipped, accessErr = pagesErrorResults(accessErr)
+		return p, accessErr
+	}
 	if repository != nil && repository.DefaultBranch != "" {
 		if err := preparePagesWorkflow(prepared, dir, mode, repository.DefaultBranch); err != nil {
 			return nil, err
 		}
-	}
-	if accessErr != nil {
-		p.skipped, accessErr = pagesErrorResults(accessErr)
-		return p, accessErr
 	}
 	var err error
 	p.site, err = gh.ReadPages(target.Client, target.Owner, target.Name, repository.WriteAccess)
