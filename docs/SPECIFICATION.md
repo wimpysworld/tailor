@@ -322,6 +322,7 @@ List access failures skip variable management without writes. Individual write a
 | `.github/ISSUE_TEMPLATE/config.yml` | `first-fit` |
 | `.github/pull_request_template.md` | `never` |
 | `.github/dependabot.yml` | `first-fit` |
+| `.github/workflows/tailor-pages.yml` | `always` |
 | `justfile` | `first-fit` |
 | `cubic.yaml` | `first-fit` |
 | `flake.nix` | `first-fit` |
