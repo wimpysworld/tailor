@@ -71,6 +71,52 @@ func TestPreparePagesSourceRejectsSymlink(t *testing.T) {
 	}
 }
 
+func TestPreparePagesSourceJekyllRequirements(t *testing.T) {
+	for _, tt := range []struct {
+		name, declaration string
+		wantErr           bool
+	}{
+		{"unconstrained", `gem "jekyll"`, false},
+		{"exact", `gem "jekyll", "4.4.1"`, false},
+		{"explicit exact", `gem "jekyll", "= 4.4.1"`, false},
+		{"incompatible exact", `gem "jekyll", "3.9.0"`, true},
+		{"incompatible explicit exact", `gem "jekyll", "= 4.4.0"`, true},
+		{"pessimistic major", `gem "jekyll", "~> 4"`, false},
+		{"pessimistic minor", `gem "jekyll", "~> 4.0"`, false},
+		{"pessimistic patch", `gem "jekyll", "~> 4.4.0"`, false},
+		{"incompatible pessimistic minor", `gem "jekyll", "~> 3.9"`, true},
+		{"incompatible pessimistic patch", `gem "jekyll", "~> 4.3.0"`, true},
+		{"pessimistic lower bound", `gem "jekyll", "~> 4.4.2"`, true},
+		{"range", `gem 'jekyll', '>= 4.0', '< 5.0'`, false},
+		{"inclusive range", `gem "jekyll", ">= 4.4.1", "<= 4.4.1"`, false},
+		{"incompatible lower bound", `gem "jekyll", "> 4.4.1"`, true},
+		{"incompatible upper bound", `gem "jekyll", ">= 4.0", "< 4.4.1"`, true},
+		{"excluded version", `gem "jekyll", "!= 4.4.1"`, true},
+		{"other excluded version", `gem "jekyll", "!= 4.4.0"`, false},
+		{"numeric comparison", `gem "jekyll", "< 4.10"`, false},
+		{"trailing zero", `gem "jekyll", "4.4.1.0"`, false},
+		{"comment", `gem "jekyll", "~> 4.4" # pinned in the lockfile`, false},
+		{"options", `gem "jekyll", "~> 4.4", require: false`, false},
+		{"unsupported literal", `gem "jekyll", "latest"`, true},
+		{"oversized component", `gem "jekyll", "> 9999999999999999999999999"`, true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.CopyFS(filepath.Join(dir, "pages"), os.DirFS("testdata/pages/jekyll")); err != nil {
+				t.Fatal(err)
+			}
+			pagesTestFile(t, dir, "pages/Gemfile", "source 'https://rubygems.org'\n"+tt.declaration+"\n")
+			_, err := preparePagesSource(pagesTestConfig("jekyll"), dir, Apply)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("error = %v, want error %v", err, tt.wantErr)
+			}
+			if err != nil && !strings.Contains(err.Error(), "jekyll version requirement") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
 func TestPreparePagesWorkflow(t *testing.T) {
 	for _, tt := range []struct {
 		name       string
