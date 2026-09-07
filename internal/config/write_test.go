@@ -57,6 +57,8 @@ actions:
     - "nick-fields/retry@*"
     - "robherley/go-test-action@*"
     - "softprops/action-gh-release@*"
+  fork_pr_contributor_approval:
+    approval_policy: first_time_contributors
 
 code_scanning:
   state: configured

@@ -135,6 +135,20 @@ func TestFitWritesLiveSetupWithEmptyLanguages(t *testing.T) {
 	}
 }
 
+func TestFitWritesForkApprovalDefault(t *testing.T) {
+	got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{})
+	cfg, err := config.Load(got.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Actions == nil || cfg.Actions.ForkPRContributorApproval == nil || cfg.Actions.ForkPRContributorApproval.ApprovalPolicy == nil {
+		t.Fatal("fit omitted the contributor approval default")
+	}
+	if policy := *cfg.Actions.ForkPRContributorApproval.ApprovalPolicy; policy != "first_time_contributors" {
+		t.Errorf("fit approval_policy = %q, want first_time_contributors", policy)
+	}
+}
+
 func TestFitSetupEmptyFieldsKeepBuiltInDefaults(t *testing.T) {
 	got := runFit(t, http.StatusOK, `{"state":"not-configured","languages":[]}`, `{"state":"not-configured","languages":[]}`, fitRulesets{})
 

@@ -22,13 +22,14 @@ type LabelEntry struct {
 // ActionsSettings holds repository GitHub Actions policy fields.
 // Pointer types distinguish absent fields from zero values.
 type ActionsSettings struct {
-	Enabled                 *bool                            `yaml:"enabled,omitempty"`
-	AllowedActions          *string                          `yaml:"allowed_actions,omitempty"`
-	SHAPinningRequired      *bool                            `yaml:"sha_pinning_required,omitempty"`
-	GitHubOwnedAllowed      *bool                            `yaml:"github_owned_allowed,omitempty"`
-	VerifiedAllowed         *bool                            `yaml:"verified_allowed,omitempty"`
-	PatternsAllowed         *[]string                        `yaml:"patterns_allowed,omitempty"`
-	ArtifactAndLogRetention *ArtifactAndLogRetentionSettings `yaml:"artifact_and_log_retention,omitempty"`
+	Enabled                   *bool                              `yaml:"enabled,omitempty"`
+	AllowedActions            *string                            `yaml:"allowed_actions,omitempty"`
+	SHAPinningRequired        *bool                              `yaml:"sha_pinning_required,omitempty"`
+	GitHubOwnedAllowed        *bool                              `yaml:"github_owned_allowed,omitempty"`
+	VerifiedAllowed           *bool                              `yaml:"verified_allowed,omitempty"`
+	PatternsAllowed           *[]string                          `yaml:"patterns_allowed,omitempty"`
+	ArtifactAndLogRetention   *ArtifactAndLogRetentionSettings   `yaml:"artifact_and_log_retention,omitempty"`
+	ForkPRContributorApproval *ForkPRContributorApprovalSettings `yaml:"fork_pr_contributor_approval,omitempty"`
 
 	// Extra captures any YAML keys not mapped to struct fields above.
 	// ValidateActions uses this to reject unrecognised settings.
@@ -39,6 +40,13 @@ type ArtifactAndLogRetentionSettings struct {
 	Days  *int           `yaml:"days,omitempty"`
 	Extra map[string]any `yaml:",inline"`
 }
+
+type ForkPRContributorApprovalSettings struct {
+	ApprovalPolicy *string        `yaml:"approval_policy,omitempty"`
+	Extra          map[string]any `yaml:",inline"`
+}
+
+var ForkPRContributorApprovalPolicies = []string{"first_time_contributors_new_to_github", "first_time_contributors", "all_external_contributors"}
 
 // LabelNeedsUpdate reports whether existing differs from desired in name casing,
 // colour, or description. Colour comparison is case-insensitive to match GitHub

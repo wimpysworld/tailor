@@ -40,6 +40,8 @@ const (
 	OpSetImmutableReleases
 	OpFetchActionsRetention
 	OpSetActionsRetention
+	OpFetchForkPRContributorApproval
+	OpSetForkPRContributorApproval
 )
 
 // Operation identifies one GitHub API operation. Enable selects the enable or
@@ -113,6 +115,10 @@ func UpdateLabelOp(name string) Operation {
 // "enable vulnerability alerts".
 func (o Operation) String() string {
 	switch o.Kind {
+	case OpFetchForkPRContributorApproval:
+		return "fetch fork pull request contributor approval"
+	case OpSetForkPRContributorApproval:
+		return "set fork pull request contributor approval"
 	case OpFetchActionsRetention:
 		return "fetch actions artifact and log retention"
 	case OpSetActionsRetention:

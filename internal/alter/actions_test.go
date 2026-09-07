@@ -47,6 +47,175 @@ func TestProcessActionsAbsentMakesNoCalls(t *testing.T) {
 	}
 }
 
+func TestProcessActionsForkApproval(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		mode         alter.ApplyMode
+		body         string
+		readStatus   int
+		writeStatus  int
+		wantWrites   int32
+		wantCategory alter.RepoSettingCategory
+		wantError    bool
+	}{
+		{name: "preview", mode: alter.DryRun, body: `{"approval_policy":"all_external_contributors"}`, wantCategory: alter.WouldSet},
+		{name: "apply", mode: alter.Apply, body: `{"approval_policy":"all_external_contributors"}`, wantWrites: 1, wantCategory: alter.WouldSet},
+		{name: "recut", mode: alter.Recut, body: `{"approval_policy":"all_external_contributors"}`, wantWrites: 1, wantCategory: alter.WouldSet},
+		{name: "match", mode: alter.Apply, body: `{"approval_policy":"first_time_contributors"}`, wantCategory: alter.RepoNoChange},
+		{name: "missing policy", mode: alter.Apply, body: `{}`, wantCategory: alter.WouldSkipScope},
+		{name: "null policy", mode: alter.Apply, body: `{"approval_policy":null}`, wantCategory: alter.WouldSkipScope},
+		{name: "empty policy", mode: alter.Apply, body: `{"approval_policy":""}`, wantCategory: alter.WouldSkipScope},
+		{name: "unknown policy", mode: alter.Apply, body: `{"approval_policy":"future_policy"}`, wantCategory: alter.WouldSkipScope},
+		{name: "forbidden read", mode: alter.Apply, readStatus: 403, wantCategory: alter.WouldSkipScope},
+		{name: "unavailable read", mode: alter.Apply, readStatus: 404, wantCategory: alter.WouldSkipScope},
+		{name: "failed read", mode: alter.Apply, readStatus: 500, wantError: true},
+		{name: "malformed read", mode: alter.Apply, body: `{`, wantError: true},
+		{name: "forbidden write", mode: alter.Apply, body: `{"approval_policy":"all_external_contributors"}`, writeStatus: 403, wantWrites: 1, wantCategory: alter.WouldSet},
+		{name: "unavailable write", mode: alter.Apply, body: `{"approval_policy":"all_external_contributors"}`, writeStatus: 404, wantWrites: 1, wantCategory: alter.WouldSet},
+		{name: "rejected write", mode: alter.Apply, body: `{"approval_policy":"all_external_contributors"}`, writeStatus: 422, wantWrites: 1, wantError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var reads, writes atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/repos/acme/widget/actions/permissions/fork-pr-contributor-approval" {
+					t.Errorf("unexpected endpoint %s", r.URL.Path)
+					http.NotFound(w, r)
+					return
+				}
+				switch r.Method {
+				case http.MethodGet:
+					reads.Add(1)
+					if tc.readStatus != 0 {
+						w.WriteHeader(tc.readStatus)
+						fmt.Fprint(w, `{"message":"unavailable"}`)
+						return
+					}
+					fmt.Fprint(w, tc.body)
+				case http.MethodPut:
+					writes.Add(1)
+					body, err := io.ReadAll(r.Body)
+					if err != nil || strings.TrimSpace(string(body)) != `{"approval_policy":"first_time_contributors"}` {
+						t.Errorf("body = %s, error = %v", body, err)
+					}
+					if tc.writeStatus != 0 {
+						w.WriteHeader(tc.writeStatus)
+						fmt.Fprint(w, `{"message":"rejected"}`)
+						return
+					}
+					w.WriteHeader(http.StatusNoContent)
+				default:
+					t.Errorf("unexpected method %s", r.Method)
+				}
+			}))
+			t.Cleanup(server.Close)
+			cfg := &config.Config{Actions: &model.ActionsSettings{ForkPRContributorApproval: &model.ForkPRContributorApprovalSettings{ApprovalPolicy: new("first_time_contributors")}}}
+			results, err := alter.ProcessActions(cfg, tc.mode, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
+			if reads.Load() != 1 || writes.Load() != tc.wantWrites {
+				t.Fatalf("reads = %d, writes = %d, want 1, %d", reads.Load(), writes.Load(), tc.wantWrites)
+			}
+			if tc.wantError {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil || len(results) == 0 || results[0].Category != tc.wantCategory || results[0].Field != "fork_pr_contributor_approval.approval_policy" {
+				t.Fatalf("results = %+v, error = %v", results, err)
+			}
+			output := alter.FormatOutput(results, nil, nil, tc.mode)
+			if tc.writeStatus != 0 {
+				if strings.Contains(output, " = first_time_contributors") || !strings.Contains(output, "would skip (insufficient scope") {
+					t.Fatalf("output = %q", output)
+				}
+			} else if tc.wantCategory == alter.WouldSet {
+				label := "set:"
+				if tc.mode == alter.DryRun {
+					label = "would set:"
+				}
+				want := fmt.Sprintf("%-37sactions.fork_pr_contributor_approval.approval_policy = first_time_contributors\n", label)
+				if output != want {
+					t.Fatalf("output = %q, want %q", output, want)
+				}
+			}
+		})
+	}
+}
+
+func TestProcessActionsForkApprovalOmittedMakesNoCalls(t *testing.T) {
+	for _, approval := range []*model.ForkPRContributorApprovalSettings{nil, {}} {
+		cfg := &config.Config{Actions: &model.ActionsSettings{ForkPRContributorApproval: approval}}
+		results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(nil, "acme", "widget", true))
+		if err != nil || len(results) != 0 {
+			t.Fatalf("results = %+v, error = %v", results, err)
+		}
+	}
+}
+
+func TestProcessActionsForkApprovalReadIsolation(t *testing.T) {
+	const corePath = "/repos/acme/widget/actions/permissions"
+	const retentionPath = corePath + "/artifact-and-log-retention"
+	const approvalPath = corePath + "/fork-pr-contributor-approval"
+	for _, tc := range []struct {
+		name      string
+		denied    string
+		wantPuts  []string
+		skipField string
+	}{
+		{"core denied", corePath, []string{retentionPath, approvalPath}, "enabled"},
+		{"retention denied", retentionPath, []string{corePath, approvalPath}, "artifact_and_log_retention.days"},
+		{"approval denied", approvalPath, []string{corePath, retentionPath}, "fork_pr_contributor_approval.approval_policy"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var puts []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == tc.denied {
+					w.WriteHeader(http.StatusForbidden)
+					fmt.Fprint(w, `{"message":"unavailable"}`)
+					return
+				}
+				if r.Method == http.MethodPut {
+					puts = append(puts, r.URL.Path)
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				switch r.URL.Path {
+				case corePath:
+					fmt.Fprint(w, `{"enabled":true,"allowed_actions":"all","sha_pinning_required":false}`)
+				case retentionPath:
+					fmt.Fprint(w, `{"days":30,"maximum_allowed_days":90}`)
+				case approvalPath:
+					fmt.Fprint(w, `{"approval_policy":"all_external_contributors"}`)
+				default:
+					t.Errorf("unexpected endpoint %s", r.URL.Path)
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			cfg := &config.Config{Actions: &model.ActionsSettings{
+				Enabled:                   new(false),
+				ArtifactAndLogRetention:   &model.ArtifactAndLogRetentionSettings{Days: new(14)},
+				ForkPRContributorApproval: &model.ForkPRContributorApprovalSettings{ApprovalPolicy: new("first_time_contributors")},
+			}}
+			results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
+			if err != nil || !slices.Equal(puts, tc.wantPuts) {
+				t.Fatalf("error = %v, PUTs = %v, want %v", err, puts, tc.wantPuts)
+			}
+			if len(results) != 3 {
+				t.Fatalf("results = %+v, want three fields", results)
+			}
+			for _, result := range results {
+				want := alter.WouldSet
+				if result.Field == tc.skipField {
+					want = alter.WouldSkipScope
+				}
+				if result.Category != want {
+					t.Errorf("result = %+v, want %s", result, want)
+				}
+			}
+		})
+	}
+}
+
 func TestProcessActionsRetention(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
