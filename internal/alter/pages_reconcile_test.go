@@ -327,18 +327,26 @@ func TestPagesActionRestrictions(t *testing.T) {
 	for _, tt := range []struct {
 		name, action string
 		owned        bool
+		verified     bool
 		patterns     []string
 		want         bool
 	}{
 		{name: "GitHub action", action: "actions/checkout@abc", owned: true, want: true},
 		{name: "third party blocked", action: "ruby/setup-ruby@abc", owned: true},
 		{name: "third party pattern", action: "ruby/setup-ruby@abc", patterns: []string{"ruby/*"}, want: true},
+		{name: "verified Ruby action", action: "ruby/setup-ruby@abc", verified: true, want: true},
+		{name: "verified Ruby with unrelated patterns", action: "ruby/setup-ruby@abc", verified: true, patterns: []string{"other/action@*"}, want: true},
+		{name: "unknown third party blocked", action: "other/action@abc", verified: true},
+		{name: "unknown Ruby action blocked", action: "ruby/other-action@abc", verified: true},
+		{name: "Ruby subpath blocked", action: "ruby/setup-ruby/other-action@abc", verified: true},
 		{name: "excluded SHA", action: "actions/checkout@abc", owned: true, patterns: []string{"!actions/checkout@abc"}},
 		{name: "exclusion beats allow", action: "ruby/setup-ruby@abc", patterns: []string{"ruby/*", "!ruby/setup-ruby@*"}},
+		{name: "exclusion beats verified", action: "ruby/setup-ruby@abc", verified: true, patterns: []string{"!ruby/setup-ruby@*"}},
+		{name: "exclusion beats both routes", action: "ruby/setup-ruby@abc", verified: true, patterns: []string{"!ruby/setup-ruby", "ruby/*"}},
 		{name: "different ref blocked", action: "ruby/setup-ruby@abc", patterns: []string{"ruby/setup-ruby@v1"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			policy := &model.ActionsSettings{AllowedActions: new("selected"), GitHubOwnedAllowed: &tt.owned, PatternsAllowed: &tt.patterns}
+			policy := &model.ActionsSettings{AllowedActions: new("selected"), GitHubOwnedAllowed: &tt.owned, VerifiedAllowed: &tt.verified, PatternsAllowed: &tt.patterns}
 			if got := pagesActionAllowed(policy, tt.action); got != tt.want {
 				t.Fatalf("allowed=%v want=%v", got, tt.want)
 			}

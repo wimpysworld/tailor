@@ -262,6 +262,11 @@ func pagesActionAllowed(policy *model.ActionsSettings, action string) bool {
 		return false
 	}
 	allowed := policy.GitHubOwnedAllowed != nil && *policy.GitHubOwnedAllowed && strings.HasPrefix(action, "actions/")
+	// Verified creator: https://github.com/marketplace/actions/setup-ruby-jruby-and-truffleruby
+	const verifiedAction = "ruby/setup-ruby"
+	if policy.VerifiedAllowed != nil && *policy.VerifiedAllowed && strings.HasPrefix(action, verifiedAction+"@") {
+		allowed = true
+	}
 	if policy.PatternsAllowed != nil {
 		for _, pattern := range *policy.PatternsAllowed {
 			excluded := strings.HasPrefix(pattern, "!")
