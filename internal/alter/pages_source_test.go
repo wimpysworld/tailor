@@ -191,18 +191,25 @@ func TestPreparePagesWorkflow(t *testing.T) {
 		{"missing always", swatch.Always, Apply, "", WouldCopy, false},
 		{"missing never", swatch.Never, Apply, "", "", true},
 		{"owned equal", swatch.Always, Apply, "equal", NoChange, false},
+		{"owned crlf", swatch.Always, Apply, "crlf", WouldOverwrite, false},
 		{"unowned recut", swatch.Always, Recut, "name: custom\n", "", true},
+		{"marker suffix", swatch.Always, Apply, swatch.PagesMarker + " extra\n", "", true},
+		{"marker bare cr", swatch.Always, Apply, swatch.PagesMarker + "\rname: custom\n", "", true},
+		{"marker repeated cr", swatch.Always, Apply, swatch.PagesMarker + "\r\r\n", "", true},
+		{"marker missing newline", swatch.Always, Apply, swatch.PagesMarker, "", true},
 		{"owned changed", swatch.Always, Apply, "changed", WouldOverwrite, false},
 		{"first fit equal", swatch.FirstFit, Apply, "equal", Skipped, false},
+		{"first fit crlf", swatch.FirstFit, Apply, "crlf", Skipped, false},
 		{"first fit changed", swatch.FirstFit, Apply, "changed", "", true},
 		{"first fit recut", swatch.FirstFit, Recut, "changed", WouldOverwrite, false},
 		{"never changed", swatch.Never, Recut, "changed", "", true},
 		{"never equal", swatch.Never, Recut, "equal", Skipped, false},
+		{"never crlf", swatch.Never, Apply, "crlf", Skipped, false},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
 			existing := tt.existing
-			if existing == "equal" || existing == "changed" {
+			if existing == "equal" || existing == "changed" || existing == "crlf" {
 				data, err := swatch.PagesContent("static", "pages", "main")
 				if err != nil {
 					t.Fatal(err)
@@ -210,6 +217,9 @@ func TestPreparePagesWorkflow(t *testing.T) {
 				existing = string(data)
 				if tt.existing == "changed" {
 					existing = strings.Replace(existing, `"main"`, `"old"`, 1)
+				}
+				if tt.existing == "crlf" {
+					existing = strings.ReplaceAll(existing, "\n", "\r\n")
 				}
 			}
 			if existing != "" {

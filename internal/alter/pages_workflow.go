@@ -59,7 +59,7 @@ func preparePagesWorkflow(prepared *pagesPreparation, dir string, mode ApplyMode
 	if err != nil {
 		return fmt.Errorf("reading pages workflow: %w", err)
 	}
-	if !bytes.HasPrefix(onDisk, []byte(swatch.PagesMarker+"\n")) {
+	if !bytes.HasPrefix(onDisk, []byte(swatch.PagesMarker+"\n")) && !bytes.HasPrefix(onDisk, []byte(swatch.PagesMarker+"\r\n")) {
 		return fmt.Errorf("pages workflow ownership conflict: %s lacks %q", swatch.PagesDestination, swatch.PagesMarker)
 	}
 	protected := prepared.Entry.Alteration == swatch.Never || (prepared.Entry.Alteration == swatch.FirstFit && mode != Recut)
