@@ -23,6 +23,51 @@ type selectedActionsResponse struct {
 	PatternsAllowed    []string `json:"patterns_allowed"`
 }
 
+type ActionsRetentionResponse struct {
+	Days               *int `json:"days"`
+	MaximumAllowedDays *int `json:"maximum_allowed_days"`
+}
+
+func ReadActionsRetention(client *api.RESTClient, owner, name string) (*ActionsRetentionResponse, []error, error) {
+	path := fmt.Sprintf("repos/%s/%s/actions/permissions/artifact-and-log-retention", owner, name)
+	var retention ActionsRetentionResponse
+	var warnings []error
+	if err := boundedHTTPError(client.Get(path, &retention)); err != nil {
+		err = collectAccessWarning(err, Op(OpFetchActionsRetention), "fetching actions artifact and log retention", &warnings)
+		return nil, warnings, err
+	}
+	return &retention, nil, nil
+}
+
+func (r *ActionsRetentionResponse) ValidateDays(days int) error {
+	if days < 1 || days > 90 {
+		return fmt.Errorf("actions.artifact_and_log_retention.days must be between 1 and 90")
+	}
+	if r == nil || r.Days == nil || *r.Days < 1 {
+		return fmt.Errorf("current actions artifact and log retention days is unknown or invalid")
+	}
+	if r.MaximumAllowedDays == nil || *r.MaximumAllowedDays < 1 {
+		return fmt.Errorf("current actions artifact and log retention maximum_allowed_days is unknown or invalid")
+	}
+	if days > *r.MaximumAllowedDays {
+		return fmt.Errorf("actions.artifact_and_log_retention.days exceeds the allowed maximum of %d days", *r.MaximumAllowedDays)
+	}
+	return nil
+}
+
+func ApplyActionsRetention(client *api.RESTClient, owner, name string, days int, current *ActionsRetentionResponse) (*ApplyResult, error) {
+	if err := current.ValidateDays(days); err != nil {
+		return nil, err
+	}
+	result := &ApplyResult{}
+	if days == *current.Days {
+		return result, nil
+	}
+	path := fmt.Sprintf("repos/%s/%s/actions/permissions/artifact-and-log-retention", owner, name)
+	_, err := applyActionsWrite(client, path, map[string]any{"days": days}, Op(OpSetActionsRetention), result)
+	return result, err
+}
+
 // ReadActionsPolicy reads the configured repository Actions policy endpoints.
 func ReadActionsPolicy(client *api.RESTClient, owner, name string, selected bool) (*model.ActionsSettings, []error, error) {
 	base := fmt.Sprintf("repos/%s/%s/actions/permissions", owner, name)

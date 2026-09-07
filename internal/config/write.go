@@ -97,7 +97,17 @@ var templateFuncs = template.FuncMap{
 		return settingLines(model.RepositorySettingFields(r))
 	},
 	"actionsLines": func(a *model.ActionsSettings) ([]string, error) {
-		return settingLines(model.ActionsSettingFields(a))
+		lines, err := settingLines(model.ActionsSettingFields(a))
+		if err != nil {
+			return nil, err
+		}
+		if a != nil && a.ArtifactAndLogRetention != nil && a.ArtifactAndLogRetention.Days != nil {
+			w := &rulesetWriter{lines: lines}
+			w.line(2, "artifact_and_log_retention:")
+			w.line(4, "days: %d", *a.ArtifactAndLogRetention.Days)
+			lines = w.lines
+		}
+		return lines, nil
 	},
 	"codeScanningLines": func(c *model.CodeScanningSettings) ([]string, error) {
 		lines, err := settingLines(model.CodeScanningSettingFields(c))

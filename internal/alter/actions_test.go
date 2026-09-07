@@ -47,6 +47,132 @@ func TestProcessActionsAbsentMakesNoCalls(t *testing.T) {
 	}
 }
 
+func TestProcessActionsRetention(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		mode         alter.ApplyMode
+		readStatus   int
+		writeStatus  int
+		body         string
+		wantWrites   int32
+		wantCategory alter.RepoSettingCategory
+		wantError    string
+	}{
+		{name: "preview", mode: alter.DryRun, body: `{"days":30,"maximum_allowed_days":90}`, wantCategory: alter.WouldSet},
+		{name: "apply", mode: alter.Apply, body: `{"days":30,"maximum_allowed_days":90}`, wantWrites: 1, wantCategory: alter.WouldSet},
+		{name: "recut", mode: alter.Recut, body: `{"days":30,"maximum_allowed_days":90}`, wantWrites: 1, wantCategory: alter.WouldSet},
+		{name: "match", mode: alter.Apply, body: `{"days":14,"maximum_allowed_days":90}`, wantCategory: alter.RepoNoChange},
+		{name: "forbidden read", mode: alter.Apply, readStatus: 403, wantCategory: alter.WouldSkipScope},
+		{name: "unavailable read", mode: alter.Apply, readStatus: 404, wantCategory: alter.WouldSkipScope},
+		{name: "failed read", mode: alter.Apply, readStatus: 500, wantError: "fetching actions"},
+		{name: "cap apply", mode: alter.Apply, body: `{"days":30,"maximum_allowed_days":7}`, wantError: "maximum of 7 days"},
+		{name: "cap preview", mode: alter.DryRun, body: `{"days":30,"maximum_allowed_days":7}`, wantError: "maximum of 7 days"},
+		{name: "missing cap", mode: alter.Apply, body: `{"days":30}`, wantError: "maximum_allowed_days"},
+		{name: "zero cap", mode: alter.Apply, body: `{"days":30,"maximum_allowed_days":0}`, wantError: "maximum_allowed_days"},
+		{name: "unknown days", mode: alter.Apply, body: `{"maximum_allowed_days":90}`, wantError: "days is unknown"},
+		{name: "forbidden write", mode: alter.Apply, body: `{"days":30,"maximum_allowed_days":90}`, writeStatus: 403, wantWrites: 1, wantCategory: alter.WouldSet},
+		{name: "unavailable write", mode: alter.Apply, body: `{"days":30,"maximum_allowed_days":90}`, writeStatus: 404, wantWrites: 1, wantCategory: alter.WouldSet},
+		{name: "rejected write", mode: alter.Apply, body: `{"days":30,"maximum_allowed_days":90}`, writeStatus: 422, wantWrites: 1, wantError: "set actions"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var reads, writes atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/repos/acme/widget/actions/permissions/artifact-and-log-retention" {
+					t.Errorf("unexpected endpoint %s", r.URL.Path)
+					http.NotFound(w, r)
+					return
+				}
+				switch r.Method {
+				case http.MethodGet:
+					reads.Add(1)
+					if tc.readStatus != 0 {
+						w.WriteHeader(tc.readStatus)
+						fmt.Fprint(w, `{"message":"unavailable"}`)
+						return
+					}
+					fmt.Fprint(w, tc.body)
+				case http.MethodPut:
+					writes.Add(1)
+					body, err := io.ReadAll(r.Body)
+					if err != nil || strings.TrimSpace(string(body)) != `{"days":14}` {
+						t.Errorf("body = %s, error = %v", body, err)
+					}
+					if tc.writeStatus != 0 {
+						w.WriteHeader(tc.writeStatus)
+						fmt.Fprint(w, `{"message":"rejected"}`)
+						return
+					}
+					w.WriteHeader(http.StatusNoContent)
+				default:
+					t.Errorf("unexpected method %s", r.Method)
+				}
+			}))
+			t.Cleanup(server.Close)
+			cfg := &config.Config{Actions: &model.ActionsSettings{ArtifactAndLogRetention: &model.ArtifactAndLogRetentionSettings{Days: new(14)}}}
+			results, err := alter.ProcessActions(cfg, tc.mode, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
+			if reads.Load() != 1 || writes.Load() != tc.wantWrites {
+				t.Fatalf("reads = %d, writes = %d, want 1, %d", reads.Load(), writes.Load(), tc.wantWrites)
+			}
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+					t.Fatalf("error = %v, want %q", err, tc.wantError)
+				}
+				return
+			}
+			if err != nil || len(results) == 0 || results[0].Category != tc.wantCategory || results[0].Field != "artifact_and_log_retention.days" {
+				t.Fatalf("results = %+v, error = %v", results, err)
+			}
+			output := alter.FormatOutput(results, nil, nil, tc.mode)
+			if tc.writeStatus != 0 {
+				if strings.Contains(output, " = 14") || !strings.Contains(output, "would skip (insufficient scope") || !strings.Contains(output, "set actions artifact and log retention") {
+					t.Fatalf("output = %q", output)
+				}
+			} else if tc.readStatus == 0 && !strings.Contains(output, "actions.artifact_and_log_retention.days") {
+				t.Fatalf("output = %q", output)
+			}
+		})
+	}
+}
+
+func TestProcessActionsRetentionOmittedMakesNoCalls(t *testing.T) {
+	for _, retention := range []*model.ArtifactAndLogRetentionSettings{nil, {}} {
+		cfg := &config.Config{Actions: &model.ActionsSettings{ArtifactAndLogRetention: retention}}
+		results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(nil, "acme", "widget", true))
+		if err != nil || len(results) != 0 {
+			t.Fatalf("results = %+v, error = %v", results, err)
+		}
+	}
+}
+
+func TestProcessActionsRetentionIndependentOfDeniedCore(t *testing.T) {
+	var retentionWrites atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/acme/widget/actions/permissions":
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message":"unavailable"}`)
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/artifact-and-log-retention"):
+			fmt.Fprint(w, `{"days":30,"maximum_allowed_days":90}`)
+		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/artifact-and-log-retention"):
+			retentionWrites.Add(1)
+			w.WriteHeader(http.StatusNoContent)
+		default:
+			t.Errorf("unexpected call %s %s", r.Method, r.URL.Path)
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(server.Close)
+	cfg := &config.Config{Actions: &model.ActionsSettings{Enabled: new(true), ArtifactAndLogRetention: &model.ArtifactAndLogRetentionSettings{Days: new(14)}}}
+	results, err := alter.ProcessActions(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "acme", "widget", true))
+	if err != nil || retentionWrites.Load() != 1 {
+		t.Fatalf("results = %+v, error = %v, writes = %d", results, err, retentionWrites.Load())
+	}
+	output := alter.FormatOutput(results, nil, nil, alter.Apply)
+	if !strings.Contains(output, "actions.artifact_and_log_retention.days = 14") || !strings.Contains(output, "would skip (insufficient scope") {
+		t.Fatalf("output = %q", output)
+	}
+}
+
 func TestProcessActionsCanonicalNoChange(t *testing.T) {
 	var writes atomic.Int32
 	server := actionsServer(t, &writes, false)
