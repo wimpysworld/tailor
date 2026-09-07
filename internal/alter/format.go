@@ -71,8 +71,8 @@ func repoLines(results []RepoSettingResult, mode ApplyMode) []outputLine {
 				text = r.Operation.String()
 			case r.Section == "actions" && isActionsPolicyField(r.Field):
 				text = "actions." + r.Field
-			case r.Section == rulesetSection:
-				text = rulesetSection + "." + r.Field
+			case r.Section == rulesetSection || r.Section == "pages":
+				text = r.Section + "." + r.Field
 			default:
 				text = r.Field
 			}

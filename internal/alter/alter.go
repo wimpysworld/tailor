@@ -35,41 +35,13 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 		stderr = io.Discard
 	}
 
-	configChanged := config.RemoveRetiredWorkflowEntries(cfg)
-	securityNormalised := config.NormaliseSecurityPrerequisites(cfg)
-	if securityNormalised {
-		fmt.Fprintln(stderr, "warning: set vulnerability_alerts_enabled to true because automated_security_fixes_enabled requires vulnerability alerts")
-	}
-	secretScanningWarnings := config.NormaliseSecretScanningPrerequisites(cfg)
-	for _, warning := range secretScanningWarnings {
-		fmt.Fprintln(stderr, warning)
-	}
-	configChanged = configChanged || securityNormalised || len(secretScanningWarnings) > 0
-	if err := validateConfig(cfg); err != nil {
+	configChanged, err := prepareAlterConfig(cfg, mode, stderr)
+	if err != nil {
 		return err
 	}
-
-	// Keep the local config aligned with built-in defaults only when the
-	// config swatch mode allows tailor to rewrite it.
-	if shouldMerge(cfg, mode) {
-		defaultsChanged, err := config.MergeDefaults(cfg)
-		if err != nil {
-			return err
-		}
-		configChanged = configChanged || defaultsChanged
-		// Re-validate after merge as a safety check.
-		if err := validateConfig(cfg); err != nil {
-			return err
-		}
-	}
-	if err := config.ValidateCompleteActions(cfg); err != nil {
+	prepared, err := preparePagesSource(cfg, dir, mode)
+	if err != nil {
 		return err
-	}
-	if err := config.ValidateCompleteRuleset(cfg); err != nil {
-		return err
-	}
-	for _, warning := range config.RulesetMergeMethodWarnings(cfg) {
-		fmt.Fprintln(stderr, warning)
 	}
 
 	repo, hasRepo, err := gh.RepoContextAt(dir)
@@ -90,6 +62,11 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	if err != nil {
 		return fmt.Errorf("verifying GitHub authentication: %w", err)
 	}
+	target := RepoTarget{Client: client, Owner: repo.Owner, Name: repo.Name, HasRepo: hasRepo, Stderr: stderr}
+	pages, err := preflightPages(cfg, dir, mode, target, prepared)
+	if err != nil {
+		return err
+	}
 
 	if configChanged && mode.ShouldWrite() {
 		todayDate := time.Now().Format("2006-01-02")
@@ -108,7 +85,6 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 		Owner:          repo.Owner,
 		Name:           repo.Name,
 	}
-	target := RepoTarget{Client: client, Owner: repo.Owner, Name: repo.Name, HasRepo: hasRepo, Stderr: stderr}
 
 	repoResults, err := processRepoStages(cfg, mode, target)
 	if err != nil {
@@ -125,15 +101,36 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
 		return err
 	}
+	pagesResults, pagesWorkflow, err := processPages(cfg, dir, mode, target, pages)
+	repoResults = append(repoResults, pagesResults...)
+	if pagesWorkflow != nil {
+		retiredResults = append(retiredResults, *pagesWorkflow)
+	}
+	if err != nil {
+		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
+		return err
+	}
 
 	licenceResult, err := ProcessLicence(cfg, dir, mode, client, stderr)
 	if err != nil {
+		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
 		return err
 	}
 
 	swatchResults, err := ProcessSwatches(cfg, dir, mode, &tokens)
 	if err != nil {
+		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
 		return err
+	}
+	if pages != nil && len(pages.skipped) == 0 {
+		ignore, err := processPagesIgnore(cfg, dir, mode, prepared)
+		if err != nil {
+			fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, append(swatchResults, retiredResults...), mode))
+			return err
+		}
+		if ignore != nil {
+			swatchResults = append(swatchResults, *ignore)
+		}
 	}
 
 	// Merge licence result into swatch results for unified output.
@@ -148,6 +145,42 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, swatchResults, mode))
 
 	return nil
+}
+
+func prepareAlterConfig(cfg *config.Config, mode ApplyMode, stderr io.Writer) (bool, error) {
+	changed := config.RemoveRetiredWorkflowEntries(cfg)
+	securityNormalised := config.NormaliseSecurityPrerequisites(cfg)
+	if securityNormalised {
+		fmt.Fprintln(stderr, "warning: set vulnerability_alerts_enabled to true because automated_security_fixes_enabled requires vulnerability alerts")
+	}
+	secretScanningWarnings := config.NormaliseSecretScanningPrerequisites(cfg)
+	for _, warning := range secretScanningWarnings {
+		fmt.Fprintln(stderr, warning)
+	}
+	changed = changed || securityNormalised || len(secretScanningWarnings) > 0
+	if err := validateConfig(cfg); err != nil {
+		return false, err
+	}
+	if shouldMerge(cfg, mode) {
+		defaultsChanged, err := config.MergeDefaults(cfg)
+		if err != nil {
+			return false, err
+		}
+		changed = changed || defaultsChanged
+		if err := validateConfig(cfg); err != nil {
+			return false, err
+		}
+	}
+	if err := config.ValidateCompleteActions(cfg); err != nil {
+		return false, err
+	}
+	if err := config.ValidateCompleteRuleset(cfg); err != nil {
+		return false, err
+	}
+	for _, warning := range config.RulesetMergeMethodWarnings(cfg) {
+		fmt.Fprintln(stderr, warning)
+	}
+	return changed, nil
 }
 
 // processRepoStages runs the repository API stages in order: repository
@@ -173,6 +206,9 @@ func processRepoStages(cfg *config.Config, mode ApplyMode, target RepoTarget) ([
 
 // validateConfig runs the repeated config validation pass in sequence.
 func validateConfig(cfg *config.Config) error {
+	if err := config.ValidatePages(cfg); err != nil {
+		return err
+	}
 	if err := config.ValidateVariables(cfg); err != nil {
 		return err
 	}

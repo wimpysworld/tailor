@@ -104,8 +104,19 @@ func listLines(key string, v reflect.Value) (string, error) {
 var templateFuncs = template.FuncMap{
 	"yamlVal":    yamlVal,
 	"yamlQuoted": yamlQuoted,
-	"repositoryLines": func(r *model.RepositorySettings) ([]string, error) {
-		return settingLines(model.RepositorySettingFields(r))
+	"repositoryLines": func(cfg *Config) ([]string, error) {
+		lines, err := settingLines(model.RepositorySettingFields(cfg.Repository))
+		if cfg.InferredHomepage != "" && !cfg.HomepageDeclared() {
+			for i, line := range lines {
+				if strings.HasPrefix(line, "  homepage:") {
+					lines[i] += " " + inferredHomepageMarker(cfg.InferredHomepage)
+				}
+			}
+		}
+		return lines, err
+	},
+	"pagesLines": func(p *model.PagesSettings) ([]string, error) {
+		return settingLines(model.PagesSettingFields(p))
 	},
 	"actionsLines": func(a *model.ActionsSettings) ([]string, error) {
 		lines, err := settingLines(model.ActionsSettingFields(a))
@@ -381,7 +392,7 @@ license: {{ yamlVal .License }}
 {{- if .Repository }}
 
 repository:
-{{- range repositoryLines .Repository }}
+{{- range repositoryLines .Config }}
 {{ . }}
 {{- end }}
 {{- end }}
@@ -419,6 +430,20 @@ ruleset:
 {{- range rulesetLines .Ruleset }}
 {{ . }}
 {{- end }}
+{{- end }}
+{{- if .Pages }}
+
+# Pages is opt-in. Omission or enabled: false leaves Pages unmanaged.
+# generator: static (default), hugo, or jekyll. Use an existing site.
+# path: project-relative source directory, default pages.
+# branch: omit to use the current repository default branch.
+# cname: omit to preserve the domain, use "" to clear it, or set a domain.
+pages:
+{{- range pagesLines .Pages }}
+{{ . }}
+{{- end }}
+  # branch: main
+  # cname: www.example.com
 {{- end }}
 {{- if .Labels }}
 

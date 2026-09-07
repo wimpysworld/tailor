@@ -2,6 +2,14 @@ package gh
 
 import "testing"
 
+func TestPagesOperationString(t *testing.T) {
+	for kind := OpFetchPagesRepository; kind <= OpGetPagesBranch; kind++ {
+		if Op(kind).String() == "" {
+			t.Errorf("missing description for operation %d", kind)
+		}
+	}
+}
+
 func TestVariableOperationString(t *testing.T) {
 	for operation, want := range map[Operation]string{
 		Op(OpFetchVariables):     "fetch variables",

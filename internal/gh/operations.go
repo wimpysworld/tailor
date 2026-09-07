@@ -45,6 +45,17 @@ const (
 	OpFetchVariables
 	OpCreateVariable
 	OpUpdateVariable
+	OpFetchPagesRepository
+	OpFetchPages
+	OpCreatePages
+	OpSetPagesBuildType
+	OpSetPagesDomain
+	OpEnforcePagesHTTPS
+	OpGetPagesEnvironment
+	OpListPagesEnvironmentPolicies
+	OpPutPagesEnvironment
+	OpPostPagesEnvironmentPolicy
+	OpGetPagesBranch
 )
 
 // Operation identifies one GitHub API operation. Enable selects the enable or
@@ -69,7 +80,7 @@ type SkippedOperation struct {
 // operations that failed with access errors and were gracefully skipped.
 type ApplyResult struct {
 	Skipped []SkippedOperation
-	Applied []Operation // Confirmed successful variable writes, including before a later failure.
+	Applied []Operation // Confirmed successful writes, including before a later failure.
 }
 
 // recordAccessError appends the operation to result.Skipped when err is an
@@ -201,6 +212,23 @@ func (o Operation) String() string {
 	}
 }
 
+func pagesOperationText(kind OperationKind) (string, bool) {
+	text, ok := map[OperationKind]string{
+		OpFetchPagesRepository:         "fetch pages repository",
+		OpFetchPages:                   "fetch pages",
+		OpCreatePages:                  "create pages",
+		OpSetPagesBuildType:            "set pages build type",
+		OpSetPagesDomain:               "set pages domain",
+		OpEnforcePagesHTTPS:            "enforce pages https",
+		OpGetPagesEnvironment:          "fetch pages environment",
+		OpListPagesEnvironmentPolicies: "list pages environment policies",
+		OpPutPagesEnvironment:          "create pages environment",
+		OpPostPagesEnvironmentPolicy:   "create pages environment branch policy",
+		OpGetPagesBranch:               "fetch pages branch",
+	}[kind]
+	return text, ok
+}
+
 func variableOperationText(o Operation) (string, bool) {
 	switch o.Kind {
 	case OpFetchVariables:
@@ -210,7 +238,7 @@ func variableOperationText(o Operation) (string, bool) {
 	case OpUpdateVariable:
 		return fmt.Sprintf("update variable %q", o.Variable), true
 	default:
-		return "", false
+		return pagesOperationText(o.Kind)
 	}
 }
 

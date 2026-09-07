@@ -124,7 +124,7 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 
 ### Default swatch set
 
-Tailor embeds 16 default swatches:
+Tailor embeds 17 default swatches:
 
 | Swatch | Mode |
 |--------|------|
@@ -144,6 +144,7 @@ Tailor embeds 16 default swatches:
 | `.envrc` | `first-fit` |
 | `cubic.yaml` | `first-fit` |
 | `.tailor.yml` | `always` |
+| `.github/workflows/tailor-pages.yml` | `always` (only when Pages is enabled) |
 
 ### Alteration modes
 
@@ -153,7 +154,7 @@ Tailor embeds 16 default swatches:
 
 ### Configuration
 
-All state lives in `.tailor.yml`. Its ten sections are `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, and `swatches`.
+All state lives in `.tailor.yml`. Its eleven sections are `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, and `swatches`.
 
 Release immutability defaults to `immutable_releases.enabled: false`. Before enabling it, change release CI to upload every asset to a draft, then publish. Workflows that upload or replace assets after publication will fail. Enabling protects future releases only. Disabling does not unlock existing immutable releases. Tailor skips disabling when the repository owner enforces immutability. An omitted section or `enabled` key stays unmanaged, including during default merging. For an existing repository, `fit` preserves the live setting.
 
@@ -474,6 +475,54 @@ Tailor does not manage secrets, organisation variables or environment variables.
 
 `baste` shows `variable.<name>` with quoted, escaped values and makes no writes. `alter` reports each successful create or update. Access failures skip the affected variables. Rate limits and other hard errors stop the command. After partial writes, the error includes applied and remaining counts.
 
+## GitHub Pages
+
+Tailor configures GitHub Pages for public repositories, with a deployment workflow and the `github-pages` environment. Pages is disabled by default.
+
+Add the existing site source to your repository, then edit these five fields in `.tailor.yml`:
+
+```yaml
+pages:
+  enabled: true           # Default: false. Omission leaves Pages unmanaged.
+  generator: static       # static, hugo, or jekyll. Default: static.
+  path: pages             # Existing source directory, relative to the project.
+  # branch: main          # Omit to follow the current repository default branch.
+  # cname: www.example.com # Omit to preserve the domain. "" clears it.
+```
+
+Run `tailor baste` to preview, then `tailor alter` to apply. Commit the source and generated workflow to the selected branch to deploy.
+
+| Generator | Required source | Build |
+|---|---|---|
+| `static` | `index.html` | Uploads the source without changing URLs. Use URLs that support the deployment base path. |
+| `hugo` | Recognised Hugo configuration and local themes or pinned modules/submodules | Hugo Extended 0.165.0 writes `<path>/public`. Modules require `go.mod` and matching `go.sum` entries. |
+| `jekyll` | `_config.yml`, `Gemfile`, and a complete `Gemfile.lock` with Jekyll 4.4.1 | Ruby 3.3.12 builds `<path>/_site`. |
+
+The default source path is `pages`. Symlinks in the source or its parents are rejected. Hugo module replacements are unsupported. Jekyll path dependencies must stay inside the source, and Git dependencies require pinned commits. Tailor does not create a site or add Node, Sass, or custom build commands.
+
+The workflow uses pinned actions and GitHub-hosted runners. Pushes deploy only the selected literal branch, never pull requests. Hugo and Jekyll use GitHub's Pages metadata for project prefixes and custom domains. The effective Actions policy must allow the required actions, including `ruby/setup-ruby` for Jekyll. Tailor reports blocked actions without bypassing the policy or changing repository-wide workflow permissions.
+
+> [!IMPORTANT]
+> Pages currently requires a classic token with `repo` scope. Use a repository administrator account to permit environment creation or branch-policy updates. Tailor skips Pages with `insufficient scope` when it cannot prove permissions, including with fine-grained tokens.
+
+The workflow path is `.github/workflows/tailor-pages.yml`. Tailor refuses an existing file without the first-line marker `# Managed by Tailor: pages`, even with `--recut`.
+
+| Workflow mode | Behaviour |
+|---|---|
+| `always` | Creates or updates the marked workflow for the selected generator, path and branch. |
+| `first-fit` | Creates a missing workflow. Preserves an existing compatible workflow, unless `--recut` applies. |
+| `never` | Requires an existing compatible workflow and never writes it. |
+
+A protected workflow must match the generated YAML semantics. Comments and formatting can differ, but changes to execution or permissions block setup.
+
+Set `cname` to a domain without a scheme or path. No `CNAME` file is required. DNS and account-level domain verification remain manual. For subdomains, point the DNS CNAME to `<owner>.github.io`, without a repository path. For apex domains, follow [GitHub's DNS instructions](https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site). Complete any required TXT verification in account or organisation Pages settings. Tailor enables HTTPS when the certificate is ready. If DNS, verification or the certificate is pending, complete the reported step and rerun `tailor alter`.
+
+An explicit `repository.homepage`, including `""`, wins. Otherwise, Tailor replaces only a live homepage that points to this repository's GitHub URL. The inline comment `# tailor: inferred homepage <URL>` identifies an inferred config value. Remove that comment, or edit `repository.homepage`, to make the value explicit. Tailor updates the homepage only after successful Pages setup.
+
+For Hugo and Jekyll, Tailor appends the output directory to `.gitignore`, unless its swatch mode is `never`. Existing text stays unchanged, and tracked files stay tracked. Static adds no ignore rule.
+
+Omitting `pages` or setting `enabled: false` stops Pages management without deleting the site, workflow or environment. Default merging and `--recut` never enable Pages.
+
 ## Labels
 
 The `labels` section manages GitHub issue labels declaratively. Tailor ships 12 default labels (the 9 GitHub defaults plus `dependencies`, `github_actions`, and `hacktoberfest-accepted`) with colours from the [Catppuccin Latte](https://catppuccin.com/palette/) palette.
@@ -529,7 +578,7 @@ When a GitHub remote exists, `fit` queries the live repository configuration for
 
 ### `alter`
 
-Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, licence, and swatches in that order.
+Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, licence, and swatches in that order.
 
 ```bash
 tailor alter            # Apply changes
@@ -583,6 +632,8 @@ skipped:                             .github/pull_request_template.md (mode neve
 
 Displays the current GitHub authentication state and repository context.
 
+When authenticated, `docket` verifies the token with `GET /user`. Pages adds no requests to this command.
+
 ```bash
 tailor docket
 ```
@@ -590,6 +641,8 @@ tailor docket
 ### `measure`
 
 Checks community health files and configuration alignment. No network access, no authentication, no `.tailor.yml` required.
+
+The Pages workflow is not a community health file. Its registered path remains part of the configuration comparison, even when Pages is disabled.
 
 ```bash
 tailor measure

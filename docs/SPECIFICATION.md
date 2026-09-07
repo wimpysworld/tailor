@@ -240,7 +240,44 @@ Tailor compares only managed fields: `enforcement`, `bypass_actors` as a set, `i
 
 **Free features only**: Tailor exposes no setting that needs a paid GitHub plan, a GitHub Advanced Security or Secret Protection licence, a self-hosted runner, or AI credit spend on a public repository. Every request body carries only the fields that Tailor manages, so a setting outside Tailor policy keeps the value set in the GitHub UI. This rule excludes the `security_and_analysis` keys other than `secret_scanning`, `secret_scanning_push_protection`, and `secret_scanning_non_provider_patterns`, the `runner_type` and `runner_label` fields of default setup endpoints, and `ai_findings_option`.
 
-Settings deliberately excluded due to risk or org-level scope: `visibility`, `default_branch`, `name`, `archived`, `is_template`, `allow_forking`. Additional API areas considered and deferred: autolinks, Pages configuration, deployment environments, custom properties (org-level), and Dependabot secrets. Classic branch protection rules are out of scope. Rulesets replace them, and Tailor manages one ruleset through the `ruleset` section. Rulesets outside the `Tailor` ruleset are out of scope.
+Settings deliberately excluded due to risk or org-level scope: `visibility`, `default_branch`, `name`, `archived`, `is_template`, `allow_forking`. Additional API areas considered and deferred: autolinks, general deployment environments, custom properties (org-level), and Dependabot secrets. Pages manages only the `github-pages` environment. Classic branch protection rules are out of scope. Rulesets replace them, and Tailor manages one ruleset through the `ruleset` section. Rulesets outside the `Tailor` ruleset are out of scope.
+
+### GitHub Pages
+
+Pages is opt-in and supports free public repositories only. These are the only five settings:
+
+```yaml
+pages:
+  enabled: false
+  generator: static
+  path: pages
+  # branch: main
+  # cname: www.example.com
+```
+
+An omitted section or disabled setting makes no Pages-related changes to settings, workflows, environments, ignores or homepages. Bootstrap, default merging and recut never activate Pages. Missing fields take disabled, `static` and `pages` defaults. Explicit values survive merging. Unknown keys, wrong types and unknown generators are errors.
+
+`path` is an existing project-relative source directory. Reject absolute paths, traversal, all source and parent symlinks, and unsafe workflow interpolation. Config loading checks syntax only. Before any remote write, validate the source, dependency declarations and workflow ownership. An omitted `branch` resolves to the current repository default branch on each run. Explicit branches must be valid Git branch names. Escape workflow filter metacharacters so the branch matches literally. Neither path nor branch is a legacy Pages API source setting.
+
+Static requires `index.html` and uploads authored URLs unchanged. The site must already support its deployment base path. Hugo requires recognised configuration and local themes or pinned module/submodule declarations, and builds to `<path>/public`. Modules require pinned `go.mod` requirements and matching `go.sum` entries. Module replacements are unsupported. Unpopulated theme submodules require a `.gitmodules` declaration and a pinned Git index entry. Jekyll requires `_config.yml`, `Gemfile` and `Gemfile.lock`, including Jekyll 4.4.1 and dependencies, and builds to `<path>/_site`. Git dependencies require pinned commits. Path dependencies must exist inside the source directory. Inspected input files must be regular files no larger than 1 MiB. Use Hugo Extended 0.165.0 and Ruby 3.3.12. Dependency installation failures fail CI. No implicit Node, Sass, arbitrary build commands or site scaffolding is supported.
+
+One registered development swatch, `.github/workflows/tailor-pages.yml`, defaults to `always` and selects an embedded static, Hugo or Jekyll variant. General swatch processing excludes this destination. Generated content starts with `# Managed by Tailor: pages`. An existing unmarked destination is an ownership conflict, including under recut. `always` compares resolved content. `first-fit` creates a missing workflow and preserves compatible content unless recut applies. `never` never writes and requires an existing workflow. Protected workflows must match the generated YAML semantics, including execution and permissions. Comments and formatting can differ. An incompatible protected workflow blocks Pages setup before writes. Generator changes replace the same marked destination. Other workflows remain untouched.
+
+Workflows run only on selected-branch pushes, never pull requests or untrusted refs. Use separate build and deployment jobs with `needs`, GitHub-hosted Ubuntu and Pages concurrency. Build permissions are `contents: read`. Deployment permissions are only `pages: write` and `id-token: write`. Configure-pages metadata supplies Hugo's full base URL and Jekyll's base path and origin, including project prefixes and custom domains. The environment URL comes from deploy-pages output. Pin verified full commit SHAs with release comments for checkout 7.0.1, configure-pages 6.0.0, upload-pages-artifact 5.0.0, deploy-pages 5.0.1 and setup-ruby 1.321.0.
+
+Read `/repos/{owner}/{repo}/pages`. Create confirmed absence with POST and exactly `{"build_type":"workflow"}`. Migrate legacy publishing with PUT. Never send `source`, local path or branch. Creation returns 201, updates return 204. Never delete Pages. A 404 alone does not prove absence. Prove access through an accessible public repository, classic `repo` scope in `X-OAuth-Scopes`, and an admin or maintain role. Environment creation and branch-policy writes require admin access. Fine-grained token grants remain unknown and skip Pages with insufficient scope. Skip private, unavailable and denied reads. Re-read creation conflicts once. Ordinary validation errors stop, and failed writes never report success.
+
+Preflight availability and environment compatibility before dependent Pages changes. Create only `github-pages` when absent, with a custom deployment policy for the selected branch. Preserve secrets, reviewers, timers and unrelated patterns. Add an absent branch to an existing custom policy. If protected-branch-only rules exclude it, report the conflict without weakening protection. Never change repository-wide workflow permissions or bypass Actions policy. Report restrictions that block the required actions.
+
+An omitted `cname` preserves the remote domain. An empty string clears it through API `cname: null`. A non-empty value is a DNS domain without scheme or path. No `CNAME` file is required. Set the domain through a subsequent update before DNS guidance. Enforce HTTPS when the certificate covers the effective domain and GitHub accepts enforcement. Pending DNS, domain verification and certificate issuance are pending states, not failed deployments. Re-read and retry on a later `alter`. Do not suppress unrelated 422 errors.
+
+Show only remaining manual work. A subdomain uses CNAME target `<owner>.github.io`, without a repository path. Apex domains link GitHub's published DNS instructions. Ownership verification links account or organisation Pages settings and explains the TXT step. Account-level verification and DNS administration remain manual. A pending certificate tells the user to wait and rerun `tailor alter`.
+
+Explicit `repository.homepage`, including an empty value, takes precedence. Otherwise replace the live homepage only when it equals this repository's GitHub URL. Use the effective custom-domain URL or GitHub's reported Pages URL. Preserve other values, including an empty live homepage. Track an inferred homepage separately from its value through config merging and round trips. The value-bound inline comment `# tailor: inferred homepage <URL>` marks an inferred value. Removing the comment or changing the URL makes the value explicit. Apply homepage changes only after successful Pages reconciliation, and never restore an inferred repository URL on later runs.
+
+When enabled, append the escaped, anchored generator output rule to `.gitignore`: `/pages/public/` for Hugo or `/pages/_site/` for Jekyll with the default path. Static adds nothing. Preserve text and prior rules, avoid duplicates, and never untrack files. An explicit `.gitignore` mode of `never` skips the addition with a result. Add the rule after ordinary swatches so recut cannot remove it.
+
+Insert Pages reconciliation after variables and before the licence, preserving other stage order. Return confirmed partial progress after failures. `baste` previews settings, workflow, environment, ignore and homepage changes without writes. `measure` remains local and excludes the development workflow from health checks. Its config comparison includes the registered Pages path, even when Pages is disabled. Authenticated `docket` already verifies the token with `GET /user`. Pages adds no requests to either inspection command. Disabled Pages never deletes sites, workflows or environments. Private Pages, paid features, self-hosted runners and general environment management remain out of scope.
 
 **Repository Actions variables**: The optional top-level `variables` section is a sequence of `name` and `value` entries. These values are non-secret. Tailor creates missing declared variables and updates changed declared values. It leaves undeclared variables unchanged. Tailor never deletes or renames variables.
 
@@ -306,6 +343,7 @@ List access failures skip variable management without writes. Individual write a
 - `.github/dependabot.yml`
 
 **Development swatches** (dev environment and project tooling):
+- `.github/workflows/tailor-pages.yml` (only when Pages is enabled)
 - `.gitignore`
 - `.envrc`
 - `flake.nix`
@@ -325,8 +363,9 @@ Commands divide into three categories: bootstrap commands, which create the proj
 
 Creates a new project directory and writes `.tailor.yml` with the full default swatch set and the repository settings. When run against an existing project with a GitHub remote, `fit` queries the live repository configuration and uses those values for the `repository` section, preserving the project's current state. When no repository context exists, the built-in defaults are used. Does not copy any files or apply any settings. After `fit`, change into `<path>` before running `alter`.
 
-The default swatch set contains 16 embedded swatches:
+The default swatch set contains 17 registered destinations:
 
+- `.github/workflows/tailor-pages.yml`
 - `.github/dependabot.yml`
 - `.github/FUNDING.yml`
 - `.github/ISSUE_TEMPLATE/bug_report.yml`
@@ -671,7 +710,7 @@ Behaviour:
 
 **Repository settings without repo context**: if `.tailor.yml` contains a `repository` section but the project has no GitHub remote (no repository context found), repository settings are skipped with a warning: "No GitHub repository context found. Repository settings will be applied once a remote is configured." Warning only; does not block swatch or licence processing.
 
-**Repository settings API failure**: if any API call to apply repository settings fails (PATCH, PUT, or DELETE), `alter` exits with the API error. Repository settings are the first API stage, so Actions policy, code scanning, Code Quality, ruleset, labels, variables, licence, and swatch operations are not attempted. Local config migration and retired file cleanup already occurred. If licence fetch fails after repository settings and labels have been applied, those changes are not reverted.
+**Repository settings API failure**: if any API call to apply repository settings fails (PATCH, PUT, or DELETE), `alter` exits with the API error. Repository settings are the first API stage, so immutable releases, Actions policy, code scanning, Code Quality, ruleset, labels, variables, Pages, licence, and swatch operations are not attempted. Local config migration and retired file cleanup already occurred. If licence fetch fails after repository settings and labels have been applied, those changes are not reverted.
 
 **Repository settings with insufficient scope**: When GitHub rejects a repository-setting read or write with an access error, Tailor skips the affected fields rather than exiting. `baste` reports `would skip (insufficient scope: token missing required scope)` and `alter` skips the operation. Other repository settings continue to be applied. Use a token with the required repository permissions. The `code_scanning` and `code_quality` fields follow the same skip rules. Their output uses the section prefix, in the form `code_scanning.state = configured` and `code_quality.state (already not-configured)`. A `409` produces `would skip (setup in progress)`, and a `403` produces `would skip (not available)`. The `ruleset` section follows the same skip rules with the `ruleset.` prefix. A `403` on a ruleset read or write produces `would skip (not available)`. A ruleset read that omits `bypass_actors` produces `would skip (insufficient scope)` for the section. A `422` on a ruleset write stops the command with the API error, because the cause is the config.
 
@@ -685,11 +724,11 @@ Behaviour:
 
 ### `.tailor.yml`
 
-`.tailor.yml` has ten top-level sections: `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, and `swatches`. The `actions` section is a map of repository Actions policy settings. The `code_scanning` section is a map of CodeQL default setup settings, and the `code_quality` section is a map of GitHub Code Quality settings. The `ruleset` section is a map of settings for the branch ruleset named `Tailor`. `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (e.g. `justfile`) are referenced as-is. The `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, and `variables` sections can be absent in a hand-written config. Default merging adds missing Actions defaults before policy management.
+`.tailor.yml` has eleven top-level sections: `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, and `swatches`. The `actions` section is a map of repository Actions policy settings. The `code_scanning` section is a map of CodeQL default setup settings, and the `code_quality` section is a map of GitHub Code Quality settings. The `ruleset` section is a map of settings for the branch ruleset named `Tailor`. `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (e.g. `justfile`) are referenced as-is. The `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, and `pages` sections can be absent in a hand-written config. Default merging adds missing Actions defaults before policy management.
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 
-The active configuration has 16 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
+The active configuration has 17 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
 
 Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
 
@@ -814,6 +853,18 @@ ruleset:
             alerts_threshold: errors
             security_alerts_threshold: high_or_higher
 
+# Pages is opt-in. Omission or enabled: false leaves Pages unmanaged.
+# generator: static (default), hugo, or jekyll. Use an existing site.
+# path: project-relative source directory, default pages.
+# branch: omit to use the current repository default branch.
+# cname: omit to preserve the domain, use "" to clear it, or set a domain.
+pages:
+  enabled: false
+  generator: static
+  path: pages
+  # branch: main
+  # cname: www.example.com
+
 labels:
   - name: bug
     color: d20f39
@@ -917,6 +968,9 @@ swatches:
   - path: cubic.yaml
     alteration: first-fit
 
+  - path: .github/workflows/tailor-pages.yml
+    alteration: always
+
   - path: .tailor.yml
     alteration: always
 ```
@@ -1000,4 +1054,4 @@ measure:
 6. **Authentication via `go-gh`**: All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions. Token resolution follows the `go-gh` precedence order: `GH_TOKEN` environment variable, `GITHUB_TOKEN` environment variable, `gh` config file, `gh` keyring (via the `gh` binary). When `GH_TOKEN` or `GITHUB_TOKEN` is set, the `gh` binary is not required. The `gh` binary is needed only for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access when no environment variable is set. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If no token can be resolved, or the effective host rejects the token, `fit`, `alter`, and `baste` exit immediately with an error.
 7. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
 8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `.tailor.yml`, plus separate API calls for security features, topics, and Actions workflow permissions. The `secret_scanning`, `secret_scanning_push_protection`, and `secret_scanning_non_provider_patterns` fields travel in the `security_and_analysis` object of the same PATCH body. The top-level `actions` section uses separate endpoints for core permissions, selected actions, artifact and log retention, and fork pull request contributor approval. The top-level `code_scanning` and `code_quality` sections use the code scanning default setup and Code Quality setup endpoints. The top-level `ruleset` section uses the repository rulesets endpoints (list, get, `POST`, and `PUT` on `/repos/{owner}/{repo}/rulesets`). Field names map directly to the GitHub REST API without translation, except for the `rules` map and its `enabled` keys, which are Tailor's form of the API `rules` list. Current settings are read via `GET /repos/{owner}/{repo}` and the relevant separate endpoints for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client.
-9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. Next, it verifies the token with `GET /user`, writes the changed config once, and removes present retired workflow files. The same `GET /user` response resolves `{{GITHUB_USERNAME}}`, so verification adds no extra API call. It then applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, the licence, and active swatches in that order. `baste` uses `DryRun`; it performs the same planning and validation but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.
+9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. Next, it verifies the token with `GET /user`, writes the changed config once, and removes present retired workflow files. The same `GET /user` response resolves `{{GITHUB_USERNAME}}`, so verification adds no extra API call. It then applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, the licence, and active swatches in that order. `baste` uses `DryRun`; it performs the same planning and validation but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.

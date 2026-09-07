@@ -53,7 +53,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 	defer root.Close()
 
 	for _, entry := range cfg.Swatches {
-		if entry.Path == configPath {
+		if entry.Path == configPath || entry.Path == swatch.PagesDestination {
 			continue
 		}
 
