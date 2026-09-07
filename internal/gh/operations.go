@@ -125,8 +125,6 @@ func (o Operation) String() string {
 		return "set actions artifact and log retention"
 	case OpFetchImmutableReleases:
 		return "fetch immutable releases"
-	case OpSetImmutableReleases:
-		return securityFeatureText(o.Enable, "immutable releases")
 	case OpFetchActionsPermissions:
 		return "fetch actions permissions"
 	case OpFetchSelectedActionsPermissions:
@@ -149,12 +147,14 @@ func (o Operation) String() string {
 		return "fetch vulnerability alerts"
 	case OpFetchAutomatedSecurityFixes:
 		return "fetch automated security fixes"
-	case OpSetPrivateVulnerabilityReporting:
-		return securityFeatureText(o.Enable, "private vulnerability reporting")
-	case OpSetVulnerabilityAlerts:
-		return securityFeatureText(o.Enable, "vulnerability alerts")
-	case OpSetAutomatedSecurityFixes:
-		return securityFeatureText(o.Enable, "automated security fixes")
+	case OpSetImmutableReleases, OpSetPrivateVulnerabilityReporting, OpSetVulnerabilityAlerts, OpSetAutomatedSecurityFixes:
+		features := map[OperationKind]string{
+			OpSetImmutableReleases:             "immutable releases",
+			OpSetPrivateVulnerabilityReporting: "private vulnerability reporting",
+			OpSetVulnerabilityAlerts:           "vulnerability alerts",
+			OpSetAutomatedSecurityFixes:        "automated security fixes",
+		}
+		return securityFeatureText(o.Enable, features[o.Kind])
 	case OpPatchRepoSettings:
 		return "patch repo settings"
 	case OpSetTopics:
