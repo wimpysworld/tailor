@@ -148,13 +148,14 @@ func validateHugoSource(root *os.Root, dir, source string) error {
 		var config struct {
 			Theme any `yaml:"theme"`
 		}
+		modules = modules || strings.HasPrefix(path.Base(name), "module.")
 		if strings.HasSuffix(name, ".toml") {
 			if match := hugoThemeAssignment.FindSubmatch(data); match != nil {
 				if err := yaml.Unmarshal(match[1], &config.Theme); err != nil {
 					return fmt.Errorf("reading hugo theme: %w", err)
 				}
 			}
-			modules = modules || strings.Contains(string(data), "module.imports") || strings.HasPrefix(path.Base(name), "module.")
+			modules = modules || strings.Contains(string(data), "module.imports")
 		} else {
 			if err := yaml.Unmarshal(data, &config); err != nil {
 				return fmt.Errorf("reading hugo config: %w", err)
@@ -163,7 +164,7 @@ func validateHugoSource(root *os.Root, dir, source string) error {
 			if err := yaml.Unmarshal(data, &values); err != nil {
 				return err
 			}
-			modules = modules || values["module"] != nil || strings.HasPrefix(path.Base(name), "module.")
+			modules = modules || values["module"] != nil
 		}
 		switch theme := config.Theme.(type) {
 		case string:
