@@ -71,6 +71,32 @@ func TestPreparePagesSourceRejectsSymlink(t *testing.T) {
 	}
 }
 
+func TestPreparePagesSourceHugoModuleTheme(t *testing.T) {
+	for _, tt := range []struct {
+		name, theme, requirement, checksum, wantErr string
+	}{
+		{"matching module", "github.com/owner/theme", "github.com/owner/theme", "github.com/owner/theme v1.2.3 h1:test\n", ""},
+		{"unrelated module", "github.com/owner/theme", "github.com/owner/other", "github.com/owner/other v1.2.3 h1:test\n", "must contain local files or a pinned submodule"},
+		{"module path prefix", "github.com/owner/theme/subtheme", "github.com/owner/theme", "github.com/owner/theme v1.2.3 h1:test\n", "must contain local files or a pinned submodule"},
+		{"missing checksum", "github.com/owner/theme", "github.com/owner/theme", "", "matching go.sum entries"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			pagesTestFile(t, dir, "pages/hugo.toml", "theme = '"+tt.theme+"'\n")
+			pagesTestFile(t, dir, "pages/go.mod", "module site\nrequire "+tt.requirement+" v1.2.3\n")
+			pagesTestFile(t, dir, "pages/go.sum", tt.checksum)
+			_, err := preparePagesSource(pagesTestConfig("hugo"), dir, Apply)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("error = %v, want %q", err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestPreparePagesSourceJekyllRequirements(t *testing.T) {
 	for _, tt := range []struct {
 		name, declaration string

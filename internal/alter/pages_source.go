@@ -184,14 +184,19 @@ func validateHugoSource(root *os.Root, dir, source string) error {
 	if _, err := root.Lstat(path.Join(source, "go.mod")); err == nil {
 		modules = true
 	}
+	var modulePaths []string
 	if modules {
-		if err := validateHugoModules(root, source); err != nil {
+		modulePaths, err = validateHugoModules(root, source)
+		if err != nil {
 			return err
 		}
 	}
 	for _, theme := range themes {
 		if theme == "" || path.IsAbs(theme) || path.Clean(theme) != theme || theme == ".." || strings.HasPrefix(theme, "../") {
 			return fmt.Errorf("unsafe hugo theme %q", theme)
+		}
+		if slices.Contains(modulePaths, theme) {
+			continue
 		}
 		name := path.Join(source, "themes", theme)
 		entries, err := fs.ReadDir(root.FS(), name)
@@ -205,28 +210,29 @@ func validateHugoSource(root *os.Root, dir, source string) error {
 	return nil
 }
 
-func validateHugoModules(root *os.Root, source string) error {
+func validateHugoModules(root *os.Root, source string) ([]string, error) {
 	mod, err := pagesReadFile(root, path.Join(source, "go.mod"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	sums, err := pagesReadFile(root, path.Join(source, "go.sum"))
 	if err != nil {
-		return err
+		return nil, err
 	}
-	inRequire, count := false, 0
+	var modulePaths []string
+	inRequire := false
 	for line := range strings.SplitSeq(string(mod), "\n") {
 		fields := strings.Fields(strings.SplitN(line, "//", 2)[0])
 		if len(fields) == 0 {
 			continue
 		}
 		if fields[0] == "replace" {
-			return fmt.Errorf("hugo module replacements are not supported, use pinned requirements")
+			return nil, fmt.Errorf("hugo module replacements are not supported, use pinned requirements")
 		}
 		if fields[0] == "require" {
 			fields = fields[1:]
 			if len(fields) == 0 {
-				return fmt.Errorf("hugo go.mod has an empty require declaration")
+				return nil, fmt.Errorf("hugo go.mod has an empty require declaration")
 			}
 			if len(fields) == 1 && fields[0] == "(" {
 				inRequire = true
@@ -240,14 +246,14 @@ func validateHugoModules(root *os.Root, source string) error {
 			continue
 		}
 		if len(fields) != 2 || !hugoModuleVersion.MatchString(fields[1]) || !strings.Contains(string(sums), fields[0]+" "+fields[1]+" h1:") {
-			return fmt.Errorf("hugo modules require pinned versions and matching go.sum entries")
+			return nil, fmt.Errorf("hugo modules require pinned versions and matching go.sum entries")
 		}
-		count++
+		modulePaths = append(modulePaths, fields[0])
 	}
-	if count == 0 {
-		return fmt.Errorf("hugo modules require at least one pinned dependency")
+	if len(modulePaths) == 0 {
+		return nil, fmt.Errorf("hugo modules require at least one pinned dependency")
 	}
-	return nil
+	return modulePaths, nil
 }
 
 func validateHugoSubmodule(root *os.Root, dir, name string) error {
