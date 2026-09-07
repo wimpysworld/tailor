@@ -44,6 +44,13 @@ func TestProcessImmutableReleases(t *testing.T) {
 					return
 				}
 				writes++
+				wantMethod := http.MethodDelete
+				if tt.desired {
+					wantMethod = http.MethodPut
+				}
+				if r.Method != wantMethod {
+					t.Errorf("method = %s, want %s", r.Method, wantMethod)
+				}
 				w.WriteHeader(tt.status)
 			}))
 			t.Cleanup(server.Close)
