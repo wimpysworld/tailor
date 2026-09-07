@@ -70,6 +70,61 @@ func TestPagesPreflightSkipsEnvironmentWritesWithoutAdminAccess(t *testing.T) {
 	}
 }
 
+func TestPagesPreflightSkipsPrivateRepositoryWorkflowConflicts(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		alteration swatch.AlterationMode
+		content    string
+	}{
+		{name: "unowned workflow", alteration: swatch.Always, content: "name: custom\n"},
+		{name: "missing never workflow", alteration: swatch.Never},
+	} {
+		for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
+			t.Run(fmt.Sprintf("%s/%v", tt.name, mode), func(t *testing.T) {
+				dir := t.TempDir()
+				workflowPath := filepath.Join(dir, swatch.PagesDestination)
+				if tt.content != "" {
+					if err := os.MkdirAll(filepath.Dir(workflowPath), 0o755); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(workflowPath, []byte(tt.content), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if r.Method != http.MethodGet || r.URL.Path != "/repos/owner/repo" {
+						t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+						w.WriteHeader(http.StatusNotFound)
+						return
+					}
+					w.Header().Set("X-OAuth-Scopes", "repo")
+					fmt.Fprint(w, `{"private":true,"default_branch":"main","permissions":{"admin":true}}`)
+				}))
+				defer server.Close()
+				target := RepoTarget{Client: testutil.NewTestClient(t, server), Owner: "owner", Name: "repo", HasRepo: true}
+				cfg := &config.Config{Pages: &model.PagesSettings{Enabled: new(true)}}
+				prepared := &pagesPreparation{Generator: "static", Path: "pages", Entry: config.SwatchEntry{Path: swatch.PagesDestination, Alteration: tt.alteration}}
+				p, err := preflightPages(cfg, dir, mode, target, prepared)
+				if err != nil {
+					t.Fatal(err)
+				}
+				results, workflow, err := processPages(cfg, dir, mode, target, p)
+				if err != nil || workflow != nil || len(results) != 1 || results[0].Category != WouldSkipSetup || results[0].Annotation != "not available" {
+					t.Fatalf("results=%+v workflow=%+v error=%v", results, workflow, err)
+				}
+				content, err := os.ReadFile(workflowPath)
+				if tt.content == "" {
+					if !os.IsNotExist(err) {
+						t.Fatalf("workflow exists after skipped preflight: %v", err)
+					}
+				} else if err != nil || string(content) != tt.content {
+					t.Fatalf("workflow changed: %q, error=%v", content, err)
+				}
+			})
+		}
+	}
+}
+
 func TestPagesPartialReconciliation(t *testing.T) {
 	for _, pending := range []bool{false, true} {
 		t.Run(fmt.Sprint(pending), func(t *testing.T) {
