@@ -117,6 +117,42 @@ func TestPreparePagesSourceJekyllRequirements(t *testing.T) {
 	}
 }
 
+func TestPreparePagesSourceJekyllDottedDependency(t *testing.T) {
+	for _, tt := range []struct {
+		name    string
+		missing bool
+	}{
+		{"complete lockfile", false},
+		{"missing dotted dependency", true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.CopyFS(filepath.Join(dir, "pages"), os.DirFS("testdata/pages/jekyll")); err != nil {
+				t.Fatal(err)
+			}
+			if tt.missing {
+				lock, err := os.ReadFile(filepath.Join(dir, "pages", "Gemfile.lock"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				const spec = "    http_parser.rb (0.8.1)\n"
+				if !strings.Contains(string(lock), spec) {
+					t.Fatal("fixture lacks dotted dependency")
+				}
+				pagesTestFile(t, dir, "pages/Gemfile.lock", strings.Replace(string(lock), spec, "", 1))
+			}
+			_, err := preparePagesSource(pagesTestConfig("jekyll"), dir, Apply)
+			if tt.missing {
+				if err == nil || !strings.Contains(err.Error(), `missing transitive dependency "http_parser.rb" in Gemfile.lock`) {
+					t.Fatalf("error = %v, want missing dotted dependency", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestPreparePagesWorkflow(t *testing.T) {
 	for _, tt := range []struct {
 		name       string

@@ -281,8 +281,8 @@ var (
 	jekyllGemDeclaration = regexp.MustCompile(`(?m)^\s*gem\s+['"]([^'"]+)['"]([^\r\n]*)`)
 	jekyllGemConstraint  = regexp.MustCompile(`^\s*,\s*(?:"([^"]*)"|'([^']*)')`)
 	jekyllRequirement    = regexp.MustCompile(`^(=|!=|~>|>=|<=|>|<)?\s*([0-9]+(?:\.[0-9]+)*)$`)
-	jekyllLockedGem      = regexp.MustCompile(`(?m)^    ([A-Za-z0-9_-]+) \(([^)]+)\)$`)
-	jekyllLockDependency = regexp.MustCompile(`(?m)^      ([A-Za-z0-9_-]+)(?: \([^\n]+\))?$`)
+	jekyllLockedGem      = regexp.MustCompile(`(?m)^    ([A-Za-z0-9_.-]+) \(([^)]+)\)$`)
+	jekyllLockDependency = regexp.MustCompile(`(?m)^      ([A-Za-z0-9_.-]+)(?: \([^\n]+\))?$`)
 	jekyllGitRevision    = regexp.MustCompile(`(?m)^  revision: [a-f0-9]{40}$`)
 )
 
