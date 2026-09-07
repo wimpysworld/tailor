@@ -18,11 +18,15 @@ func pagesTestConfig(generator string) *config.Config {
 
 func pagesTestFile(t *testing.T, dir, name, content string) {
 	t.Helper()
-	name = filepath.Join(dir, name)
-	if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+	root, err := os.OpenRoot(dir)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(name, []byte(content), 0o644); err != nil {
+	defer root.Close()
+	if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := root.WriteFile(name, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
