@@ -951,7 +951,7 @@ func TestProcessRepoSettingsUnknownSecurityPrerequisiteSkipsDependent(t *testing
 			if writes.Load() != 0 || len(results) != 1 || results[0].Field != tt.dependentField || results[0].Category != alter.WouldSkipScope {
 				t.Fatalf("results = %+v, writes = %d, want one dependent skip", results, writes.Load())
 			}
-			if output := alter.FormatOutput(results, nil, nil, alter.Apply); strings.Contains(output, "set:") {
+			if output := alter.FormatOutput(results, nil, nil, nil, alter.Apply); strings.Contains(output, "set:") {
 				t.Fatalf("output = %q, want no set result", output)
 			}
 		})
@@ -1021,7 +1021,7 @@ func TestProcessRepoSettingsSkippedSecurityWriteSkipsDependentOutput(t *testing.
 			if writes.Load() != 1 {
 				t.Fatalf("writes = %d, want one prerequisite attempt", writes.Load())
 			}
-			output := alter.FormatOutput(results, nil, nil, alter.Apply)
+			output := alter.FormatOutput(results, nil, nil, nil, alter.Apply)
 			if strings.Contains(output, "set:") || !strings.Contains(output, tt.dependent) {
 				t.Fatalf("output = %q, want skipped dependent %q", output, tt.dependent)
 			}

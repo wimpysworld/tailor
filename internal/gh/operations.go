@@ -42,15 +42,20 @@ const (
 	OpSetActionsRetention
 	OpFetchForkPRContributorApproval
 	OpSetForkPRContributorApproval
+	OpFetchVariables
+	OpCreateVariable
+	OpUpdateVariable
 )
 
 // Operation identifies one GitHub API operation. Enable selects the enable or
 // disable description for the security feature kinds. Label carries the label
-// name for OpCreateLabel and OpUpdateLabel. The zero value means no operation.
+// name for OpCreateLabel and OpUpdateLabel. Variable carries the variable name.
+// The zero value means no operation.
 type Operation struct {
-	Kind   OperationKind
-	Enable bool
-	Label  string
+	Kind     OperationKind
+	Enable   bool
+	Label    string
+	Variable string
 }
 
 // SkippedOperation records a sub-operation that was skipped due to
@@ -64,6 +69,7 @@ type SkippedOperation struct {
 // operations that failed with access errors and were gracefully skipped.
 type ApplyResult struct {
 	Skipped []SkippedOperation
+	Applied []Operation // Confirmed successful variable writes, including before a later failure.
 }
 
 // recordAccessError appends the operation to result.Skipped when err is an
@@ -111,9 +117,22 @@ func UpdateLabelOp(name string) Operation {
 	return Operation{Kind: OpUpdateLabel, Label: name}
 }
 
+// CreateVariableOp returns the operation for creating the named variable.
+func CreateVariableOp(name string) Operation {
+	return Operation{Kind: OpCreateVariable, Variable: name}
+}
+
+// UpdateVariableOp returns the operation for updating the named variable.
+func UpdateVariableOp(name string) Operation {
+	return Operation{Kind: OpUpdateVariable, Variable: name}
+}
+
 // String returns the user-facing description of the operation, for example
 // "enable vulnerability alerts".
 func (o Operation) String() string {
+	if text, ok := variableOperationText(o); ok {
+		return text
+	}
 	switch o.Kind {
 	case OpFetchForkPRContributorApproval:
 		return "fetch fork pull request contributor approval"
@@ -179,6 +198,19 @@ func (o Operation) String() string {
 		return "set ruleset"
 	default:
 		return ""
+	}
+}
+
+func variableOperationText(o Operation) (string, bool) {
+	switch o.Kind {
+	case OpFetchVariables:
+		return "fetch variables", true
+	case OpCreateVariable:
+		return fmt.Sprintf("create variable %q", o.Variable), true
+	case OpUpdateVariable:
+		return fmt.Sprintf("update variable %q", o.Variable), true
+	default:
+		return "", false
 	}
 }
 

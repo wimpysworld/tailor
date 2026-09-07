@@ -264,7 +264,7 @@ func TestProcessCodeScanningWriteSkipped(t *testing.T) {
 				"code_scanning.query_suite no change default ",
 			})
 
-			output := alter.FormatOutput(results, nil, nil, alter.Apply)
+			output := alter.FormatOutput(results, nil, nil, nil, alter.Apply)
 			want := "no change:                           code_scanning.query_suite (already default)\n" +
 				"would skip (" + tt.reason + "):" + strings.Repeat(" ", 37-len("would skip ("+tt.reason+"):")) + "code_scanning.state\n"
 			if output != want {
@@ -290,7 +290,7 @@ func TestFormatOutputSetupSections(t *testing.T) {
 		{Section: "code_scanning", Field: "state", Category: alter.WouldSet, Value: "configured"},
 		{Section: "code_scanning", Field: "languages", Category: alter.WouldSet, Value: "actions, go"},
 	}
-	got := alter.FormatOutput(results, nil, nil, alter.DryRun)
+	got := alter.FormatOutput(results, nil, nil, nil, alter.DryRun)
 	want := "would set:                           code_scanning.languages = actions, go\n" +
 		"would set:                           code_scanning.state = configured\n" +
 		"no change:                           code_quality.state (already not-configured)\n"

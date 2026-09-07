@@ -59,7 +59,7 @@ func TestProcessImmutableReleases(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			output := alter.FormatOutput(results, nil, nil, tt.mode)
+			output := alter.FormatOutput(results, nil, nil, nil, tt.mode)
 			if !strings.Contains(output, tt.want) || !strings.Contains(output, "immutable_releases.enabled") || writes != tt.writes {
 				t.Fatalf("output = %q, writes = %d", output, writes)
 			}

@@ -279,7 +279,7 @@ func TestWriteSetupSections(t *testing.T) {
 				CodeScanning: &model.CodeScanningSettings{State: new("configured")},
 				CodeQuality:  &model.CodeQualitySettings{State: new("not-configured")},
 			},
-			want:        []string{"\ncode_scanning:\n  state: configured\n\ncode_quality:\n  state: not-configured\n\nswatches:\n"},
+			want:        []string{"\ncode_scanning:\n  state: configured\n\ncode_quality:\n  state: not-configured\n", "\nswatches:\n"},
 			wantMissing: []string{"languages", "# An empty list"},
 		},
 		{

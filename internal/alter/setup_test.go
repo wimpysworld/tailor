@@ -172,7 +172,7 @@ swatches: []
 }
 
 func TestAlterRunStageOrder(t *testing.T) {
-	configYAML := `license: none
+	configYAML := `license: mit
 repository:
   has_wiki: false
 actions:
@@ -208,6 +208,9 @@ labels:
   - name: bug
     color: d73a4a
     description: A problem
+variables:
+  - name: STAGE
+    value: "test"
 swatches: []
 `
 	tc := setupAlterTest(t, configYAML)
@@ -231,6 +234,8 @@ swatches: []
 		"/repos/testowner/testrepo/code-quality/setup",
 		"/repos/testowner/testrepo/rulesets",
 		"/repos/testowner/testrepo/labels",
+		"/repos/testowner/testrepo/actions/variables",
+		"/licenses/mit",
 	}
 	if got := ordered(reads, want); !got {
 		t.Errorf("GET order = %v, want %v in order", reads, want)
@@ -254,7 +259,7 @@ swatches: []
 			posts = append(posts, call.Path)
 		}
 	}
-	if !ordered(posts, []string{"/repos/testowner/testrepo/rulesets", "/repos/testowner/testrepo/labels"}) {
+	if !ordered(posts, []string{"/repos/testowner/testrepo/rulesets", "/repos/testowner/testrepo/labels", "/repos/testowner/testrepo/actions/variables"}) {
 		t.Errorf("POST order = %v, want the ruleset before labels", posts)
 	}
 }

@@ -24,7 +24,7 @@ var (
 const maxLabels = 1000
 
 func validateTopLevelSettings(cfg *Config) error {
-	valid := []string{"actions", "code_quality", "code_scanning", "immutable_releases", "labels", "license", "repository", "ruleset", "swatches"}
+	valid := []string{"actions", "code_quality", "code_scanning", "immutable_releases", "labels", "license", "repository", "ruleset", "swatches", "variables"}
 	return rejectExtra("top-level", cfg.Extra, valid)
 }
 

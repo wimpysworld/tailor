@@ -550,8 +550,8 @@ func TestWriteRulesetSection(t *testing.T) {
 					"            security_alerts_threshold: high_or_higher\n" +
 					"          - tool: Sentinel\n" +
 					"            alerts_threshold: all\n" +
-					"            security_alerts_threshold: none\n" +
-					"\nswatches:\n",
+					"            security_alerts_threshold: none\n",
+				"\nswatches:\n",
 			},
 			wantMissing: []string{"pull_request:", "creation:"},
 		},
@@ -566,14 +566,14 @@ func TestWriteRulesetSection(t *testing.T) {
 					"        # tool is the tool name as GitHub shows it, for example CodeQL.\n" +
 					"        # alerts_threshold: none, errors, errors_and_warnings, all\n" +
 					"        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all\n" +
-					"        code_scanning_tools: []\n" +
-					"\nswatches:\n",
+					"        code_scanning_tools: []\n",
+				"\nswatches:\n",
 			},
 		},
 		{
 			name:        "code scanning without parameters",
 			ruleset:     &model.RulesetSettings{Rules: &model.RulesetRules{CodeScanning: &model.RulesetCodeScanning{Enabled: new(false)}}},
-			want:        []string{"  rules:\n    code_scanning:\n      enabled: false\n\nswatches:\n"},
+			want:        []string{"  rules:\n    code_scanning:\n      enabled: false\n", "\nswatches:\n"},
 			wantMissing: []string{"parameters:", "code_scanning_tools"},
 		},
 		{
@@ -584,8 +584,8 @@ func TestWriteRulesetSection(t *testing.T) {
 					"  # actor_type: RepositoryRole, Team, User, Integration, DeployKey\n" +
 					"  # RepositoryRole actor_id: 2 maintain, 4 write, 5 admin\n" +
 					"  # bypass_mode: always, pull_request, exempt\n" +
-					"  bypass_actors: []\n" +
-					"\nswatches:\n",
+					"  bypass_actors: []\n",
+				"\nswatches:\n",
 			},
 			wantMissing: []string{"conditions:", "rules:"},
 		},

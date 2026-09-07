@@ -24,11 +24,21 @@ const yamlDoubleQuoted = "{}[]#&*!|>'\"%@`"
 // yamlVal encodes v as one YAML string scalar. Newlines use double quotes so
 // the result stays on one line when the template adds its indentation.
 func yamlVal(v string) (string, error) {
+	var style yaml.Style
+	if strings.ContainsAny(v, yamlDoubleQuoted) || strings.Contains(v, "\n") {
+		style = yaml.DoubleQuotedStyle
+	}
+	return yamlScalar(v, style)
+}
+
+func yamlQuoted(v string) (string, error) {
+	return yamlScalar(v, yaml.DoubleQuotedStyle)
+}
+
+func yamlScalar(v string, style yaml.Style) (string, error) {
 	var node yaml.Node
 	node.SetString(v)
-	if strings.ContainsAny(v, yamlDoubleQuoted) || strings.Contains(v, "\n") {
-		node.Style = yaml.DoubleQuotedStyle
-	}
+	node.Style = style
 
 	encoded, err := yaml.Marshal(&node)
 	if err != nil {
@@ -92,7 +102,8 @@ func listLines(key string, v reflect.Value) (string, error) {
 
 // templateFuncs provides helpers for the config template.
 var templateFuncs = template.FuncMap{
-	"yamlVal": yamlVal,
+	"yamlVal":    yamlVal,
+	"yamlQuoted": yamlQuoted,
 	"repositoryLines": func(r *model.RepositorySettings) ([]string, error) {
 		return settingLines(model.RepositorySettingFields(r))
 	},
@@ -418,6 +429,25 @@ labels:
     color: {{ yamlVal $l.Color }}
     description: {{ yamlVal $l.Description }}
 {{- end }}
+{{- end }}
+
+{{- if .Variables }}
+
+variables:
+{{- range $i, $v := .Variables }}
+{{ if $i }}
+{{ end }}  - name: {{ yamlVal $v.Name }}
+    value: {{ yamlQuoted $v.Value }}
+{{- end }}
+{{- else }}
+
+# Repository Actions variables are non-secret values.
+# Tailor creates or updates only declared variables and leaves others unchanged.
+# variables:
+#   - name: DEPLOY_REGION
+#     value: "eu-west-2"
+#   - name: RELEASE_SUFFIX
+#     value: ""
 {{- end }}
 
 swatches:

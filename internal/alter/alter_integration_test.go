@@ -86,6 +86,9 @@ type testOption func(*alterServerConfig)
 
 // alterServerConfig holds the mock server's response data.
 type alterServerConfig struct {
+	variables         map[string]string
+	variableErrors    map[string]int
+	variableReadError int
 	username          string
 	owner             string
 	repo              string
@@ -329,6 +332,9 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 		case r.Method == http.MethodGet && path == repoPath+"/labels":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(sc.labels)
+
+		case path == repoPath+"/actions/variables" || strings.HasPrefix(path, repoPath+"/actions/variables/"):
+			serveAlterVariables(t, sc, w, r, body)
 
 		case r.Method == http.MethodPost && path == repoPath+"/labels":
 			w.Header().Set("Content-Type", "application/json")

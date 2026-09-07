@@ -120,6 +120,12 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 		return err
 	}
 
+	variableResults, err := ProcessVariables(cfg, mode, target)
+	if err != nil {
+		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
+		return err
+	}
+
 	licenceResult, err := ProcessLicence(cfg, dir, mode, client, stderr)
 	if err != nil {
 		return err
@@ -139,10 +145,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	}
 	swatchResults = append(swatchResults, retiredResults...)
 
-	output := FormatOutput(repoResults, labelResults, swatchResults, mode)
-	if output != "" {
-		fmt.Fprint(stdout, output)
-	}
+	fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, swatchResults, mode))
 
 	return nil
 }
@@ -170,6 +173,9 @@ func processRepoStages(cfg *config.Config, mode ApplyMode, target RepoTarget) ([
 
 // validateConfig runs the repeated config validation pass in sequence.
 func validateConfig(cfg *config.Config) error {
+	if err := config.ValidateVariables(cfg); err != nil {
+		return err
+	}
 	if err := config.ValidateImmutableReleases(cfg); err != nil {
 		return err
 	}

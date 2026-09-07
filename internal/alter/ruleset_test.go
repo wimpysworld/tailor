@@ -408,7 +408,7 @@ func TestProcessRulesetReadNotAvailable(t *testing.T) {
 			if len(stub.Writes) != 0 {
 				t.Fatalf("writes = %v, want none", stub.Writes)
 			}
-			output := alter.FormatOutput(results, nil, nil, alter.Apply)
+			output := alter.FormatOutput(results, nil, nil, nil, alter.Apply)
 			want := "would skip (not available):          ruleset.enforcement\n" +
 				"would skip (not available):          ruleset.rules.deletion\n"
 			if output != want {
@@ -434,7 +434,7 @@ func TestProcessRulesetMissingBypassActorsSkipsScope(t *testing.T) {
 	if len(stub.Writes) != 0 {
 		t.Fatalf("writes = %v, want none", stub.Writes)
 	}
-	output := alter.FormatOutput(results, nil, nil, alter.DryRun)
+	output := alter.FormatOutput(results, nil, nil, nil, alter.DryRun)
 	want := "would skip (insufficient scope: token missing required scope): ruleset.enforcement\n" +
 		"would skip (insufficient scope: token missing required scope): ruleset.rules.deletion\n"
 	if output != want {
@@ -503,7 +503,7 @@ func TestFormatOutputRulesetKeepsConfigOrder(t *testing.T) {
 		{Section: "ruleset", Field: "rules.pull_request.parameters.required_approving_review_count", Category: alter.RepoNoChange, Value: "1"},
 		{Section: "ruleset", Field: "rules.required_status_checks.parameters.required_status_checks", Category: alter.WouldSet, Value: "Sentinel 👁️"},
 	}
-	got := alter.FormatOutput(results, nil, nil, alter.DryRun)
+	got := alter.FormatOutput(results, nil, nil, nil, alter.DryRun)
 	want := "would set:                           ruleset.enforcement = active\n" +
 		"would set:                           ruleset.rules.required_status_checks.parameters.required_status_checks = Sentinel 👁️\n" +
 		"no change:                           ruleset.conditions.ref_name.exclude (already (none))\n" +
