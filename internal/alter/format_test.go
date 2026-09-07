@@ -117,6 +117,41 @@ func TestFormatOutputRetentionWriteSkipIsolation(t *testing.T) {
 	}
 }
 
+func TestFormatOutputForkApprovalWriteSkipIsolation(t *testing.T) {
+	fields := []struct {
+		field     string
+		value     string
+		operation gh.OperationKind
+	}{
+		{"enabled", "true", gh.OpSetActionsPermissions},
+		{"verified_allowed", "true", gh.OpSetSelectedActionsPermissions},
+		{"artifact_and_log_retention.days", "14", gh.OpSetActionsRetention},
+		{"fork_pr_contributor_approval.approval_policy", "first_time_contributors", gh.OpSetForkPRContributorApproval},
+	}
+	for _, denied := range fields {
+		t.Run(denied.field, func(t *testing.T) {
+			var results []RepoSettingResult
+			for _, field := range fields {
+				results = append(results, RepoSettingResult{Section: "actions", Field: field.field, Category: WouldSet, Value: field.value})
+			}
+			results = append(results, RepoSettingResult{Section: "actions", Operation: gh.Op(denied.operation), Category: WouldSkipScope})
+			for _, mode := range []ApplyMode{Apply, Recut} {
+				output := FormatOutput(results, nil, nil, mode)
+				for _, field := range fields {
+					wantPresent := field.operation != denied.operation
+					text := "actions." + field.field + " = " + field.value
+					if strings.Contains(output, text) != wantPresent {
+						t.Errorf("output = %q, want %q present = %t", output, text, wantPresent)
+					}
+				}
+				if !strings.Contains(output, "would skip (insufficient scope") {
+					t.Errorf("output does not report skip: %q", output)
+				}
+			}
+		})
+	}
+}
+
 func TestFormatOutputEmptySlices(t *testing.T) {
 	got := FormatOutput([]RepoSettingResult{}, nil, []SwatchResult{}, DryRun)
 	if got != "" {

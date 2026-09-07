@@ -107,6 +107,12 @@ var templateFuncs = template.FuncMap{
 			w.line(4, "days: %d", *a.ArtifactAndLogRetention.Days)
 			lines = w.lines
 		}
+		if a != nil && a.ForkPRContributorApproval != nil && a.ForkPRContributorApproval.ApprovalPolicy != nil {
+			w := &rulesetWriter{lines: lines}
+			w.line(2, "fork_pr_contributor_approval:")
+			w.scalar(4, "", "approval_policy", *a.ForkPRContributorApproval.ApprovalPolicy)
+			return w.lines, w.err
+		}
 		return lines, nil
 	},
 	"codeScanningLines": func(c *model.CodeScanningSettings) ([]string, error) {

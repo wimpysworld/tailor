@@ -177,6 +177,8 @@ repository:
   has_wiki: false
 actions:
   enabled: true
+  fork_pr_contributor_approval:
+    approval_policy: first_time_contributors
 code_scanning:
   state: configured
 code_quality:
@@ -224,6 +226,7 @@ swatches: []
 	}
 	want := []string{
 		"/repos/testowner/testrepo/actions/permissions",
+		forkApprovalPath,
 		"/repos/testowner/testrepo/code-scanning/default-setup",
 		"/repos/testowner/testrepo/code-quality/setup",
 		"/repos/testowner/testrepo/rulesets",
@@ -236,6 +239,9 @@ swatches: []
 	var writes []string
 	for _, call := range tc.MutatingCalls() {
 		writes = append(writes, call.Path)
+	}
+	if !ordered(writes, []string{forkApprovalPath, "/repos/testowner/testrepo/code-scanning/default-setup", "/repos/testowner/testrepo/code-quality/setup"}) {
+		t.Errorf("mutating calls = %v, want approval before code scanning and Code Quality", writes)
 	}
 	for _, path := range []string{"/repos/testowner/testrepo/code-scanning/default-setup", "/repos/testowner/testrepo/code-quality/setup"} {
 		if !ordered(writes, []string{path}) {

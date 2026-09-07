@@ -305,12 +305,13 @@ func TestMergeActionsDefaults(t *testing.T) {
 	t.Run("complete selected policy is unchanged", func(t *testing.T) {
 		emptyPatterns := []string{}
 		cfg := &Config{Actions: &model.ActionsSettings{
-			Enabled:            new(false),
-			AllowedActions:     new("selected"),
-			SHAPinningRequired: new(true),
-			GitHubOwnedAllowed: new(false),
-			VerifiedAllowed:    new(false),
-			PatternsAllowed:    &emptyPatterns,
+			Enabled:                   new(false),
+			AllowedActions:            new("selected"),
+			SHAPinningRequired:        new(true),
+			GitHubOwnedAllowed:        new(false),
+			VerifiedAllowed:           new(false),
+			PatternsAllowed:           &emptyPatterns,
+			ForkPRContributorApproval: &model.ForkPRContributorApprovalSettings{ApprovalPolicy: new("first_time_contributors")},
 		}}
 		patternsBefore := cfg.Actions.PatternsAllowed
 		if mergeActionsFrom(cfg, defaults) {
@@ -320,6 +321,134 @@ func TestMergeActionsDefaults(t *testing.T) {
 			t.Error("explicit empty patterns list was replaced")
 		}
 	})
+}
+
+func TestForkPRContributorApprovalParsingAndWriting(t *testing.T) {
+	type testCase struct {
+		name       string
+		input      string
+		wantPolicy *string
+		wantObject bool
+		wantErr    string
+	}
+	tests := []testCase{
+		{name: "absent actions", input: ""},
+		{name: "omitted", input: "actions: {}\n"},
+		{name: "null object", input: "actions:\n  fork_pr_contributor_approval: null\n"},
+		{name: "empty object", input: "actions:\n  fork_pr_contributor_approval: {}\n", wantObject: true},
+		{name: "null policy", input: "actions:\n  fork_pr_contributor_approval:\n    approval_policy: null\n", wantObject: true},
+		{name: "empty policy", input: "actions:\n  fork_pr_contributor_approval:\n    approval_policy: \"\"\n", wantErr: "invalid actions.fork_pr_contributor_approval.approval_policy"},
+		{name: "unknown policy", input: "actions:\n  fork_pr_contributor_approval:\n    approval_policy: never\n", wantErr: "invalid actions.fork_pr_contributor_approval.approval_policy"},
+		{name: "unknown key", input: "actions:\n  fork_pr_contributor_approval:\n    enabled: true\n", wantErr: "unrecognised actions.fork_pr_contributor_approval setting"},
+		{name: "string object", input: "actions:\n  fork_pr_contributor_approval: invalid\n", wantErr: "cannot unmarshal"},
+		{name: "list object", input: "actions:\n  fork_pr_contributor_approval: []\n", wantErr: "cannot unmarshal"},
+		{name: "map policy", input: "actions:\n  fork_pr_contributor_approval:\n    approval_policy: {}\n", wantErr: "cannot unmarshal"},
+		{name: "list policy", input: "actions:\n  fork_pr_contributor_approval:\n    approval_policy: []\n", wantErr: "cannot unmarshal"},
+		{name: "boolean policy", input: "actions:\n  fork_pr_contributor_approval:\n    approval_policy: true\n", wantErr: "invalid actions.fork_pr_contributor_approval.approval_policy"},
+		{name: "number policy", input: "actions:\n  fork_pr_contributor_approval:\n    approval_policy: 42\n", wantErr: "invalid actions.fork_pr_contributor_approval.approval_policy"},
+	}
+	for _, policy := range []string{"first_time_contributors_new_to_github", "first_time_contributors", "all_external_contributors"} {
+		tests = append(tests, testCase{name: policy, input: "actions:\n  fork_pr_contributor_approval:\n    approval_policy: " + policy + "\n", wantPolicy: new(policy), wantObject: true})
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := parseAndValidate([]byte("license: none\n"+tt.input+"swatches: []\n"), "test")
+			assertErrorContains(t, err, tt.wantErr)
+			if tt.wantErr != "" {
+				return
+			}
+			var approval *model.ForkPRContributorApprovalSettings
+			if cfg.Actions != nil {
+				approval = cfg.Actions.ForkPRContributorApproval
+			}
+			if (approval != nil) != tt.wantObject {
+				t.Fatalf("approval = %+v, want object %t", approval, tt.wantObject)
+			}
+			if tt.wantPolicy != nil && (approval.ApprovalPolicy == nil || *approval.ApprovalPolicy != *tt.wantPolicy) {
+				t.Fatalf("approval = %+v, want %s", approval, *tt.wantPolicy)
+			}
+			if tt.wantPolicy == nil && approval != nil && approval.ApprovalPolicy != nil {
+				t.Fatal("parsing added a policy")
+			}
+			written := writeConfig(t, cfg, "2026-09-07", "Fitted")
+			reloaded, err := parseAndValidate([]byte(written), "round trip")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tt.wantPolicy != nil {
+				if reloaded.Actions == nil || reloaded.Actions.ForkPRContributorApproval == nil || reloaded.Actions.ForkPRContributorApproval.ApprovalPolicy == nil || *reloaded.Actions.ForkPRContributorApproval.ApprovalPolicy != *tt.wantPolicy {
+					t.Fatalf("round trip lost %s", *tt.wantPolicy)
+				}
+			} else if strings.Contains(written, "fork_pr_contributor_approval") {
+				t.Fatal("writing added an unmanaged approval policy")
+			}
+		})
+	}
+}
+
+func TestForkPRContributorApprovalDefaults(t *testing.T) {
+	defaults := defaultConfig(t)
+	if defaults.Actions == nil || defaults.Actions.ForkPRContributorApproval == nil || defaults.Actions.ForkPRContributorApproval.ApprovalPolicy == nil || *defaults.Actions.ForkPRContributorApproval.ApprovalPolicy != "first_time_contributors" {
+		t.Fatal("default approval policy is not first_time_contributors")
+	}
+	for _, corePolicy := range []string{"", "all", "local_only", "selected"} {
+		for _, approvalPolicy := range append([]string{"omitted", "empty"}, model.ForkPRContributorApprovalPolicies...) {
+			t.Run(corePolicy+"/"+approvalPolicy, func(t *testing.T) {
+				cfg := &Config{}
+				if corePolicy != "" {
+					cfg.Actions = &model.ActionsSettings{AllowedActions: new(corePolicy)}
+				}
+				var explicit *string
+				if approvalPolicy != "omitted" {
+					if cfg.Actions == nil {
+						cfg.Actions = &model.ActionsSettings{}
+					}
+					cfg.Actions.ForkPRContributorApproval = &model.ForkPRContributorApprovalSettings{}
+					if approvalPolicy != "empty" {
+						explicit = new(approvalPolicy)
+						cfg.Actions.ForkPRContributorApproval.ApprovalPolicy = explicit
+					}
+				}
+				changed, err := MergeDefaults(cfg)
+				if err != nil || !changed {
+					t.Fatalf("MergeDefaults() = %t, %v", changed, err)
+				}
+				approval := cfg.Actions.ForkPRContributorApproval
+				want := "first_time_contributors"
+				if explicit != nil {
+					want = *explicit
+					if approval.ApprovalPolicy != explicit {
+						t.Fatal("merge replaced an explicit policy pointer")
+					}
+				}
+				if approval == nil || approval.ApprovalPolicy == nil || *approval.ApprovalPolicy != want {
+					t.Fatalf("approval = %+v, want %s", approval, want)
+				}
+				if corePolicy != "" && *cfg.Actions.AllowedActions != corePolicy {
+					t.Fatal("merge replaced core policy")
+				}
+				if corePolicy == "all" || corePolicy == "local_only" {
+					if cfg.Actions.GitHubOwnedAllowed != nil || cfg.Actions.VerifiedAllowed != nil || cfg.Actions.PatternsAllowed != nil {
+						t.Fatal("merge added selected fields")
+					}
+				}
+				if err := ValidateActions(cfg); err != nil {
+					t.Fatal(err)
+				}
+				if changed, err := MergeDefaults(cfg); err != nil || changed {
+					t.Fatalf("second MergeDefaults() = %t, %v", changed, err)
+				}
+				other := &Config{}
+				if _, err := MergeDefaults(other); err != nil {
+					t.Fatal(err)
+				}
+				*approval.ApprovalPolicy = "all_external_contributors"
+				if *other.Actions.ForkPRContributorApproval.ApprovalPolicy != "first_time_contributors" || *defaults.Actions.ForkPRContributorApproval.ApprovalPolicy != "first_time_contributors" {
+					t.Fatal("merged approval policies share pointers")
+				}
+			})
+		}
+	}
 }
 
 func TestWriteActionsEmptyPatterns(t *testing.T) {

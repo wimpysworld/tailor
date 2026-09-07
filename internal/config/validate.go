@@ -201,6 +201,14 @@ func ValidateActions(cfg *Config) error {
 	}
 
 	a := cfg.Actions
+	if approval := a.ForkPRContributorApproval; approval != nil {
+		if err := rejectExtra("actions.fork_pr_contributor_approval", approval.Extra, []string{"approval_policy"}); err != nil {
+			return err
+		}
+		if err := validateEnum("actions.fork_pr_contributor_approval.approval_policy", approval.ApprovalPolicy, model.ForkPRContributorApprovalPolicies...); err != nil {
+			return err
+		}
+	}
 	if retention := a.ArtifactAndLogRetention; retention != nil {
 		if err := rejectExtra("actions.artifact_and_log_retention", retention.Extra, []string{"days"}); err != nil {
 			return err

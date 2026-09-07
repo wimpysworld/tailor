@@ -252,6 +252,13 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprint(w, `{"github_owned_allowed":true,"verified_allowed":false,"patterns_allowed":["z/*","a/*"]}`)
 
+		case r.Method == http.MethodGet && path == repoPath+"/actions/permissions/fork-pr-contributor-approval":
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"approval_policy":"all_external_contributors"}`)
+
+		case r.Method == http.MethodPut && path == repoPath+"/actions/permissions/fork-pr-contributor-approval":
+			w.WriteHeader(http.StatusNoContent)
+
 		case r.Method == http.MethodGet && strings.HasPrefix(path, "/licenses/"):
 			if sc.licenceError != 0 {
 				w.WriteHeader(sc.licenceError)
@@ -2115,6 +2122,7 @@ func allDefaultActionsYAML(t *testing.T) string {
 	fmt.Fprintf(&sb, "  github_owned_allowed: %t\n", *a.GitHubOwnedAllowed)
 	fmt.Fprintf(&sb, "  verified_allowed: %t\n", *a.VerifiedAllowed)
 	writePatternsAllowedYAML(&sb, *a.PatternsAllowed)
+	fmt.Fprintf(&sb, "  fork_pr_contributor_approval:\n    approval_policy: %s\n", *a.ForkPRContributorApproval.ApprovalPolicy)
 	return sb.String()
 }
 
@@ -2699,6 +2707,9 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 		}
 		if defaults.Actions.PatternsAllowed != nil {
 			writePatternsAllowedYAML(&sb, *defaults.Actions.PatternsAllowed)
+		}
+		if approval := defaults.Actions.ForkPRContributorApproval; approval != nil && approval.ApprovalPolicy != nil {
+			fmt.Fprintf(&sb, "  fork_pr_contributor_approval:\n    approval_policy: %s\n", *approval.ApprovalPolicy)
 		}
 	}
 	sb.WriteString("\n" + allDefaultSetupYAML(t))

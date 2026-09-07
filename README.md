@@ -198,6 +198,8 @@ actions:
     - nick-fields/retry@*
     - robherley/go-test-action@*
     - softprops/action-gh-release@*
+  fork_pr_contributor_approval:
+    approval_policy: first_time_contributors
 
 code_scanning:
   state: configured
@@ -349,8 +351,25 @@ The top-level `actions` section manages the repository Actions policy. Generated
 | `verified_allowed` | bool | Allow actions from verified creators when `allowed_actions` is `selected` |
 | `patterns_allowed` | string[] | Complete set of allowed action and reusable workflow patterns |
 | `artifact_and_log_retention.days` | integer | Opt-in retention for new artifacts and logs, from 1 to 90 days, within the live owner cap |
+| `fork_pr_contributor_approval.approval_policy` | string | Contributors whose fork pull request workflows require approval. Defaults to `first_time_contributors` |
 
 The selected-action fields require `allowed_actions: selected`. A selected policy must include `github_owned_allowed`, `verified_allowed`, and `patterns_allowed` after default merging. The `patterns_allowed` field replaces the full GitHub list. Tailor ignores list order during comparison. Default merging adds a missing `actions` section and fills missing fields without changing explicit values. For `all` and `local_only`, Tailor does not add selected-only fields. For `selected`, Tailor adds each missing selected-only field. A missing `patterns_allowed` field receives the six approved defaults. Tailor preserves an explicit custom list or `patterns_allowed: []`.
+
+Fork pull request approval controls which external contributors need approval before their workflows run:
+
+| Policy | Approval required for |
+|---|---|
+| `first_time_contributors_new_to_github` | First-time contributors who are new to GitHub |
+| `first_time_contributors` | All first-time contributors (the Tailor default) |
+| `all_external_contributors` | All external contributors |
+
+`fit` writes the active `first_time_contributors` default. Default merging adds it when the approval object or policy is absent or null. An empty approval object also receives the default. Explicit policies remain unchanged, including under `--recut`. This default applies with `all`, `local_only`, and `selected`.
+
+For existing `.tailor.yml` files, default merging runs with `alteration: always`, or `first-fit` with `--recut`. It does not run for `never` or an absent `.tailor.yml` swatch entry. Without a merge, an absent or null approval policy stays unmanaged and causes no approval API calls. Omission alone does not disable management when a merge restores the default.
+
+`baste` reports the requested policy without writes. `alter` updates a different live policy and makes no approval write when it already matches. Approval uses the separate `/repos/{owner}/{repo}/actions/permissions/fork-pr-contributor-approval` GET/PUT endpoint. The PUT body contains only `approval_policy`. Approval alone requires no other Actions settings. It does not change workflow token permissions or private-fork permissions.
+
+Denied or unavailable approval reads, and unknown live policies, produce `would skip (insufficient scope)` and no approval write. Access failures affect only their endpoint group. Other API errors stop the command.
 
 To manage artifact and log retention, add this field to your `actions` section:
 

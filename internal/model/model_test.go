@@ -103,6 +103,7 @@ func TestActionsSettingFieldsMetadata(t *testing.T) {
 		"verified_allowed",
 		"patterns_allowed",
 		"artifact_and_log_retention",
+		"fork_pr_contributor_approval",
 	}
 
 	if len(fields) != len(wantKeys) {
