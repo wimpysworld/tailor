@@ -2205,7 +2205,7 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 // The merge step finds no missing entries, so config.Write is not called and
 // .tailor.yml stays untouched (swatch processing skips the config entry).
 func TestConfigMergeAllPresentApply(t *testing.T) {
-	configYAML := "license: none\n" +
+	configYAML := "license: none\npages:\n  enabled: false\n  generator: static\n  path: pages\n" +
 		allDefaultRepoSettingsYAML(t) +
 		allDefaultActionsYAML(t) +
 		allDefaultSetupYAML(t) +
@@ -2720,6 +2720,7 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 	}
 	sb.WriteString("\n" + allDefaultSetupYAML(t))
 	sb.WriteString("\n" + allDefaultRulesetYAML(t))
+	sb.WriteString("\npages:\n  enabled: false\n  generator: static\n  path: pages\n")
 
 	sb.WriteString("\nlabels:\n")
 	for _, l := range defaults.Labels {

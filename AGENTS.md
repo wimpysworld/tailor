@@ -21,7 +21,7 @@ tailor/
 ├── .github/workflows/  # CI workflows
 ├── cmd/tailor/         # CLI entrypoint
 ├── internal/           # Internal packages (config, swatch, gh wrappers)
-├── swatches/           # Embedded template files (16 swatches)
+├── swatches/           # Embedded template files (17 swatches)
 ├── docs/               # Specification
 └── AGENTS.md
 ```
@@ -63,7 +63,8 @@ tailor/
 - Swatches are embedded at build time via `//go:embed swatches/*`
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
-- Run `alter` stages in this order: config migration and update, retired workflow cleanup, repository settings, Actions policy, code scanning, Code Quality, ruleset, labels, licence, then swatches
+- Run `alter` stages in this order: config migration and update, retired workflow cleanup, repository settings, then immutable releases. Continue with Actions policy, code scanning, Code Quality, ruleset, labels, variables, Pages, licence, then swatches.
+- Run Pages preflight before config or remote writes. Apply additive Pages ignore rules after swatches.
 - Before strict path and mode validation, prune `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml` from config
 - Accept legacy `triggered` only for these retired entries during migration
 - Always check both fixed retired paths, regardless of config or mode

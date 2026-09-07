@@ -47,6 +47,10 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 			return nil
 		}
 		rel := strings.TrimPrefix(path, "swatches/")
+		switch rel {
+		case "pages/static.yml", "pages/hugo.yml", "pages/jekyll.yml":
+			rel = swatch.PagesDestination
+		}
 		if !registered[rel] {
 			t.Errorf("embedded file %q has no registry entry", rel)
 		}

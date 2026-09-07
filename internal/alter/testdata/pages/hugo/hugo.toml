@@ -1,0 +1,3 @@
+baseURL = 'https://invalid.example/old/'
+title = 'Pages fixture'
+disableKinds = ['taxonomy', 'term', 'RSS', 'sitemap']

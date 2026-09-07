@@ -9,7 +9,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-// buildDefaultConfigYAML builds a config YAML string containing all 16 default
+// buildDefaultConfigYAML builds a config YAML string containing all 17 default
 // swatches at their default alteration modes.
 func buildDefaultConfigYAML() string {
 	var b strings.Builder
@@ -102,7 +102,7 @@ func TestIntegrationConfigMatchesDefaults(t *testing.T) {
 	testutil.CreateFile(t, dir, "LICENSE")
 	testutil.CreateFile(t, dir, "SECURITY.md")
 
-	// Write a config that matches all 16 defaults exactly.
+	// Write a config that matches all 17 defaults exactly.
 	testutil.WriteConfig(t, dir, buildDefaultConfigYAML())
 
 	health := CheckHealth(dir)

@@ -38,9 +38,10 @@ func MergeDefaults(cfg *Config) (bool, error) {
 	}
 	codeScanningChanged := mergeSettingsFrom(&cfg.CodeScanning, defaults.CodeScanning, model.CodeScanningSettingFields, nil)
 	codeQualityChanged := mergeSettingsFrom(&cfg.CodeQuality, defaults.CodeQuality, model.CodeQualitySettingFields, nil)
+	pagesChanged := mergeSettingsFrom(&cfg.Pages, defaults.Pages, model.PagesSettingFields, nil)
 	rulesetChanged := mergeRulesetFrom(cfg, defaults)
 	labelsChanged := mergeLabelsFrom(cfg, defaults)
-	return swatchesChanged || repoChanged || actionsChanged || codeScanningChanged || codeQualityChanged || rulesetChanged || labelsChanged, nil
+	return swatchesChanged || repoChanged || actionsChanged || codeScanningChanged || codeQualityChanged || pagesChanged || rulesetChanged || labelsChanged, nil
 }
 
 // mergeRulesetFrom adds the complete default ruleset when cfg has none, and

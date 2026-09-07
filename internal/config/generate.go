@@ -34,6 +34,7 @@ func DefaultConfig(license string) (*Config, error) {
 		cfg.Repository.Description = nil
 		cfg.Repository.Homepage = nil
 	}
+	cfg.InferredHomepage = ""
 
 	return cfg, nil
 }
@@ -51,6 +52,7 @@ func ApplyRepoDefaults(cfg *Config, name, url string) {
 	}
 	if cfg.Repository.Homepage == nil && url != "" {
 		cfg.Repository.Homepage = &url
+		cfg.InferredHomepage = url
 	}
 }
 
@@ -107,10 +109,15 @@ func MergeRulesetSetup(cfg *Config, live *model.RulesetSettings) bool {
 
 // MergeRepoSettings assigns live to cfg.Repository and mutates live in place.
 // The description flag, when non-empty, overrides whatever the live settings
-// carried. Empty string pointer fields for Description and Homepage are
-// normalised to nil so they are omitted from YAML.
+// carried. Empty live Description and Homepage values become nil. An explicit
+// homepage declaration takes precedence, including an empty value.
 func MergeRepoSettings(cfg *Config, live *model.RepositorySettings, description string) {
+	var declaredHomepage *string
+	if cfg.HomepageDeclared() {
+		declaredHomepage = cfg.Repository.Homepage
+	}
 	cfg.Repository = live
+	cfg.InferredHomepage = ""
 
 	if description != "" {
 		cfg.Repository.Description = &description
@@ -121,5 +128,10 @@ func MergeRepoSettings(cfg *Config, live *model.RepositorySettings, description 
 	}
 	if cfg.Repository.Homepage != nil && *cfg.Repository.Homepage == "" {
 		cfg.Repository.Homepage = nil
+	}
+	if declaredHomepage != nil {
+		cfg.Repository.Homepage = declaredHomepage
+	} else if cfg.Repository.Homepage != nil {
+		cfg.InferredHomepage = *cfg.Repository.Homepage
 	}
 }

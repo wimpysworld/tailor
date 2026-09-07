@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"maps"
+	"net"
 	"reflect"
 	"regexp"
 	"slices"
@@ -24,9 +25,80 @@ var (
 const maxLabels = 1000
 
 func validateTopLevelSettings(cfg *Config) error {
-	valid := []string{"actions", "code_quality", "code_scanning", "immutable_releases", "labels", "license", "repository", "ruleset", "swatches", "variables"}
+	valid := []string{"actions", "code_quality", "code_scanning", "immutable_releases", "labels", "license", "pages", "repository", "ruleset", "swatches", "variables"}
 	return rejectExtra("top-level", cfg.Extra, valid)
 }
+
+// ValidatePages checks syntax only. Source files are checked before Pages writes.
+func ValidatePages(cfg *Config) error {
+	p := cfg.Pages
+	if p == nil {
+		return nil
+	}
+	if err := rejectExtra("pages", p.Extra, []string{"enabled", "generator", "path", "branch", "cname"}); err != nil {
+		return err
+	}
+	if p.Generator != nil && !slices.Contains([]string{"static", "hugo", "jekyll"}, *p.Generator) {
+		return fmt.Errorf("pages.generator must be static, hugo, or jekyll")
+	}
+	if err := validatePagesPath(p.Path); err != nil {
+		return err
+	}
+	if err := validatePagesBranch(p.Branch); err != nil {
+		return err
+	}
+	return validatePagesCNAME(p.CNAME)
+}
+
+func validatePagesPath(value *string) error {
+	if value != nil {
+		path := *value
+		if path == "" || strings.HasPrefix(path, "/") || strings.ContainsAny(path, "\\\\\n\r\x00:$`\"'") || strings.Contains(path, "${{") {
+			return fmt.Errorf("pages.path must be a safe project-relative directory")
+		}
+		for _, part := range strings.Split(path, "/") {
+			if part == "" || part == "." || part == ".." {
+				return fmt.Errorf("pages.path must not contain empty, dot, or traversal components")
+			}
+		}
+		if strings.ContainsFunc(path, unicode.IsControl) {
+			return fmt.Errorf("pages.path must not contain control characters")
+		}
+	}
+	return nil
+}
+
+func validatePagesBranch(value *string) error {
+	if value != nil {
+		branch := *value
+		if branch == "" || branch == "@" || strings.HasPrefix(branch, "-") || strings.HasSuffix(branch, ".") || strings.Contains(branch, "..") || strings.Contains(branch, "@{") || strings.ContainsAny(branch, " ~^:?*[\\\\\x7f") || strings.ContainsFunc(branch, unicode.IsControl) {
+			return fmt.Errorf("pages.branch must be a valid branch name")
+		}
+		for _, part := range strings.Split(branch, "/") {
+			if part == "" || strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
+				return fmt.Errorf("pages.branch must be a valid branch name")
+			}
+		}
+	}
+	return nil
+}
+
+func validatePagesCNAME(value *string) error {
+	if value != nil && *value != "" {
+		domain := *value
+		if len(domain) > 253 || !strings.Contains(domain, ".") || net.ParseIP(domain) != nil {
+			return fmt.Errorf("pages.cname must be a domain without a scheme or path")
+		}
+		for _, label := range strings.Split(domain, ".") {
+			if len(label) == 0 || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") || !domainLabelRegexp.MatchString(label) {
+				return fmt.Errorf("pages.cname must be a domain without a scheme or path")
+			}
+		}
+	}
+	return nil
+}
+
+var domainLabelRegexp = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 
 // ValidateImmutableReleases rejects unsupported release immutability keys.
 func ValidateImmutableReleases(cfg *Config) error {

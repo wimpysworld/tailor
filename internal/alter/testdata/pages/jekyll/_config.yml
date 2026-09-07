@@ -1,0 +1,4 @@
+title: Pages fixture
+url: https://invalid.example
+baseurl: /old
+exclude: [Gemfile, Gemfile.lock]

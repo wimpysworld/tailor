@@ -6,6 +6,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"strconv"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 
@@ -92,9 +94,23 @@ func parseAndValidate(data []byte, context string) (*Config, error) {
 	if err := validateVariableNodes(&document); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", context, err)
 	}
+	if err := validatePagesNodes(&document); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", context, err)
+	}
 	var cfg Config
 	if err := document.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", context, err)
+	}
+	var sections map[string]yaml.Node
+	if err := document.Decode(&sections); err == nil {
+		if repository, ok := sections["repository"]; ok {
+			var fields map[string]yaml.Node
+			if err := repository.Decode(&fields); err == nil {
+				if homepage, ok := fields["homepage"]; ok && homepage.Value != "" && homepage.LineComment == inferredHomepageMarker(homepage.Value) {
+					cfg.InferredHomepage = homepage.Value
+				}
+			}
+		}
 	}
 
 	if err := validate(&cfg); err != nil {
@@ -139,6 +155,9 @@ func validate(cfg *Config) error {
 	if err := ValidateRuleset(cfg); err != nil {
 		return err
 	}
+	if err := ValidatePages(cfg); err != nil {
+		return err
+	}
 	if err := ValidateTopics(cfg); err != nil {
 		return err
 	}
@@ -146,6 +165,37 @@ func validate(cfg *Config) error {
 		return err
 	}
 	return ValidateVariables(cfg)
+}
+
+const inferredHomepageComment = "# tailor: inferred homepage "
+
+func inferredHomepageMarker(value string) string {
+	return inferredHomepageComment + strconv.Quote(value)
+}
+
+func validatePagesNodes(document *yaml.Node) error {
+	var sections map[string]yaml.Node
+	if err := document.Decode(&sections); err != nil {
+		return err
+	}
+	node, ok := sections["pages"]
+	if !ok {
+		return nil
+	}
+	if node.Kind != yaml.MappingNode {
+		return fmt.Errorf("pages must be a mapping")
+	}
+	for i := 0; i < len(node.Content); i += 2 {
+		key, value := node.Content[i], node.Content[i+1]
+		tag := "!!str"
+		if key.Value == "enabled" {
+			tag = "!!bool"
+		}
+		if value.Kind != yaml.ScalarNode || value.Tag != tag {
+			return fmt.Errorf("pages.%s must be a %s", key.Value, strings.TrimPrefix(tag, "!!"))
+		}
+	}
+	return nil
 }
 
 // ValidateSwatches checks active swatch entries without legacy allowances.

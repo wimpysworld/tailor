@@ -52,8 +52,8 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 	}
 
 	// The default config includes all registered swatches.
-	if count := strings.Count(content, "- path:"); count != 16 {
-		t.Errorf("swatch count = %d, want 16", count)
+	if count := strings.Count(content, "- path:"); count != 17 {
+		t.Errorf("swatch count = %d, want 17", count)
 	}
 
 	// The default config includes the default repo settings.

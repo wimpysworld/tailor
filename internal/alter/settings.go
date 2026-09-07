@@ -40,6 +40,13 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 	if cfg.Repository == nil {
 		return nil, nil
 	}
+	if pagesEnabled(cfg) && !cfg.HomepageDeclared() && cfg.Repository.Homepage != nil {
+		copyConfig := *cfg
+		copyRepository := *cfg.Repository
+		copyRepository.Homepage = nil
+		copyConfig.Repository = &copyRepository
+		cfg = &copyConfig
+	}
 
 	if target.missingRepo("Repository settings") {
 		return nil, nil

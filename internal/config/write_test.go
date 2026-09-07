@@ -135,6 +135,18 @@ ruleset:
             alerts_threshold: errors
             security_alerts_threshold: high_or_higher
 
+# Pages is opt-in. Omission or enabled: false leaves Pages unmanaged.
+# generator: static (default), hugo, or jekyll. Use an existing site.
+# path: project-relative source directory, default pages.
+# branch: omit to use the current repository default branch.
+# cname: omit to preserve the domain, use "" to clear it, or set a domain.
+pages:
+  enabled: false
+  generator: static
+  path: pages
+  # branch: main
+  # cname: www.example.com
+
 labels:
   - name: bug
     color: d20f39
@@ -237,6 +249,9 @@ swatches:
 
   - path: cubic.yaml
     alteration: first-fit
+
+  - path: .github/workflows/tailor-pages.yml
+    alteration: always
 
   - path: .tailor.yml
     alteration: always
