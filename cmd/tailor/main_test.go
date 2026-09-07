@@ -95,6 +95,47 @@ func TestFitExistingDirectoryWithoutConfig(t *testing.T) {
 	}
 }
 
+func TestFitDoesNotReadVariables(t *testing.T) {
+	ghfake.FakeAuth(t, "gho_test")
+	ghfake.FakeRepo(t, "octocat", "my-project")
+	variableCalls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.Contains(r.URL.Path, "/actions/variables"):
+			variableCalls++
+			fmt.Fprint(w, `{"total_count":1,"variables":[{"name":"DEPLOY_REGION","value":"eu-west-2"}]}`)
+		case strings.HasSuffix(r.URL.Path, "/user"):
+			fmt.Fprint(w, `{"login":"octocat"}`)
+		case strings.HasSuffix(r.URL.Path, "/repos/octocat/my-project"):
+			fmt.Fprint(w, `{"squash_merge_commit_title":"PR_TITLE","squash_merge_commit_message":"PR_BODY","merge_commit_title":"PR_TITLE","merge_commit_message":"PR_BODY"}`)
+		default:
+			w.WriteHeader(http.StatusForbidden)
+			fmt.Fprint(w, `{"message":"Resource not accessible by personal access token"}`)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	restore := gh.SetNewRESTClientFunc(func(string) (*api.RESTClient, error) {
+		return testutil.NewTestClient(t, srv), nil
+	})
+	t.Cleanup(restore)
+	dir := t.TempDir()
+	var stdout, stderr strings.Builder
+	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
+		t.Fatalf("fit = %d, stderr: %s", code, stderr.String())
+	}
+	if variableCalls != 0 {
+		t.Fatalf("variable requests = %d, want 0", variableCalls)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "\nvariables:") || !strings.Contains(string(data), "# variables:") {
+		t.Fatal("fit must write only the commented variables example")
+	}
+}
+
 func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 	fakeNoRepoAuth(t)
 

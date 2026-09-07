@@ -120,6 +120,16 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	}
 }
 
+func TestDefaultConfigHasNoVariables(t *testing.T) {
+	cfg, err := DefaultConfig("none")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(cfg.Variables) != 0 {
+		t.Fatalf("default variables = %#v, want none", cfg.Variables)
+	}
+}
+
 func TestDefaultConfigSwatchCount(t *testing.T) {
 	cfg, err := DefaultConfig("BlueOak-1.0.0")
 	if err != nil {

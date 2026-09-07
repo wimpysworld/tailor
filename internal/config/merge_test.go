@@ -183,6 +183,24 @@ func TestMergeDefaultsChangedByEachSection(t *testing.T) {
 	}
 }
 
+func TestMergeDefaultsPreservesVariables(t *testing.T) {
+	for _, variables := range [][]model.VariableEntry{
+		nil,
+		{},
+		{{Name: "Deploy_Region", Value: new(" eu-west-2\n")}, {Name: "RELEASE_SUFFIX", Value: new("")}},
+	} {
+		cfg := &Config{License: "none", Variables: variables}
+		for range 2 {
+			if _, err := MergeDefaults(cfg); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(cfg.Variables, variables) {
+				t.Fatalf("variables = %#v, want %#v", cfg.Variables, variables)
+			}
+		}
+	}
+}
+
 func defaultConfig(t *testing.T) *Config {
 	t.Helper()
 	defaults, err := DefaultConfig("_")

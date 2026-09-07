@@ -85,8 +85,15 @@ func Load(dir string) (*Config, error) {
 // parseAndValidate unmarshals YAML data into a Config and validates it.
 // The context string is used in error messages to identify the source.
 func parseAndValidate(data []byte, context string) (*Config, error) {
+	var document yaml.Node
+	if err := yaml.Unmarshal(data, &document); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", context, err)
+	}
+	if err := validateVariableNodes(&document); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", context, err)
+	}
 	var cfg Config
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	if err := document.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", context, err)
 	}
 
@@ -138,7 +145,7 @@ func validate(cfg *Config) error {
 	if err := ValidateLabels(cfg); err != nil {
 		return err
 	}
-	return nil
+	return ValidateVariables(cfg)
 }
 
 // ValidateSwatches checks active swatch entries without legacy allowances.

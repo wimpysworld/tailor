@@ -9,6 +9,37 @@ import (
 	"github.com/wimpysworld/tailor/internal/gh"
 )
 
+func TestFormatOutputVariables(t *testing.T) {
+	value := fmt.Sprintf("%q -> %q", "old\n\x1b[31m", "\t\r\"\\é\u2028")
+	variables := []VariableResult{
+		{Name: "SKIP", Category: LabelSkipScope, Annotation: skipAnnotation, Operation: gh.UpdateVariableOp("SKIP")},
+		{Name: "SAME", Category: LabelNoChange, Value: `""`},
+		{Name: "UPDATE", Category: WouldUpdate, Value: value},
+		{Name: "CREATE", Category: WouldCreate, Value: `""`},
+	}
+	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
+		got := FormatOutput(nil, nil, variables, nil, mode)
+		create, update := "would create", "would update"
+		if mode.ShouldWrite() {
+			create, update = "created", "updated"
+		}
+		const skip = "would skip (insufficient scope: token missing required scope):"
+		width := len(skip) + 1
+		want := fmt.Sprintf("%-*svariable.CREATE = \"\"\n", width, create+":") +
+			fmt.Sprintf("%-*svariable.UPDATE = %s\n", width, update+":", value) +
+			fmt.Sprintf("%-*svariable.SAME (already \"\")\n", width, "no change:") +
+			fmt.Sprintf("%-*svariable.SKIP\n", width, skip)
+		if got != want {
+			t.Errorf("FormatOutput() = %q, want %q", got, want)
+		}
+		for _, r := range got {
+			if r != '\n' && unicode.IsControl(r) {
+				t.Errorf("output contains control character %U", r)
+			}
+		}
+	}
+}
+
 func TestFormatOutputSwatchesOnly(t *testing.T) {
 	swatches := []SwatchResult{
 		{Path: ".github/FUNDING.yml", Category: WouldOverwrite},
@@ -17,7 +48,7 @@ func TestFormatOutputSwatchesOnly(t *testing.T) {
 		{Path: ".tailor.yml", Category: Skipped, Reason: SkipFirstFitExists},
 	}
 
-	got := FormatOutput(nil, nil, swatches, DryRun)
+	got := FormatOutput(nil, nil, nil, swatches, DryRun)
 	want := "would copy:                          CONTRIBUTING.md\n" +
 		"would overwrite:                     .github/FUNDING.yml\n" +
 		"no change:                           LICENSE\n" +
@@ -38,7 +69,7 @@ func TestFormatOutputSkippedSwatchesAllModes(t *testing.T) {
 
 	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
-			if got := FormatOutput(nil, nil, swatches, mode); got != want {
+			if got := FormatOutput(nil, nil, nil, swatches, mode); got != want {
 				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, want)
 			}
 		})
@@ -52,7 +83,7 @@ func TestFormatOutputRepoSettingsOnly(t *testing.T) {
 		{Field: "description", Category: WouldSet, Value: "My project"},
 	}
 
-	got := FormatOutput(repos, nil, nil, DryRun)
+	got := FormatOutput(repos, nil, nil, nil, DryRun)
 	want := "would set:                           repository.description = My project\n" +
 		"would set:                           repository.has_wiki = false\n" +
 		"no change:                           repository.has_issues (already true)\n"
@@ -73,7 +104,7 @@ func TestFormatOutputCombined(t *testing.T) {
 		{Path: "LICENSE", Category: NoChange},
 	}
 
-	got := FormatOutput(repos, nil, swatches, DryRun)
+	got := FormatOutput(repos, nil, nil, swatches, DryRun)
 	want := "would set:                           repository.has_wiki = false\n" +
 		"no change:                           repository.has_issues (already true)\n" +
 		"would copy:                          CONTRIBUTING.md\n" +
@@ -85,7 +116,7 @@ func TestFormatOutputCombined(t *testing.T) {
 }
 
 func TestFormatOutputEmpty(t *testing.T) {
-	got := FormatOutput(nil, nil, nil, DryRun)
+	got := FormatOutput(nil, nil, nil, nil, DryRun)
 	if got != "" {
 		t.Errorf("FormatOutput empty: got %q, want %q", got, "")
 	}
@@ -109,7 +140,7 @@ func TestFormatOutputRetentionWriteSkipIsolation(t *testing.T) {
 				{Section: "actions", Field: "artifact_and_log_retention.days", Category: WouldSet, Value: "14"},
 				{Section: "actions", Operation: gh.Op(tc.operation), Category: WouldSkipScope},
 			}
-			output := FormatOutput(results, nil, nil, Apply)
+			output := FormatOutput(results, nil, nil, nil, Apply)
 			if !strings.Contains(output, tc.present) || strings.Contains(output, tc.absent) {
 				t.Fatalf("output = %q, want %q but not %q", output, tc.present, tc.absent)
 			}
@@ -136,7 +167,7 @@ func TestFormatOutputForkApprovalWriteSkipIsolation(t *testing.T) {
 			}
 			results = append(results, RepoSettingResult{Section: "actions", Operation: gh.Op(denied.operation), Category: WouldSkipScope})
 			for _, mode := range []ApplyMode{Apply, Recut} {
-				output := FormatOutput(results, nil, nil, mode)
+				output := FormatOutput(results, nil, nil, nil, mode)
 				for _, field := range fields {
 					wantPresent := field.operation != denied.operation
 					text := "actions." + field.field + " = " + field.value
@@ -153,7 +184,7 @@ func TestFormatOutputForkApprovalWriteSkipIsolation(t *testing.T) {
 }
 
 func TestFormatOutputEmptySlices(t *testing.T) {
-	got := FormatOutput([]RepoSettingResult{}, nil, []SwatchResult{}, DryRun)
+	got := FormatOutput([]RepoSettingResult{}, nil, nil, []SwatchResult{}, DryRun)
 	if got != "" {
 		t.Errorf("FormatOutput empty slices: got %q, want %q", got, "")
 	}
@@ -169,7 +200,7 @@ func TestFormatOutputSwatchSorting(t *testing.T) {
 		{Path: "M-file.md", Category: NoChange},
 	}
 
-	got := FormatOutput(nil, nil, swatches, DryRun)
+	got := FormatOutput(nil, nil, nil, swatches, DryRun)
 	want := "would copy:                          B-file.md\n" +
 		"would copy:                          C-file.md\n" +
 		"would overwrite:                     A-file.md\n" +
@@ -190,7 +221,7 @@ func TestFormatOutputMixedSwatchActionOrder(t *testing.T) {
 		{Path: ".tailor.yml", Category: WouldUpdateConfig},
 	}
 
-	got := FormatOutput(nil, nil, swatches, DryRun)
+	got := FormatOutput(nil, nil, nil, swatches, DryRun)
 	want := "would update:                        .tailor.yml\n" +
 		"would remove:                        .github/workflows/tailor.yml\n" +
 		"would copy:                          new.md\n" +
@@ -233,7 +264,7 @@ func TestFormatOutputRetiredWorkflowRemovalByMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := FormatOutput(nil, nil, swatches, tt.mode); got != tt.want {
+			if got := FormatOutput(nil, nil, nil, swatches, tt.mode); got != tt.want {
 				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, tt.want)
 			}
 		})
@@ -248,7 +279,7 @@ func TestFormatOutputRepoSettingSorting(t *testing.T) {
 		{Field: "allow_squash_merge", Category: WouldSet, Value: "true"},
 	}
 
-	got := FormatOutput(repos, nil, nil, DryRun)
+	got := FormatOutput(repos, nil, nil, nil, DryRun)
 	want := "would set:                           repository.allow_squash_merge = true\n" +
 		"would set:                           repository.has_issues = true\n" +
 		"no change:                           repository.description (already A project)\n" +
@@ -288,7 +319,7 @@ func TestFormatOutputActionableBeforeInformational(t *testing.T) {
 		{Path: "action2.md", Category: WouldOverwrite},
 	}
 
-	got := FormatOutput(nil, nil, swatches, DryRun)
+	got := FormatOutput(nil, nil, nil, swatches, DryRun)
 	want := "would copy:                          action1.md\n" +
 		"would overwrite:                     action2.md\n" +
 		"no change:                           info1.md\n" +
@@ -307,7 +338,7 @@ func TestFormatOutputRepoSettingsBeforeSwatches(t *testing.T) {
 		{Path: "CONTRIBUTING.md", Category: WouldCopy},
 	}
 
-	got := FormatOutput(repos, nil, swatches, DryRun)
+	got := FormatOutput(repos, nil, nil, swatches, DryRun)
 	want := "would set:                           repository.has_wiki = false\n" +
 		"would copy:                          CONTRIBUTING.md\n"
 
@@ -321,7 +352,7 @@ func TestFormatOutputNoTrailingBlankLine(t *testing.T) {
 		{Path: "file.md", Category: WouldCopy},
 	}
 
-	got := FormatOutput(nil, nil, swatches, DryRun)
+	got := FormatOutput(nil, nil, nil, swatches, DryRun)
 	if got[len(got)-1] != '\n' {
 		t.Error("output should end with newline")
 	}
@@ -337,7 +368,7 @@ func TestFormatOutputSkipCategories(t *testing.T) {
 		{Operation: gh.Op(gh.OpPatchRepoSettings), Category: WouldSkipScope, Value: "insufficient scope"},
 	}
 
-	got := FormatOutput(repos, nil, nil, DryRun)
+	got := FormatOutput(repos, nil, nil, nil, DryRun)
 	want := "would set:                           repository.has_wiki = false\n" +
 		"no change:                           repository.has_issues (already true)\n" +
 		"would skip (insufficient scope):     patch repo settings\n"
@@ -353,7 +384,7 @@ func TestFormatOutputActionsSkipOperationHasNoSectionPrefix(t *testing.T) {
 		{Section: "actions", Operation: gh.Op(gh.OpDisableActionsForPolicyUpdate), Category: WouldSkipScope},
 	}
 
-	got := FormatOutput(repos, nil, nil, DryRun)
+	got := FormatOutput(repos, nil, nil, nil, DryRun)
 	want := "would skip (insufficient scope):     disable actions for selected policy update\n" +
 		"would skip (insufficient scope):     actions.enabled\n"
 	if got != want {
@@ -368,7 +399,7 @@ func TestFormatOutputSkipSorting(t *testing.T) {
 		{Operation: gh.Op(gh.OpPatchRepoSettings), Category: WouldSkipScope, Value: "scope error"},
 	}
 
-	got := FormatOutput(repos, nil, nil, DryRun)
+	got := FormatOutput(repos, nil, nil, nil, DryRun)
 	want := "would set:                           repository.description = My project\n" +
 		"no change:                           repository.has_wiki (already false)\n" +
 		"would skip (insufficient scope):     patch repo settings\n"
@@ -383,7 +414,7 @@ func TestFormatOutputSkipAnnotationScope(t *testing.T) {
 		{Field: "default_workflow_permissions", Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
 
-	got := FormatOutput(repos, nil, nil, DryRun)
+	got := FormatOutput(repos, nil, nil, nil, DryRun)
 	// "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 space = 63 width.
 	want := "would skip (insufficient scope: token missing required scope): default_workflow_permissions\n"
 
@@ -400,7 +431,7 @@ func TestFormatOutputSkipAnnotationMixed(t *testing.T) {
 		{Field: "can_approve_pull_request_reviews", Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
 
-	got := FormatOutput(repos, nil, nil, DryRun)
+	got := FormatOutput(repos, nil, nil, nil, DryRun)
 	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 = 63.
 	want := "would set:                                                     repository.has_wiki = false\n" +
 		"no change:                                                     repository.has_issues (already true)\n" +
@@ -421,7 +452,7 @@ func TestFormatOutputDynamicWidthWithSkippedSwatches(t *testing.T) {
 		{Path: ".envrc", Category: Skipped, Reason: SkipFirstFitExists},
 	}
 
-	got := FormatOutput(repos, nil, swatches, DryRun)
+	got := FormatOutput(repos, nil, nil, swatches, DryRun)
 	want := "would skip (insufficient scope: token missing required scope): default_workflow_permissions\n" +
 		"skipped:                                                       .envrc (first-fit, exists)\n" +
 		"skipped:                                                       .github/pull_request_template.md (mode never)\n"
@@ -437,7 +468,7 @@ func TestFormatOutputLabelSkipAnnotations(t *testing.T) {
 		{Operation: gh.CreateLabelOp("enhancement"), Category: LabelSkipScope, Annotation: "token missing required scope"},
 	}
 
-	got := FormatOutput(nil, labels, nil, DryRun)
+	got := FormatOutput(nil, labels, nil, nil, DryRun)
 	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 + 1 = 63.
 	want := "would create:                                                  label.bug = #d73a4a\n" +
 		"would skip (insufficient scope: token missing required scope): create label \"enhancement\"\n"
@@ -452,7 +483,7 @@ func TestFormatOutputSkipAnnotationColumnWidth(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "vuln", Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
-	got := FormatOutput(repos, nil, nil, DryRun)
+	got := FormatOutput(repos, nil, nil, nil, DryRun)
 
 	// "would skip (insufficient scope: token missing required scope):" is 62 chars.
 	// Column width = 63 (62 + 1 space). The field starts at position 63.
@@ -472,7 +503,7 @@ func TestFormatOutputSkipWithoutAnnotation(t *testing.T) {
 		{Operation: gh.Op(gh.OpPatchRepoSettings), Category: WouldSkipScope},
 	}
 
-	got := FormatOutput(repos, nil, nil, DryRun)
+	got := FormatOutput(repos, nil, nil, nil, DryRun)
 	want := "would skip (insufficient scope):     patch repo settings\n"
 
 	if got != want {
@@ -553,7 +584,7 @@ func TestFormatOutputApplyModes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FormatOutput(repos, labels, swatches, tt.mode)
+			got := FormatOutput(repos, labels, nil, swatches, tt.mode)
 			if got != tt.want {
 				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, tt.want)
 			}
@@ -575,7 +606,7 @@ func TestFormatOutputWriteModesOmitSkippedActions(t *testing.T) {
 
 	for _, mode := range []ApplyMode{Apply, Recut} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
-			got := FormatOutput(repos, labels, nil, mode)
+			got := FormatOutput(repos, labels, nil, nil, mode)
 			if got != want {
 				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, want)
 			}
@@ -598,7 +629,7 @@ func TestFormatOutputWriteModesOmitSkippedSecuritySettings(t *testing.T) {
 
 	for _, mode := range []ApplyMode{Apply, Recut} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
-			if got := FormatOutput(repos, nil, nil, mode); got != want {
+			if got := FormatOutput(repos, nil, nil, nil, mode); got != want {
 				t.Errorf("FormatOutput() =\n%s\nwant:\n%s", got, want)
 			}
 		})
@@ -645,7 +676,7 @@ func TestFormatOutputEscapesControlCharacters(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := FormatOutput(tt.repos, tt.labels, nil, DryRun)
+			got := FormatOutput(tt.repos, tt.labels, nil, nil, DryRun)
 			if !strings.Contains(got, tt.wantContains) {
 				t.Errorf("FormatOutput() =\n%s\nwant substring %q", got, tt.wantContains)
 			}

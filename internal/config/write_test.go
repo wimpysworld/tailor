@@ -184,6 +184,14 @@ labels:
     color: df8e1d
     description: Hacktoberfest contribution
 
+# Repository Actions variables are non-secret values.
+# Tailor creates or updates only declared variables and leaves others unchanged.
+# variables:
+#   - name: DEPLOY_REGION
+#     value: "eu-west-2"
+#   - name: RELEASE_SUFFIX
+#     value: ""
+
 swatches:
   - path: .github/dependabot.yml
     alteration: first-fit
@@ -455,6 +463,14 @@ repository:
   default_workflow_permissions: write
   can_approve_pull_request_reviews: true
 
+# Repository Actions variables are non-secret values.
+# Tailor creates or updates only declared variables and leaves others unchanged.
+# variables:
+#   - name: DEPLOY_REGION
+#     value: "eu-west-2"
+#   - name: RELEASE_SUFFIX
+#     value: ""
+
 swatches:
   - path: justfile
     alteration: first-fit
@@ -512,6 +528,14 @@ repository:
   web_commit_signoff_required: false
   default_workflow_permissions: read
   can_approve_pull_request_reviews: false
+
+# Repository Actions variables are non-secret values.
+# Tailor creates or updates only declared variables and leaves others unchanged.
+# variables:
+#   - name: DEPLOY_REGION
+#     value: "eu-west-2"
+#   - name: RELEASE_SUFFIX
+#     value: ""
 
 swatches:
   - path: justfile
@@ -633,6 +657,52 @@ func TestWriteDynamicScalarsRoundTrip(t *testing.T) {
 	}
 	if !reflect.DeepEqual(parsed, *cfg) {
 		t.Errorf("round-tripped config = %#v, want %#v", parsed, *cfg)
+	}
+}
+
+func TestWriteVariablesRoundTrip(t *testing.T) {
+	values := []string{"", "plain", "true", "123", " leading and trailing ", "\t \r\n", "line one\nline two\n", "\"quoted\" \\path", "café 日本 🧵", "{{GITHUB_USERNAME}}", "\\U0001F9F5 🧵", "\u0085\u2028\u2029"}
+	for _, value := range values {
+		t.Run(value, func(t *testing.T) {
+			cfg := &Config{
+				License:   "none",
+				Variables: []model.VariableEntry{{Name: "EXAMPLE", Value: new(value)}},
+			}
+			dir := t.TempDir()
+			if err := Write(dir, cfg, "2026-09-07", "Refitted"); err != nil {
+				t.Fatal(err)
+			}
+			got, err := Load(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got.Variables, cfg.Variables) {
+				t.Fatalf("variables = %#v, want %#v", got.Variables, cfg.Variables)
+			}
+			data, err := os.ReadFile(filepath.Join(dir, ConfigSwatchPath))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(data), "    value: \"") {
+				t.Fatalf("variable value is not double-quoted: %s", data)
+			}
+			if strings.Contains(string(data), "# variables:") {
+				t.Fatal("declared variables also include the commented example")
+			}
+		})
+	}
+}
+
+func TestWriteVariablesAbsent(t *testing.T) {
+	for _, variables := range [][]model.VariableEntry{nil, {}} {
+		cfg := &Config{License: "none", Variables: variables}
+		written := writeConfig(t, cfg, "2026-09-07", "Refitted")
+		if strings.Contains(written, "\nvariables:") {
+			t.Fatal("absent variables produced an active section")
+		}
+		if !strings.Contains(written, "# variables:") || !strings.Contains(written, "#     value: \"\"") {
+			t.Fatal("absent variables did not produce the commented example")
+		}
 	}
 }
 

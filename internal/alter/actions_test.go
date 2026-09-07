@@ -122,7 +122,7 @@ func TestProcessActionsForkApproval(t *testing.T) {
 			if err != nil || len(results) == 0 || results[0].Category != tc.wantCategory || results[0].Field != "fork_pr_contributor_approval.approval_policy" {
 				t.Fatalf("results = %+v, error = %v", results, err)
 			}
-			output := alter.FormatOutput(results, nil, nil, tc.mode)
+			output := alter.FormatOutput(results, nil, nil, nil, tc.mode)
 			if tc.writeStatus != 0 {
 				if strings.Contains(output, " = first_time_contributors") || !strings.Contains(output, "would skip (insufficient scope") {
 					t.Fatalf("output = %q", output)
@@ -291,7 +291,7 @@ func TestProcessActionsRetention(t *testing.T) {
 			if err != nil || len(results) == 0 || results[0].Category != tc.wantCategory || results[0].Field != "artifact_and_log_retention.days" {
 				t.Fatalf("results = %+v, error = %v", results, err)
 			}
-			output := alter.FormatOutput(results, nil, nil, tc.mode)
+			output := alter.FormatOutput(results, nil, nil, nil, tc.mode)
 			if tc.writeStatus != 0 {
 				if strings.Contains(output, " = 14") || !strings.Contains(output, "would skip (insufficient scope") || !strings.Contains(output, "set actions artifact and log retention") {
 					t.Fatalf("output = %q", output)
@@ -336,7 +336,7 @@ func TestProcessActionsRetentionIndependentOfDeniedCore(t *testing.T) {
 	if err != nil || retentionWrites.Load() != 1 {
 		t.Fatalf("results = %+v, error = %v, writes = %d", results, err, retentionWrites.Load())
 	}
-	output := alter.FormatOutput(results, nil, nil, alter.Apply)
+	output := alter.FormatOutput(results, nil, nil, nil, alter.Apply)
 	if !strings.Contains(output, "actions.artifact_and_log_retention.days = 14") || !strings.Contains(output, "would skip (insufficient scope") {
 		t.Fatalf("output = %q", output)
 	}
@@ -595,7 +595,7 @@ func TestProcessActionsSelectedOnlyWriteAccessError(t *testing.T) {
 	if scopeSkips != 1 {
 		t.Fatalf("scope skips = %d, want 1: %+v", scopeSkips, results)
 	}
-	output := alter.FormatOutput(results, nil, nil, alter.Apply)
+	output := alter.FormatOutput(results, nil, nil, nil, alter.Apply)
 	if strings.Contains(output, "set:") {
 		t.Fatalf("output contains a false set result: %q", output)
 	}
@@ -662,7 +662,7 @@ func TestProcessActionsWriteAccessErrorProducesClearOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output := alter.FormatOutput(results, nil, nil, alter.Apply)
+	output := alter.FormatOutput(results, nil, nil, nil, alter.Apply)
 	if output == "" || !strings.Contains(output, "would skip (insufficient scope") || !strings.Contains(output, "set actions permissions") {
 		t.Fatalf("output = %q, want clear Actions access skip", output)
 	}
@@ -697,7 +697,7 @@ func TestProcessActionsStopsSelectedWriteAfterCoreFailure(t *testing.T) {
 				t.Fatalf("ProcessActions() error = %v, want access skip", err)
 			}
 			if status == http.StatusForbidden {
-				output := alter.FormatOutput(results, nil, nil, alter.Apply)
+				output := alter.FormatOutput(results, nil, nil, nil, alter.Apply)
 				if strings.Contains(output, "set:") || !strings.Contains(output, "set selected actions permissions") {
 					t.Fatalf("output = %q, want skipped core and dependent writes", output)
 				}
@@ -769,7 +769,7 @@ func TestProcessActionsInitialTransitionSkipSuppressesUnattemptedWrites(t *testi
 	if puts.Load() != 1 {
 		t.Fatalf("PUT calls = %d, want only the final core policy", puts.Load())
 	}
-	output := alter.FormatOutput(results, nil, nil, alter.Apply)
+	output := alter.FormatOutput(results, nil, nil, nil, alter.Apply)
 	if strings.Contains(output, "set:") || !strings.Contains(output, "set selected actions permissions") || !strings.Contains(output, "set actions permissions") {
 		t.Fatalf("output = %q, want all transition operations skipped", output)
 	}

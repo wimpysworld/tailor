@@ -153,7 +153,7 @@ Tailor embeds 16 default swatches:
 
 ### Configuration
 
-All state lives in `.tailor.yml` with nine sections: `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, and `swatches`.
+All state lives in `.tailor.yml`. Its ten sections are `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, and `swatches`.
 
 Release immutability defaults to `immutable_releases.enabled: false`. Before enabling it, change release CI to upload every asset to a draft, then publish. Workflows that upload or replace assets after publication will fail. Enabling protects future releases only. Disabling does not unlock existing immutable releases. Tailor skips disabling when the repository owner enforces immutability. An omitted section or `enabled` key stays unmanaged, including during default merging. For an existing repository, `fit` preserves the live setting.
 
@@ -275,6 +275,14 @@ ruleset:
           - tool: CodeQL
             alerts_threshold: errors
             security_alerts_threshold: high_or_higher
+
+# Repository Actions variables are non-secret values.
+# Tailor creates or updates only declared variables and leaves others unchanged.
+# variables:
+#   - name: DEPLOY_REGION
+#     value: "eu-west-2"
+#   - name: RELEASE_SUFFIX
+#     value: ""
 
 swatches:
   - path: SECURITY.md
@@ -442,6 +450,30 @@ The `code_scanning` rule is the free route to the "Check runs failure threshold"
 
 GitHub blocks a merge when the ruleset allows a method that the repository disables. When `allowed_merge_methods` names a method whose `repository` setting is `false` in the same config, Tailor shows `warning: ruleset allows <method> merging but repository.<field> is false` and continues without changing either value. When rulesets are not available to the repository, Tailor reports `would skip (not available)`. When the token lacks write access to the ruleset, Tailor reports `would skip (insufficient scope)`. When GitHub rejects the ruleset body, Tailor stops with the API error.
 
+## Actions variables
+
+The optional `variables` section manages non-secret variables in the repository. Tailor creates or updates only declared variables. It leaves other variables unchanged.
+
+```yaml
+variables:
+  - name: DEPLOY_REGION
+    value: "eu-west-2"
+  - name: RELEASE_SUFFIX
+    value: ""
+```
+
+Names accept ASCII letters, digits and underscores. A name cannot start with a digit or `GITHUB_`. Names match without case sensitivity. Tailor rejects duplicate names. A difference in name casing alone causes no update.
+
+Each entry requires a string `value`. Quote values such as `"true"` and `"123"` to keep them strings. An explicit `""` sets an empty value. Tailor preserves whitespace, newlines and Unicode without substitution.
+
+Tailor accepts up to 500 declarations and 48 × 1024 UTF-8 bytes per value. GitHub enforces total repository capacity. GitHub also limits organisation and repository variables to 256 KB combined per workflow run.
+
+Omit `variables` or use `variables: []` to make no variable requests. `fit` writes only a commented example. It never reads live variables. Default merging and `alter --recut` preserve declarations without adding variables.
+
+Tailor does not manage secrets, organisation variables or environment variables. `measure` stays local.
+
+`baste` shows `variable.<name>` with quoted, escaped values and makes no writes. `alter` reports each successful create or update. Access failures skip the affected variables. Rate limits and other hard errors stop the command. After partial writes, the error includes applied and remaining counts.
+
 ## Labels
 
 The `labels` section manages GitHub issue labels declaratively. Tailor ships 12 default labels (the 9 GitHub defaults plus `dependencies`, `github_actions`, and `hacktoberfest-accepted`) with colours from the [Catppuccin Latte](https://catppuccin.com/palette/) palette.
@@ -497,7 +529,7 @@ When a GitHub remote exists, `fit` queries the live repository configuration for
 
 ### `alter`
 
-Reads `.tailor.yml` in the current directory and applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, licence, and swatches in that order.
+Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, licence, and swatches in that order.
 
 ```bash
 tailor alter            # Apply changes

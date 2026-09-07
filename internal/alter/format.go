@@ -22,9 +22,9 @@ type outputLine struct {
 }
 
 // FormatOutput produces the alter command output from repo settings results,
-// label results, and swatch results (including licence).
-func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, swatchResults []SwatchResult, mode ApplyMode) string {
-	if len(repoResults) == 0 && len(labelResults) == 0 && len(swatchResults) == 0 {
+// label results, variable results, and swatch results (including licence).
+func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, variableResults []VariableResult, swatchResults []SwatchResult, mode ApplyMode) string {
+	if len(repoResults) == 0 && len(labelResults) == 0 && len(variableResults) == 0 && len(swatchResults) == 0 {
 		return ""
 	}
 	if mode.ShouldWrite() {
@@ -32,7 +32,7 @@ func FormatOutput(repoResults []RepoSettingResult, labelResults []LabelResult, s
 		labelResults = removeSkipped(labelResults, labelSkippedName, labelActionName)
 	}
 
-	lines := slices.Concat(repoLines(repoResults, mode), labelLines(labelResults, mode), swatchLines(swatchResults, mode))
+	lines := slices.Concat(repoLines(repoResults, mode), labelLines(labelResults, mode), variableLines(variableResults, mode), swatchLines(swatchResults, mode))
 
 	for i := range lines {
 		lines[i].label = termtext.EscapeControlText(lines[i].label)
@@ -100,6 +100,31 @@ func labelLines(results []LabelResult, mode ApplyMode) []outputLine {
 			text = fmt.Sprintf("label.%s (already %s)", r.Name, r.Value)
 		case LabelSkipScope:
 			text = r.Operation.String()
+		default:
+			continue
+		}
+		label := resultLabel(string(r.Category), r.Annotation, r.Category == LabelSkipScope, mode)
+		lines = append(lines, outputLine{label, text})
+	}
+	return lines
+}
+
+func variableLines(results []VariableResult, mode ApplyMode) []outputLine {
+	order := func(r VariableResult) int { return labelOrder(r.Category) }
+	key := func(r VariableResult) string { return r.Name }
+	lines := make([]outputLine, 0, len(results))
+	for _, r := range sortResults(results, order, key) {
+		var text string
+		switch r.Category {
+		case WouldCreate, WouldUpdate:
+			text = fmt.Sprintf("variable.%s = %s", r.Name, r.Value)
+		case LabelNoChange:
+			text = fmt.Sprintf("variable.%s (already %s)", r.Name, r.Value)
+		case LabelSkipScope:
+			text = "variable." + r.Name
+			if r.Name == "" {
+				text = r.Operation.String()
+			}
 		default:
 			continue
 		}

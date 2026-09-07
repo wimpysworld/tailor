@@ -168,6 +168,14 @@ labels:
     color: df8e1d
     description: "Hacktoberfest contribution"
 
+# Repository Actions variables are non-secret values.
+# Tailor creates or updates only declared variables and leaves others unchanged.
+# variables:
+#   - name: DEPLOY_REGION
+#     value: "eu-west-2"
+#   - name: RELEASE_SUFFIX
+#     value: ""
+
 swatches:
   - path: .github/dependabot.yml
     alteration: first-fit

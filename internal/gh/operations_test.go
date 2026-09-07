@@ -2,6 +2,18 @@ package gh
 
 import "testing"
 
+func TestVariableOperationString(t *testing.T) {
+	for operation, want := range map[Operation]string{
+		Op(OpFetchVariables):     "fetch variables",
+		CreateVariableOp("NAME"): `create variable "NAME"`,
+		UpdateVariableOp("NAME"): `update variable "NAME"`,
+	} {
+		if got := operation.String(); got != want {
+			t.Errorf("String() = %q, want %q", got, want)
+		}
+	}
+}
+
 func TestSecurityFeatureOperationString(t *testing.T) {
 	tests := []struct {
 		kind    OperationKind
