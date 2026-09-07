@@ -1011,6 +1011,10 @@ swatches/
 │   │   ├── config.yml
 │   │   └── feature_request.yml
 │   └── pull_request_template.md
+├── pages/
+│   ├── static.yml
+│   ├── hugo.yml
+│   └── jekyll.yml
 └── .tailor.yml
 ```
 
