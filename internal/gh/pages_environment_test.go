@@ -50,6 +50,64 @@ func TestReadPagesEnvironmentRateLimit(t *testing.T) {
 	}
 }
 
+func TestPagesEnvironmentCustomPolicyWithoutAdminAccess(t *testing.T) {
+	for _, branch := range []string{"main", "release"} {
+		t.Run(branch, func(t *testing.T) {
+			writes := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					writes++
+					t.Errorf("unexpected write: %s", r.Method)
+				}
+				if strings.HasSuffix(r.URL.Path, "/deployment-branch-policies") {
+					fmt.Fprintf(w, `{"total_count":1,"branch_policies":[{"id":1,"name":%q,"type":"branch"}]}`, branch)
+					return
+				}
+				fmt.Fprint(w, customPagesEnvironment)
+			}))
+			t.Cleanup(server.Close)
+			client := newTestClient(t, server)
+			state, err := ReadPagesEnvironment(client, "owner", "repo", "main", false)
+			if branch != "main" {
+				var scope *ErrInsufficientScope
+				if state != nil || !errors.As(err, &scope) || scope.Operation.Kind != OpPostPagesEnvironmentPolicy {
+					t.Fatalf("state=%+v error=%v", state, err)
+				}
+			} else {
+				if err != nil {
+					t.Fatal(err)
+				}
+				result, err := ApplyPagesEnvironment(client, "owner", "repo", state)
+				if err != nil || len(result.Applied) != 0 {
+					t.Fatalf("result=%+v error=%v", result, err)
+				}
+			}
+			if writes != 0 {
+				t.Fatalf("writes=%d", writes)
+			}
+		})
+	}
+}
+
+func TestApplyPagesEnvironmentRequiresAdminAccess(t *testing.T) {
+	for _, missing := range []bool{false, true} {
+		t.Run(fmt.Sprint(missing), func(t *testing.T) {
+			requests := 0
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests++
+				t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			}))
+			t.Cleanup(server.Close)
+			state := &PagesEnvironmentState{Missing: missing, AddBranch: true, Branch: "main", verified: true}
+			result, err := ApplyPagesEnvironment(newTestClient(t, server), "owner", "repo", state)
+			var scope *ErrInsufficientScope
+			if !errors.As(err, &scope) || len(result.Applied) != 0 || requests != 0 {
+				t.Fatalf("result=%+v error=%v requests=%d", result, err, requests)
+			}
+		})
+	}
+}
+
 func TestPagesEnvironmentPreservesUnrestricted(t *testing.T) {
 	requests := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -61,7 +119,7 @@ func TestPagesEnvironmentPreservesUnrestricted(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 	client := newTestClient(t, server)
-	state, err := ReadPagesEnvironment(client, "owner", "repo", "main", true)
+	state, err := ReadPagesEnvironment(client, "owner", "repo", "main", false)
 	if err != nil {
 		t.Fatal(err)
 	}
