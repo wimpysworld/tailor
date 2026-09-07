@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
@@ -318,8 +318,13 @@ func assertForkApprovalPolicy(t *testing.T, cfg *config.Config, want string) {
 
 func forkApprovalFiles(t *testing.T, dir string) map[string]string {
 	t.Helper()
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
 	files := make(map[string]string)
-	err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+	err = fs.WalkDir(root.FS(), ".", func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -327,7 +332,7 @@ func forkApprovalFiles(t *testing.T, dir string) map[string]string {
 			files[path] = "directory"
 			return nil
 		}
-		data, err := os.ReadFile(path)
+		data, err := root.ReadFile(path)
 		files[path] = string(data)
 		return err
 	})
