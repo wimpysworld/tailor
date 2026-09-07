@@ -122,6 +122,17 @@ func (f *FitCmd) Run() error {
 // built-in section and warns, because plan availability is not a token
 // problem. Other read errors stop the command.
 func mergeLiveSetup(cfg *config.Config, client *api.RESTClient, repo gh.Repo, stderr io.Writer) error {
+	immutable, err := gh.ReadImmutableReleases(client, repo.Owner, repo.Name)
+	if err != nil {
+		var scope *gh.ErrInsufficientScope
+		if !errors.As(err, &scope) {
+			return err
+		}
+		fmt.Fprintf(stderr, "warning: %v\n", err)
+		cfg.ImmutableReleases = nil
+	} else {
+		cfg.ImmutableReleases = &model.ImmutableReleasesSettings{Enabled: immutable.Enabled}
+	}
 	codeScanning, err := gh.ReadCodeScanningSetup(client, repo.Owner, repo.Name)
 	if err != nil {
 		if err = warnSkipped(err, stderr); err != nil {

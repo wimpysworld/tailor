@@ -148,11 +148,12 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 }
 
 // processRepoStages runs the repository API stages in order: repository
-// settings, Actions policy, code scanning, Code Quality, then the ruleset.
+// settings, immutable releases, Actions policy, code scanning, Code Quality, then the ruleset.
 func processRepoStages(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]RepoSettingResult, error) {
 	var results []RepoSettingResult
 	for _, stage := range []func(*config.Config, ApplyMode, RepoTarget) ([]RepoSettingResult, error){
 		ProcessRepoSettings,
+		ProcessImmutableReleases,
 		ProcessActions,
 		ProcessCodeScanning,
 		ProcessCodeQuality,
@@ -169,6 +170,9 @@ func processRepoStages(cfg *config.Config, mode ApplyMode, target RepoTarget) ([
 
 // validateConfig runs the repeated config validation pass in sequence.
 func validateConfig(cfg *config.Config) error {
+	if err := config.ValidateImmutableReleases(cfg); err != nil {
+		return err
+	}
 	if err := config.ValidateSwatches(cfg); err != nil {
 		return err
 	}
