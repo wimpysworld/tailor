@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"path"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/wimpysworld/tailor/internal/config"
@@ -276,7 +278,9 @@ func validateHugoSubmodule(root *os.Root, dir, name string) error {
 }
 
 var (
-	jekyllGemDeclaration = regexp.MustCompile(`(?m)^\s*gem\s+['"]([^'"]+)['"]`)
+	jekyllGemDeclaration = regexp.MustCompile(`(?m)^\s*gem\s+['"]([^'"]+)['"]([^\r\n]*)`)
+	jekyllGemConstraint  = regexp.MustCompile(`^\s*,\s*(?:"([^"]*)"|'([^']*)')`)
+	jekyllRequirement    = regexp.MustCompile(`^(=|!=|~>|>=|<=|>|<)?\s*([0-9]+(?:\.[0-9]+)*)$`)
 	jekyllLockedGem      = regexp.MustCompile(`(?m)^    ([A-Za-z0-9_-]+) \(([^)]+)\)$`)
 	jekyllLockDependency = regexp.MustCompile(`(?m)^      ([A-Za-z0-9_-]+)(?: \([^\n]+\))?$`)
 	jekyllGitRevision    = regexp.MustCompile(`(?m)^  revision: [a-f0-9]{40}$`)
@@ -334,6 +338,11 @@ func validateJekyllSource(root *os.Root, source string) error {
 	for _, match := range jekyllGemDeclaration.FindAllSubmatch(gemfile, -1) {
 		name := string(match[1])
 		declared = declared || name == "jekyll"
+		if name == "jekyll" {
+			if err := validateJekyllRequirements(string(match[2])); err != nil {
+				return err
+			}
+		}
 		if locked[name] == "" {
 			return fmt.Errorf("dependency %q from Gemfile is missing from Gemfile.lock", name)
 		}
@@ -347,4 +356,52 @@ func validateJekyllSource(root *os.Root, source string) error {
 		}
 	}
 	return nil
+}
+
+func validateJekyllRequirements(arguments string) error {
+	for {
+		argument := jekyllGemConstraint.FindStringSubmatch(arguments)
+		if argument == nil {
+			return nil
+		}
+		arguments = arguments[len(argument[0]):]
+		requirement := strings.TrimSpace(argument[1] + argument[2])
+		match := jekyllRequirement.FindStringSubmatch(requirement)
+		if match == nil {
+			return fmt.Errorf("unsupported jekyll version requirement %q in Gemfile", requirement)
+		}
+		parts := strings.Split(match[2], ".")
+		version := make([]int, max(3, len(parts)))
+		pinned := make([]int, len(version))
+		copy(pinned, []int{4, 4, 1})
+		for i, part := range parts {
+			value, err := strconv.Atoi(part)
+			if err != nil {
+				return fmt.Errorf("invalid jekyll version requirement %q in Gemfile: %w", requirement, err)
+			}
+			version[i] = value
+		}
+		comparison := slices.Compare(pinned, version)
+		compatible := false
+		switch match[1] {
+		case "", "=":
+			compatible = comparison == 0
+		case "!=":
+			compatible = comparison != 0
+		case ">":
+			compatible = comparison > 0
+		case ">=":
+			compatible = comparison >= 0
+		case "<":
+			compatible = comparison < 0
+		case "<=":
+			compatible = comparison <= 0
+		case "~>":
+			prefix := max(1, len(parts)-1)
+			compatible = comparison >= 0 && slices.Equal(pinned[:prefix], version[:prefix])
+		}
+		if !compatible {
+			return fmt.Errorf("jekyll version requirement %q in Gemfile does not allow pinned version 4.4.1", requirement)
+		}
+	}
 }
