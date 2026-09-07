@@ -90,7 +90,21 @@ func ReadPagesEnvironment(client *api.RESTClient, owner, name, branch string, ac
 			state.AddBranch = false
 		}
 	}
+	if err := state.checkWriteAccess(); err != nil {
+		return nil, err
+	}
 	return state, nil
+}
+
+func (s *PagesEnvironmentState) checkWriteAccess() error {
+	if s.access || (!s.Missing && !s.AddBranch) {
+		return nil
+	}
+	operation := OpPostPagesEnvironmentPolicy
+	if s.Missing {
+		operation = OpPutPagesEnvironment
+	}
+	return &ErrInsufficientScope{Operation: Op(operation), Message: "github-pages environment writes require proved admin access"}
 }
 
 func readPagesEnvironmentPolicies(client *api.RESTClient, owner, name string) ([]pagesBranchPolicy, error) {
@@ -140,6 +154,9 @@ func ApplyPagesEnvironment(client *api.RESTClient, owner, name string, state *Pa
 	}
 	if !state.Missing && !state.AddBranch {
 		return result, nil
+	}
+	if err := state.checkWriteAccess(); err != nil {
+		return result, err
 	}
 	// Recheck before writes so an environment created since preflight keeps its policy.
 	current, err := ReadPagesEnvironment(client, owner, name, state.Branch, state.access)

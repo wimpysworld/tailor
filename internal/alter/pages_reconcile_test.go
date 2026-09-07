@@ -17,6 +17,58 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
+func TestPagesPreflightSkipsEnvironmentWritesWithoutAdminAccess(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, ".tailor.yml")
+	configContent := []byte("pages:\n  enabled: true\n")
+	if err := os.WriteFile(configPath, configContent, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writes := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			writes++
+			t.Errorf("unexpected write: %s %s", r.Method, r.URL.Path)
+		}
+		switch r.URL.Path {
+		case "/repos/owner/repo":
+			w.Header().Set("X-OAuth-Scopes", "repo")
+			fmt.Fprint(w, `{"private":false,"default_branch":"main","permissions":{"maintain":true,"admin":false}}`)
+		case "/repos/owner/repo/pages":
+			fmt.Fprint(w, `{"build_type":"workflow","https_enforced":true}`)
+		case "/repos/owner/repo/environments/github-pages":
+			fmt.Fprint(w, `{"name":"github-pages","deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}`)
+		case "/repos/owner/repo/environments/github-pages/deployment-branch-policies":
+			fmt.Fprint(w, `{"total_count":0,"branch_policies":[]}`)
+		default:
+			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	target := RepoTarget{Client: testutil.NewTestClient(t, server), Owner: "owner", Name: "repo", HasRepo: true}
+	cfg := &config.Config{Pages: &model.PagesSettings{Enabled: new(true)}}
+	prepared := &pagesPreparation{Generator: "static", Path: "pages", Entry: config.SwatchEntry{Path: swatch.PagesDestination, Alteration: swatch.Always}}
+	p, err := preflightPages(cfg, dir, Apply, target, prepared)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(p.skipped) != 1 || p.skipped[0].Category != WouldSkipScope || p.environment != nil {
+		t.Fatalf("preflight=%+v", p)
+	}
+	results, workflow, err := processPages(cfg, dir, Apply, target, p)
+	if err != nil || workflow != nil || len(results) != 1 || results[0].Category != WouldSkipScope || writes != 0 {
+		t.Fatalf("results=%+v workflow=%+v error=%v writes=%d", results, workflow, err, writes)
+	}
+	content, err := os.ReadFile(configPath)
+	if err != nil || !bytes.Equal(content, configContent) {
+		t.Fatalf("config changed during preflight: %q, error=%v", content, err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, swatch.PagesDestination)); !os.IsNotExist(err) {
+		t.Fatalf("workflow exists after skipped preflight: %v", err)
+	}
+}
+
 func TestPagesPartialReconciliation(t *testing.T) {
 	for _, pending := range []bool{false, true} {
 		t.Run(fmt.Sprint(pending), func(t *testing.T) {
