@@ -257,8 +257,13 @@ func TestPagesEnvironmentCreationRace(t *testing.T) {
 					if r.Method != http.MethodPut || writes > 1 {
 						t.Errorf("unexpected write %s", r.Method)
 					}
+					w.Header().Set("Content-Type", "application/json")
 					w.WriteHeader(status)
-					fmt.Fprint(w, `{"message":"conflict"}`)
+					if status == http.StatusUnprocessableEntity {
+						fmt.Fprint(w, `{"message":"environment already exists"}`)
+					} else {
+						fmt.Fprint(w, `{"message":"conflict"}`)
+					}
 					return
 				}
 				reads++
@@ -284,5 +289,38 @@ func TestPagesEnvironmentCreationRace(t *testing.T) {
 				t.Fatalf("result=%+v error=%v writes=%d", result, err, writes)
 			}
 		})
+	}
+}
+
+func TestPagesEnvironmentCreationValidationError(t *testing.T) {
+	reads, writes := 0, 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			reads++
+			if writes > 0 {
+				fmt.Fprint(w, `{"name":"github-pages","deployment_branch_policy":null}`)
+				return
+			}
+			w.WriteHeader(http.StatusNotFound)
+			fmt.Fprint(w, `{"message":"not found"}`)
+			return
+		}
+		writes++
+		if r.Method != http.MethodPut {
+			t.Errorf("unexpected write %s", r.Method)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnprocessableEntity)
+		fmt.Fprint(w, `{"message":"invalid deployment branch policy"}`)
+	}))
+	t.Cleanup(server.Close)
+	client := newTestClient(t, server)
+	state, err := ReadPagesEnvironment(client, "owner", "repo", "main", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := ApplyPagesEnvironment(client, "owner", "repo", state)
+	if err == nil || !strings.Contains(err.Error(), "invalid deployment branch policy") || len(result.Applied) != 0 || reads != 2 || writes != 1 {
+		t.Fatalf("result=%+v error=%v reads=%d writes=%d", result, err, reads, writes)
 	}
 }
