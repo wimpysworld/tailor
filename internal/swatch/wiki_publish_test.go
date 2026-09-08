@@ -13,15 +13,16 @@ import (
 )
 
 func TestWikiWorkflowContract(t *testing.T) {
-	content, err := swatch.WikiContent("release/docs+v2")
+	content, err := swatch.Content(swatch.WikiDestination)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var workflow struct {
 		On struct {
 			Push struct {
-				Branches []string `yaml:"branches"`
-				Paths    []string `yaml:"paths"`
+				Branches       *yaml.Node `yaml:"branches"`
+				BranchesIgnore *yaml.Node `yaml:"branches-ignore"`
+				Paths          []string   `yaml:"paths"`
 			} `yaml:"push"`
 		} `yaml:"on"`
 		Permissions map[string]string `yaml:"permissions"`
@@ -37,8 +38,8 @@ func TestWikiWorkflowContract(t *testing.T) {
 	if err := yaml.Unmarshal(content, &workflow); err != nil {
 		t.Fatal(err)
 	}
-	if branches := workflow.On.Push.Branches; len(branches) != 1 || branches[0] != `release/docs\+v2` {
-		t.Fatalf("incorrect literal branch filter: %q", branches)
+	if workflow.On.Push.Branches != nil || workflow.On.Push.BranchesIgnore != nil {
+		t.Fatal("publisher must use the current default branch guard without static branch filters")
 	}
 	if paths := workflow.On.Push.Paths; len(paths) != 2 || paths[0] != "wiki/**" || paths[1] != swatch.WikiDestination {
 		t.Fatalf("incorrect publication paths: %q", paths)
@@ -98,7 +99,6 @@ func newWikiPublisherFixture(t *testing.T) *wikiPublisherFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	content = []byte(strings.ReplaceAll(string(content), "[[quote .Branch]]", `"main"`))
 	var workflow struct {
 		Jobs map[string]struct {
 			Steps []struct {
