@@ -77,7 +77,7 @@ func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTa
 	if *repository.Private {
 		return skip("not available for private repositories"), nil
 	}
-	p.content, err = swatch.WikiContent(repository.DefaultBranch)
+	p.content, err = swatch.Content(swatch.WikiDestination)
 	if err != nil {
 		return nil, err
 	}

@@ -9,9 +9,6 @@ import (
 // Content returns the embedded bytes for the swatch identified by path.
 // The path is relative to swatches/, for example ".github/dependabot.yml".
 func Content(path string) ([]byte, error) {
-	if path == WikiDestination {
-		return WikiContent("main")
-	}
 	if path == PagesDestination {
 		return PagesContent("static", "pages", "main")
 	}
