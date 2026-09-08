@@ -30,7 +30,7 @@ func MergeDefaults(cfg *Config) (bool, error) {
 	}
 
 	repoChanged := mergeSettingsFrom(&cfg.Repository, defaults.Repository, model.RepositorySettingFields, skipRepoField)
-	actionsChanged := mergeSettingsFrom(&cfg.Actions, defaults.Actions, model.ActionsSettingFields, skipActionsField(cfg))
+	actionsChanged := mergeActionsFrom(cfg, defaults)
 	if cfg.Actions != nil && defaults.Actions != nil && cfg.Actions.ForkPRContributorApproval != nil && defaults.Actions.ForkPRContributorApproval != nil {
 		if fillNilFields(reflect.ValueOf(cfg.Actions.ForkPRContributorApproval).Elem(), reflect.ValueOf(defaults.Actions.ForkPRContributorApproval).Elem(), false) {
 			actionsChanged = true
@@ -170,6 +170,27 @@ var actionsSelectedOnlyFields = map[string]bool{
 	"github_owned_allowed": true,
 	"verified_allowed":     true,
 	"patterns_allowed":     true,
+}
+
+func mergeActionsFrom(cfg, defaults *Config) bool {
+	if defaults.Actions == nil {
+		return false
+	}
+	actions := *defaults.Actions
+	// Partial selected policies still need complete restrictions before API writes.
+	if cfg.Actions != nil && cfg.Actions.AllowedActions != nil && *cfg.Actions.AllowedActions == "selected" {
+		actions.GitHubOwnedAllowed = new(true)
+		actions.VerifiedAllowed = new(true)
+		actions.PatternsAllowed = &[]string{
+			"freerangebytes/setup-actionlint@*",
+			"golang/govulncheck-action@*",
+			"golangci/golangci-lint-action@*",
+			"nick-fields/retry@*",
+			"robherley/go-test-action@*",
+			"softprops/action-gh-release@*",
+		}
+	}
+	return mergeSettingsFrom(&cfg.Actions, &actions, model.ActionsSettingFields, skipActionsField(cfg))
 }
 
 // skipActionsField returns a skip function that excludes selected-action

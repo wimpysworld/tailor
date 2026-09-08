@@ -201,20 +201,14 @@ func TestMergeActionsDefaults(t *testing.T) {
 		if cfg.Actions.Enabled == nil || !*cfg.Actions.Enabled {
 			t.Errorf("enabled = %v, want true", cfg.Actions.Enabled)
 		}
-		if cfg.Actions.AllowedActions == nil || *cfg.Actions.AllowedActions != "selected" {
-			t.Errorf("allowed_actions = %v, want selected", cfg.Actions.AllowedActions)
+		if cfg.Actions.AllowedActions == nil || *cfg.Actions.AllowedActions != "all" {
+			t.Errorf("allowed_actions = %v, want all", cfg.Actions.AllowedActions)
 		}
 		if cfg.Actions.SHAPinningRequired == nil || *cfg.Actions.SHAPinningRequired {
 			t.Errorf("sha_pinning_required = %v, want false", cfg.Actions.SHAPinningRequired)
 		}
-		if cfg.Actions.GitHubOwnedAllowed == nil || !*cfg.Actions.GitHubOwnedAllowed {
-			t.Errorf("github_owned_allowed = %v, want true", cfg.Actions.GitHubOwnedAllowed)
-		}
-		if cfg.Actions.VerifiedAllowed == nil || !*cfg.Actions.VerifiedAllowed {
-			t.Errorf("verified_allowed = %v, want true", cfg.Actions.VerifiedAllowed)
-		}
-		if cfg.Actions.PatternsAllowed == nil || !slices.Equal(*cfg.Actions.PatternsAllowed, approvedDefaultActionPatterns) {
-			t.Errorf("patterns_allowed = %v, want %v", cfg.Actions.PatternsAllowed, approvedDefaultActionPatterns)
+		if cfg.Actions.GitHubOwnedAllowed != nil || cfg.Actions.VerifiedAllowed != nil || cfg.Actions.PatternsAllowed != nil {
+			t.Fatal("default all policy contains selected-only fields")
 		}
 	})
 
@@ -236,6 +230,7 @@ func TestMergeActionsDefaults(t *testing.T) {
 		cfg := &Config{Actions: &model.ActionsSettings{
 			Enabled:            new(false),
 			AllowedActions:     new("selected"),
+			SHAPinningRequired: new(false),
 			GitHubOwnedAllowed: new(false),
 			PatternsAllowed:    &emptyPatterns,
 		}}
@@ -253,7 +248,7 @@ func TestMergeActionsDefaults(t *testing.T) {
 			t.Error("explicit patterns_allowed: [] was replaced")
 		}
 		if cfg.Actions.SHAPinningRequired == nil || *cfg.Actions.SHAPinningRequired {
-			t.Errorf("sha_pinning_required = %v, want default false", cfg.Actions.SHAPinningRequired)
+			t.Errorf("sha_pinning_required = %v, want explicit false", cfg.Actions.SHAPinningRequired)
 		}
 		if cfg.Actions.VerifiedAllowed == nil || !*cfg.Actions.VerifiedAllowed {
 			t.Errorf("verified_allowed = %v, want default true", cfg.Actions.VerifiedAllowed)
@@ -316,6 +311,9 @@ func TestMergeActionsDefaults(t *testing.T) {
 		patternsBefore := cfg.Actions.PatternsAllowed
 		if mergeActionsFrom(cfg, defaults) {
 			t.Fatal("mergeActionsFrom() changed = true, want false")
+		}
+		if cfg.Actions.SHAPinningRequired == nil || !*cfg.Actions.SHAPinningRequired {
+			t.Error("explicit sha_pinning_required: true was replaced")
 		}
 		if cfg.Actions.PatternsAllowed != patternsBefore {
 			t.Error("explicit empty patterns list was replaced")

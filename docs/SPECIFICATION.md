@@ -56,7 +56,7 @@ Swatch-to-path mappings are hardcoded in the source. Licences are not swatches -
 
 **Repository Settings**: Tailor can manage GitHub repository settings declaratively via the `repository` section in `.tailor.yml`. Field names match the GitHub REST API field names exactly (snake_case). Settings are applied via `PATCH /repos/{owner}/{repo}` as a single API call, with additional fields applied via their own separate API endpoints. Repository settings are always applied idempotently on every `alter` run - there is no `first-fit` concept for API settings. If the `repository` section remains absent after the merge decision, repository settings are skipped entirely. A default merge for `always`, or `first-fit` with `--recut`, restores an absent section and manages it in the same run.
 
-**Actions policy**: Tailor manages repository GitHub Actions policy through the top-level `actions` section. The built-in defaults enable Actions, use `allowed_actions: selected`, disable SHA pinning, allow GitHub-owned and verified actions, and allow `freerangebytes/setup-actionlint@*`, `golang/govulncheck-action@*`, `golangci/golangci-lint-action@*`, `nick-fields/retry@*`, `robherley/go-test-action@*`, and `softprops/action-gh-release@*`. Default merging adds the complete section when it is absent.
+**Actions policy**: Tailor manages repository GitHub Actions policy through the top-level `actions` section. The built-in defaults enable Actions, use `allowed_actions: all`, and disable SHA pinning. The default config omits the three selected-action fields. Default merging adds the complete section when it is absent.
 
 **Labels**: Tailor can manage GitHub issue labels declaratively via the `labels` section in `.tailor.yml`. Labels are a top-level config key alongside `repository:` and `swatches:`, not a field within `repository:`. The reconciliation strategy is create and update only - labels present on GitHub but absent from config are left untouched. No pruning. Label name matching is case-insensitive. When a label's name differs only in casing from the config, tailor updates the casing to match. The default config includes 12 labels (9 GitHub defaults plus `dependencies`, `github_actions`, and `hacktoberfest-accepted`) with colours from the Catppuccin Latte accent palette. If the `labels` section remains absent after the merge decision, label management is skipped entirely. A default merge for `always`, or `first-fit` with `--recut`, restores an absent or empty section and manages all default labels in the same run.
 
@@ -130,7 +130,7 @@ Supported settings in the top-level `actions` section:
 |---|---|---|
 | `enabled` | bool | Enable GitHub Actions for the repository |
 | `allowed_actions` | string | Allowed policy: `all`, `local_only`, or `selected` |
-| `sha_pinning_required` | bool | Require full-length commit SHAs for actions |
+| `sha_pinning_required` | bool | Require full-length commit SHAs for actions. Defaults to `false` |
 | `github_owned_allowed` | bool | Allow GitHub-owned actions under the selected policy |
 | `verified_allowed` | bool | Allow actions from verified creators under the selected policy |
 | `patterns_allowed` | string array | Complete set of allowed action and reusable workflow patterns |
@@ -139,7 +139,7 @@ Supported settings in the top-level `actions` section:
 
 Tailor reads and writes `enabled`, `allowed_actions`, and `sha_pinning_required` through `/repos/{owner}/{repo}/actions/permissions`. Tailor uses `/repos/{owner}/{repo}/actions/permissions/selected-actions` for `github_owned_allowed`, `verified_allowed`, and `patterns_allowed`. The three selected-action fields are valid only with `allowed_actions: selected`. The selected endpoint replaces `patterns_allowed`; comparison sorts both lists because GitHub order has no policy meaning.
 
-Each Actions policy field uses pointer semantics, so default merging preserves explicit Boolean values, an explicit custom list, and an explicit empty list. When the section is absent, Tailor adds the complete default policy. When the effective policy is `selected`, Tailor appends each missing selected-action field. A missing `patterns_allowed` field receives the six approved defaults. After default merging, a selected policy must include `github_owned_allowed`, `verified_allowed`, and `patterns_allowed`. For `all` or `local_only`, Tailor appends missing core fields and the approval default, but leaves selected-action fields absent.
+Each Actions policy field uses pointer semantics, so default merging preserves explicit Boolean values, an explicit custom list, and an explicit empty list. When the section is absent, Tailor adds the complete default policy. When an existing config declares `selected`, Tailor appends each missing selected-action field. A missing `patterns_allowed` field receives the six compatibility defaults: `freerangebytes/setup-actionlint@*`, `golang/govulncheck-action@*`, `golangci/golangci-lint-action@*`, `nick-fields/retry@*`, `robherley/go-test-action@*`, and `softprops/action-gh-release@*`. Missing `github_owned_allowed` and `verified_allowed` fields receive `true`. After default merging, a selected policy must include `github_owned_allowed`, `verified_allowed`, and `patterns_allowed`. To switch an existing config to `all`, the user must remove `github_owned_allowed`, `verified_allowed`, and `patterns_allowed`. SHA pinning is a separate choice. Default merging never replaces an explicit policy or SHA pinning value, including under `--recut`. For `all` or `local_only`, Tailor appends missing core fields and the approval default, but leaves selected-action fields absent.
 
 Fork pull request approval controls which external contributors need approval before their workflows run. The optional string `actions.fork_pr_contributor_approval.approval_policy` accepts exactly three values:
 
@@ -765,17 +765,8 @@ immutable_releases:
 
 actions:
   enabled: true
-  allowed_actions: selected
+  allowed_actions: all
   sha_pinning_required: false
-  github_owned_allowed: true
-  verified_allowed: true
-  patterns_allowed:
-    - freerangebytes/setup-actionlint@*
-    - golang/govulncheck-action@*
-    - golangci/golangci-lint-action@*
-    - nick-fields/retry@*
-    - robherley/go-test-action@*
-    - softprops/action-gh-release@*
   fork_pr_contributor_approval:
     approval_policy: first_time_contributors
 

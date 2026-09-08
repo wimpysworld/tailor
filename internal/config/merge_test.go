@@ -388,11 +388,6 @@ func mergeActionsDefaultsForTest(t *testing.T, cfg *Config) bool {
 	return mergeActionsFrom(cfg, defaultConfig(t))
 }
 
-// mergeActionsFrom merges the Actions section as MergeDefaults does.
-func mergeActionsFrom(cfg, defaults *Config) bool {
-	return mergeSettingsFrom(&cfg.Actions, defaults.Actions, model.ActionsSettingFields, skipActionsField(cfg))
-}
-
 func TestMergeActionsNilActions(t *testing.T) {
 	cfg := &Config{}
 
@@ -400,14 +395,14 @@ func TestMergeActionsNilActions(t *testing.T) {
 		t.Fatal("expected changed=true for nil Actions")
 	}
 
-	// The default policy is "selected", so selected-only fields merge too.
+	// The default policy omits selected-only fields.
 	testutil.AssertPtrEqual(t, cfg.Actions.Enabled, new(true), "enabled")
-	testutil.AssertPtrEqual(t, cfg.Actions.AllowedActions, new("selected"), "allowed_actions")
+	testutil.AssertPtrEqual(t, cfg.Actions.AllowedActions, new("all"), "allowed_actions")
 	testutil.AssertPtrEqual(t, cfg.Actions.SHAPinningRequired, new(false), "sha_pinning_required")
-	testutil.AssertPtrEqual(t, cfg.Actions.GitHubOwnedAllowed, new(true), "github_owned_allowed")
-	testutil.AssertPtrEqual(t, cfg.Actions.VerifiedAllowed, new(true), "verified_allowed")
-	if cfg.Actions.PatternsAllowed == nil || len(*cfg.Actions.PatternsAllowed) == 0 {
-		t.Error("patterns_allowed should be set from defaults")
+	testutil.AssertPtrEqual(t, cfg.Actions.GitHubOwnedAllowed, nil, "github_owned_allowed")
+	testutil.AssertPtrEqual(t, cfg.Actions.VerifiedAllowed, nil, "verified_allowed")
+	if cfg.Actions.PatternsAllowed != nil {
+		t.Error("patterns_allowed should remain nil")
 	}
 }
 
@@ -430,18 +425,15 @@ func TestMergeActionsSkipsSelectedFieldsForOtherPolicies(t *testing.T) {
 
 func TestMergeActionsClonesPatterns(t *testing.T) {
 	defaults := defaultConfig(t)
-	cfg := &Config{}
-
+	cfg := &Config{Actions: &model.ActionsSettings{AllowedActions: new("selected")}}
 	if !mergeActionsFrom(cfg, defaults) {
-		t.Fatal("expected changed=true for nil Actions")
+		t.Fatal("expected missing selected fields")
 	}
-	if cfg.Actions.PatternsAllowed == nil || len(*cfg.Actions.PatternsAllowed) == 0 {
-		t.Fatal("patterns_allowed should be set from defaults")
-	}
-
 	(*cfg.Actions.PatternsAllowed)[0] = "mutated/*"
-	if (*defaults.Actions.PatternsAllowed)[0] == "mutated/*" {
-		t.Error("merged patterns_allowed shares a backing array with defaults")
+	other := &Config{Actions: &model.ActionsSettings{AllowedActions: new("selected")}}
+	mergeActionsFrom(other, defaults)
+	if (*other.Actions.PatternsAllowed)[0] == "mutated/*" {
+		t.Error("selected defaults share a backing array")
 	}
 }
 
