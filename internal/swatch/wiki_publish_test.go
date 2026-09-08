@@ -47,8 +47,8 @@ func TestWikiWorkflowContract(t *testing.T) {
 	if len(workflow.Permissions) != 0 || len(workflow.Jobs) != 1 || len(job.Permissions) != 1 || job.Permissions["contents"] != "write" {
 		t.Fatal("publisher permissions exceed contents: write")
 	}
-	if !strings.Contains(job.If, "github.event.repository.has_wiki") || !strings.Contains(job.If, "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)") {
-		t.Fatal("publisher lacks its wiki or default branch guard")
+	if !strings.Contains(job.If, "github.event.repository.has_wiki") || !strings.Contains(job.If, "github.event.repository.visibility == 'public'") || !strings.Contains(job.If, "github.ref == format('refs/heads/{0}', github.event.repository.default_branch)") {
+		t.Fatal("publisher lacks its wiki, public visibility or default branch guard")
 	}
 	for _, step := range job.Steps {
 		if step.Uses != "" {
