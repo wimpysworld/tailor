@@ -124,7 +124,7 @@ Licences are not swatches. They are fetched from the GitHub REST API (`GET /lice
 
 ### Default swatch set
 
-Tailor embeds 17 default swatches:
+Tailor embeds 21 default swatches:
 
 | Swatch | Mode |
 |--------|------|
@@ -145,6 +145,10 @@ Tailor embeds 17 default swatches:
 | `cubic.yaml` | `first-fit` |
 | `.tailor.yml` | `always` |
 | `.github/workflows/tailor-pages.yml` | `always` (only when Pages is enabled) |
+| `wiki/Home.md` | `first-fit` (only when `repository.has_wiki: true`) |
+| `wiki/_Sidebar.md` | `first-fit` (only when `repository.has_wiki: true`) |
+| `wiki/_Footer.md` | `first-fit` (only when `repository.has_wiki: true`) |
+| `.github/workflows/tailor-wiki.yml` | `always` (only when `repository.has_wiki: true`) |
 
 ### Alteration modes
 
@@ -518,6 +522,26 @@ For Hugo and Jekyll, Tailor appends the output directory to `.gitignore`, unless
 
 Omitting `pages` or setting `enabled: false` stops Pages management without deleting the site, workflow or environment. Default merging and `--recut` never enable Pages.
 
+## GitHub wiki
+
+Set `repository.has_wiki: true`, then run `tailor alter` to add wiki starter pages and `.github/workflows/tailor-wiki.yml`. Wiki publishing supports public repositories only. The source directory is `wiki/`, independent of Pages and `pages/`. Existing-project `fit` preserves the live `has_wiki` setting. New configs default to `false`.
+
+Tailor preserves existing wiki starter pages, including under `alter --recut`. The generated workflow publishes the `wiki/` directory when its files or the workflow change on the default branch. You can also run it manually. An unmarked workflow at the same destination blocks setup before writes.
+
+Before the first publication:
+
+1. If the GitHub wiki has no pages, create its first page through the repository's Wiki tab.
+2. Clone `https://github.com/OWNER/REPO.wiki.git` into a separate directory.
+3. Import all wiki files into `wiki/`, except `.git`. Review conflicts with existing local files.
+4. Record the imported wiki commit's full ID in `wiki/.tailor-wiki-base` using `git rev-parse HEAD` in that clone.
+5. Commit the imported files, baseline and workflow, then push to the default branch.
+
+The baseline records explicit adoption of the imported wiki. Without it, the first publication refuses to write. After adoption, the source directory controls the published tree, including deletions. The publisher preserves wiki history and never force-pushes. Independent edits through the Wiki tab stop publication. Import those edits and update the baseline before publishing again. Missing wikis, unknown access and concurrent changes stop publication without replacing content.
+
+The workflow uses GitHub's built-in `GITHUB_TOKEN` with `contents: write`. Token support is verified against upstream implementation evidence, not a live Tailor publication. Tailor does not create a personal access token or configure a secret.
+
+Set `repository.has_wiki: false` and run `tailor alter` to disable the wiki and remove only Tailor's marked workflow. Commit and push the removal to stop future workflow runs. Local source files and remote wiki history remain intact. An omitted setting leaves wiki files unmanaged. An unmarked workflow remains untouched and needs manual removal.
+
 ## Labels
 
 The `labels` section manages GitHub issue labels declaratively. Tailor ships 12 default labels (the 9 GitHub defaults plus `dependencies`, `github_actions`, and `hacktoberfest-accepted`) with colours from the [Catppuccin Latte](https://catppuccin.com/palette/) palette.
@@ -573,14 +597,14 @@ When a GitHub remote exists, `fit` queries the live repository configuration for
 
 ### `alter`
 
-Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, licence, and swatches in that order.
+Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, licence, and swatches in that order.
 
 ```bash
 tailor alter            # Apply changes
 tailor alter --recut    # Overwrite always and first-fit swatches
 ```
 
-`--recut` overrides `first-fit` and overwrites those swatches, but it still skips `never` swatches. `LICENSE` is exempt (fetched content, not an embedded swatch). For `.tailor.yml`, `--recut` appends missing default swatch entries but never modifies existing entries.
+`--recut` overrides `first-fit` and overwrites those swatches, but it still skips `never` swatches. Existing wiki starter pages and `LICENSE` are exempt. For `.tailor.yml`, `--recut` appends missing default swatch entries but never modifies existing entries.
 
 `alter` and `alter --recut` report a completed label after each successful change. Labels are `set`, `created`, `updated`, `removed`, `copied`, and `overwritten`.
 

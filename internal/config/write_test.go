@@ -246,6 +246,18 @@ swatches:
   - path: .github/workflows/tailor-pages.yml
     alteration: always
 
+  - path: wiki/Home.md
+    alteration: first-fit
+
+  - path: wiki/_Sidebar.md
+    alteration: first-fit
+
+  - path: wiki/_Footer.md
+    alteration: first-fit
+
+  - path: .github/workflows/tailor-wiki.yml
+    alteration: always
+
   - path: .tailor.yml
     alteration: always
 `
