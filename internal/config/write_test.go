@@ -45,18 +45,11 @@ immutable_releases:
   enabled: false
 
 actions:
+  # Options: all, local_only, selected. SHA pinning applies separately.
+  # selected requires github_owned_allowed, verified_allowed, and patterns_allowed.
   enabled: true
-  allowed_actions: selected
+  allowed_actions: all
   sha_pinning_required: false
-  github_owned_allowed: true
-  verified_allowed: true
-  patterns_allowed:
-    - "freerangebytes/setup-actionlint@*"
-    - "golang/govulncheck-action@*"
-    - "golangci/golangci-lint-action@*"
-    - "nick-fields/retry@*"
-    - "robherley/go-test-action@*"
-    - "softprops/action-gh-release@*"
   fork_pr_contributor_approval:
     approval_policy: first_time_contributors
 

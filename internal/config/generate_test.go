@@ -1,7 +1,6 @@
 package config
 
 import (
-	"slices"
 	"strings"
 	"testing"
 
@@ -59,12 +58,10 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 		t.Fatal("Actions is nil, want default policy")
 	}
 	testutil.AssertPtrEqual(t, got.Actions.Enabled, new(true), "actions.enabled")
-	testutil.AssertPtrEqual(t, got.Actions.AllowedActions, new("selected"), "actions.allowed_actions")
+	testutil.AssertPtrEqual(t, got.Actions.AllowedActions, new("all"), "actions.allowed_actions")
 	testutil.AssertPtrEqual(t, got.Actions.SHAPinningRequired, new(false), "actions.sha_pinning_required")
-	testutil.AssertPtrEqual(t, got.Actions.GitHubOwnedAllowed, new(true), "actions.github_owned_allowed")
-	testutil.AssertPtrEqual(t, got.Actions.VerifiedAllowed, new(true), "actions.verified_allowed")
-	if got.Actions.PatternsAllowed == nil || !slices.Equal(*got.Actions.PatternsAllowed, approvedDefaultActionPatterns) {
-		t.Fatalf("actions.patterns_allowed = %v, want %v", got.Actions.PatternsAllowed, approvedDefaultActionPatterns)
+	if got.Actions.GitHubOwnedAllowed != nil || got.Actions.VerifiedAllowed != nil || got.Actions.PatternsAllowed != nil {
+		t.Fatal("default all policy contains selected-only fields")
 	}
 
 	// Labels should match the embedded defaults.

@@ -188,17 +188,8 @@ immutable_releases:
 
 actions:
   enabled: true
-  allowed_actions: selected
+  allowed_actions: all
   sha_pinning_required: false
-  github_owned_allowed: true
-  verified_allowed: true
-  patterns_allowed:
-    - freerangebytes/setup-actionlint@*
-    - golang/govulncheck-action@*
-    - golangci/golangci-lint-action@*
-    - nick-fields/retry@*
-    - robherley/go-test-action@*
-    - softprops/action-gh-release@*
   fork_pr_contributor_approval:
     approval_policy: first_time_contributors
 
@@ -349,7 +340,7 @@ Push protection requires secret scanning. When `secret_scanning_push_protection`
 
 ## Actions Policy
 
-The top-level `actions` section manages the repository Actions policy. Generated configs enable Actions, select restricted actions, allow GitHub-owned and verified actions, disable SHA pinning, and allow the six patterns in the configuration example.
+The top-level `actions` section manages the repository Actions policy. Generated configs enable Actions, allow all actions and reusable workflows, and disable SHA pinning. No allow-list maintenance is required.
 
 | Field | Type | Description |
 |-------|------|-------------|
@@ -362,7 +353,11 @@ The top-level `actions` section manages the repository Actions policy. Generated
 | `artifact_and_log_retention.days` | integer | Opt-in retention for new artifacts and logs, from 1 to 90 days, within the live owner cap |
 | `fork_pr_contributor_approval.approval_policy` | string | Contributors whose fork pull request workflows require approval. Defaults to `first_time_contributors` |
 
-The selected-action fields require `allowed_actions: selected`. A selected policy must include `github_owned_allowed`, `verified_allowed`, and `patterns_allowed` after default merging. The `patterns_allowed` field replaces the full GitHub list. Tailor ignores list order during comparison. Default merging adds a missing `actions` section and fills missing fields without changing explicit values. For `all` and `local_only`, Tailor does not add selected-only fields. For `selected`, Tailor adds each missing selected-only field. A missing `patterns_allowed` field receives the six approved defaults. Tailor preserves an explicit custom list or `patterns_allowed: []`.
+The selected-action fields require `allowed_actions: selected`. A selected policy must include `github_owned_allowed`, `verified_allowed`, and `patterns_allowed` after default merging. The `patterns_allowed` field replaces the full GitHub list. Tailor ignores list order during comparison. Default merging adds a missing `actions` section and fills missing fields without changing explicit values. For `all` and `local_only`, Tailor does not add selected-only fields. For existing `selected` configs, Tailor keeps the policy and adds each missing selected-only field. A missing `patterns_allowed` field receives the six compatibility defaults listed in the [specification](docs/SPECIFICATION.md). Tailor preserves an explicit custom list or `patterns_allowed: []`.
+
+To switch an existing config, set `actions.allowed_actions: all`. Remove `github_owned_allowed`, `verified_allowed`, and `patterns_allowed` from the `actions` section, then run `tailor alter`. SHA pinning is a separate choice. Tailor does not change an explicit `selected` policy automatically.
+
+The default for `sha_pinning_required` is `false`. Default merging preserves explicit `true` and `false` values, including under `--recut`. To enable SHA pinning in an existing config, set `actions.sha_pinning_required: true`, then run `tailor alter`.
 
 Fork pull request approval controls which external contributors need approval before their workflows run:
 

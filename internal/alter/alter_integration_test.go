@@ -2125,9 +2125,6 @@ func allDefaultActionsYAML(t *testing.T) string {
 	fmt.Fprintf(&sb, "  enabled: %t\n", *a.Enabled)
 	fmt.Fprintf(&sb, "  allowed_actions: %s\n", *a.AllowedActions)
 	fmt.Fprintf(&sb, "  sha_pinning_required: %t\n", *a.SHAPinningRequired)
-	fmt.Fprintf(&sb, "  github_owned_allowed: %t\n", *a.GitHubOwnedAllowed)
-	fmt.Fprintf(&sb, "  verified_allowed: %t\n", *a.VerifiedAllowed)
-	writePatternsAllowedYAML(&sb, *a.PatternsAllowed)
 	fmt.Fprintf(&sb, "  fork_pr_contributor_approval:\n    approval_policy: %s\n", *a.ForkPRContributorApproval.ApprovalPolicy)
 	return sb.String()
 }
@@ -2397,17 +2394,8 @@ swatches:
 	for _, field := range []string{
 		"actions:\n",
 		"  enabled: true\n",
-		"  allowed_actions: selected\n",
+		"  allowed_actions: all\n",
 		"  sha_pinning_required: false\n",
-		"  github_owned_allowed: true\n",
-		"  verified_allowed: true\n",
-		"  patterns_allowed:\n",
-		"    - \"freerangebytes/setup-actionlint@*\"\n",
-		"    - \"golang/govulncheck-action@*\"\n",
-		"    - \"golangci/golangci-lint-action@*\"\n",
-		"    - \"nick-fields/retry@*\"\n",
-		"    - \"robherley/go-test-action@*\"\n",
-		"    - \"softprops/action-gh-release@*\"\n",
 	} {
 		if !strings.Contains(content, field) {
 			t.Errorf("merged config missing Actions default %q", field)
@@ -2423,9 +2411,11 @@ swatches:
 			writes[call.Path] = true
 		}
 	}
+	if writes["/repos/testowner/testrepo/actions/permissions/selected-actions"] {
+		t.Fatal("default all policy wrote selected-action restrictions")
+	}
 	for _, path := range []string{
 		"/repos/testowner/testrepo/actions/permissions",
-		"/repos/testowner/testrepo/actions/permissions/selected-actions",
 	} {
 		if !writes[path] {
 			t.Errorf("missing same-run Actions write to %s", path)
@@ -2564,15 +2554,13 @@ swatches:
 	}
 	for _, path := range []string{
 		"/repos/testowner/testrepo/actions/permissions",
-		"/repos/testowner/testrepo/actions/permissions/selected-actions",
 	} {
 		if getCounts[path] != 1 {
 			t.Errorf("GET %s count = %d, want 1", path, getCounts[path])
 		}
 	}
-	wantPatterns := "actions.patterns_allowed = " + strings.Join(approvedDefaultActionPatterns, ", ")
-	if !strings.Contains(output, wantPatterns) {
-		t.Fatalf("output does not show the approved default patterns:\n%s", output)
+	if !strings.Contains(output, "actions.allowed_actions = all") {
+		t.Fatalf("output does not show the default all policy:\n%s", output)
 	}
 }
 
@@ -2581,6 +2569,7 @@ func TestAlterRunMergeNonSelectedActionsPolicy(t *testing.T) {
 actions:
   enabled: false
   allowed_actions: all
+  sha_pinning_required: false
 swatches:
   - path: .tailor.yml
     alteration: always

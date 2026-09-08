@@ -406,6 +406,8 @@ immutable_releases:
 {{- if .Actions }}
 
 actions:
+  # Options: all, local_only, selected. SHA pinning applies separately.
+  # selected requires github_owned_allowed, verified_allowed, and patterns_allowed.
 {{- range actionsLines .Actions }}
 {{ . }}
 {{- end }}
