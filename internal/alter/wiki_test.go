@@ -84,13 +84,25 @@ func TestWikiLifecycle(t *testing.T) {
 				if !os.IsNotExist(err) {
 					t.Fatal("dry run wrote the workflow")
 				}
-				if _, err := os.Stat(filepath.Join(dir, "wiki/_Sidebar.md")); !os.IsNotExist(err) {
-					t.Fatal("dry run wrote a starter page")
+				for _, name := range []string{"wiki/_Sidebar.md", "wiki/_Footer.md"} {
+					if _, err := os.Stat(filepath.Join(dir, name)); !os.IsNotExist(err) {
+						t.Fatalf("dry run wrote %s: %v", name, err)
+					}
 				}
 				return
 			}
 			if err != nil {
 				t.Fatal(err)
+			}
+			for _, name := range []string{"wiki/_Sidebar.md", "wiki/_Footer.md"} {
+				want, err := swatch.Content(name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				data, err := os.ReadFile(filepath.Join(dir, name))
+				if err != nil || string(data) != string(want) {
+					t.Fatalf("%s = %q, want %q, err=%v", name, data, want, err)
+				}
 			}
 			_, repeated, err := processWiki(cfg, dir, mode, p)
 			if err != nil {
