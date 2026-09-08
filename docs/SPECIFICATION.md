@@ -392,9 +392,13 @@ Commands divide into three categories: bootstrap commands, which create the proj
 
 Creates a new project directory and writes `.tailor.yml` with the full default swatch set and the repository settings. When run against an existing project with a GitHub remote, `fit` queries the live repository configuration and uses those values for the `repository` section, preserving the project's current state. When no repository context exists, the built-in defaults are used. Does not copy any files or apply any settings. After `fit`, change into `<path>` before running `alter`.
 
-The default swatch set contains 17 registered destinations:
+The default swatch set contains 21 registered destinations:
 
 - `.github/workflows/tailor-pages.yml`
+- `wiki/Home.md`
+- `wiki/_Sidebar.md`
+- `wiki/_Footer.md`
+- `.github/workflows/tailor-wiki.yml`
 - `.github/dependabot.yml`
 - `.github/FUNDING.yml`
 - `.github/ISSUE_TEMPLATE/bug_report.yml`
@@ -757,7 +761,7 @@ Behaviour:
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 
-The active configuration has 17 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
+The active configuration has 21 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
 
 Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
 
