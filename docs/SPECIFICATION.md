@@ -50,6 +50,10 @@ The `fit`, `alter`, and `baste` commands require a valid authentication token: a
 | `.github/ISSUE_TEMPLATE/feature_request.yml` | `.github/ISSUE_TEMPLATE/feature_request.yml` |
 | `.github/ISSUE_TEMPLATE/config.yml` | `.github/ISSUE_TEMPLATE/config.yml` |
 | `.github/pull_request_template.md` | `.github/pull_request_template.md` |
+| `wiki/Home.md` | `wiki/Home.md` |
+| `wiki/_Sidebar.md` | `wiki/_Sidebar.md` |
+| `wiki/_Footer.md` | `wiki/_Footer.md` |
+| `.github/workflows/tailor-wiki.yml` | `.github/workflows/tailor-wiki.yml` |
 | `.tailor.yml` | `.tailor.yml` |
 
 Swatch-to-path mappings are hardcoded in the source. Licences are not swatches - they are fetched via the GitHub REST API (`GET /licenses/{id}`) at `alter` time and written to `LICENSE`.
@@ -242,6 +246,22 @@ Tailor compares only managed fields: `enforcement`, `bypass_actors` as a set, `i
 
 Settings deliberately excluded due to risk or org-level scope: `visibility`, `default_branch`, `name`, `archived`, `is_template`, `allow_forking`. Additional API areas considered and deferred: autolinks, general deployment environments, custom properties (org-level), and Dependabot secrets. Pages manages only the `github-pages` environment. Classic branch protection rules are out of scope. Rulesets replace them, and Tailor manages one ruleset through the `ruleset` section. Rulesets outside the `Tailor` ruleset are out of scope.
 
+### GitHub wiki
+
+`repository.has_wiki: true` activates four wiki swatches on public repositories. No separate config section or command exists. New configs retain `has_wiki: false`. Existing-project `fit` preserves the live setting. An omitted setting leaves wiki files unmanaged, even when default merging adds `false` during that run.
+
+The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Existing starter destinations remain unchanged, including recut and an explicit `always` mode. `never` skips creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 21 swatches.
+
+Preflight runs before config or remote writes. It rejects source symlinks, Git metadata, non-regular files, invalid baseline files and unsafe workflow destinations or parents through rooted filesystem access. Local Tailor reads only repository privacy and the current default branch. Private, unavailable or incomplete repository metadata skips wiki files. It does not read or write the remote wiki. Reconcile wiki files after Pages and before the licence. Pages and its source directory remain independent. `baste` previews without writes. `measure` and `docket` add no wiki requests.
+
+The generated workflow runs for default-branch changes to `wiki/**` or itself, and manual dispatch on that branch. It checks current wiki availability, public visibility and the current default branch before publishing. The workflow uses a GitHub-hosted runner and built-in `GITHUB_TOKEN` with `contents: write`. Upstream implementation evidence supports token access, but Tailor's end-to-end publication is not live-tested. Tailor does not provision secrets or personal access tokens.
+
+Before the first publication, the user creates the initial GitHub wiki page through the Wiki tab if needed. The user imports every file from a separate wiki clone, except `.git`, into `wiki/` and reviews local conflicts. The committed `wiki/.tailor-wiki-base` contains the imported wiki HEAD as one full 40-character lowercase hexadecimal commit ID. Missing baselines produce a local warning. Publishing requires a baseline that matches the current wiki HEAD for initial adoption or explicit reimport. Missing wikis, denied access and unknown state fail without a write. Starter pages alone never authorise replacement.
+
+After adoption, publishing replaces the wiki tree with the source subtree, excluding the baseline, and preserves commit history through a normal fast-forward push. No force-push is permitted. Each publication records the source commit in a `Tailor-Wiki-Source` trailer. Subsequent runs require one valid trailer, source ancestry and an exact match between the remote tree and the previous published source. Independent wiki edits require reimport and a new baseline. Stale source runs and concurrent remote writes fail without overwriting newer work.
+
+Explicit `repository.has_wiki: false` retains all source files and removes only the marked workflow, regardless of recut. An unmarked workflow stays unchanged with manual-removal guidance. Commit and push the workflow removal to stop future runs. No remote wiki content or history is deleted. An omitted declaration does not remove the workflow.
+
 ### GitHub Pages
 
 Pages is opt-in and supports free public repositories only. These are the only five settings:
@@ -323,6 +343,10 @@ List access failures skip variable management without writes. Individual write a
 | `.github/pull_request_template.md` | `never` |
 | `.github/dependabot.yml` | `first-fit` |
 | `.github/workflows/tailor-pages.yml` | `always` |
+| `wiki/Home.md` | `first-fit` |
+| `wiki/_Sidebar.md` | `first-fit` |
+| `wiki/_Footer.md` | `first-fit` |
+| `.github/workflows/tailor-wiki.yml` | `always` |
 | `justfile` | `first-fit` |
 | `cubic.yaml` | `first-fit` |
 | `flake.nix` | `first-fit` |
@@ -345,6 +369,10 @@ List access failures skip variable management without writes. Individual write a
 
 **Development swatches** (dev environment and project tooling):
 - `.github/workflows/tailor-pages.yml` (only when Pages is enabled)
+- `wiki/Home.md` (only when wiki publishing is enabled)
+- `wiki/_Sidebar.md` (only when wiki publishing is enabled)
+- `wiki/_Footer.md` (only when wiki publishing is enabled)
+- `.github/workflows/tailor-wiki.yml` (only when wiki publishing is enabled)
 - `.gitignore`
 - `.envrc`
 - `flake.nix`
@@ -697,7 +725,7 @@ Behaviour:
 
 **`.tailor.yml` is not a valid config file**: Tailor rejects `.tailor.yml` if it is not a regular file or exceeds 1 MiB. The command exits before YAML parsing.
 
-**`always` swatch modified locally**: for embedded swatches other than `.tailor.yml`, Tailor treats the file as changed whenever the SHA-256 of the resolved swatch content differs from the on-disk file. `alter` overwrites it unconditionally. Tailor does not preserve local edits to these `always` swatches; use `first-fit` alteration mode if local modifications must be retained after the initial fit. `--recut` overrides `first-fit` protection but still skips `never` swatches. The licence file is never overwritten regardless of flags. `.tailor.yml` uses no content hash: `always` removes retired entries and appends missing defaults. Other existing entries are never modified or overwritten.
+**`always` swatch modified locally**: for embedded swatches other than `.tailor.yml`, Tailor treats the file as changed whenever the SHA-256 of the resolved swatch content differs from the on-disk file. `alter` overwrites it unconditionally. Tailor does not preserve local edits to these `always` swatches; use `first-fit` alteration mode if local modifications must be retained after the initial fit. `--recut` overrides `first-fit` protection but still skips `never` swatches. Wiki starter pages are an exception: existing destinations remain unchanged. The licence file is never overwritten regardless of flags. `.tailor.yml` uses no content hash: `always` removes retired entries and appends missing defaults. Other existing entries are never modified or overwritten.
 
 **Duplicate path in `.tailor.yml`**: `alter` and `baste` remove retired entries before duplicate validation. If active entries share a path, the command identifies the conflict and exits before disk changes.
 
@@ -711,7 +739,7 @@ Behaviour:
 
 **Repository settings without repo context**: if `.tailor.yml` contains a `repository` section but the project has no GitHub remote (no repository context found), repository settings are skipped with a warning: "No GitHub repository context found. Repository settings will be applied once a remote is configured." Warning only; does not block swatch or licence processing.
 
-**Repository settings API failure**: if any API call to apply repository settings fails (PATCH, PUT, or DELETE), `alter` exits with the API error. Repository settings are the first API stage, so immutable releases, Actions policy, code scanning, Code Quality, ruleset, labels, variables, Pages, licence, and swatch operations are not attempted. Local config migration and retired file cleanup already occurred. If licence fetch fails after repository settings and labels have been applied, those changes are not reverted.
+**Repository settings API failure**: if any API call to apply repository settings fails (PATCH, PUT, or DELETE), `alter` exits with the API error. Repository settings are the first API stage, so immutable releases, Actions policy, code scanning, Code Quality, ruleset, labels, variables, Pages, wiki, licence, and swatch operations are not attempted. Local config migration and retired file cleanup already occurred. If licence fetch fails after repository settings and labels have been applied, those changes are not reverted.
 
 **Repository settings with insufficient scope**: When GitHub rejects a repository-setting read or write with an access error, Tailor skips the affected fields rather than exiting. `baste` reports `would skip (insufficient scope: token missing required scope)` and `alter` skips the operation. Other repository settings continue to be applied. Use a token with the required repository permissions. The `code_scanning` and `code_quality` fields follow the same skip rules. Their output uses the section prefix, in the form `code_scanning.state = configured` and `code_quality.state (already not-configured)`. A `409` produces `would skip (setup in progress)`, and a `403` produces `would skip (not available)`. The `ruleset` section follows the same skip rules with the `ruleset.` prefix. A `403` on a ruleset read or write produces `would skip (not available)`. A ruleset read that omits `bypass_actors` produces `would skip (insufficient scope)` for the section. A `422` on a ruleset write stops the command with the API error, because the cause is the config.
 
@@ -963,6 +991,18 @@ swatches:
   - path: .github/workflows/tailor-pages.yml
     alteration: always
 
+  - path: wiki/Home.md
+    alteration: first-fit
+
+  - path: wiki/_Sidebar.md
+    alteration: first-fit
+
+  - path: wiki/_Footer.md
+    alteration: first-fit
+
+  - path: .github/workflows/tailor-wiki.yml
+    alteration: always
+
   - path: .tailor.yml
     alteration: always
 ```
@@ -1042,7 +1082,7 @@ measure:
 
 ## Implementation Notes
 
-1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. SHA-256 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For a token-bearing swatch configured as `always`, Tailor resolves the token before the hash comparison. `.tailor.yml` uses append-only config merging instead of a content hash. `--recut` bypasses the hash comparison for `always` and `first-fit` swatches, but still skips `never` swatches.
+1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. SHA-256 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For a token-bearing swatch configured as `always`, Tailor resolves the token before the hash comparison. `.tailor.yml` uses append-only config merging instead of a content hash. `--recut` bypasses the hash comparison for ordinary `always` and `first-fit` swatches, but still skips `never` swatches. Existing wiki starter pages remain unchanged.
 2. **Interpolation (FUNDING.yml, SECURITY.md, and issue template config)**: Swatches are complete verbatim files with three exceptions. `.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted at `alter` time from `GET /user`. `SECURITY.md` has `{{ADVISORY_URL}}` constructed from the repository context (owner/name). If no GitHub repository context exists, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` constructed from the repository context, which produces `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. If no GitHub repository context exists, the token is left unsubstituted. No per-swatch configuration is required. Licences are fetched via `GET /licenses/{id}` and written verbatim. Licences do not use token substitution.
 3. **No versioning**: No swatch versions, always uses swatches from current tailor binary. Upgrading tailor will cause all `always` swatches to be re-evaluated against the new embedded content; files whose swatch content has changed will be overwritten on the next `alter` run.
 4. **No global state**: All state is per-project in `.tailor.yml`
@@ -1050,4 +1090,4 @@ measure:
 6. **Authentication via `go-gh`**: All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions. Token resolution follows the `go-gh` precedence order: `GH_TOKEN` environment variable, `GITHUB_TOKEN` environment variable, `gh` config file, `gh` keyring (via the `gh` binary). When `GH_TOKEN` or `GITHUB_TOKEN` is set, the `gh` binary is not required. The `gh` binary is needed only for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access when no environment variable is set. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If no token can be resolved, or the effective host rejects the token, `fit`, `alter`, and `baste` exit immediately with an error.
 7. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
 8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `.tailor.yml`, plus separate API calls for security features, topics, and Actions workflow permissions. The `secret_scanning`, `secret_scanning_push_protection`, and `secret_scanning_non_provider_patterns` fields travel in the `security_and_analysis` object of the same PATCH body. The top-level `actions` section uses separate endpoints for core permissions, selected actions, artifact and log retention, and fork pull request contributor approval. The top-level `code_scanning` and `code_quality` sections use the code scanning default setup and Code Quality setup endpoints. The top-level `ruleset` section uses the repository rulesets endpoints (list, get, `POST`, and `PUT` on `/repos/{owner}/{repo}/rulesets`). Field names map directly to the GitHub REST API without translation, except for the `rules` map and its `enabled` keys, which are Tailor's form of the API `rules` list. Current settings are read via `GET /repos/{owner}/{repo}` and the relevant separate endpoints for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client.
-9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. Next, it verifies the token with `GET /user`, writes the changed config once, and removes present retired workflow files. The same `GET /user` response resolves `{{GITHUB_USERNAME}}`, so verification adds no extra API call. It then applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, the licence, and active swatches in that order. `baste` uses `DryRun`; it performs the same planning and validation but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.
+9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. Next, it verifies the token with `GET /user`, completes Pages and wiki preflight, writes the changed config once, and removes present retired workflow files. The same `GET /user` response resolves `{{GITHUB_USERNAME}}`, so verification adds no extra API call. It then applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, the licence, and active swatches in that order. `baste` uses `DryRun`; it performs the same planning and validation but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.

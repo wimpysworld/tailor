@@ -24,8 +24,9 @@ func PagesContent(generator, source, branch string) ([]byte, error) {
 	if source == "" || path.IsAbs(source) || path.Clean(source) != source || source == ".." || strings.HasPrefix(source, "../") || strings.ContainsAny(source, "\\\r\n\x00") || strings.Contains(source, "${{") {
 		return nil, fmt.Errorf("unsafe pages path %q", source)
 	}
-	if branch == "" || strings.ContainsAny(branch, "\\\r\n\x00~^:?*[") || strings.Contains(branch, "..") || strings.Contains(branch, "@{") || strings.Contains(branch, "${{") || strings.HasPrefix(branch, "-") || strings.HasPrefix(branch, "/") || strings.HasSuffix(branch, "/") {
-		return nil, fmt.Errorf("unsafe pages branch %q", branch)
+	branchFilter, err := workflowBranchFilter(branch)
+	if err != nil {
+		return nil, err
 	}
 	data, err := tailor.SwatchFS.ReadFile("swatches/pages/" + generator + ".yml")
 	if err != nil {
@@ -37,10 +38,16 @@ func PagesContent(generator, source, branch string) ([]byte, error) {
 	}
 	var content bytes.Buffer
 	// Escape filter syntax before YAML quoting; validation rejects the other glob characters.
-	branchFilter := strings.NewReplacer("+", `\+`, "!", `\!`).Replace(branch)
 	err = tmpl.Execute(&content, struct{ Path, Branch string }{source, branchFilter})
 	if err != nil {
 		return nil, fmt.Errorf("rendering pages workflow: %w", err)
 	}
 	return content.Bytes(), nil
+}
+
+func workflowBranchFilter(branch string) (string, error) {
+	if branch == "" || strings.ContainsAny(branch, "\\\r\n\x00~^:?*[") || strings.Contains(branch, "..") || strings.Contains(branch, "@{") || strings.Contains(branch, "${{") || strings.HasPrefix(branch, "-") || strings.HasPrefix(branch, "/") || strings.HasSuffix(branch, "/") {
+		return "", fmt.Errorf("unsafe workflow branch %q", branch)
+	}
+	return strings.NewReplacer("+", `\+`, "!", `\!`).Replace(branch), nil
 }

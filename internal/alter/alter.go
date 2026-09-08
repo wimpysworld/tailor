@@ -35,6 +35,7 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 		stderr = io.Discard
 	}
 
+	wikiDeclared := cfg.Repository != nil && cfg.Repository.HasWiki != nil
 	configChanged, err := prepareAlterConfig(cfg, mode, stderr)
 	if err != nil {
 		return err
@@ -64,6 +65,10 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	}
 	target := RepoTarget{Client: client, Owner: repo.Owner, Name: repo.Name, HasRepo: hasRepo, Stderr: stderr}
 	pages, err := preflightPages(cfg, dir, mode, target, prepared)
+	if err != nil {
+		return err
+	}
+	wiki, err := preflightWiki(cfg, dir, mode, target, wikiDeclared)
 	if err != nil {
 		return err
 	}
@@ -106,6 +111,14 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	if pagesWorkflow != nil {
 		retiredResults = append(retiredResults, *pagesWorkflow)
 	}
+	if err != nil {
+		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
+		return err
+	}
+
+	wikiResults, wikiSwatches, err := processWiki(cfg, dir, mode, wiki)
+	repoResults = append(repoResults, wikiResults...)
+	retiredResults = append(retiredResults, wikiSwatches...)
 	if err != nil {
 		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
 		return err
