@@ -48,6 +48,20 @@ func preparePagesSource(cfg *config.Config, dir string, _ ApplyMode) (*pagesPrep
 	if err := checkParents(root, path.Join(p.Path, "index.html"), "pages source parent"); err != nil {
 		return nil, err
 	}
+	if p.Generator == "static" {
+		empty, err := pagesStarterEmpty(root, p.Path)
+		if err != nil {
+			return nil, err
+		}
+		if empty {
+			p.Starter = true
+			p.Navigation = true
+			if _, err := processPagesStarter(cfg, dir, DryRun, p); err != nil {
+				return nil, err
+			}
+			return p, nil
+		}
+	}
 	info, err := root.Lstat(p.Path)
 	if err != nil {
 		return nil, fmt.Errorf("pages source directory %q: %w", p.Path, err)

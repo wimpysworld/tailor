@@ -64,20 +64,11 @@ func processStaticPages(cfg *config.Config, dir string, mode ApplyMode, prepared
 	if err != nil {
 		return nil, err
 	}
-	updated, err := replacePagesNavigation(data, cfg.Repository, prepared.RepoURL)
+	updated, err := renderStaticPages(cfg, data, prepared.RepoURL)
 	if err != nil {
 		return nil, err
 	}
-	updated, err = replacePagesLicense(updated, cfg.License, prepared.RepoURL)
-	if err != nil {
-		return nil, err
-	}
-	if cfg.Pages.Links != nil {
-		updated, err = replacePagesLinks(updated, cfg.Pages)
-		if err != nil {
-			return nil, err
-		}
-	} else if !hasPagesRepositoryLinks(data) {
+	if cfg.Pages.Links == nil && !hasPagesRepositoryLinks(data) {
 		return nil, nil
 	}
 	result := &SwatchResult{Path: name, Category: NoChange}
@@ -96,8 +87,38 @@ func processStaticPages(cfg *config.Config, dir string, mode ApplyMode, prepared
 	return result, nil
 }
 
+func renderStaticPages(cfg *config.Config, data []byte, repoURL string) ([]byte, error) {
+	updated, err := replacePagesNavigation(data, cfg.Repository, repoURL)
+	if err != nil {
+		return nil, err
+	}
+	updated, err = replacePagesLicense(updated, cfg.License, repoURL)
+	if err != nil {
+		return nil, err
+	}
+	if cfg.Pages.Links != nil {
+		updated, err = replacePagesLinks(updated, cfg.Pages)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return updated, nil
+}
+
 func processPagesFiles(cfg *config.Config, dir string, mode ApplyMode, prepared *pagesPreparation) ([]SwatchResult, error) {
 	var results []SwatchResult
+	if prepared != nil && prepared.Starter {
+		var err error
+		results, err = processPagesStarter(cfg, dir, mode, prepared)
+		if err != nil {
+			return results, err
+		}
+		ignore, err := processPagesIgnore(cfg, dir, mode, prepared)
+		if ignore != nil {
+			results = append(results, *ignore)
+		}
+		return results, err
+	}
 	for _, process := range []func(*config.Config, string, ApplyMode, *pagesPreparation) (*SwatchResult, error){processStaticPages, processPagesIgnore} {
 		result, err := process(cfg, dir, mode, prepared)
 		if err != nil {

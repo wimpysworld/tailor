@@ -451,7 +451,7 @@ ruleset:
 {{- if .Pages }}
 
 # Pages is opt-in. Omission or enabled: false leaves Pages unmanaged.
-# generator: static (default), hugo, or jekyll. Use an existing site.
+# generator: static (default) creates a starter in an empty path. Hugo and Jekyll need an existing site.
 # path: project-relative source directory, default pages.
 # branch: omit to use the current repository default branch.
 # cname: omit to preserve the domain, use "" to clear it, or set a domain.

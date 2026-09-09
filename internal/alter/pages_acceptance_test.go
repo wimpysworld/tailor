@@ -156,7 +156,7 @@ func TestPagesAcceptanceConflictsBlockAllWrites(t *testing.T) {
 		mode                             alter.ApplyMode
 		missingSource                    bool
 	}{
-		{"missing source", "always", "", "source", alter.Apply, true},
+		{"incomplete source", "always", "", "index.html", alter.Apply, true},
 		{"unowned recut", "always", "name: custom\n", "ownership conflict", alter.Recut, false},
 		{"missing never", "never", "", "missing", alter.Apply, false},
 		{"first-fit mismatch", "first-fit", "old", "incompatible", alter.Apply, false},
@@ -167,6 +167,9 @@ func TestPagesAcceptanceConflictsBlockAllWrites(t *testing.T) {
 			dir := t.TempDir()
 			writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\nrepository:\n  description: changed\npages:\n  enabled: true\nswatches:\n  - path: .github/workflows/tailor-pages.yml\n    alteration: "+tc.alteration+"\n"))
 			writeOnDisk(t, dir, ".github/workflows/tailor.yml", []byte("retired but not yet removed"))
+			if tc.missingSource {
+				writeOnDisk(t, dir, "pages/README.md", []byte("keep"))
+			}
 			if !tc.missingSource {
 				writeOnDisk(t, dir, "pages/index.html", []byte("site"))
 			}
@@ -254,6 +257,29 @@ func TestPagesNavigationAcceptance(t *testing.T) {
 	data := pagesAcceptanceSnapshot(t, dir)["pages/index.html"]
 	requireContains(t, data, `href="https://github.com/testowner/testrepo?tab=readme-ov-file">Documentation`)
 	requireContains(t, data, `href="https://github.com/testowner/testrepo/discussions">Discussions`)
+}
+
+func TestPagesStarterAcceptance(t *testing.T) {
+	s, client := newPagesAcceptanceAPI(t)
+	dir := t.TempDir()
+	writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\npages:\n  enabled: true\n  path: web/site\n  links: {}\n"))
+	before := pagesAcceptanceSnapshot(t, dir)
+	output := captureAlterRun(t, loadTestConfig(t, dir), dir, alter.DryRun, client)
+	for _, name := range []string{"index.html", "style.css", "theme.js", "icon.svg"} {
+		requireContains(t, output, "web/site/"+name)
+	}
+	if len(s.writes) != 0 || !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) {
+		t.Fatal("starter preview wrote state")
+	}
+	captureAlterRun(t, loadTestConfig(t, dir), dir, alter.Apply, client)
+	after := pagesAcceptanceSnapshot(t, dir)
+	requireContains(t, after["web/site/index.html"], "<title>testrepo</title>")
+	requireContains(t, after["web/site/index.html"], "https://github.com/testowner/testrepo/releases")
+	requireContains(t, after[swatch.PagesDestination], "web/site")
+	captureAlterRun(t, loadTestConfig(t, dir), dir, alter.Recut, client)
+	if !reflect.DeepEqual(after, pagesAcceptanceSnapshot(t, dir)) {
+		t.Fatal("repeated starter application changed files")
+	}
 }
 
 func TestPagesLinksConflictBlocksAllWrites(t *testing.T) {
