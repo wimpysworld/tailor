@@ -522,6 +522,36 @@ For Hugo and Jekyll, Tailor appends the output directory to `.gitignore`, unless
 
 Omitting `pages` or setting `enabled: false` stops Pages management without deleting the site, workflow or environment. Default merging and `--recut` never enable Pages.
 
+### Static Pages links
+
+`pages.links` manages optional connection icons for `generator: static` only. Non-empty values with Hugo or Jekyll are validation errors. An omitted generator means static.
+
+```yaml
+pages:
+  enabled: true
+  generator: static
+  links:
+    website: https://example.com
+    mastodon: https://fosstodon.org/@example
+    email: hello@example.com
+    feed: https://example.com/feed.xml
+```
+
+The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `slack`, `linkedin`, `youtube`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`. Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
+
+Put these markers on separate lines inside the footer of `<pages.path>/index.html`:
+
+```html
+<!-- tailor:links:start -->
+<!-- tailor:links:end -->
+```
+
+Tailor owns only the content between the markers. It replaces that content with labelled icon links and preserves all other bytes, including under `--recut`. Missing, repeated, reversed or inline markers stop preflight before local or remote writes. The input must be a regular file no larger than 1 MiB, with no symlinked parents. The output also stays within that limit.
+
+Omit `links` to leave the page untouched. Use `links: {}` or all-empty values to clear the marked section. New configs include Martin Wimpress’s published links from <https://wimpysworld.link/>. Services without a matching personal URL stay empty. Default merging never adds these links to existing configs and preserves explicit declarations, including an empty mapping. Disabled Pages leaves links unmanaged. A skipped Pages setup also skips the links update. `baste` reports `would overwrite` for a changed page without writing; `alter` reports `overwritten`. Repeated application makes no change. An empty mapping with Hugo or Jekyll has no effect.
+
+The generated section includes its own minimal layout and CSS masks, so it needs no JavaScript or project-specific icon classes. It uses pinned Simple Icons 16.30.0 and Octicons 19.36.0 CDN URLs. Slack and LinkedIn use generic organisation and briefcase icons. Other service links use brand icons; website, forum, email and feed use generic icons. GitHub navigation stays separate from these optional connections.
+
 ## GitHub wiki
 
 Set `repository.has_wiki: true`, then run `tailor alter` to add wiki starter pages and `.github/workflows/tailor-wiki.yml`. Wiki publishing supports public repositories only. The source directory is `wiki/`, independent of Pages and `pages/`. Existing-project `fit` preserves the live `has_wiki` setting. New configs default to `false`.

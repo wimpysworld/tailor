@@ -116,7 +116,22 @@ var templateFuncs = template.FuncMap{
 		return lines, err
 	},
 	"pagesLines": func(p *model.PagesSettings) ([]string, error) {
-		return settingLines(model.PagesSettingFields(p))
+		lines, err := settingLines(model.PagesSettingFields(p))
+		if err != nil || p == nil || p.Links == nil {
+			return lines, err
+		}
+		w := &rulesetWriter{lines: lines}
+		if len(*p.Links) == 0 {
+			w.line(2, "links: {}")
+		} else {
+			w.line(2, "links:")
+			for _, link := range p.OrderedLinks() {
+				if value, ok := (*p.Links)[link.Key]; ok {
+					w.scalar(4, "", link.Key, value)
+				}
+			}
+		}
+		return w.lines, w.err
 	},
 	"actionsLines": func(a *model.ActionsSettings) ([]string, error) {
 		lines, err := settingLines(model.ActionsSettingFields(a))
@@ -446,6 +461,11 @@ pages:
 {{- end }}
   # branch: main
   # cname: www.example.com
+  # Static only. Omit links to leave the page unchanged; {} clears its marked links.
+  # Use full HTTPS URLs, or a bare address for email. Empty values add no icon.
+  # links:
+  #   website: https://example.com
+  #   email: hello@example.com
 {{- end }}
 {{- if .Labels }}
 

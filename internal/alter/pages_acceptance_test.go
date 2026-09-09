@@ -210,6 +210,50 @@ func TestPagesAcceptancePreviewIsReadOnly(t *testing.T) {
 	}
 }
 
+func TestPagesLinksAcceptance(t *testing.T) {
+	s, client := newPagesAcceptanceAPI(t)
+	dir := t.TempDir()
+	writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\npages:\n  enabled: true\n  links:\n    website: https://example.com\n    email: user@example.com\n"))
+	page := "<h1>My project</h1>\n<!-- tailor:links:start -->\n<!-- tailor:links:end -->\n<p>My footer</p>\n"
+	writeOnDisk(t, dir, "pages/index.html", []byte(page))
+	before := pagesAcceptanceSnapshot(t, dir)
+	output := captureAlterRun(t, loadTestConfig(t, dir), dir, alter.DryRun, client)
+	requireContains(t, output, "pages/index.html")
+	requireContains(t, output, "would overwrite")
+	if len(s.writes) != 0 || !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) {
+		t.Fatal("baste wrote state")
+	}
+	output = captureAlterRun(t, loadTestConfig(t, dir), dir, alter.Apply, client)
+	requireContains(t, output, "pages/index.html")
+	requireContains(t, output, "overwritten")
+	data := pagesAcceptanceSnapshot(t, dir)["pages/index.html"]
+	if !strings.Contains(data, `href="https://example.com"`) || !strings.Contains(data, `href="mailto:user@example.com"`) || !strings.HasPrefix(data, "<h1>My project</h1>\n") || !strings.HasSuffix(data, "<p>My footer</p>\n") {
+		t.Fatalf("incorrect page: %s", data)
+	}
+	before = pagesAcceptanceSnapshot(t, dir)
+	writes := len(s.writes)
+	captureAlterRun(t, loadTestConfig(t, dir), dir, alter.Recut, client)
+	if len(s.writes) != writes || !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) {
+		t.Fatal("repeated recut changed state")
+	}
+}
+
+func TestPagesLinksConflictBlocksAllWrites(t *testing.T) {
+	s, client := newPagesAcceptanceAPI(t)
+	dir := t.TempDir()
+	writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\nrepository:\n  description: changed\npages:\n  enabled: true\n  links: {website: https://example.com}\n"))
+	writeOnDisk(t, dir, "pages/index.html", []byte("No markers"))
+	writeOnDisk(t, dir, ".github/workflows/tailor.yml", []byte("Retired workflow"))
+	before := pagesAcceptanceSnapshot(t, dir)
+	err := alter.Run(loadTestConfig(t, dir), dir, alter.Apply, client, io.Discard, io.Discard)
+	if err == nil || !strings.Contains(err.Error(), "pages.links") {
+		t.Fatalf("expected marker error, got %v", err)
+	}
+	if len(s.writes) != 0 || !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) {
+		t.Fatal("marker conflict allowed writes")
+	}
+}
+
 func TestPagesAcceptanceRepeatedApplyAndDefaultBranchChange(t *testing.T) {
 	s, client := newPagesAcceptanceAPI(t)
 	dir := t.TempDir()

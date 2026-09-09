@@ -35,7 +35,7 @@ func ValidatePages(cfg *Config) error {
 	if p == nil {
 		return nil
 	}
-	if err := rejectExtra("pages", p.Extra, []string{"enabled", "generator", "path", "branch", "cname"}); err != nil {
+	if err := rejectExtra("pages", p.Extra, []string{"enabled", "generator", "path", "branch", "cname", "links"}); err != nil {
 		return err
 	}
 	if p.Generator != nil && !slices.Contains([]string{"static", "hugo", "jekyll"}, *p.Generator) {
@@ -47,7 +47,10 @@ func ValidatePages(cfg *Config) error {
 	if err := validatePagesBranch(p.Branch); err != nil {
 		return err
 	}
-	return validatePagesCNAME(p.CNAME)
+	if err := validatePagesCNAME(p.CNAME); err != nil {
+		return err
+	}
+	return validatePagesLinks(p)
 }
 
 func validatePagesPath(value *string) error {

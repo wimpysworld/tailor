@@ -268,7 +268,7 @@ Explicit `repository.has_wiki: false` retains all source files and removes only 
 
 Static upload and all deployment jobs use `ubuntu-slim` with explicit 15-minute timeouts, which match the runner's hard limit. Hugo and Jekyll build jobs retain `ubuntu-24.04` for Go modules, Ruby dependencies and longer builds.
 
-Pages is opt-in and supports free public repositories only. These are the only five settings:
+Pages is opt-in and supports free public repositories only. These settings control publication and optional static-site links:
 
 ```yaml
 pages:
@@ -277,6 +277,11 @@ pages:
   path: pages
   # branch: main
   # cname: www.example.com
+  # Static only. Omit links to leave the page unchanged; {} clears its marked links.
+  # Use full HTTPS URLs, or a bare address for email. Empty values add no icon.
+  # links:
+  #   website: https://example.com
+  #   email: hello@example.com
 ```
 
 An omitted section or disabled setting makes no Pages-related changes to settings, workflows, environments, ignores or homepages. Bootstrap, default merging and recut never activate Pages. Missing fields take disabled, `static` and `pages` defaults. Explicit values survive merging. Unknown keys, wrong types and unknown generators are errors.
@@ -383,6 +388,36 @@ List access failures skip variable management without writes. Individual write a
 - `justfile`
 - `cubic.yaml`
 - `.tailor.yml`
+
+#### Static Pages links
+
+`pages.links` manages optional connection icons for `generator: static` only. Non-empty values with Hugo or Jekyll are validation errors. An omitted generator means static.
+
+```yaml
+pages:
+  enabled: true
+  generator: static
+  links:
+    website: https://example.com
+    mastodon: https://fosstodon.org/@example
+    email: hello@example.com
+    feed: https://example.com/feed.xml
+```
+
+The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `slack`, `linkedin`, `youtube`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`. Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
+
+Put these markers on separate lines inside the footer of `<pages.path>/index.html`:
+
+```html
+<!-- tailor:links:start -->
+<!-- tailor:links:end -->
+```
+
+Tailor owns only the content between the markers. It replaces that content with labelled icon links and preserves all other bytes, including under `--recut`. Missing, repeated, reversed or inline markers stop preflight before local or remote writes. The input must be a regular file no larger than 1 MiB, with no symlinked parents. The output also stays within that limit.
+
+Omit `links` to leave the page untouched. Use `links: {}` or all-empty values to clear the marked section. New configs include Martin Wimpress’s published links from <https://wimpysworld.link/>. Services without a matching personal URL stay empty. Default merging never adds these links to existing configs and preserves explicit declarations, including an empty mapping. Disabled Pages leaves links unmanaged. A skipped Pages setup also skips the links update. `baste` reports `would overwrite` for a changed page without writing; `alter` reports `overwritten`. Repeated application makes no change. An empty mapping with Hugo or Jekyll has no effect.
+
+The generated section includes its own minimal layout and CSS masks, so it needs no JavaScript or project-specific icon classes. It uses pinned Simple Icons 16.30.0 and Octicons 19.36.0 CDN URLs. Slack and LinkedIn use generic organisation and briefcase icons. Other service links use brand icons; website, forum, email and feed use generic icons. GitHub navigation stays separate from these optional connections.
 
 ## Commands
 
@@ -890,8 +925,34 @@ pages:
   enabled: false
   generator: static
   path: pages
+  links:
+    website: https://wimpys.world/
+    forum: ""
+    x: ""
+    bluesky: https://bsky.app/profile/wimpys.world
+    mastodon: https://wimpysworld.social/@martin
+    linkedin: https://linkedin.com/in/martinwimpress
+    slack: ""
+    discord: https://discord.com/invite/vUsydfP
+    matrix: https://matrix.to/#/@wimpress:matrix.org
+    youtube: https://youtube.com/WimpysWorld
+    peertube: ""
+    tiktok: ""
+    instagram: ""
+    pixelfed: ""
+    steam: https://steamcommunity.com/id/wimpress/
+    itchio: https://wimpress.itch.io/
+    patreon: ""
+    kofi: ""
+    email: ""
+    feed: ""
   # branch: main
   # cname: www.example.com
+  # Static only. Omit links to leave the page unchanged; {} clears its marked links.
+  # Use full HTTPS URLs, or a bare address for email. Empty values add no icon.
+  # links:
+  #   website: https://example.com
+  #   email: hello@example.com
 
 labels:
   - name: bug
