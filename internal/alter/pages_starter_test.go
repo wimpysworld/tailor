@@ -117,3 +117,28 @@ func TestPagesStarterNotGeneric(t *testing.T) {
 		t.Fatal("generic processing wrote Pages files")
 	}
 }
+
+func TestPagesStarterWriteFailure(t *testing.T) {
+	dir := t.TempDir()
+	cfg := pagesTestConfig("static")
+	p, err := preparePagesSource(cfg, dir, Apply)
+	if err != nil {
+		t.Fatal(err)
+	}
+	original := swatch.PagesStarterPaths
+	t.Cleanup(func() { swatch.PagesStarterPaths = original })
+	// A duplicate destination fails exclusive creation after the first file succeeds.
+	swatch.PagesStarterPaths = []string{"pages/index.html", "pages/index.html"}
+	results, err := processPagesStarter(cfg, dir, Apply, p)
+	if !os.IsExist(err) || len(results) != 0 {
+		t.Fatalf("results = %v, error = %v, want no results and an existing-file error", results, err)
+	}
+	entries, err := os.ReadDir(filepath.Join(dir, "pages"))
+	if err != nil || len(entries) != 0 {
+		t.Fatalf("partial starter remains: %v, %v", entries, err)
+	}
+	swatch.PagesStarterPaths = original
+	if _, err := processPagesStarter(cfg, dir, Apply, p); err != nil {
+		t.Fatalf("retry failed: %v", err)
+	}
+}

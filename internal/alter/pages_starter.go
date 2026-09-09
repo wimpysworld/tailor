@@ -55,7 +55,7 @@ func pagesStarterContent(cfg *config.Config, p *pagesPreparation, source string)
 	return renderStaticPages(cfg, data, p.RepoURL)
 }
 
-func processPagesStarter(cfg *config.Config, dir string, mode ApplyMode, p *pagesPreparation) ([]SwatchResult, error) {
+func processPagesStarter(cfg *config.Config, dir string, mode ApplyMode, p *pagesPreparation) (results []SwatchResult, err error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return nil, err
@@ -84,7 +84,17 @@ func processPagesStarter(cfg *config.Config, dir string, mode ApplyMode, p *page
 			return nil, fmt.Errorf("static pages output exceeds 1 MiB")
 		}
 	}
-	var results []SwatchResult
+	var created []string
+	defer func() {
+		if err != nil {
+			for _, name := range created {
+				if removeErr := root.Remove(name); removeErr != nil {
+					err = errors.Join(err, fmt.Errorf("removing partial pages starter %q: %w", name, removeErr))
+				}
+			}
+			results = nil
+		}
+	}()
 	for i, source := range swatch.PagesStarterPaths {
 		name := path.Join(p.Path, path.Base(source))
 		if mode.ShouldWrite() {
@@ -98,6 +108,7 @@ func processPagesStarter(cfg *config.Config, dir string, mode ApplyMode, p *page
 			if err != nil {
 				return results, err
 			}
+			created = append(created, name)
 			_, writeErr := file.Write(contents[i])
 			closeErr := file.Close()
 			if err := errors.Join(writeErr, closeErr); err != nil {
