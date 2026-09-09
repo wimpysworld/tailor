@@ -136,13 +136,11 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 		return err
 	}
 	if pages != nil && len(pages.skipped) == 0 {
-		ignore, err := processPagesIgnore(cfg, dir, mode, prepared)
+		files, err := processPagesFiles(cfg, dir, mode, prepared)
+		swatchResults = append(swatchResults, files...)
 		if err != nil {
 			fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, append(swatchResults, retiredResults...), mode))
 			return err
-		}
-		if ignore != nil {
-			swatchResults = append(swatchResults, *ignore)
 		}
 	}
 

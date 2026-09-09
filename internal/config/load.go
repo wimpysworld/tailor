@@ -187,6 +187,17 @@ func validatePagesNodes(document *yaml.Node) error {
 	}
 	for i := 0; i < len(node.Content); i += 2 {
 		key, value := node.Content[i], node.Content[i+1]
+		if key.Value == "links" {
+			if value.Kind != yaml.MappingNode {
+				return fmt.Errorf("pages.links must be a mapping")
+			}
+			for j := 0; j < len(value.Content); j += 2 {
+				if value.Content[j].Tag != "!!str" || value.Content[j+1].Kind != yaml.ScalarNode || value.Content[j+1].Tag != "!!str" {
+					return fmt.Errorf("pages.links keys and values must be strings")
+				}
+			}
+			continue
+		}
 		tag := "!!str"
 		if key.Value == "enabled" {
 			tag = "!!bool"

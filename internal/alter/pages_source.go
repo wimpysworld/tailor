@@ -77,6 +77,9 @@ func preparePagesSource(cfg *config.Config, dir string, _ ApplyMode) (*pagesPrep
 	if err != nil {
 		return nil, fmt.Errorf("checking %s pages source: %w", p.Generator, err)
 	}
+	if _, err := processPagesLinks(cfg, dir, DryRun, p); err != nil {
+		return nil, err
+	}
 	return p, nil
 }
 

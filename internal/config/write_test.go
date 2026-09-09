@@ -137,8 +137,34 @@ pages:
   enabled: false
   generator: static
   path: pages
+  links:
+    website: https://wimpys.world/
+    forum: ""
+    x: ""
+    bluesky: https://bsky.app/profile/wimpys.world
+    mastodon: "https://wimpysworld.social/@martin"
+    linkedin: https://linkedin.com/in/martinwimpress
+    slack: ""
+    discord: https://discord.com/invite/vUsydfP
+    matrix: "https://matrix.to/#/@wimpress:matrix.org"
+    youtube: https://youtube.com/WimpysWorld
+    peertube: ""
+    tiktok: ""
+    instagram: ""
+    pixelfed: ""
+    steam: https://steamcommunity.com/id/wimpress/
+    itchio: https://wimpress.itch.io/
+    patreon: ""
+    kofi: ""
+    email: ""
+    feed: ""
   # branch: main
   # cname: www.example.com
+  # Static only. Omit links to leave the page unchanged; {} clears its marked links.
+  # Use full HTTPS URLs, or a bare address for email. Empty values add no icon.
+  # links:
+  #   website: https://example.com
+  #   email: hello@example.com
 
 labels:
   - name: bug
