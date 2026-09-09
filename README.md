@@ -1,6 +1,6 @@
 # Tailor 👔
 
-Ready-to-wear project templates for GitHub repositories. Tailor is a local terminal CLI that fits projects with community health files, security policy, dev tooling, and repository settings that meet GitHub's community standards.
+Ready-to-wear project templates for GitHub repositories. Tailor is a local terminal CLI that fits projects with community health files, security policy, dev tooling, and repository settings.
 
 If you manage multiple projects across different GitHub organisations and find that configurations keep drifting out of sync, Tailor fixes that. It is opinionated by design - built for solo devs and small teams who want consistent, well-maintained repositories without the overhead.
 
@@ -537,7 +537,7 @@ pages:
     feed: https://example.com/feed.xml
 ```
 
-The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `slack`, `linkedin`, `youtube`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`. Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
+The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`. Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
 
 Put these markers on separate lines inside the footer of `<pages.path>/index.html`:
 
@@ -550,7 +550,31 @@ Tailor owns only the content between the markers. It replaces that content with 
 
 Omit `links` to leave the page untouched. Use `links: {}` or all-empty values to clear the marked section. New configs include Martin Wimpress’s published links from <https://wimpysworld.link/>. Services without a matching personal URL stay empty. Default merging never adds these links to existing configs and preserves explicit declarations, including an empty mapping. Disabled Pages leaves links unmanaged. A skipped Pages setup also skips the links update. `baste` reports `would overwrite` for a changed page without writing; `alter` reports `overwritten`. Repeated application makes no change. An empty mapping with Hugo or Jekyll has no effect.
 
-The generated section includes its own minimal layout and CSS masks, so it needs no JavaScript or project-specific icon classes. It uses pinned Simple Icons 16.30.0 and Octicons 19.36.0 CDN URLs. Slack and LinkedIn use generic organisation and briefcase icons. Other service links use brand icons; website, forum, email and feed use generic icons. GitHub navigation stays separate from these optional connections.
+The generated section includes its own minimal layout and CSS masks, so it needs no JavaScript or project-specific icon classes. It uses pinned Simple Icons 16.30.0 and Octicons 19.36.0 CDN URLs. Slack and LinkedIn use generic organisation and briefcase icons. Other service links use brand icons; website, podcast, forum, email and feed use generic icons. GitHub navigation stays separate from these optional connections.
+
+### Static Pages navigation
+
+Put these markers on separate lines inside the header navigation list to let Tailor manage its repository links:
+
+```html
+<!-- tailor:navigation:start -->
+<!-- tailor:navigation:end -->
+```
+
+The README link comes first. When `repository.has_wiki: true`, its label is `Overview`, followed by a `Documentation` link to the wiki. Otherwise, the README link is `Documentation`. When `repository.has_discussions: true`, a `Discussions` link follows. A `Download` link to `/releases` always comes last in the header. Omitted or false flags omit the corresponding link.
+
+Tailor uses the repository that it manages to build these URLs. It preserves content outside the markers, including custom header links. No markers means no navigation changes. Malformed markers stop preflight before writes. This works only for enabled static Pages, independently of `pages.links`. Disabled or skipped Pages and Hugo or Jekyll sites stay unchanged. Run `tailor baste` to preview and `tailor alter` to update the links.
+
+The footer uses `<!-- tailor:footer-navigation:start -->` and `<!-- tailor:footer-navigation:end -->` inside its Resources list. It follows the same README, Wiki and Discussions order. Append `Support` linking to `/blob/HEAD/SUPPORT.md` when either Wiki or Discussions is disabled or omitted. Hide Support only when both are enabled. Releases stays in the separate Project list.
+
+The footer License link can also follow `license:`. Put these markers around its list item:
+
+```html
+<!-- tailor:license:start -->
+<!-- tailor:license:end -->
+```
+
+Tailor keeps the label `License` and builds `?tab=<license>-1-ov-file` from the configured identifier. An empty value or `none` removes the marked link. Unmarked licence links stay unchanged. The same static Pages, preview and marker rules apply.
 
 ## GitHub wiki
 
