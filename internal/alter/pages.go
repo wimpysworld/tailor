@@ -35,6 +35,12 @@ func preflightPages(cfg *config.Config, dir string, mode ApplyMode, target RepoT
 		p.skipped = []RepoSettingResult{{Section: "pages", Field: "enabled", Category: WouldSkipSetup, Annotation: "no repository"}}
 		return p, nil
 	}
+	prepared.RepoURL = "https://github.com/" + target.Owner + "/" + target.Name
+	if prepared.Navigation {
+		if _, err := processStaticPages(cfg, dir, DryRun, prepared); err != nil {
+			return nil, err
+		}
+	}
 	repository, accessErr := gh.ReadPagesRepository(target.Client, target.Owner, target.Name)
 	p.repository = repository
 	if accessErr != nil {

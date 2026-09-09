@@ -12,6 +12,7 @@ func TestPagesLinksValidation(t *testing.T) {
 	}{
 		{"all", "links: {website: https://example.com, x: https://x.com/user, bluesky: https://bsky.app/profile/example.com, mastodon: https://example.com/@user, discord: https://discord.gg/example, matrix: 'https://matrix.to/#/#room:example.com', slack: https://example.slack.com, linkedin: https://linkedin.com/in/example, youtube: https://youtube.com/@example, instagram: https://instagram.com/example, tiktok: https://tiktok.com/@example, peertube: https://video.example.com, forum: https://forum.example.com, email: user@example.com, feed: https://example.com/feed.xml}", false},
 		{"empty", "links: {}", false},
+		{"streaming and sponsors", "links: {twitch: https://twitch.tv/example, github_sponsors: https://github.com/sponsors/example, podcast: https://example.com/podcast}", false},
 		{"new services", "links: {pixelfed: https://photos.example.com/user, steam: https://steamcommunity.com/id/example, itchio: https://example.itch.io, patreon: https://patreon.com/example, kofi: https://ko-fi.com/example}", false},
 		{"empty values", "links: {website: ''}", false},
 		{"unknown", "links: {github: https://github.com/user}", true},
@@ -47,19 +48,22 @@ func TestPagesLinksPersonalDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Pages.Links == nil || len(*cfg.Pages.Links) != 20 {
-		t.Fatal("new configs must list all 20 supported links")
+	if cfg.Pages.Links == nil || len(*cfg.Pages.Links) != 23 {
+		t.Fatal("new configs must list all 23 supported links")
 	}
 	want := map[string]string{
-		"website":  "https://wimpys.world/",
-		"bluesky":  "https://bsky.app/profile/wimpys.world",
-		"mastodon": "https://wimpysworld.social/@martin",
-		"discord":  "https://discord.com/invite/vUsydfP",
-		"matrix":   "https://matrix.to/#/@wimpress:matrix.org",
-		"linkedin": "https://linkedin.com/in/martinwimpress",
-		"youtube":  "https://youtube.com/WimpysWorld",
-		"steam":    "https://steamcommunity.com/id/wimpress/",
-		"itchio":   "https://wimpress.itch.io/",
+		"podcast":         "https://linuxmatters.sh",
+		"website":         "https://wimpys.world/",
+		"bluesky":         "https://bsky.app/profile/wimpys.world",
+		"mastodon":        "https://wimpysworld.social/@martin",
+		"discord":         "https://discord.com/invite/vUsydfP",
+		"matrix":          "https://matrix.to/#/@wimpress:matrix.org",
+		"linkedin":        "https://linkedin.com/in/martinwimpress",
+		"youtube":         "https://youtube.com/WimpysWorld",
+		"twitch":          "https://twitch.tv/WimpysWorld",
+		"github_sponsors": "https://github.com/sponsors/flexiondotorg",
+		"steam":           "https://steamcommunity.com/id/wimpress/",
+		"itchio":          "https://wimpress.itch.io/",
 	}
 	for key, value := range *cfg.Pages.Links {
 		if value != want[key] {

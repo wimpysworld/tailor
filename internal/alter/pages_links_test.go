@@ -71,7 +71,7 @@ func TestPagesLinksLifecycle(t *testing.T) {
 		// Preserve an edit made after preflight, not its stale snapshot.
 		original = "<!-- later edit -->\n" + original
 		pagesTestFile(t, dir, "web/site/index.html", original)
-		result, err := processPagesLinks(cfg, dir, mode, prepared)
+		result, err := processStaticPages(cfg, dir, mode, prepared)
 		if err != nil || result == nil || result.Category != WouldOverwrite {
 			t.Fatalf("result = %v, error = %v", result, err)
 		}
@@ -87,7 +87,7 @@ func TestPagesLinksLifecycle(t *testing.T) {
 			if !bytes.HasPrefix(data, []byte("<!-- later edit -->\n<h1>Keep me</h1>")) || !bytes.Contains(data, []byte(`href="https://example.com"`)) {
 				t.Fatal("content was not preserved or link was not written")
 			}
-			result, err = processPagesLinks(cfg, dir, mode, prepared)
+			result, err = processStaticPages(cfg, dir, mode, prepared)
 			if err != nil || result.Category != NoChange {
 				t.Fatalf("repeated result = %v, error = %v", result, err)
 			}
