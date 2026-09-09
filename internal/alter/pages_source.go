@@ -68,7 +68,9 @@ func preparePagesSource(cfg *config.Config, dir string, _ ApplyMode) (*pagesPrep
 	}
 	switch p.Generator {
 	case "static":
-		_, err = pagesReadFile(root, path.Join(p.Path, "index.html"))
+		var data []byte
+		data, err = pagesReadFile(root, path.Join(p.Path, "index.html"))
+		p.Navigation = hasPagesRepositoryLinks(data)
 	case "hugo":
 		err = validateHugoSource(root, dir, p.Path)
 	case "jekyll":
@@ -77,7 +79,7 @@ func preparePagesSource(cfg *config.Config, dir string, _ ApplyMode) (*pagesPrep
 	if err != nil {
 		return nil, fmt.Errorf("checking %s pages source: %w", p.Generator, err)
 	}
-	if _, err := processPagesLinks(cfg, dir, DryRun, p); err != nil {
+	if _, err := processStaticPages(cfg, dir, DryRun, p); err != nil {
 		return nil, err
 	}
 	return p, nil

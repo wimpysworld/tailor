@@ -238,6 +238,24 @@ func TestPagesLinksAcceptance(t *testing.T) {
 	}
 }
 
+func TestPagesNavigationAcceptance(t *testing.T) {
+	s, client := newPagesAcceptanceAPI(t)
+	dir := t.TempDir()
+	writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\nrepository:\n  has_discussions: true\npages:\n  enabled: true\n"))
+	page := "<ul>\n<!-- tailor:navigation:start -->\n<!-- tailor:navigation:end -->\n</ul>\n"
+	writeOnDisk(t, dir, "pages/index.html", []byte(page))
+	before := pagesAcceptanceSnapshot(t, dir)
+	output := captureAlterRun(t, loadTestConfig(t, dir), dir, alter.DryRun, client)
+	requireContains(t, output, "would overwrite")
+	if len(s.writes) != 0 || !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) {
+		t.Fatal("navigation preview wrote state")
+	}
+	captureAlterRun(t, loadTestConfig(t, dir), dir, alter.Apply, client)
+	data := pagesAcceptanceSnapshot(t, dir)["pages/index.html"]
+	requireContains(t, data, `href="https://github.com/testowner/testrepo?tab=readme-ov-file">Documentation`)
+	requireContains(t, data, `href="https://github.com/testowner/testrepo/discussions">Discussions`)
+}
+
 func TestPagesLinksConflictBlocksAllWrites(t *testing.T) {
 	s, client := newPagesAcceptanceAPI(t)
 	dir := t.TempDir()

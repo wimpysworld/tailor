@@ -404,7 +404,7 @@ pages:
     feed: https://example.com/feed.xml
 ```
 
-The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `slack`, `linkedin`, `youtube`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`. Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
+The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`. Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
 
 Put these markers on separate lines inside the footer of `<pages.path>/index.html`:
 
@@ -417,7 +417,19 @@ Tailor owns only the content between the markers. It replaces that content with 
 
 Omit `links` to leave the page untouched. Use `links: {}` or all-empty values to clear the marked section. New configs include Martin Wimpress’s published links from <https://wimpysworld.link/>. Services without a matching personal URL stay empty. Default merging never adds these links to existing configs and preserves explicit declarations, including an empty mapping. Disabled Pages leaves links unmanaged. A skipped Pages setup also skips the links update. `baste` reports `would overwrite` for a changed page without writing; `alter` reports `overwritten`. Repeated application makes no change. An empty mapping with Hugo or Jekyll has no effect.
 
-The generated section includes its own minimal layout and CSS masks, so it needs no JavaScript or project-specific icon classes. It uses pinned Simple Icons 16.30.0 and Octicons 19.36.0 CDN URLs. Slack and LinkedIn use generic organisation and briefcase icons. Other service links use brand icons; website, forum, email and feed use generic icons. GitHub navigation stays separate from these optional connections.
+The generated section includes its own minimal layout and CSS masks, so it needs no JavaScript or project-specific icon classes. It uses pinned Simple Icons 16.30.0 and Octicons 19.36.0 CDN URLs. Slack and LinkedIn use generic organisation and briefcase icons. Other service links use brand icons; website, podcast, forum, email and feed use generic icons. GitHub navigation stays separate from these optional connections.
+
+#### Static Pages navigation
+
+Static sites can opt into repository navigation with one pair of standalone `<!-- tailor:navigation:start -->` and `<!-- tailor:navigation:end -->` markers. These enclose list items inside the header navigation list. No markers leaves navigation unmanaged. Partial, repeated, reversed or inline markers stop preflight before writes.
+
+Render the README link first, using `?tab=readme-ov-file`. When `repository.has_wiki` is true, label the README `Overview` and append `Documentation` pointing to `/wiki`. Otherwise, label the README `Documentation`. When `repository.has_discussions` is true, append `Discussions` pointing to `/discussions` after both documentation links. Always append `Download` pointing to `/releases` in the header. Omitted or false flags omit the corresponding feature link. Build URLs from the repository that Tailor manages.
+
+Navigation is independent of `pages.links` and needs no new configuration field. Both marked sections share one page result and write. Preserve all bytes outside the sections, enforce the existing input and output limits, and keep previews read-only. Disabled or skipped Pages and Hugo or Jekyll sites receive no navigation changes.
+
+The footer uses `<!-- tailor:footer-navigation:start -->` and `<!-- tailor:footer-navigation:end -->` inside its Resources list. It follows the same README, Wiki and Discussions order. Append `Support` linking to `/blob/HEAD/SUPPORT.md` when either Wiki or Discussions is disabled or omitted. Hide Support only when both are enabled. Releases stays in the separate Project list.
+
+The optional `<!-- tailor:license:start -->` and `<!-- tailor:license:end -->` markers enclose the footer licence list item. Render its label as `License` and its URL as the managed repository URL plus `?tab=<license>-1-ov-file`. URL-encode the configured identifier. An empty `license` or `none` clears this section. Unmarked links stay unchanged. Apply the same preflight, preview and file-preservation rules as navigation, with one shared page write.
 
 ## Commands
 
@@ -936,13 +948,16 @@ pages:
     discord: https://discord.com/invite/vUsydfP
     matrix: https://matrix.to/#/@wimpress:matrix.org
     youtube: https://youtube.com/WimpysWorld
+    twitch: https://twitch.tv/WimpysWorld
     peertube: ""
     tiktok: ""
+    podcast: https://linuxmatters.sh
     instagram: ""
     pixelfed: ""
     steam: https://steamcommunity.com/id/wimpress/
     itchio: https://wimpress.itch.io/
     patreon: ""
+    github_sponsors: https://github.com/sponsors/flexiondotorg
     kofi: ""
     email: ""
     feed: ""
