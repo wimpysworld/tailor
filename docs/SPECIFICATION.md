@@ -1168,6 +1168,10 @@ swatches/
 │   │   └── feature_request.yml
 │   └── pull_request_template.md
 ├── pages/
+│   ├── index.html
+│   ├── style.css
+│   ├── theme.js
+│   ├── icon.svg
 │   ├── static.yml
 │   ├── hugo.yml
 │   └── jekyll.yml
