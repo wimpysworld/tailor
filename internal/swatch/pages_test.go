@@ -35,12 +35,23 @@ func TestPagesContent(t *testing.T) {
 				var workflow struct {
 					On   map[string]any `yaml:"on"`
 					Jobs map[string]struct {
+						RunsOn      string            `yaml:"runs-on"`
+						Timeout     int               `yaml:"timeout-minutes"`
 						Permissions map[string]string `yaml:"permissions"`
 						Needs       string            `yaml:"needs"`
 					} `yaml:"jobs"`
 				}
 				if err := yaml.Unmarshal(content, &workflow); err != nil {
 					t.Fatal(err)
+				}
+				for name, job := range workflow.Jobs {
+					wantRunner, wantTimeout := "ubuntu-slim", 15
+					if name == "build" && generator != "static" {
+						wantRunner, wantTimeout = "ubuntu-24.04", 0
+					}
+					if job.RunsOn != wantRunner || job.Timeout != wantTimeout {
+						t.Errorf("%s runner and timeout = %q, %d; want %q, %d", name, job.RunsOn, job.Timeout, wantRunner, wantTimeout)
+					}
 				}
 				if len(workflow.On) != 1 || workflow.On["push"] == nil || workflow.Jobs["deploy"].Needs != "build" {
 					t.Fatalf("unsafe workflow events or job dependency: %s", content)

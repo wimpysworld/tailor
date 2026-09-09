@@ -15,7 +15,8 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
     permissions:
       contents: read
     env:
@@ -35,7 +36,8 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-slim
+    timeout-minutes: 15
     permissions:
       pages: write
       id-token: write
