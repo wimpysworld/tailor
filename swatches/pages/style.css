@@ -179,6 +179,23 @@ h3 { font-size: 1.05rem; line-height: 1.4; }
 .install-options pre code { padding: 0; }
 .install-options p { color: var(--site-muted); font-size: 0.95rem; }
 .install-links { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.carousel { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; border-radius: var(--pico-border-radius); }
+.carousel-slide { flex: 0 0 100%; display: grid; place-items: center; aspect-ratio: 16 / 9; scroll-snap-align: start; color: #1e1e2e; font-size: clamp(4rem, 15vw, 10rem); font-weight: 750; }
+.carousel-slide:nth-child(1) { background: #cba6f7; }
+.carousel-slide:nth-child(2) { background: #94e2d5; }
+.carousel-slide:nth-child(3) { background: #fab387; }
+.carousel-slide:focus-visible { outline: 3px solid #1e1e2e; outline-offset: -6px; }
+.carousel-controls { justify-content: center; gap: 0.75rem; margin-top: 1rem; }
+.carousel-controls a { display: grid; place-items: center; width: 44px; height: 44px; margin: 0; padding: 0; border: 1px solid var(--site-border); border-radius: var(--pico-border-radius); }
+.screenshot { margin: 0; }
+.screenshot-placeholder { display: grid; place-items: center; aspect-ratio: 16 / 9; padding: 1rem; border: 1px solid var(--site-border); border-radius: var(--pico-border-radius); background: var(--site-surface); color: var(--site-text); font-size: clamp(1.25rem, 4vw, 2rem); }
+.screenshot img { width: 100%; height: auto; border-radius: var(--pico-border-radius); }
+.video-player { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: var(--pico-border-radius); margin-bottom: 1rem; }
+.store-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 1.5rem; padding: 1rem; }
+.store-badges img { display: block; width: auto; height: 48px; max-width: 100%; object-fit: contain; }
+.store-badges .google-play-badge { height: 72px; }
+.steam-badge { display: inline-flex; padding: 12px 20px; border-radius: 0.4rem; background: #171a21; }
+.steam-badge img { height: 36px; }
 .site-footer { border-top: 1px solid var(--site-border); padding-block: 3.5rem 2rem; }
 .footer-main { display: grid; grid-template-columns: 1fr 1.5fr; gap: 4rem; }
 .site-footer .footer-brand > p { max-width: 17rem; color: var(--site-muted); font-size: 0.9rem; margin-top: 0.8rem; }
