@@ -3,7 +3,7 @@ license: BlueOak-1.0.0
 
 repository:
   description: "Ready-to-wear project templates for GitHub repositories 👔"
-  homepage: https://github.com/wimpysworld/tailor
+  homepage: https://wimpysworld.github.io/tailor/
   has_wiki: false
   has_discussions: false
   has_projects: false
@@ -150,16 +150,19 @@ pages:
     linkedin: https://linkedin.com/in/martinwimpress
     slack: ""
     discord: https://discord.com/invite/vUsydfP
-    matrix: https://matrix.to/#/@wimpress:matrix.org
-    youtube: https://youtube.com/WimpysWorld
+    matrix: ""
+    youtube: ""
+    twitch: ""
     peertube: ""
     tiktok: ""
+    podcast: "https://linuxmatters.sh"
     instagram: ""
     pixelfed: ""
-    steam: https://steamcommunity.com/id/wimpress/
-    itchio: https://wimpress.itch.io/
+    steam: ""
+    itchio: ""
     patreon: ""
     kofi: ""
+    github_sponsors: https://github.com/sponsors/flexiondotorg
     email: ""
     feed: ""
   # branch: main

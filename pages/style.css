@@ -107,6 +107,7 @@ code, kbd, pre, samp { font-family: "Fira Code", ui-monospace, monospace; }
 .brand { display: inline-flex; align-items: center; gap: 0.65rem; color: var(--site-text); font-size: 1.6rem; font-weight: 750; text-decoration: none; }
 .brand-mark { width: 33px; height: 33px; }
 .site-header nav { margin-left: auto; }
+.site-header nav ul { flex-wrap: wrap; column-gap: 0.5rem; }
 nav a { color: var(--site-muted); font-size: 0.9rem; }
 .header-tools { display: flex; align-items: center; gap: 0.4rem; }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 10px; margin: 0; border: 0; border-radius: 0.4rem; background: transparent; color: var(--site-text); box-shadow: none; }
@@ -141,12 +142,10 @@ h3 { font-size: 1.05rem; line-height: 1.4; }
 .terminal-dots i:nth-child(3) { background: #a6e3a1; }
 .terminal pre { background: transparent; padding: 1.5rem; margin: 0; border: 0; border-radius: 0; font-size: 0.85rem; line-height: 1.8; }
 .terminal code { color: #cdd6f4; padding: 0; }
-.terminal-comment, .terminal-note { color: #a6adc8; }
+.terminal-comment { color: #a6adc8; }
 .prompt { color: #94e2d5; user-select: none; }
 .terminal-command { color: #cba6f7; }
 .terminal-argument { color: #fab387; }
-.terminal-note { margin: 0; padding: 0 1.5rem 1.35rem; font-size: 0.75rem; }
-.terminal-note span { color: #fab387; margin-right: 0.35rem; }
 .section-rule { border-top: 1px solid var(--site-border); padding-block: 4.5rem; margin-bottom: 0; }
 .features { display: grid; grid-template-columns: 1fr 1.15fr; gap: 6rem; }
 .features > div > p:not(.eyebrow) { color: var(--site-muted); max-width: 26rem; }
@@ -205,7 +204,7 @@ h3 { font-size: 1.05rem; line-height: 1.4; }
 @media (max-width: 760px) {
   .site-header { flex-wrap: wrap; justify-content: space-between; }
   .site-header nav { order: 3; width: 100%; margin: 0; }
-  .site-header nav ul { width: 100%; justify-content: space-between; }
+  .site-header nav ul { width: 100%; justify-content: flex-start; row-gap: 0.25rem; }
   .hero, .features, .install { grid-template-columns: 1fr; gap: 2.5rem; }
   .hero { padding-block: 3rem; }
   h1 { font-size: clamp(2.65rem, 8vw, 3.8rem); }
@@ -220,7 +219,6 @@ h3 { font-size: 1.05rem; line-height: 1.4; }
   .container { width: calc(100% - 2rem); }
   .hero-actions { align-items: flex-start; gap: 1rem; }
   .terminal pre { padding: 1rem; font-size: 0.73rem; }
-  .terminal-note { padding-inline: 1rem; }
   .steps { grid-template-columns: 1fr; gap: 1rem; }
   .install-options pre { padding: 0.8rem; font-size: 0.73rem; }
   .footer-links { grid-template-columns: repeat(2, 1fr); gap: 1.5rem; }
