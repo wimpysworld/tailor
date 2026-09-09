@@ -27,6 +27,8 @@ func TestWikiWorkflowContract(t *testing.T) {
 		} `yaml:"on"`
 		Permissions map[string]string `yaml:"permissions"`
 		Jobs        map[string]struct {
+			RunsOn      string            `yaml:"runs-on"`
+			Timeout     int               `yaml:"timeout-minutes"`
 			If          string            `yaml:"if"`
 			Permissions map[string]string `yaml:"permissions"`
 			Steps       []struct {
@@ -45,6 +47,9 @@ func TestWikiWorkflowContract(t *testing.T) {
 		t.Fatalf("incorrect publication paths: %q", paths)
 	}
 	job := workflow.Jobs["publish"]
+	if job.RunsOn != "ubuntu-slim" || job.Timeout != 15 {
+		t.Fatalf("publisher runner and timeout = %q, %d; want ubuntu-slim, 15", job.RunsOn, job.Timeout)
+	}
 	if len(workflow.Permissions) != 0 || len(workflow.Jobs) != 1 || len(job.Permissions) != 1 || job.Permissions["contents"] != "write" {
 		t.Fatal("publisher permissions exceed contents: write")
 	}

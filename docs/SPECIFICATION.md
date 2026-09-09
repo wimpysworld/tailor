@@ -248,6 +248,8 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 
 ### GitHub wiki
 
+The wiki publication job uses `ubuntu-slim` with an explicit 15-minute timeout, which matches the runner's hard limit. The runner provides Git and Python 3 for publication.
+
 `repository.has_wiki: true` activates four wiki swatches on public repositories. No separate config section or command exists. New configs retain `has_wiki: false`. Existing-project `fit` preserves the live setting. An omitted setting leaves wiki files unmanaged, even when default merging adds `false` during that run.
 
 The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Existing starter destinations remain unchanged, including recut and an explicit `always` mode. `never` skips creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 21 swatches.
@@ -263,6 +265,8 @@ After adoption, publishing replaces the wiki tree with the source subtree, exclu
 Explicit `repository.has_wiki: false` retains all source files and removes only the marked workflow, regardless of recut. An unmarked workflow stays unchanged with manual-removal guidance. Commit and push the workflow removal to stop future runs. No remote wiki content or history is deleted. An omitted declaration does not remove the workflow.
 
 ### GitHub Pages
+
+Static upload and all deployment jobs use `ubuntu-slim` with explicit 15-minute timeouts, which match the runner's hard limit. Hugo and Jekyll build jobs retain `ubuntu-24.04` for Go modules, Ruby dependencies and longer builds.
 
 Pages is opt-in and supports free public repositories only. These are the only five settings:
 
