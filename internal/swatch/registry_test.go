@@ -1,11 +1,25 @@
 package swatch_test
 
 import (
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"gopkg.in/yaml.v3"
 )
+
+func TestPagesStarterPathsMatchRegistry(t *testing.T) {
+	var paths []string
+	for _, entry := range swatch.All() {
+		if strings.HasPrefix(entry.Path, "pages/") {
+			paths = append(paths, entry.Path)
+		}
+	}
+	if !slices.Equal(swatch.PagesStarterPaths, paths) {
+		t.Fatalf("PagesStarterPaths = %v, registry paths = %v", swatch.PagesStarterPaths, paths)
+	}
+}
 
 func TestAllReturns25Swatches(t *testing.T) {
 	all := swatch.All()
