@@ -13,14 +13,16 @@ import (
 )
 
 type pagesPreparation struct {
-	Generator  string
-	Path       string
-	Branch     string
-	RepoURL    string
-	Navigation bool
-	Content    []byte
-	Entry      config.SwatchEntry
-	Result     SwatchResult
+	Generator   string
+	Path        string
+	Branch      string
+	RepoURL     string
+	Navigation  bool
+	Starter     bool
+	ProjectName string
+	Content     []byte
+	Entry       config.SwatchEntry
+	Result      SwatchResult
 }
 
 func preparePagesWorkflow(prepared *pagesPreparation, dir string, mode ApplyMode, branch string) error {

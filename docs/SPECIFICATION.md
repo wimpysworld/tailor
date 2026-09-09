@@ -50,6 +50,10 @@ The `fit`, `alter`, and `baste` commands require a valid authentication token: a
 | `.github/ISSUE_TEMPLATE/feature_request.yml` | `.github/ISSUE_TEMPLATE/feature_request.yml` |
 | `.github/ISSUE_TEMPLATE/config.yml` | `.github/ISSUE_TEMPLATE/config.yml` |
 | `.github/pull_request_template.md` | `.github/pull_request_template.md` |
+| `pages/index.html` | `<pages.path>/index.html` |
+| `pages/style.css` | `<pages.path>/style.css` |
+| `pages/theme.js` | `<pages.path>/theme.js` |
+| `pages/icon.svg` | `<pages.path>/icon.svg` |
 | `wiki/Home.md` | `wiki/Home.md` |
 | `wiki/_Sidebar.md` | `wiki/_Sidebar.md` |
 | `wiki/_Footer.md` | `wiki/_Footer.md` |
@@ -252,7 +256,7 @@ The wiki publication job uses `ubuntu-slim` with an explicit 15-minute timeout, 
 
 `repository.has_wiki: true` activates four wiki swatches on public repositories. No separate config section or command exists. New configs retain `has_wiki: false`. Existing-project `fit` preserves the live setting. An omitted setting leaves wiki files unmanaged, even when default merging adds `false` during that run.
 
-The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Existing starter destinations remain unchanged, including recut and an explicit `always` mode. `never` skips creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 21 swatches.
+The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Existing starter destinations remain unchanged, including recut and an explicit `always` mode. `never` skips creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 25 swatches.
 
 Preflight runs before config or remote writes. It rejects source symlinks, Git metadata, non-regular files, invalid baseline files and unsafe workflow destinations or parents through rooted filesystem access. Local Tailor reads only repository privacy and the current default branch. Private, unavailable or incomplete repository metadata skips wiki files. It does not read or write the remote wiki. Reconcile wiki files after Pages and before the licence. Pages and its source directory remain independent. `baste` previews without writes. `measure` and `docket` add no wiki requests.
 
@@ -288,7 +292,7 @@ An omitted section or disabled setting makes no Pages-related changes to setting
 
 `path` is an existing project-relative source directory. Reject absolute paths, traversal, all source and parent symlinks, and unsafe workflow interpolation. Config loading checks syntax only. Before any remote write, validate the source, dependency declarations and workflow ownership. An omitted `branch` resolves to the current repository default branch on each run. Explicit branches must be valid Git branch names. Escape workflow filter metacharacters so the branch matches literally. Neither path nor branch is a legacy Pages API source setting.
 
-Static requires `index.html` and uploads authored URLs unchanged. The site must already support its deployment base path. Hugo requires recognised configuration and local themes or pinned module/submodule declarations, and builds to `<path>/public`. Modules require pinned `go.mod` requirements and matching `go.sum` entries. Module replacements are unsupported. Unpopulated theme submodules require a `.gitmodules` declaration and a pinned Git index entry. Jekyll requires `_config.yml`, `Gemfile` and `Gemfile.lock`, including Jekyll 4.4.1 and dependencies, and builds to `<path>/_site`. Git dependencies require pinned commits. Path dependencies must exist inside the source directory. Inspected input files must be regular files no larger than 1 MiB. Use Hugo Extended 0.165.0 and Ruby 3.3.12. Dependency installation failures fail CI. No implicit Node, Sass, arbitrary build commands or site scaffolding is supported.
+Static requires `index.html` in an existing site, or creates the starter in a missing or empty directory. It uploads authored URLs unchanged. The site must already support its deployment base path. Hugo requires recognised configuration and local themes or pinned module/submodule declarations, and builds to `<path>/public`. Modules require pinned `go.mod` requirements and matching `go.sum` entries. Module replacements are unsupported. Unpopulated theme submodules require a `.gitmodules` declaration and a pinned Git index entry. Jekyll requires `_config.yml`, `Gemfile` and `Gemfile.lock`, including Jekyll 4.4.1 and dependencies, and builds to `<path>/_site`. Git dependencies require pinned commits. Path dependencies must exist inside the source directory. Inspected input files must be regular files no larger than 1 MiB. Use Hugo Extended 0.165.0 and Ruby 3.3.12. Dependency installation failures fail CI. No implicit Node, Sass or arbitrary build commands are supported. Only static Pages has a starter.
 
 One registered development swatch, `.github/workflows/tailor-pages.yml`, defaults to `always` and selects an embedded static, Hugo or Jekyll variant. General swatch processing excludes this destination. Generated content starts with `# Managed by Tailor: pages`. An existing unmarked destination is an ownership conflict, including under recut. `always` compares resolved content. `first-fit` creates a missing workflow and preserves compatible content unless recut applies. `never` never writes and requires an existing workflow. Protected workflows must match the generated YAML semantics, including execution and permissions. Comments and formatting can differ. An incompatible protected workflow blocks Pages setup before writes. Generator changes replace the same marked destination. Other workflows remain untouched.
 
@@ -352,6 +356,10 @@ List access failures skip variable management without writes. Individual write a
 | `.github/pull_request_template.md` | `never` |
 | `.github/dependabot.yml` | `first-fit` |
 | `.github/workflows/tailor-pages.yml` | `always` |
+| `pages/index.html` | `first-fit` |
+| `pages/style.css` | `first-fit` |
+| `pages/theme.js` | `first-fit` |
+| `pages/icon.svg` | `first-fit` |
 | `wiki/Home.md` | `first-fit` |
 | `wiki/_Sidebar.md` | `first-fit` |
 | `wiki/_Footer.md` | `first-fit` |
@@ -419,6 +427,18 @@ Omit `links` to leave the page untouched. Use `links: {}` or all-empty values to
 
 The generated section includes its own minimal layout and CSS masks, so it needs no JavaScript or project-specific icon classes. It uses pinned Simple Icons 16.30.0 and Octicons 19.36.0 CDN URLs. Slack and LinkedIn use generic organisation and briefcase icons. Other service links use brand icons; website, podcast, forum, email and feed use generic icons. GitHub navigation stays separate from these optional connections.
 
+#### Static Pages starter
+
+When Pages is enabled with `generator: static`, Tailor creates a starter in a missing or empty `pages.path` (default `pages`). The four embedded sources are `pages/index.html`, `pages/style.css`, `pages/theme.js` and `pages/icon.svg`. Their destination names stay fixed beneath `pages.path`.
+
+The starter uses Pico CSS, Catppuccin Latte and Mocha, Work Sans and Fira Code, with pinned CDN dependencies. It needs no build step. Edit the HTML for your introduction, features and installation instructions. Replace `icon.svg` to use your project icon. One icon supplies the header, footer and favicon.
+
+Tailor substitutes the repository name, configured description and repository URLs only when it creates the starter. The copyright year is dynamic. Edit the copyright holder in the footer. No author identity is inferred from the repository owner.
+
+The starter files default to `first-fit`. Tailor never replaces an existing site with starter content, including with `--recut` or `always`. It updates only the opted-in marked sections. A non-empty directory without `index.html` remains an error. Missing assets in an existing site are not added. If any required starter file uses `never`, creation stops before writes. Supply an existing site to use that mode.
+
+`baste` reports all four proposed files without writing them. Disabled or skipped Pages creates no files. Hugo and Jekyll do not use this starter. The starter sources are excluded from generic swatch processing and use the Pages stage instead.
+
 #### Static Pages navigation
 
 Static sites can opt into repository navigation with one pair of standalone `<!-- tailor:navigation:start -->` and `<!-- tailor:navigation:end -->` markers. These enclose list items inside the header navigation list. No markers leaves navigation unmanaged. Partial, repeated, reversed or inline markers stop preflight before writes.
@@ -443,9 +463,13 @@ Commands divide into three categories: bootstrap commands, which create the proj
 
 Creates a new project directory and writes `.tailor.yml` with the full default swatch set and the repository settings. When run against an existing project with a GitHub remote, `fit` queries the live repository configuration and uses those values for the `repository` section, preserving the project's current state. When no repository context exists, the built-in defaults are used. Does not copy any files or apply any settings. After `fit`, change into `<path>` before running `alter`.
 
-The default swatch set contains 21 registered destinations:
+The default swatch set contains 25 registered destinations:
 
 - `.github/workflows/tailor-pages.yml`
+- `pages/index.html`
+- `pages/style.css`
+- `pages/theme.js`
+- `pages/icon.svg`
 - `wiki/Home.md`
 - `wiki/_Sidebar.md`
 - `wiki/_Footer.md`
@@ -780,7 +804,7 @@ Behaviour:
 
 **`.tailor.yml` is not a valid config file**: Tailor rejects `.tailor.yml` if it is not a regular file or exceeds 1 MiB. The command exits before YAML parsing.
 
-**`always` swatch modified locally**: for embedded swatches other than `.tailor.yml`, Tailor treats the file as changed whenever the SHA-256 of the resolved swatch content differs from the on-disk file. `alter` overwrites it unconditionally. Tailor does not preserve local edits to these `always` swatches; use `first-fit` alteration mode if local modifications must be retained after the initial fit. `--recut` overrides `first-fit` protection but still skips `never` swatches. Wiki starter pages are an exception: existing destinations remain unchanged. The licence file is never overwritten regardless of flags. `.tailor.yml` uses no content hash: `always` removes retired entries and appends missing defaults. Other existing entries are never modified or overwritten.
+**`always` swatch modified locally**: for embedded swatches other than `.tailor.yml`, Tailor treats the file as changed whenever the SHA-256 of the resolved swatch content differs from the on-disk file. `alter` overwrites it unconditionally. Tailor does not preserve local edits to these `always` swatches; use `first-fit` alteration mode if local modifications must be retained after the initial fit. `--recut` overrides `first-fit` protection but still skips `never` swatches. Wiki and static Pages starter files are exceptions: existing destinations remain unchanged. The licence file is never overwritten regardless of flags. `.tailor.yml` uses no content hash: `always` removes retired entries and appends missing defaults. Other existing entries are never modified or overwritten.
 
 **Duplicate path in `.tailor.yml`**: `alter` and `baste` remove retired entries before duplicate validation. If active entries share a path, the command identifies the conflict and exits before disk changes.
 
@@ -812,7 +836,7 @@ Behaviour:
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 
-The active configuration has 21 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
+The active configuration has 25 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
 
 Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
 
@@ -929,7 +953,7 @@ ruleset:
             security_alerts_threshold: high_or_higher
 
 # Pages is opt-in. Omission or enabled: false leaves Pages unmanaged.
-# generator: static (default), hugo, or jekyll. Use an existing site.
+# generator: static (default) creates a starter in an empty path. Hugo and Jekyll need an existing site.
 # path: project-relative source directory, default pages.
 # branch: omit to use the current repository default branch.
 # cname: omit to preserve the domain, use "" to clear it, or set a domain.
@@ -1075,6 +1099,18 @@ swatches:
   - path: .github/workflows/tailor-pages.yml
     alteration: always
 
+  - path: pages/index.html
+    alteration: first-fit
+
+  - path: pages/style.css
+    alteration: first-fit
+
+  - path: pages/theme.js
+    alteration: first-fit
+
+  - path: pages/icon.svg
+    alteration: first-fit
+
   - path: wiki/Home.md
     alteration: first-fit
 
@@ -1166,7 +1202,7 @@ measure:
 
 ## Implementation Notes
 
-1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. SHA-256 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For a token-bearing swatch configured as `always`, Tailor resolves the token before the hash comparison. `.tailor.yml` uses append-only config merging instead of a content hash. `--recut` bypasses the hash comparison for ordinary `always` and `first-fit` swatches, but still skips `never` swatches. Existing wiki starter pages remain unchanged.
+1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. SHA-256 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For a token-bearing swatch configured as `always`, Tailor resolves the token before the hash comparison. `.tailor.yml` uses append-only config merging instead of a content hash. `--recut` bypasses the hash comparison for ordinary `always` and `first-fit` swatches, but still skips `never` swatches. Existing wiki and static Pages starter files remain unchanged.
 2. **Interpolation (FUNDING.yml, SECURITY.md, and issue template config)**: Swatches are complete verbatim files with three exceptions. `.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted at `alter` time from `GET /user`. `SECURITY.md` has `{{ADVISORY_URL}}` constructed from the repository context (owner/name). If no GitHub repository context exists, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` constructed from the repository context, which produces `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. If no GitHub repository context exists, the token is left unsubstituted. No per-swatch configuration is required. Licences are fetched via `GET /licenses/{id}` and written verbatim. Licences do not use token substitution.
 3. **No versioning**: No swatch versions, always uses swatches from current tailor binary. Upgrading tailor will cause all `always` swatches to be re-evaluated against the new embedded content; files whose swatch content has changed will be overwritten on the next `alter` run.
 4. **No global state**: All state is per-project in `.tailor.yml`

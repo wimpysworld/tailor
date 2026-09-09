@@ -129,7 +129,7 @@ ruleset:
             security_alerts_threshold: high_or_higher
 
 # Pages is opt-in. Omission or enabled: false leaves Pages unmanaged.
-# generator: static (default), hugo, or jekyll. Use an existing site.
+# generator: static (default) creates a starter in an empty path. Hugo and Jekyll need an existing site.
 # path: project-relative source directory, default pages.
 # branch: omit to use the current repository default branch.
 # cname: omit to preserve the domain, use "" to clear it, or set a domain.
@@ -274,6 +274,18 @@ swatches:
 
   - path: .github/workflows/tailor-pages.yml
     alteration: always
+
+  - path: pages/index.html
+    alteration: first-fit
+
+  - path: pages/style.css
+    alteration: first-fit
+
+  - path: pages/theme.js
+    alteration: first-fit
+
+  - path: pages/icon.svg
+    alteration: first-fit
 
   - path: wiki/Home.md
     alteration: first-fit

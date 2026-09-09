@@ -7,10 +7,10 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func TestAllReturns21Swatches(t *testing.T) {
+func TestAllReturns25Swatches(t *testing.T) {
 	all := swatch.All()
-	if len(all) != 21 {
-		t.Fatalf("All() returned %d swatches, want 21", len(all))
+	if len(all) != 25 {
+		t.Fatalf("All() returned %d swatches, want 25", len(all))
 	}
 }
 
@@ -53,6 +53,10 @@ func TestSwatchAttributes(t *testing.T) {
 		{".github/pull_request_template.md", swatch.Never, swatch.Health},
 		{".tailor.yml", swatch.Always, swatch.Development},
 		{swatch.PagesDestination, swatch.Always, swatch.Development},
+		{"pages/index.html", swatch.FirstFit, swatch.Development},
+		{"pages/style.css", swatch.FirstFit, swatch.Development},
+		{"pages/theme.js", swatch.FirstFit, swatch.Development},
+		{"pages/icon.svg", swatch.FirstFit, swatch.Development},
 		{"wiki/Home.md", swatch.FirstFit, swatch.Development},
 		{"wiki/_Sidebar.md", swatch.FirstFit, swatch.Development},
 		{"wiki/_Footer.md", swatch.FirstFit, swatch.Development},
@@ -146,8 +150,8 @@ func TestHealthSwatchesReturnsCorrectSubset(t *testing.T) {
 
 func TestPathsReturnsSortedList(t *testing.T) {
 	names := swatch.Paths()
-	if len(names) != 21 {
-		t.Fatalf("Paths() returned %d names, want 21", len(names))
+	if len(names) != 25 {
+		t.Fatalf("Paths() returned %d names, want 25", len(names))
 	}
 	for i := 1; i < len(names); i++ {
 		if names[i] < names[i-1] {

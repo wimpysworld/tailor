@@ -35,8 +35,13 @@ func preflightPages(cfg *config.Config, dir string, mode ApplyMode, target RepoT
 		p.skipped = []RepoSettingResult{{Section: "pages", Field: "enabled", Category: WouldSkipSetup, Annotation: "no repository"}}
 		return p, nil
 	}
+	prepared.ProjectName = target.Name
 	prepared.RepoURL = "https://github.com/" + target.Owner + "/" + target.Name
-	if prepared.Navigation {
+	if prepared.Starter {
+		if _, err := processPagesStarter(cfg, dir, DryRun, prepared); err != nil {
+			return nil, err
+		}
+	} else if prepared.Navigation {
 		if _, err := processStaticPages(cfg, dir, DryRun, prepared); err != nil {
 			return nil, err
 		}

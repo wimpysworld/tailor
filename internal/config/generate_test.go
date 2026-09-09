@@ -132,8 +132,8 @@ func TestDefaultConfigSwatchCount(t *testing.T) {
 	if err != nil {
 		t.Fatalf("DefaultConfig() error: %v", err)
 	}
-	if len(cfg.Swatches) != 21 {
-		t.Errorf("Swatches count = %d, want 21", len(cfg.Swatches))
+	if len(cfg.Swatches) != 25 {
+		t.Errorf("Swatches count = %d, want 25", len(cfg.Swatches))
 	}
 }
 
