@@ -1,8 +1,8 @@
-# Refitted by tailor on 2026-09-03
+# Refitted by tailor on 2026-09-09
 license: BlueOak-1.0.0
 
 repository:
-  description: Ready-to-wear project templates for GitHub repositories 👔
+  description: "Ready-to-wear project templates for GitHub repositories 👔"
   homepage: https://github.com/wimpysworld/tailor
   has_wiki: false
   has_discussions: false
@@ -40,6 +40,8 @@ repository:
     - github-settings
 
 actions:
+  # Options: all, local_only, selected. SHA pinning applies separately.
+  # selected requires github_owned_allowed, verified_allowed, and patterns_allowed.
   enabled: true
   allowed_actions: selected
   sha_pinning_required: true
@@ -52,6 +54,8 @@ actions:
     - "nick-fields/retry@*"
     - "robherley/go-test-action@*"
     - "softprops/action-gh-release@*"
+  fork_pr_contributor_approval:
+    approval_policy: first_time_contributors
 
 code_scanning:
   state: configured
@@ -128,6 +132,44 @@ ruleset:
             alerts_threshold: errors
             security_alerts_threshold: high_or_higher
 
+# Pages is opt-in. Omission or enabled: false leaves Pages unmanaged.
+# generator: static (default), hugo, or jekyll. Use an existing site.
+# path: project-relative source directory, default pages.
+# branch: omit to use the current repository default branch.
+# cname: omit to preserve the domain, use "" to clear it, or set a domain.
+pages:
+  enabled: true
+  generator: static
+  path: pages
+  links:
+    website: https://wimpys.world/
+    forum: ""
+    x: ""
+    bluesky: https://bsky.app/profile/wimpys.world
+    mastodon: https://wimpysworld.social/@martin
+    linkedin: https://linkedin.com/in/martinwimpress
+    slack: ""
+    discord: https://discord.com/invite/vUsydfP
+    matrix: https://matrix.to/#/@wimpress:matrix.org
+    youtube: https://youtube.com/WimpysWorld
+    peertube: ""
+    tiktok: ""
+    instagram: ""
+    pixelfed: ""
+    steam: https://steamcommunity.com/id/wimpress/
+    itchio: https://wimpress.itch.io/
+    patreon: ""
+    kofi: ""
+    email: ""
+    feed: ""
+  # branch: main
+  # cname: www.example.com
+  # Static only. Omit links to leave the page unchanged; {} clears its marked links.
+  # Use full HTTPS URLs, or a bare address for email. Empty values add no icon.
+  # links:
+  #   website: https://example.com
+  #   email: hello@example.com
+
 labels:
   - name: bug
     color: d20f39
@@ -177,6 +219,14 @@ labels:
     color: df8e1d
     description: Hacktoberfest contribution
 
+# Repository Actions variables are non-secret values.
+# Tailor creates or updates only declared variables and leaves others unchanged.
+# variables:
+#   - name: DEPLOY_REGION
+#     value: "eu-west-2"
+#   - name: RELEASE_SUFFIX
+#     value: ""
+
 swatches:
   - path: .github/dependabot.yml
     alteration: first-fit
@@ -225,3 +275,18 @@ swatches:
 
   - path: cubic.yaml
     alteration: first-fit
+
+  - path: .github/workflows/tailor-pages.yml
+    alteration: always
+
+  - path: wiki/Home.md
+    alteration: first-fit
+
+  - path: wiki/_Sidebar.md
+    alteration: first-fit
+
+  - path: wiki/_Footer.md
+    alteration: first-fit
+
+  - path: .github/workflows/tailor-wiki.yml
+    alteration: always
