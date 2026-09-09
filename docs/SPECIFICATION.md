@@ -433,6 +433,10 @@ When Pages is enabled with `generator: static`, Tailor creates a starter in a mi
 
 The starter uses Pico CSS, Catppuccin Latte and Mocha, Work Sans and Fira Code, with pinned CDN dependencies. It needs no build step. Edit the HTML for your introduction, features and installation instructions. Replace `icon.svg` to use your project icon. One icon supplies the header, footer and favicon.
 
+The starter includes optional examples for a three-slide CSS scroll-snap gallery, a screenshot with a caption, a lazy YouTube embed and a native HTML FAQ. The gallery uses keyboard-accessible links without automatic rotation. Video playback is user-initiated. Users edit or remove these sections directly in HTML, with no additional configuration fields.
+
+Store examples use publisher-hosted graphics for App Store, Google Play, Mac App Store, Microsoft Store, Snap Store, Flathub, Steam and itch.io. They preserve the original colours and proportions and contain no placeholder product links. Users add their own product URLs. These remote graphics are not embedded swatches or pinned dependencies.
+
 Tailor substitutes the repository name, configured description and repository URLs only when it creates the starter. The copyright year is dynamic. Edit the copyright holder in the footer. No author identity is inferred from the repository owner.
 
 The starter files default to `first-fit`. Tailor never replaces an existing site with starter content, including with `--recut` or `always`. It updates only the opted-in marked sections. A non-empty directory without `index.html` remains an error. Missing assets in an existing site are not added. If any required starter file uses `never`, creation stops before writes. Supply an existing site to use that mode.
