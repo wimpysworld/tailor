@@ -77,6 +77,10 @@ func TestProcessActionsForkApproval(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var reads, writes atomic.Int32
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/repos/acme/widget" {
+					fmt.Fprint(w, `{"private":false}`)
+					return
+				}
 				if r.URL.Path != "/repos/acme/widget/actions/permissions/fork-pr-contributor-approval" {
 					t.Errorf("unexpected endpoint %s", r.URL.Path)
 					http.NotFound(w, r)
@@ -179,6 +183,8 @@ func TestProcessActionsForkApprovalReadIsolation(t *testing.T) {
 					return
 				}
 				switch r.URL.Path {
+				case "/repos/acme/widget":
+					fmt.Fprint(w, `{"private":false}`)
 				case corePath:
 					fmt.Fprint(w, `{"enabled":true,"allowed_actions":"all","sha_pinning_required":false}`)
 				case retentionPath:

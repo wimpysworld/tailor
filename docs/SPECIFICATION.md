@@ -165,6 +165,8 @@ Tailor reads `GET /repos/{owner}/{repo}/actions/permissions/fork-pr-contributor-
 
 `baste` reports a difference as `actions.fork_pr_contributor_approval.approval_policy = first_time_contributors` with the `would set` label, without writes. Apply sends one approval PUT for a difference and none for a match. A successful write returns `204`. A second apply makes no approval write when the live policy still matches. Approval writes follow core, selected-action, and retention writes. A hard failure in an earlier stage prevents later writes.
 
+Before reading approval, Tailor reads repository visibility through `GET /repos/{owner}/{repo}`. A confirmed private repository produces `would skip (not available)`, without an approval GET or PUT. Tailor continues other settings. Default merging remains unchanged, including the approval default on private repositories. Approval API errors, including HTTP `422`, remain fatal unless existing access-skip rules apply.
+
 An approval read with a missing, null, empty, or unrecognised live policy stays unknown and produces `would skip (insufficient scope)`, without a write. Access-denied or unavailable reads and writes also produce skips. Approval skips do not suppress unrelated settings, and skips on other endpoints do not suppress approval. Rate limits and other API errors stop the command.
 
 Artifact and log retention is opt-in. A retention-only declaration requires no core or selected-action fields:

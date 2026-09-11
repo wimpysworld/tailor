@@ -14,9 +14,22 @@ type ForkPRContributorApprovalResponse struct {
 }
 
 func ReadForkPRContributorApproval(client *api.RESTClient, owner, name string) (*ForkPRContributorApprovalResponse, []error, error) {
+	var warnings []error
+	var repo struct {
+		Private *bool `json:"private"`
+	}
+	if err := boundedHTTPError(client.Get(fmt.Sprintf("repos/%s/%s", owner, name), &repo)); err != nil {
+		err = collectAccessWarning(err, Op(OpFetchForkPRContributorApproval), "fetching repository visibility for fork pull request contributor approval", &warnings)
+		return nil, warnings, err
+	}
+	if repo.Private != nil && *repo.Private {
+		return nil, []error{&ErrSetupSkipped{
+			Reason:    SetupNotAvailable,
+			Operation: Op(OpFetchForkPRContributorApproval),
+		}}, nil
+	}
 	path := fmt.Sprintf("repos/%s/%s/actions/permissions/fork-pr-contributor-approval", owner, name)
 	var current ForkPRContributorApprovalResponse
-	var warnings []error
 	if err := boundedHTTPError(client.Get(path, &current)); err != nil {
 		err = collectAccessWarning(err, Op(OpFetchForkPRContributorApproval), "fetching fork pull request contributor approval", &warnings)
 		return nil, warnings, err

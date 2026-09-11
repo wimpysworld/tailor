@@ -47,7 +47,9 @@ To stop approval management, omit the approval policy and disable [default mergi
 
 Approval alone requires no other Actions settings. It does not change workflow token permissions or private-fork permissions.
 
-Denied or unavailable approval reads, and unknown live policies, produce `would skip (insufficient scope)` and no approval write. Access failures affect only their endpoint group. Other API errors stop the command.
+Tailor checks repository visibility before reading the approval policy. For private repositories, it reports `would skip (not available)` without an approval read or write, then continues other settings. Private repositories need no config change or disabled default merging.
+
+Denied or unavailable reads, and unknown live policies, produce `would skip (insufficient scope)` and no approval write. Access failures affect only their endpoint group. Other API errors, including `422` responses, stop the command.
 
 ## Artifact and log retention
 

@@ -16,12 +16,16 @@ const forkApprovalTestPath = "/repos/acme/widget/actions/permissions/fork-pr-con
 
 func TestReadForkPRContributorApproval(t *testing.T) {
 	type testCase struct {
-		name    string
-		status  int
-		body    string
-		policy  string
-		skip    bool
-		hardErr bool
+		name           string
+		status         int
+		body           string
+		policy         string
+		skip           bool
+		unavailable    bool
+		private        bool
+		metadata       string
+		metadataStatus int
+		hardErr        bool
 	}
 	tests := []testCase{
 		{name: "missing", status: 200, body: `{}`, skip: true},
@@ -31,6 +35,15 @@ func TestReadForkPRContributorApproval(t *testing.T) {
 		{name: "unknown", status: 200, body: `{"approval_policy":"future_policy"}`, skip: true},
 		{name: "forbidden", status: 403, body: `{"message":"Forbidden"}`, skip: true},
 		{name: "unavailable", status: 404, body: `{"message":"Not Found"}`, skip: true},
+		{name: "private repository", private: true, unavailable: true},
+		{name: "visibility forbidden", metadataStatus: 403, skip: true},
+		{name: "visibility unavailable", metadataStatus: 404, skip: true},
+		{name: "visibility failure", metadataStatus: 500, hardErr: true},
+		{name: "unknown visibility validation failure", metadata: `{}`, status: 422, body: `{"message":"Validation Failed","errors":"Fork PR approval is not allowed for private repositories."}`, hardErr: true},
+		{name: "null visibility validation failure", metadata: `{"private":null}`, status: 422, body: `{"message":"Validation Failed"}`, hardErr: true},
+		{name: "public repository live validation response", status: 422, body: `{"message":"Validation Failed","errors":"Fork PR approval is not allowed for private repositories.","documentation_url":"https://docs.github.com/rest/actions/permissions#get-fork-pr-contributor-approval-permissions-for-a-repository","status":"422"}`, hardErr: true},
+		{name: "other validation error", status: 422, body: `{"message":"Validation Failed"}`, hardErr: true},
+		{name: "private message with wrong status", status: 500, body: `{"message":"Fork PR approval is not allowed for private repositories."}`, hardErr: true},
 		{name: "unauthorised", status: 401, body: `{"message":"Bad credentials"}`, hardErr: true},
 		{name: "server failure", status: 500, body: `{"message":"Server error"}`, hardErr: true},
 		{name: "rate limit", status: 403, body: `{"message":"API rate limit exceeded"}`, hardErr: true},
@@ -44,6 +57,17 @@ func TestReadForkPRContributorApproval(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			calls := 0
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/repos/acme/widget" {
+					if tt.metadataStatus != 0 {
+						w.WriteHeader(tt.metadataStatus)
+					}
+					if tt.metadata != "" {
+						fmt.Fprint(w, tt.metadata)
+						return
+					}
+					fmt.Fprintf(w, `{"private":%t}`, tt.private)
+					return
+				}
 				calls++
 				if r.Method != http.MethodGet || r.URL.Path != forkApprovalTestPath {
 					t.Errorf("request = %s %s, want GET %s", r.Method, r.URL.Path, forkApprovalTestPath)
@@ -58,7 +82,13 @@ func TestReadForkPRContributorApproval(t *testing.T) {
 			if (err != nil) != tt.hardErr {
 				t.Fatalf("read error = %v, want hard error %t", err, tt.hardErr)
 			}
-			if tt.skip {
+			switch {
+			case tt.unavailable:
+				var skipped *ErrSetupSkipped
+				if current != nil || len(warnings) != 1 || !errors.As(warnings[0], &skipped) || skipped.Reason != SetupNotAvailable || skipped.Operation.Kind != OpFetchForkPRContributorApproval {
+					t.Fatalf("read = %+v, warnings = %v, want unavailable approval read", current, warnings)
+				}
+			case tt.skip:
 				if current != nil || len(warnings) != 1 {
 					t.Fatalf("read = %+v, warnings = %v, want unknown with one warning", current, warnings)
 				}
@@ -70,12 +100,15 @@ func TestReadForkPRContributorApproval(t *testing.T) {
 				if err != nil || len(result.Skipped) != 1 || result.Skipped[0].Operation.Kind != OpSetForkPRContributorApproval {
 					t.Fatalf("apply = %+v, %v, want approval write skip", result, err)
 				}
-			} else if !tt.hardErr {
+			case !tt.hardErr:
 				if current == nil || current.ApprovalPolicy == nil || *current.ApprovalPolicy != tt.policy || len(warnings) != 0 {
 					t.Fatalf("read = %+v, warnings = %v, want %q", current, warnings, tt.policy)
 				}
 			}
-			if calls != 1 {
+			if (tt.private || tt.metadataStatus != 0) && calls != 0 {
+				t.Fatalf("requests = %d, want no approval requests", calls)
+			}
+			if !tt.private && tt.metadataStatus == 0 && calls != 1 {
 				t.Fatalf("requests = %d, want one GET and no PUT", calls)
 			}
 		})
