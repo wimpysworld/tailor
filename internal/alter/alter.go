@@ -63,15 +63,20 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	if err != nil {
 		return fmt.Errorf("verifying GitHub authentication: %w", err)
 	}
-	target := RepoTarget{Client: client, Owner: repo.Owner, Name: repo.Name, HasRepo: hasRepo, Stderr: stderr}
+	target := RepoTarget{Client: client, Host: repo.Host, Owner: repo.Owner, Name: repo.Name, HasRepo: hasRepo, Stderr: stderr}
 	pages, err := preflightPages(cfg, dir, mode, target, prepared)
 	if err != nil {
+		return err
+	}
+	if err := preflightWikiWrites(cfg, dir, wikiDeclared, &TokenContext{GitHubUsername: username, Owner: repo.Owner, Name: repo.Name}); err != nil {
 		return err
 	}
 	wiki, err := preflightWiki(cfg, dir, mode, target, wikiDeclared)
 	if err != nil {
 		return err
 	}
+	defer wiki.writeNextSteps(stdout)
+	target.wikiEnabled = wiki.didEnable()
 
 	if configChanged && mode.ShouldWrite() {
 		todayDate := time.Now().Format("2006-01-02")
@@ -156,6 +161,17 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, swatchResults, mode))
 
 	return nil
+}
+
+func preflightWikiWrites(cfg *config.Config, dir string, declared bool, tokens *TokenContext) error {
+	if !declared || !*cfg.Repository.HasWiki {
+		return nil
+	}
+	if _, err := ProcessRetiredWorkflows(dir, DryRun); err != nil {
+		return err
+	}
+	_, err := ProcessSwatches(cfg, dir, DryRun, tokens)
+	return err
 }
 
 func prepareAlterConfig(cfg *config.Config, mode ApplyMode, stderr io.Writer) (bool, error) {

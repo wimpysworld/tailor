@@ -1,6 +1,7 @@
 package alter
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -10,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
@@ -53,11 +55,12 @@ func wikiTestWrite(t *testing.T, dir, name, content string) {
 }
 
 func TestWikiLifecycle(t *testing.T) {
+	t.Cleanup(gh.SetInspectWikiFunc(func(string, string, string) error { return nil }))
 	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			dir := t.TempDir()
 			cfg := wikiTestConfig(new(true))
-			target, reads := wikiTestTarget(t, 200, `{"private":false,"default_branch":"main"}`)
+			target, reads := wikiTestTarget(t, 200, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
 			var stderr strings.Builder
 			target.Stderr = &stderr
 			wikiTestWrite(t, dir, "wiki/Home.md", "user home\n")
@@ -66,7 +69,7 @@ func TestWikiLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if *reads != 1 || !strings.Contains(stderr.String(), "wiki/.tailor-wiki-base") {
+			if *reads != 1 || stderr.Len() != 0 {
 				t.Fatalf("reads=%d warning=%q", *reads, stderr.String())
 			}
 			_, results, err := processWiki(cfg, dir, mode, p)
@@ -173,6 +176,12 @@ func TestWikiMetadataSkips(t *testing.T) {
 			target, _ := wikiTestTarget(t, tc.status, tc.body)
 			cfg := wikiTestConfig(new(true))
 			p, err := preflightWiki(cfg, dir, Apply, target, true)
+			if tc.name != "private" {
+				if err == nil || !strings.Contains(err.Error(), "wiki readiness blocked") {
+					t.Fatalf("metadata did not block readiness: %v", err)
+				}
+				return
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -235,5 +244,42 @@ func TestWikiGenericSwatchesRemainInactive(t *testing.T) {
 	results, err := ProcessSwatches(cfg, t.TempDir(), Recut, nil)
 	if err != nil || len(results) != 0 {
 		t.Fatalf("wiki escaped conditional stage: %v %v", results, err)
+	}
+}
+
+func TestWikiPreviewGuidanceByReadinessState(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		err        error
+		want       string
+		wantImport bool
+		wantPage   bool
+	}{
+		{"empty", &gh.WikiAccessError{State: "wiki has no commits"}, "Import the wiki after you save the page", true, true},
+		{"unavailable", &gh.WikiAccessError{State: "cannot distinguish a missing wiki from denied access"}, "Resolve repository access first", false, true},
+		{"denied", &gh.WikiAccessError{State: "wiki access was denied"}, "Resolve the reported Git, authentication or network problem", false, false},
+		{"network", &gh.WikiAccessError{State: "wiki remote could not be read"}, "Resolve the reported Git, authentication or network problem", false, false},
+		{"timeout", &gh.WikiAccessError{State: "wiki inspection timed out"}, "Resolve the reported Git, authentication or network problem", false, false},
+		{"metadata", errors.New("reading wiki repository metadata: forbidden"), "Check GitHub authentication", false, false},
+		{"incomplete metadata", errors.New("repository metadata is incomplete"), "Check GitHub authentication", false, false},
+		{"missing baseline", errors.New("wiki/.tailor-wiki-base is missing"), "Import or reimport", true, false},
+		{"independent edits", errors.New("wiki remote changed outside the publisher; import it again"), "Import or reimport", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wikiURL := "https://git.example.net/another/project/wiki"
+			remoteURL := "https://git.example.net/another/project.wiki.git"
+			got := wikiPreviewGuidance(tc.err, wikiURL, remoteURL)
+			for _, want := range []string{tc.err.Error(), tc.want, "Next steps:", "Rerun tailor baste", "wait until wiki readiness passes"} {
+				if !strings.Contains(got, want) {
+					t.Errorf("guidance lacks %q: %s", want, got)
+				}
+			}
+			if strings.Contains(got, "git clone "+remoteURL) != tc.wantImport {
+				t.Errorf("import guidance mismatch: %s", got)
+			}
+			if strings.Contains(got, "create and save") != tc.wantPage || strings.Contains(got, wikiURL) != tc.wantPage {
+				t.Errorf("page guidance mismatch: %s", got)
+			}
+		})
 	}
 }

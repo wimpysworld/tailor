@@ -5,25 +5,35 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
-	"net/http"
 	"os"
 	"path"
 	"reflect"
 	"regexp"
 	"strings"
 
-	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"gopkg.in/yaml.v3"
 )
 
 type wikiRun struct {
-	enabled bool
-	content []byte
-	entry   config.SwatchEntry
-	skipped []RepoSettingResult
+	enabled       bool
+	enabledViaAPI bool
+	content       []byte
+	entry         config.SwatchEntry
+	skipped       []RepoSettingResult
+	nextSteps     string
+}
+
+func (p *wikiRun) didEnable() bool { return p != nil && p.enabledViaAPI }
+
+func (p *wikiRun) writeNextSteps(stdout io.Writer) {
+	if p != nil && p.nextSteps != "" {
+		fmt.Fprint(stdout, p.nextSteps)
+	}
 }
 
 func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTarget, declared bool) (*wikiRun, error) {
@@ -53,6 +63,33 @@ func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTa
 	if !p.enabled {
 		return p, nil
 	}
+	host := target.Host
+	if host == "" {
+		host = "github.com"
+	}
+	wikiURL := fmt.Sprintf("https://%s/%s/%s/wiki", host, target.Owner, target.Name)
+	remoteURL := fmt.Sprintf("https://%s/%s/%s.wiki.git", host, target.Owner, target.Name)
+	blocked := func(err error) (*wikiRun, error) {
+		if mode == DryRun {
+			p.nextSteps = wikiPreviewGuidance(err, wikiURL, remoteURL)
+			return p, nil
+		}
+		return nil, errors.New(wikiReadinessGuidance(err, wikiURL, remoteURL))
+	}
+	p.content, err = swatch.Content(swatch.WikiDestination)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := wikiWorkflow(root, p, mode); err != nil {
+		return nil, err
+	}
+	baseline, err := readWikiBaseline(root)
+	if err != nil {
+		if mode.ShouldWrite() {
+			return blocked(err)
+		}
+		return blocked(err)
+	}
 	skip := func(reason string) *wikiRun {
 		p.skipped = []RepoSettingResult{{Section: "wiki", Field: "publishing", Category: WouldSkipSetup, Annotation: reason}}
 		return p
@@ -62,33 +99,101 @@ func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTa
 	}
 	var repository struct {
 		Private       *bool  `json:"private"`
+		HasWiki       *bool  `json:"has_wiki"`
 		DefaultBranch string `json:"default_branch"`
 	}
 	if err := target.Client.Get(fmt.Sprintf("repos/%s/%s", target.Owner, target.Name), &repository); err != nil {
-		var httpErr *api.HTTPError
-		if errors.As(err, &httpErr) && (httpErr.StatusCode == http.StatusForbidden || httpErr.StatusCode == http.StatusNotFound) {
-			return skip("not available"), nil
-		}
-		return nil, fmt.Errorf("reading wiki repository: %w", err)
+		return blocked(fmt.Errorf("reading wiki repository metadata: %w", err))
 	}
-	if repository.Private == nil || repository.DefaultBranch == "" {
-		return skip("repository metadata unavailable"), nil
-	}
-	if *repository.Private {
+	if repository.Private != nil && *repository.Private {
 		return skip("not available for private repositories"), nil
 	}
-	p.content, err = swatch.Content(swatch.WikiDestination)
-	if err != nil {
-		return nil, err
+	if repository.Private == nil || repository.DefaultBranch == "" || repository.HasWiki == nil {
+		return blocked(errors.New("repository metadata is incomplete; check repository access and retry"))
 	}
-	_, err = wikiWorkflow(root, p, mode)
-	if err != nil {
-		return nil, err
+	if !*repository.HasWiki {
+		if mode == DryRun {
+			return blocked(errors.New("wiki is disabled; tailor alter will enable repository.has_wiki through the API before checking readiness"))
+		}
+		if err := target.Client.Patch(fmt.Sprintf("repos/%s/%s", target.Owner, target.Name), strings.NewReader(`{"has_wiki":true}`), nil); err != nil {
+			return blocked(fmt.Errorf("enabling repository.has_wiki through the API: %w", err))
+		}
+		fmt.Fprintln(target.stderr(), "set: repository.has_wiki = true (wiki readiness preflight)")
+		p.enabledViaAPI = true
 	}
-	if _, err := root.Lstat(swatch.WikiBaseline); errors.Is(err, os.ErrNotExist) {
-		fmt.Fprintln(target.stderr(), "warning: wiki: before the first publish, initialise the GitHub wiki, import its files into wiki/, and record its commit in wiki/.tailor-wiki-base")
+	if err := gh.InspectWiki(dir, remoteURL, baseline); err != nil {
+		return blocked(err)
 	}
 	return p, nil
+}
+
+func wikiReadinessGuidance(err error, wikiURL, remoteURL string) string {
+	guidance := fmt.Sprintf("wiki readiness blocked: %v", err)
+	var access *gh.WikiAccessError
+	switch {
+	case errors.As(err, &access):
+		if access.State == "wiki has no commits" {
+			guidance += fmt.Sprintf("\nOpen %s, create and save the first page, then rerun tailor alter", wikiURL)
+		} else if strings.Contains(access.State, "distinguish") {
+			guidance += fmt.Sprintf("\nOpen %s to check access. If no page exists, create and save the first page. Rerun tailor alter", wikiURL)
+		}
+	case strings.HasPrefix(err.Error(), "reading wiki repository"), strings.HasPrefix(err.Error(), "repository metadata"), strings.HasPrefix(err.Error(), "enabling repository.has_wiki"):
+		guidance += "\nCheck GitHub authentication, repository permissions and network access, then rerun tailor alter"
+	case strings.HasPrefix(err.Error(), "wiki is disabled"):
+		guidance += "\nRun tailor alter to enable the wiki and check readiness"
+	default:
+		guidance += wikiImportGuidance(remoteURL) + "\nRerun tailor alter, then review, commit and push the changes"
+	}
+	return guidance
+}
+
+func wikiImportGuidance(remoteURL string) string {
+	return fmt.Sprintf("\nBack up wiki/. Use an unused sibling directory for the clone, for example:\n  git clone %s ../tailor-wiki-import\nReview local conflicts, then copy every clone file except .git into wiki/ without discarding local work.\nFrom the project root, record the imported commit with:\n  git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base\nDo not change the baseline without importing and reviewing the files.", remoteURL)
+}
+
+func wikiPreviewGuidance(err error, wikiURL, remoteURL string) string {
+	if strings.HasPrefix(err.Error(), "wiki is disabled") {
+		return fmt.Sprintf(`
+Next steps:
+The wiki is off. Other changes will wait until it is ready.
+
+1. Run: tailor alter
+
+2. If the wiki has no pages, create and save one at:
+   %s
+
+3. If Tailor asks you to import the wiki:
+   Back up any existing wiki/ files. Clone into a new directory:
+     git clone %s ../tailor-wiki-import
+
+   Copy the files into wiki/, excluding .git. Preserve your local changes.
+   Then, from the project root, record the imported version:
+     git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base
+
+4. Run tailor baste again. When the wiki checks pass, run tailor alter.
+`, wikiURL, remoteURL)
+	}
+	guidance := fmt.Sprintf("\nNext steps:\nwiki readiness blocked: %v\n", err)
+	guidance += "Except for wiki enablement, the previewed changes wait until wiki readiness passes.\n"
+	var access *gh.WikiAccessError
+	switch {
+	case errors.As(err, &access):
+		switch {
+		case access.State == "wiki has no commits":
+			guidance += fmt.Sprintf("Open %s, then create and save the first page.\nImport the wiki after you save the page:", wikiURL)
+			guidance += wikiImportGuidance(remoteURL) + "\n"
+		case strings.Contains(access.State, "distinguish"):
+			guidance += fmt.Sprintf("Open %s to check access and whether a first page exists.\n", wikiURL)
+			guidance += "Resolve repository access first. If access works but no page exists, create and save the first page.\n"
+		default:
+			guidance += "Resolve the reported Git, authentication or network problem before retrying.\n"
+		}
+	case strings.HasPrefix(err.Error(), "reading wiki repository"), strings.HasPrefix(err.Error(), "repository metadata"), strings.HasPrefix(err.Error(), "enabling repository.has_wiki"):
+		guidance += "Check GitHub authentication, repository permissions and network access.\n"
+	default:
+		guidance += "Import or reimport the wiki after you review the reported blocker:" + wikiImportGuidance(remoteURL) + "\n"
+	}
+	return guidance + "Rerun tailor baste to check readiness before tailor alter applies the remaining changes.\n"
 }
 
 var wikiCommit = regexp.MustCompile(`^[0-9a-f]{40}$`)
@@ -125,24 +230,28 @@ func checkWikiSource(root *os.Root) error {
 	}); err != nil {
 		return fmt.Errorf("checking wiki source: %w", err)
 	}
-	info, err = root.Lstat(swatch.WikiBaseline)
+	return nil
+}
+
+func readWikiBaseline(root *os.Root) (string, error) {
+	info, err := root.Lstat(swatch.WikiBaseline)
 	if errors.Is(err, os.ErrNotExist) {
-		return nil
+		return "", nil
 	}
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !info.Mode().IsRegular() || info.Size() > 128 {
-		return fmt.Errorf("wiki/.tailor-wiki-base must contain one full 40-character commit ID")
+		return "", fmt.Errorf("wiki/.tailor-wiki-base must contain one full 40-character commit ID")
 	}
 	baseline, err := root.ReadFile(swatch.WikiBaseline)
 	if err != nil {
-		return err
+		return "", err
 	}
 	if !wikiCommit.Match(bytes.TrimSpace(baseline)) {
-		return fmt.Errorf("wiki/.tailor-wiki-base must contain one full 40-character commit ID")
+		return "", fmt.Errorf("wiki/.tailor-wiki-base must contain one full 40-character commit ID")
 	}
-	return nil
+	return strings.TrimSpace(string(baseline)), nil
 }
 
 func wikiWorkflow(root *os.Root, p *wikiRun, mode ApplyMode) (*SwatchResult, error) {

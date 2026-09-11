@@ -340,7 +340,7 @@ Generated configs expose all six security settings, three Boolean and three stri
 
 GitHub labels `can_approve_pull_request_reviews` as “Allow GitHub Actions to create and approve pull requests”. Tailor keeps the REST API field name because repository config keys match the API. Enabling the setting permits the repository `GITHUB_TOKEN` to create pull requests and submit approval reviews when the workflow has `pull-requests: write`. The setting does not permit merges, bypass branch rules, or affect personal access tokens or separate GitHub App tokens.
 
-GitHub requires vulnerability alerts before automated security fixes. When automated fixes are enabled and alerts are absent or false, Tailor sets `vulnerability_alerts_enabled` to `true` and shows a warning. `alter` and `alter --recut` save the corrected `.tailor.yml` before repository API calls. `baste` previews the config update without writing. Tailor enables alerts first and disables automated fixes before alerts. If a prerequisite read is unknown, or its write fails or is skipped, Tailor skips the dependent write. A security `404` stays unknown unless Tailor can distinguish a disabled feature from denied access. Access failures produce warnings. Other API failures stop the command.
+GitHub requires vulnerability alerts before automated security fixes. When automated fixes are enabled and alerts are absent or false, Tailor sets `vulnerability_alerts_enabled` to `true` and shows a warning. `alter` and `alter --recut` save the corrected `.tailor.yml` before security API changes. `baste` previews the config update without writing. Tailor enables alerts first and disables automated fixes before alerts. If a prerequisite read is unknown, or its write fails or is skipped, Tailor skips the dependent write. A security `404` stays unknown unless Tailor can distinguish a disabled feature from denied access. Access failures produce warnings. Other API failures stop the command.
 
 Push protection requires secret scanning. When `secret_scanning_push_protection` is `enabled` and `secret_scanning` is absent or `disabled`, Tailor sets `secret_scanning` to `enabled` and shows a warning. The write path matches the automated security fixes prerequisite. Tailor sends only the declared `security_and_analysis` keys, so other keys keep the value set in the GitHub UI. When the token lacks admin access, GitHub omits the `security_and_analysis` block, and Tailor leaves all three values unknown with an access warning.
 
@@ -598,19 +598,32 @@ Tailor keeps the label `License` and builds `?tab=<license>-1-ov-file` from the 
 
 ## GitHub wiki
 
-Set `repository.has_wiki: true`, then run `tailor alter` to add wiki starter pages and `.github/workflows/tailor-wiki.yml`. Wiki publishing supports public repositories only. The source directory is `wiki/`, independent of Pages and `pages/`. Existing-project `fit` preserves the live `has_wiki` setting. New configs default to `false`.
+Set `repository.has_wiki: true`, then run `tailor alter`. Tailor checks local safety, enables the wiki through GitHub's API if needed, and checks readiness before other changes. Wiki publishing supports public repositories only. The source directory is `wiki/`, independent of Pages and `pages/`. Existing-project `fit` preserves the live `has_wiki` setting. New configs default to `false`.
 
 Tailor preserves existing wiki starter pages, including under `alter --recut`. The generated workflow publishes the `wiki/` directory when its files or the workflow change on the default branch. You can also run it manually. An unmarked workflow at the same destination blocks setup before writes.
 
-Before the first publication:
+If setup is incomplete, `alter` exits with an error and the next steps. The wiki can remain enabled, but Tailor writes no config, swatches or other repository settings. The local CLI does not import files, push Git commits or change wiki history. Complete setup as follows:
 
-1. If the GitHub wiki has no pages, create its first page through the repository's Wiki tab.
-2. Clone `https://github.com/OWNER/REPO.wiki.git` into a separate directory.
-3. Import all wiki files into `wiki/`, except `.git`. Review conflicts with existing local files.
-4. Record the imported wiki commit's full ID in `wiki/.tailor-wiki-base` using `git rev-parse HEAD` in that clone.
-5. Commit the imported files, baseline and workflow, then push to the default branch.
+1. If Tailor reports a missing wiki, open `https://github.com/OWNER/REPO/wiki` and create and save the first page.
+2. Rerun `tailor alter` to check the wiki and receive import instructions.
+3. Clone `https://github.com/OWNER/REPO.wiki.git` into a separate directory.
+4. Review conflicts with local files. Manually import all wiki files into `wiki/`, except `.git`.
+5. After the import, record the clone's `git rev-parse HEAD` output in `wiki/.tailor-wiki-base`.
+6. Run `tailor baste` to check adoption and preview the remaining changes.
+7. After readiness passes, run `tailor alter` to apply the remaining changes, including the workflow and any missing starter pages.
+8. Review and commit the imported files, baseline and workflow, then push to the default branch.
 
-The baseline records explicit adoption of the imported wiki. Without it, the first publication refuses to write. After adoption, the source directory controls the published tree, including deletions. The publisher preserves wiki history and never force-pushes. Independent edits through the Wiki tab stop publication. Import those edits and update the baseline before publishing again. Missing wikis, unknown access and concurrent changes stop publication without replacing content.
+The baseline is the imported commit's full 40-character lowercase hexadecimal ID. It records explicit adoption of the imported wiki. A missing or stale baseline blocks initial setup. Every remote file must exist locally, so a baseline alone does not complete adoption. Independent edits through the Wiki tab also block readiness. Import those edits and update the baseline before another `tailor alter` run.
+
+If Tailor cannot read the remote wiki, it reports an access or network error without assuming that the wiki is missing. Follow first-page guidance only if the wiki has no saved page. Otherwise, fix access and rerun `tailor alter`.
+
+Run `tailor baste` for a full preview without writes. If wiki readiness is blocked, a `Next steps:` section follows the complete preview. Changes labelled `would copy` and other pending changes wait until readiness passes.
+
+For a disabled wiki, the steps start with `tailor alter` to enable it through GitHub's API. The steps also give the repository's exact `/wiki` URL and conditional first-page and manual import instructions. A disabled wiki does not prove that its pages are missing. Confirmed access or network failures instead give check-and-retry steps, without page creation or import instructions.
+
+A successful readiness check does not prove that publication succeeded. Check the generated workflow run after the push.
+
+After adoption, the source directory controls the published tree, including deletions. The publisher preserves wiki history and never force-pushes. Missing wikis, unknown access and concurrent changes stop publication without replacing content.
 
 The workflow uses GitHub's built-in `GITHUB_TOKEN` with `contents: write`. Token support is verified against upstream implementation evidence, not a live Tailor publication. Tailor does not create a personal access token or configure a secret.
 
@@ -672,6 +685,8 @@ When a GitHub remote exists, `fit` queries the live repository configuration for
 ### `alter`
 
 Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, licence, and swatches in that order.
+
+Wiki setup has one earlier write: after local safety checks, Tailor enables a declared wiki before its readiness check. If readiness fails, no other changes follow. See [GitHub wiki](#github-wiki) for setup steps.
 
 ```bash
 tailor alter            # Apply changes

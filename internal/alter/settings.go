@@ -56,6 +56,9 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 	if err != nil {
 		return nil, err
 	}
+	if target.wikiEnabled {
+		live.HasWiki = new(true)
+	}
 
 	if cfg.Repository.AutomatedSecurityFixesEnabled != nil &&
 		*cfg.Repository.AutomatedSecurityFixesEnabled &&

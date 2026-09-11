@@ -63,11 +63,15 @@ tailor/
 - Swatches are embedded at build time via `//go:embed swatches/*`
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
-- Run `alter` stages in this order: config migration and update, retired workflow cleanup, repository settings, then immutable releases. Continue with Actions policy, code scanning, Code Quality, ruleset, labels, variables, Pages, wiki, licence, then swatches.
+- After wiki readiness passes, write config updates, remove retired workflows, apply repository settings, then immutable releases. Continue with Actions policy, code scanning, Code Quality, ruleset, labels, variables, Pages, wiki, licence, then swatches.
 - Run Pages preflight before config or remote writes. Apply additive Pages ignore rules after swatches.
-- Run wiki preflight before writes. Activate the four wiki swatches only for declared `repository.has_wiki: true` on public repositories.
+- Validate config and complete local wiki safety preflight before writes. Activate the four wiki swatches only for declared `repository.has_wiki: true` on public repositories.
+- For a declared public wiki, enable a disabled wiki with an early PATCH containing only `has_wiki: true`. Stop `alter` on readiness blockers before all remaining writes. Report confirmed enablement even when readiness fails.
+- Keep wiki readiness checks read-only through isolated Git reads. Never import files automatically or change remote wiki history. Distinguish access and network failures from a confirmed empty wiki. Direct first-page creation to the repository's exact `/wiki` URL.
+- Require imported `wiki/.tailor-wiki-base` adoption, or a valid publisher trailer with matching remote tree and source ancestry. Require reviewed reimport after independent remote edits. See `docs/SPECIFICATION.md` for the readiness checks.
+- Keep `baste` free of writes. Report wiki readiness blockers and continue the full preview without failing solely for those blockers.
 - Preserve existing wiki starter pages, including recut. Explicit `has_wiki: false` removes only the marked wiki workflow and preserves source files.
-- Keep wiki publishing independent of Pages. Require imported `wiki/.tailor-wiki-base` adoption before the first publication, and reject independent remote edits.
+- Keep wiki publishing independent of Pages.
 - Before strict path and mode validation, prune `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml` from config
 - Accept legacy `triggered` only for these retired entries during migration
 - Always check both fixed retired paths, regardless of config or mode
