@@ -11,11 +11,13 @@ import (
 // on: the API client, the owner and name, and whether a repository context
 // exists.
 type RepoTarget struct {
-	Client  *api.RESTClient
-	Owner   string
-	Name    string
-	HasRepo bool
-	Stderr  io.Writer
+	Client      *api.RESTClient
+	Host        string
+	wikiEnabled bool
+	Owner       string
+	Name        string
+	HasRepo     bool
+	Stderr      io.Writer
 }
 
 func (t RepoTarget) stderr() io.Writer {

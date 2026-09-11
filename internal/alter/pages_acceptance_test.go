@@ -69,7 +69,7 @@ func newPagesAcceptanceAPI(t *testing.T) (*pagesAcceptanceAPI, *api.RESTClient) 
 			fmt.Fprint(w, `{"login":"testuser"}`)
 		case repo:
 			w.Header().Set("X-OAuth-Scopes", "repo")
-			_ = json.NewEncoder(w).Encode(map[string]any{"private": false, "default_branch": s.branch, "homepage": s.homepage, "description": "old", "permissions": map[string]bool{"admin": true}})
+			_ = json.NewEncoder(w).Encode(map[string]any{"private": false, "has_wiki": false, "default_branch": s.branch, "homepage": s.homepage, "description": "old", "permissions": map[string]bool{"admin": true}})
 		case repo + "/pages":
 			if !s.exists {
 				w.WriteHeader(http.StatusNotFound)

@@ -4,7 +4,7 @@ license: BlueOak-1.0.0
 repository:
   description: "Ready-to-wear project templates for GitHub repositories 👔"
   homepage: https://wimpysworld.github.io/tailor/
-  has_wiki: false
+  has_wiki: true
   has_discussions: false
   has_projects: false
   has_issues: true
