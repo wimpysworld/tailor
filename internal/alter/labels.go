@@ -27,6 +27,7 @@ type LabelResult struct {
 	Name       string
 	Category   LabelCategory
 	Value      string
+	Before     string
 	Annotation string
 	Operation  gh.Operation
 }
@@ -94,6 +95,10 @@ func compareLabels(desired, current []model.LabelEntry) []LabelResult {
 		display := formatLabelValue(d)
 
 		category := LabelNoChange
+		before := ""
+		if found {
+			before = formatLabelValue(existing)
+		}
 		switch {
 		case !found:
 			category = WouldCreate
@@ -104,6 +109,7 @@ func compareLabels(desired, current []model.LabelEntry) []LabelResult {
 			Name:     d.Name,
 			Category: category,
 			Value:    display,
+			Before:   before,
 		})
 	}
 

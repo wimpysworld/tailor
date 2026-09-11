@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"io"
 	"io/fs"
 	"os"
 	"path"
@@ -29,12 +28,6 @@ type wikiRun struct {
 }
 
 func (p *wikiRun) didEnable() bool { return p != nil && p.enabledViaAPI }
-
-func (p *wikiRun) writeNextSteps(stdout io.Writer) {
-	if p != nil && p.nextSteps != "" {
-		fmt.Fprint(stdout, p.nextSteps)
-	}
-}
 
 func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTarget, declared bool) (*wikiRun, error) {
 	if !declared || cfg.Repository == nil || cfg.Repository.HasWiki == nil {

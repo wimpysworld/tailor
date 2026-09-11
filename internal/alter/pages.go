@@ -6,6 +6,7 @@ import (
 	"os"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/wimpysworld/tailor/internal/config"
@@ -170,13 +171,17 @@ func processPages(cfg *config.Config, dir string, mode ApplyMode, target RepoTar
 
 func comparePages(cfg *config.Config, p *pagesRun) []RepoSettingResult {
 	c := resultComparer{section: "pages"}
-	c.add("environment", "github-pages", !p.environment.Missing)
-	c.add("branch", p.prepared.Branch, !p.environment.AddBranch)
-	c.add("build_type", "workflow", p.site.Exists && p.site.BuildType == "workflow")
-	if cfg.Pages.CNAME != nil {
-		c.add("cname", *cfg.Pages.CNAME, *cfg.Pages.CNAME == p.site.CNAME)
+	environmentBefore := ""
+	if !p.environment.Missing {
+		environmentBefore = "github-pages"
 	}
-	c.add("https_enforced", "true", p.site.HTTPSEnforced && (cfg.Pages.CNAME == nil || *cfg.Pages.CNAME == p.site.CNAME))
+	c.add("environment", "github-pages", environmentBefore, !p.environment.Missing)
+	c.add("branch", p.prepared.Branch, p.environment.Branch, !p.environment.AddBranch)
+	c.add("build_type", "workflow", p.site.BuildType, p.site.Exists && p.site.BuildType == "workflow")
+	if cfg.Pages.CNAME != nil {
+		c.add("cname", *cfg.Pages.CNAME, p.site.CNAME, *cfg.Pages.CNAME == p.site.CNAME)
+	}
+	c.add("https_enforced", "true", strconv.FormatBool(p.site.HTTPSEnforced), p.site.HTTPSEnforced && (cfg.Pages.CNAME == nil || *cfg.Pages.CNAME == p.site.CNAME))
 	return c.results
 }
 

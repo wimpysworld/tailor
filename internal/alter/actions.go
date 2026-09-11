@@ -261,9 +261,52 @@ func compareActions(declared, live *model.ActionsSettings) []RepoSettingResult {
 		if equal {
 			category = RepoNoChange
 		}
-		results = append(results, RepoSettingResult{Section: "actions", Field: spec.name, Category: category, Value: display})
+		results = append(results, RepoSettingResult{Section: "actions", Field: spec.name, Category: category, Value: display, Before: actionsLiveValue(spec.name, live)})
 	}
 	return results
+}
+
+func actionsLiveValue(name string, live *model.ActionsSettings) string {
+	switch name {
+	case "fork_pr_contributor_approval.approval_policy":
+		if live.ForkPRContributorApproval != nil && live.ForkPRContributorApproval.ApprovalPolicy != nil {
+			return *live.ForkPRContributorApproval.ApprovalPolicy
+		}
+	case "artifact_and_log_retention.days":
+		if live.ArtifactAndLogRetention != nil && live.ArtifactAndLogRetention.Days != nil {
+			return fmt.Sprint(*live.ArtifactAndLogRetention.Days)
+		}
+	case "enabled":
+		if live.Enabled != nil {
+			return fmt.Sprint(*live.Enabled)
+		}
+	case "allowed_actions":
+		if live.AllowedActions != nil {
+			return *live.AllowedActions
+		}
+	case "sha_pinning_required":
+		if live.SHAPinningRequired != nil {
+			return fmt.Sprint(*live.SHAPinningRequired)
+		}
+	case "github_owned_allowed":
+		if live.GitHubOwnedAllowed != nil {
+			return fmt.Sprint(*live.GitHubOwnedAllowed)
+		}
+	case "verified_allowed":
+		if live.VerifiedAllowed != nil {
+			return fmt.Sprint(*live.VerifiedAllowed)
+		}
+	case "patterns_allowed":
+		if live.PatternsAllowed != nil {
+			patterns := slices.Clone(*live.PatternsAllowed)
+			slices.Sort(patterns)
+			if len(patterns) == 0 {
+				return "[]"
+			}
+			return strings.Join(patterns, ", ")
+		}
+	}
+	return ""
 }
 
 func suppressActionsReadWarnings(results []RepoSettingResult, warnings []error, declared, live *model.ActionsSettings) []RepoSettingResult {
