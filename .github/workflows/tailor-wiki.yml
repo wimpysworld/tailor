@@ -30,16 +30,21 @@ jobs:
       - name: Publish wiki
         env:
           WIKI_TOKEN: ${{ github.token }}
-          WIKI_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
         shell: bash
         run: |
           python3 - <<'PY'
+          import json
           import os
           from pathlib import Path
           import re
           import stat
           import subprocess
           import tempfile
+          import urllib.request
+
+          class NoRedirect(urllib.request.HTTPRedirectHandler):
+              def redirect_request(self, request, response, code, message, headers, url):
+                  return None
 
           def stop(message):
               raise SystemExit(message)
@@ -52,6 +57,30 @@ jobs:
               if result.returncode:
                   stop("wiki publication stopped: Git operation failed (" + args[0] + ")")
               return result.stdout
+
+          def check_repository(environment):
+              try:
+                  request = urllib.request.Request(
+                      os.environ["GITHUB_API_URL"].rstrip("/") + "/repos/" + os.environ["GITHUB_REPOSITORY"],
+                      headers={"Authorization": "Bearer " + os.environ["WIKI_TOKEN"], "Accept": "application/vnd.github+json"},
+                  )
+                  with urllib.request.build_opener(NoRedirect).open(request, timeout=30) as response:
+                      metadata = json.load(response)
+              except (OSError, ValueError, KeyError):
+                  stop("wiki publication stopped: current repository metadata is unavailable")
+              if not isinstance(metadata, dict):
+                  stop("wiki publication stopped: current repository metadata is incomplete")
+              if metadata.get("has_wiki") is not True or metadata.get("private") is not False or metadata.get("visibility") != "public":
+                  stop("wiki publication stopped: repository must currently be public with its wiki enabled")
+              branch = metadata.get("default_branch")
+              if not isinstance(branch, str) or not branch:
+                  stop("wiki publication stopped: current default branch is unavailable")
+              git(source, "check-ref-format", "refs/heads/" + branch)
+              if os.environ.get("GITHUB_REF") != "refs/heads/" + branch:
+                  stop("wiki publication stopped: source ref is not the current default branch")
+              git(source, "fetch", "--no-tags", "origin", "refs/heads/" + branch, env=environment)
+              if git(source, "rev-parse", "FETCH_HEAD").decode().strip() != source_sha:
+                  stop("wiki publication stopped: source commit is no longer the default branch tip")
 
           source = Path.cwd()
           wiki = source / "wiki"
@@ -94,11 +123,7 @@ jobs:
               )
               askpass.chmod(0o700)
               environment = dict(os.environ, GIT_ASKPASS=str(askpass), GIT_TERMINAL_PROMPT="0")
-              branch = os.environ["WIKI_DEFAULT_BRANCH"]
-              git(source, "check-ref-format", "refs/heads/" + branch)
-              git(source, "fetch", "--no-tags", "origin", "refs/heads/" + branch, env=environment)
-              if git(source, "rev-parse", "FETCH_HEAD").decode().strip() != source_sha:
-                  stop("wiki publication stopped: source commit is no longer the default branch tip")
+              check_repository(environment)
 
               remote_url = os.environ["GITHUB_SERVER_URL"].rstrip("/") + "/" + os.environ["GITHUB_REPOSITORY"] + ".wiki.git"
               remote = temporary / "wiki.git"
@@ -164,6 +189,7 @@ jobs:
               )
               message = "Update wiki\n\nTailor-Wiki-Source: " + source_sha
               published = git(remote, "commit-tree", desired_tree, "-p", remote_sha, "-m", message, env=commit_env).decode().strip()
+              check_repository(environment)
               git(remote, "push", "origin", published + ":" + remote_ref, env=environment)
               print("wiki published")
           PY
