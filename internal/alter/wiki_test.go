@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -177,7 +178,7 @@ func TestWikiMetadataSkips(t *testing.T) {
 			cfg := wikiTestConfig(new(true))
 			p, err := preflightWiki(cfg, dir, Apply, target, true)
 			if tc.name != "private" {
-				if err == nil || !strings.Contains(err.Error(), "wiki readiness blocked") {
+				if err == nil || !strings.Contains(err.Error(), "wiki is not ready") {
 					t.Fatalf("metadata did not block readiness: %v", err)
 				}
 				return
@@ -247,7 +248,7 @@ func TestWikiGenericSwatchesRemainInactive(t *testing.T) {
 	}
 }
 
-func TestWikiPreviewGuidanceByReadinessState(t *testing.T) {
+func TestWikiGuidanceByReadinessState(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		err        error
@@ -255,21 +256,31 @@ func TestWikiPreviewGuidanceByReadinessState(t *testing.T) {
 		wantImport bool
 		wantPage   bool
 	}{
-		{"empty", &gh.WikiAccessError{State: "wiki has no commits"}, "Import the wiki after you save the page", true, true},
-		{"unavailable", &gh.WikiAccessError{State: "cannot distinguish a missing wiki from denied access"}, "Resolve repository access first", false, true},
-		{"denied", &gh.WikiAccessError{State: "wiki access was denied"}, "Resolve the reported Git, authentication or network problem", false, false},
-		{"network", &gh.WikiAccessError{State: "wiki remote could not be read"}, "Resolve the reported Git, authentication or network problem", false, false},
-		{"timeout", &gh.WikiAccessError{State: "wiki inspection timed out"}, "Resolve the reported Git, authentication or network problem", false, false},
+		{"empty", &gh.WikiAccessError{State: "wiki has no commits"}, "Import the wiki:", true, true},
+		{"unavailable", &gh.WikiAccessError{State: "cannot distinguish a missing wiki from denied access"}, "If you cannot open the wiki, check your access.", false, true},
+		{"denied", &gh.WikiAccessError{State: "wiki access was denied"}, "Check your repository access.", false, false},
+		{"network", &gh.WikiAccessError{State: "wiki remote could not be read"}, "Check your network connection", false, false},
+		{"timeout", &gh.WikiAccessError{State: "wiki inspection timed out"}, "Check your network connection", false, false},
+		{"git missing", &gh.WikiAccessError{State: "git could not start"}, "Check that Git is installed", false, false},
 		{"metadata", errors.New("reading wiki repository metadata: forbidden"), "Check GitHub authentication", false, false},
 		{"incomplete metadata", errors.New("repository metadata is incomplete"), "Check GitHub authentication", false, false},
-		{"missing baseline", errors.New("wiki/.tailor-wiki-base is missing"), "Import or reimport", true, false},
-		{"independent edits", errors.New("wiki remote changed outside the publisher; import it again"), "Import or reimport", true, false},
+		{"enablement failed", errors.New("enabling repository.has_wiki through the API: forbidden"), "Check GitHub authentication", false, false},
+		{"missing baseline", errors.New("wiki/.tailor-wiki-base is missing"), "1. Import the wiki:", true, false},
+		{"invalid baseline", errors.New("wiki/.tailor-wiki-base must contain one full 40-character commit ID"), "full 40-character ID of the imported wiki version", true, false},
+		{"incomplete import", errors.New("wiki import is incomplete: \"Guide.md\" is missing from wiki/; import every remote file before adoption"), "\"Guide.md\" is missing from wiki/", true, false},
+		{"unsafe file", errors.New("wiki contains an unsafe file; review remote files before adoption"), "Review the wiki files before importing them", true, false},
+		{"missing history", errors.New("wiki published source is not in local HEAD history; fetch the source history and use the current project branch, or review and reimport the wiki"), "Fetch the project history and switch to the current project branch", true, false},
+		{"missing source tree", errors.New("wiki published source tree is unavailable; fetch the source history or review and reimport the wiki"), "If the history is still unavailable, review and import the wiki again", true, false},
+		{"independent edits", errors.New("wiki remote changed outside the publisher; import it again"), "Review the wiki files, then import the wiki again", true, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			wikiURL := "https://git.example.net/another/project/wiki"
 			remoteURL := "https://git.example.net/another/project.wiki.git"
-			got := wikiPreviewGuidance(tc.err, wikiURL, remoteURL)
-			for _, want := range []string{tc.err.Error(), tc.want, "Next steps:", "Rerun tailor baste", "wait until wiki readiness passes"} {
+			got := wikiPreviewGuidance(tc.err, wikiURL, remoteURL, false)
+			if applied := wikiReadinessGuidance(tc.err, wikiURL, remoteURL, false); applied != "wiki is not ready\n"+strings.TrimSuffix(got, "\n") {
+				t.Fatalf("alter and baste guidance differ: %s", applied)
+			}
+			for _, want := range []string{tc.want, "Next steps:", wikiRecheckGuidance, "Other changes will wait until it is ready."} {
 				if !strings.Contains(got, want) {
 					t.Errorf("guidance lacks %q: %s", want, got)
 				}
@@ -277,9 +288,167 @@ func TestWikiPreviewGuidanceByReadinessState(t *testing.T) {
 			if strings.Contains(got, "git clone "+remoteURL) != tc.wantImport {
 				t.Errorf("import guidance mismatch: %s", got)
 			}
-			if strings.Contains(got, "create and save") != tc.wantPage || strings.Contains(got, wikiURL) != tc.wantPage {
+			if strings.Contains(strings.ToLower(got), "create and save") != tc.wantPage || strings.Contains(got, wikiURL) != tc.wantPage {
 				t.Errorf("page guidance mismatch: %s", got)
 			}
+			for _, jargon := range []string{"readiness", "preflight", "adoption", "remote HEAD", "publisher"} {
+				if strings.Contains(got, jargon) {
+					t.Errorf("guidance contains %q: %s", jargon, got)
+				}
+			}
 		})
+	}
+}
+
+func TestWikiUnavailableGuidance(t *testing.T) {
+	err := &gh.WikiAccessError{State: "wiki remote is unavailable; it is not possible to distinguish a missing wiki from denied access"}
+	got := wikiReadinessGuidance(err, "https://github.com/owner/repo/wiki", "https://github.com/owner/repo.wiki.git", false)
+	want := `wiki is not ready
+
+Next steps:
+Tailor could not open the wiki. Other changes will wait until it is ready.
+
+1. Open https://github.com/owner/repo/wiki
+   If the wiki has no pages, create and save one.
+   If you cannot open the wiki, check your access.
+
+2. Run tailor baste again. When the wiki checks pass, run tailor alter.`
+	if got != want {
+		t.Fatalf("guidance=%s, want %s", got, want)
+	}
+}
+
+func TestWikiImportCopyCommands(t *testing.T) {
+	if _, err := exec.LookPath("rsync"); err != nil {
+		t.Skipf("copy guidance requires rsync: %v", err)
+	}
+	for _, existing := range []bool{false, true} {
+		t.Run(fmt.Sprintf("existing=%t", existing), func(t *testing.T) {
+			guidance := wikiImportGuidance("https://github.com/owner/repo.wiki.git", existing)
+			for _, forbidden := range []string{"&&", ";", "|", "$", "if [", "mkdir", "mktemp", "printf", "cp -a"} {
+				if strings.Contains(guidance, forbidden) {
+					t.Fatalf("guidance contains %q: %s", forbidden, guidance)
+				}
+			}
+			root := t.TempDir()
+			project := filepath.Join(root, "project")
+			if err := os.Mkdir(project, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			write := func(name, content string) {
+				t.Helper()
+				filename := filepath.Join(root, name)
+				if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for name, content := range map[string]string{
+				"Home.md": "remote", ".hidden": "hidden", "nested/Guide.md": "guide", ".git/config": "metadata",
+			} {
+				write("tailor-wiki-import/"+name, content)
+			}
+			if existing {
+				write("project/wiki/Home.md", "local!")
+				write("project/wiki/Local.md", "local only")
+				write("project/wiki/.tailor-wiki-base", "old baseline")
+				remoteInfo, err := os.Stat(filepath.Join(root, "tailor-wiki-import/Home.md"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Chtimes(filepath.Join(project, "wiki/Home.md"), remoteInfo.ModTime(), remoteInfo.ModTime()); err != nil {
+					t.Fatal(err)
+				}
+			}
+			var comparison string
+			commands := 0
+			for line := range strings.SplitSeq(guidance, "\n") {
+				if !strings.HasPrefix(line, "     ") {
+					continue
+				}
+				commands++
+				args := strings.Fields(line)
+				if args[0] != "rsync" {
+					continue
+				}
+				cmd := exec.CommandContext(t.Context(), "rsync", args[1:]...) // #nosec G204 -- Arguments come from fixed guidance with a literal test URL.
+				cmd.Dir = project
+				output, err := cmd.CombinedOutput()
+				if err != nil {
+					t.Fatalf("command failed: %v\n%s", err, output)
+				}
+				if args[1] == "-naci" {
+					comparison = string(output)
+				}
+			}
+			wantCommands := 3
+			if existing {
+				wantCommands = 4
+			}
+			if commands != wantCommands {
+				t.Fatalf("command count = %d, want %d", commands, wantCommands)
+			}
+			check := func(name, want string) {
+				t.Helper()
+				got, err := os.ReadFile(filepath.Join(root, name))
+				if err != nil || string(got) != want {
+					t.Fatalf("%s = %q, %v; want %q", name, got, err, want)
+				}
+			}
+			if existing {
+				check("project/wiki/Home.md", "local!")
+				if !strings.Contains(comparison, "Home.md") || strings.Contains(comparison, "Guide.md") {
+					t.Fatalf("comparison did not isolate remaining conflicts: %s", comparison)
+				}
+			} else {
+				check("project/wiki/Home.md", "remote")
+			}
+			check("project/wiki/.hidden", "hidden")
+			check("project/wiki/nested/Guide.md", "guide")
+			if _, err := os.Stat(filepath.Join(project, "wiki/.git")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("copy included .git: %v", err)
+			}
+			if existing {
+				check("project/wiki/Local.md", "local only")
+				check("project/wiki/.tailor-wiki-base", "old baseline")
+			} else if _, err := os.Stat(filepath.Join(project, "wiki/.tailor-wiki-base")); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("copy recorded the baseline before review: %v", err)
+			}
+		})
+	}
+}
+
+func TestWikiImportGuidanceUsesLocalSourceState(t *testing.T) {
+	t.Cleanup(gh.SetInspectWikiFunc(func(string, string, string) error {
+		return errors.New("wiki/.tailor-wiki-base is missing")
+	}))
+	for _, existing := range []bool{false, true} {
+		for _, mode := range []ApplyMode{DryRun, Apply} {
+			t.Run(fmt.Sprintf("existing=%t/mode=%d", existing, mode), func(t *testing.T) {
+				dir := t.TempDir()
+				if existing {
+					wikiTestWrite(t, dir, "wiki/Home.md", "local page")
+				}
+				target, _ := wikiTestTarget(t, 200, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
+				result, err := preflightWiki(wikiTestConfig(new(true)), dir, mode, target, true)
+				var guidance string
+				if mode == DryRun {
+					if err != nil {
+						t.Fatal(err)
+					}
+					guidance = result.nextSteps
+				} else {
+					if err == nil {
+						t.Fatal("expected missing baseline error")
+					}
+					guidance = err.Error()
+				}
+				if strings.Contains(guidance, "--ignore-existing") != existing {
+					t.Fatalf("wrong guidance for existing=%t: %s", existing, guidance)
+				}
+			})
+		}
 	}
 }
