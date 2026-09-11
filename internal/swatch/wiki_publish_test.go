@@ -1,11 +1,15 @@
 package swatch_test
 
 import (
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -84,6 +88,7 @@ type wikiPublisherFixture struct {
 	baseline     string
 	env          []string
 	script       string
+	metadata     func(int) (int, string)
 }
 
 func newWikiPublisherFixture(t *testing.T) *wikiPublisherFixture {
@@ -172,6 +177,24 @@ func (f *wikiPublisherFixture) commit() {
 
 func (f *wikiPublisherFixture) publish(sha string, extraEnv ...string) (string, error) {
 	f.t.Helper()
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet || r.URL.Path != "/repos/project" || r.Header.Get("Authorization") != "Bearer not-a-real-token" {
+			f.t.Error("unexpected repository metadata request")
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		status, body := http.StatusOK, `{"has_wiki":true,"private":false,"visibility":"public","default_branch":"main"}`
+		if f.metadata != nil {
+			status, body = f.metadata(int(requests.Add(1)))
+		}
+		if status == http.StatusFound {
+			w.Header().Set("Location", "/redirect")
+		}
+		w.WriteHeader(status)
+		_, _ = io.WriteString(w, body)
+	}))
+	defer server.Close()
 	if sha == "" {
 		sha = f.git(f.source, "rev-parse", "HEAD")
 	}
@@ -180,7 +203,8 @@ func (f *wikiPublisherFixture) publish(sha string, extraEnv ...string) (string, 
 	command.Dir = f.source
 	command.Env = append(append([]string{}, f.env...),
 		"GITHUB_SHA="+sha, "GITHUB_SERVER_URL=file://"+f.root,
-		"GITHUB_REPOSITORY=project", "WIKI_DEFAULT_BRANCH=main", "WIKI_TOKEN=not-a-real-token")
+		"GITHUB_REPOSITORY=project", "GITHUB_API_URL="+server.URL,
+		"GITHUB_REF=refs/heads/main", "WIKI_TOKEN=not-a-real-token")
 	command.Env = append(command.Env, extraEnv...)
 	output, err := command.CombinedOutput()
 	if strings.Contains(string(output), "not-a-real-token") {
@@ -231,6 +255,109 @@ func TestWikiPublisherAdoptionAndUpdates(t *testing.T) {
 	}
 	if parent := f.git(f.remote, "rev-parse", "HEAD^"); parent != first {
 		t.Fatal("update discarded the prior publisher commit")
+	}
+}
+
+func TestWikiPublisherRefusesCurrentRepositoryChanges(t *testing.T) {
+	for _, check := range []int{1, 2} {
+		for _, tc := range []struct {
+			name   string
+			status int
+			body   string
+		}{
+			{"disabled wiki", 200, `{"has_wiki":false,"private":false,"visibility":"public","default_branch":"main"}`},
+			{"private repository", 200, `{"has_wiki":true,"private":true,"visibility":"private","default_branch":"main"}`},
+			{"changed default branch", 200, `{"has_wiki":true,"private":false,"visibility":"public","default_branch":"next"}`},
+			{"HTTP error", 403, `not-a-real-token`},
+			{"HTTP redirect", 302, `not-a-real-token`},
+			{"invalid JSON", 200, `not-a-real-token`},
+			{"missing metadata", 200, `{}`},
+			{"null metadata", 200, `null`},
+			{"missing wiki setting", 200, `{"private":false,"visibility":"public","default_branch":"main"}`},
+			{"missing privacy", 200, `{"has_wiki":true,"visibility":"public","default_branch":"main"}`},
+			{"missing visibility", 200, `{"has_wiki":true,"private":false,"default_branch":"main"}`},
+			{"missing default branch", 200, `{"has_wiki":true,"private":false,"visibility":"public"}`},
+			{"empty default branch", 200, `{"has_wiki":true,"private":false,"visibility":"public","default_branch":""}`},
+		} {
+			phase := map[int]string{1: "initial check", 2: "before push"}[check]
+			t.Run(phase+"/"+tc.name, func(t *testing.T) {
+				f := newWikiPublisherFixture(t)
+				f.git(filepath.Join(f.root, "project.git"), "branch", "next", "main")
+				f.metadata = func(request int) (int, string) {
+					if request >= check {
+						return tc.status, tc.body
+					}
+					return http.StatusOK, `{"has_wiki":true,"private":false,"visibility":"public","default_branch":"main"}`
+				}
+				output, err := f.publish("")
+				if err == nil || !strings.Contains(output, "wiki publication stopped:") {
+					t.Fatalf("repository change was accepted: %v\n%s", err, output)
+				}
+				if after := f.git(f.remote, "rev-parse", "HEAD"); after != f.baseline {
+					t.Fatal("rejected publication changed the wiki")
+				}
+			})
+		}
+	}
+}
+
+func TestWikiPublisherRefusesWrongSourceRef(t *testing.T) {
+	for _, ref := range []string{"", "refs/heads/other", "refs/tags/main"} {
+		t.Run(ref, func(t *testing.T) {
+			f := newWikiPublisherFixture(t)
+			output, err := f.publish("", "GITHUB_REF="+ref)
+			if err == nil || !strings.Contains(output, "source ref is not the current default branch") {
+				t.Fatalf("wrong source ref was accepted: %v\n%s", err, output)
+			}
+			if after := f.git(f.remote, "rev-parse", "HEAD"); after != f.baseline {
+				t.Fatal("rejected publication changed the wiki")
+			}
+		})
+	}
+}
+
+func TestWikiPublisherRefusesUnavailableMetadata(t *testing.T) {
+	f := newWikiPublisherFixture(t)
+	server := httptest.NewServer(http.NotFoundHandler())
+	server.Close()
+	output, err := f.publish("", "GITHUB_API_URL="+server.URL)
+	if err == nil || !strings.Contains(output, "current repository metadata is unavailable") {
+		t.Fatalf("unavailable metadata was accepted: %v\n%s", err, output)
+	}
+	if after := f.git(f.remote, "rev-parse", "HEAD"); after != f.baseline {
+		t.Fatal("rejected publication changed the wiki")
+	}
+}
+
+func TestWikiPublisherUsesCurrentDefaultBranch(t *testing.T) {
+	f := newWikiPublisherFixture(t)
+	f.git(filepath.Join(f.root, "project.git"), "branch", "next", "main")
+	f.metadata = func(int) (int, string) {
+		return http.StatusOK, `{"has_wiki":true,"private":false,"visibility":"public","default_branch":"next"}`
+	}
+	if output, err := f.publish("", "GITHUB_REF=refs/heads/next"); err != nil {
+		t.Fatalf("current default branch was rejected: %v\n%s", err, output)
+	}
+}
+
+func TestWikiPublisherRechecksSourceTipBeforePush(t *testing.T) {
+	f := newWikiPublisherFixture(t)
+	project := filepath.Join(f.root, "project.git")
+	sha := f.git(f.source, "rev-parse", "HEAD")
+	tree := f.git(project, "rev-parse", "HEAD^{tree}")
+	next := f.git(project, "commit-tree", tree, "-p", sha, "-m", "New source tip")
+	f.metadata = func(request int) (int, string) {
+		if request == 2 {
+			f.git(project, "update-ref", "refs/heads/main", next)
+		}
+		return http.StatusOK, `{"has_wiki":true,"private":false,"visibility":"public","default_branch":"main"}`
+	}
+	output, err := f.publish("")
+	if err == nil || !strings.Contains(output, "source commit is no longer the default branch tip") {
+		t.Fatalf("stale source was accepted: %v\n%s", err, output)
+	}
+	if after := f.git(f.remote, "rev-parse", "HEAD"); after != f.baseline {
+		t.Fatal("rejected publication changed the wiki")
 	}
 }
 
