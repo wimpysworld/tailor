@@ -262,7 +262,9 @@ Local safety preflight runs before writes. It rejects source symlinks, Git metad
 
 For a declared public wiki, `alter` enables a disabled wiki through a repository PATCH containing only `has_wiki: true`. This is the sole write before readiness. Tailor then checks the remote wiki and local adoption. A readiness blocker exits nonzero before config updates, retired workflow removal or any other local or remote write. Confirmed enablement remains in effect if readiness fails. Tailor reports that change. An enablement failure stops the command.
 
-Inspect the public wiki through bounded, anonymous Git reads in an isolated temporary clone. Never import into the project, push commits or change remote wiki history. A confirmed empty remote requires the user to create and save the first page at the repository's `/wiki` URL, then rerun `tailor alter`. Failed Git access remains unknown. Report access or network errors separately, with conditional first-page guidance rather than a claim that the wiki is missing.
+Inspect the public wiki through bounded, anonymous Git reads in an isolated temporary clone. Never import into the project, push commits or change remote wiki history. A confirmed empty remote requires the user to create and save the first page at the repository's `/wiki` URL. The user then manually imports all files except `.git` from a separate wiki clone into `wiki/`, after reviewing local conflicts. After import, the user records the imported HEAD in `wiki/.tailor-wiki-base`. The user runs `tailor baste` to recheck readiness. When the wiki checks pass, the user runs `tailor alter`.
+
+Failed Git access remains unknown. Report access or network errors separately, with conditional first-page guidance rather than a claim that the wiki is missing.
 
 `baste` reports readiness blockers and continues the full preview without writes. After all preview results, it appends a `Next steps:` section for the blocker. The section states that `would copy` and other pending changes wait until wiki readiness passes. Readiness blockers alone do not change the preview's successful exit status.
 
