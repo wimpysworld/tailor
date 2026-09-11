@@ -30,6 +30,7 @@ type RepoSettingResult struct {
 	Field      string
 	Category   RepoSettingCategory
 	Value      string
+	Before     string
 	Annotation string
 	Operation  gh.Operation
 }
@@ -132,7 +133,7 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 		dfv := field.Value
 		declaredVal := dfv.Elem().Interface()
 
-		var displayVal string
+		var displayVal, beforeVal string
 		var equal bool
 
 		lfv := liveFields[field.Index].Value
@@ -142,10 +143,14 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 			displayVal = strings.Join(dSlice, ", ")
 			if !lfv.IsNil() {
 				lSlice := lfv.Elem().Interface().([]string)
+				beforeVal = strings.Join(lSlice, ", ")
 				equal = equalStringSets(dSlice, lSlice)
 			}
 		} else {
 			displayVal = fmt.Sprintf("%v", declaredVal)
+			if !lfv.IsNil() {
+				beforeVal = fmt.Sprintf("%v", lfv.Elem().Interface())
+			}
 			equal = !lfv.IsNil() && lfv.Elem().Interface() == declaredVal
 		}
 
@@ -157,6 +162,7 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 			Field:    field.YAMLKey,
 			Category: category,
 			Value:    displayVal,
+			Before:   beforeVal,
 		})
 	}
 

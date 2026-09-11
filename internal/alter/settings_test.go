@@ -342,10 +342,10 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	want := []alter.RepoSettingResult{
-		{Field: "description", Category: alter.WouldSet, Value: "New"},
-		{Field: "has_wiki", Category: alter.WouldSet, Value: "false"},
-		{Field: "has_issues", Category: alter.RepoNoChange, Value: "true"},
-		{Field: "delete_branch_on_merge", Category: alter.WouldSet, Value: "true"},
+		{Field: "description", Category: alter.WouldSet, Value: "New", Before: "My project"},
+		{Field: "has_wiki", Category: alter.WouldSet, Value: "false", Before: "true"},
+		{Field: "has_issues", Category: alter.RepoNoChange, Value: "true", Before: "true"},
+		{Field: "delete_branch_on_merge", Category: alter.WouldSet, Value: "true", Before: "false"},
 	}
 	if len(results) != len(want) {
 		t.Fatalf("got %d results, want %d", len(results), len(want))

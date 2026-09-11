@@ -3,11 +3,13 @@ package alter
 import (
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
+	"github.com/wimpysworld/tailor/internal/output"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -23,144 +25,201 @@ const (
 // ShouldWrite reports whether the mode permits writing to disk.
 func (m ApplyMode) ShouldWrite() bool { return m == Apply || m == Recut }
 
-// Run executes the alter command. It validates the config, verifies the
-// token against the API before any local file change, applies repository
-// settings, fetches the licence, and processes swatches.
-// When client is nil, a default GitHub REST client is created.
-func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stdout, stderr io.Writer) error {
-	if stdout == nil {
-		stdout = io.Discard
+func stageLabel(mode ApplyMode, dryRun, mutation string) string {
+	if mode.ShouldWrite() {
+		return mutation
 	}
+	return dryRun
+}
+
+// Options configures typed execution events.
+type Options struct{ Observer func(output.StageEvent) }
+
+func (o Options) stage(id, label, phase string) {
+	if o.Observer != nil {
+		o.Observer(output.StageEvent{ID: id, Label: label, Phase: phase})
+	}
+}
+
+func (o Options) stageError(err error) {
+	if o.Observer != nil {
+		o.Observer(output.StageEvent{ID: "execution", Label: "Tailor failed", Phase: "error", Err: err})
+	}
+}
+
+// Execute retains typed results, including partial results when a later stage fails.
+// The sequence is deliberately linear because operation order is part of the safety contract.
+//
+//nolint:gocyclo
+func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options) (Report, error) {
 	if stderr == nil {
 		stderr = io.Discard
 	}
-
+	command := "alter"
+	if mode == DryRun {
+		command = "baste"
+	}
+	var repoResults []RepoSettingResult
+	var labelResults []LabelResult
+	var variableResults []VariableResult
+	var retiredResults []SwatchResult
+	var swatchResults []SwatchResult
+	context := ""
+	wikiGuidance := ""
+	partial := func(err error) (Report, error) {
+		allSwatches := append(append([]SwatchResult{}, swatchResults...), retiredResults...)
+		report := buildReport(command, context, repoResults, labelResults, variableResults, allSwatches, mode)
+		appendGuidance(&report, wikiGuidance)
+		options.stageError(err)
+		return report, err
+	}
+	options.stage("config", stageLabel(mode, "Checking configuration", "Preparing configuration"), "start")
 	wikiDeclared := cfg.Repository != nil && cfg.Repository.HasWiki != nil
 	configChanged, err := prepareAlterConfig(cfg, mode, stderr)
 	if err != nil {
-		return err
+		return partial(err)
 	}
 	prepared, err := preparePagesSource(cfg, dir, mode)
 	if err != nil {
-		return err
+		return partial(err)
 	}
-
 	repo, hasRepo, err := gh.RepoContextAt(dir)
 	if err != nil {
-		return err
+		return partial(err)
 	}
-
+	if repo.Owner != "" && repo.Name != "" {
+		context = repo.Owner + "/" + repo.Name
+	}
+	options.stage("config", stageLabel(mode, "Configuration checked", "Configuration prepared"), "complete")
+	options.stage("auth", "Verifying GitHub authentication", "start")
 	if client == nil {
 		client, err = gh.NewRESTClient(gh.ResolveHost(repo.Host))
 		if err != nil {
-			return fmt.Errorf("creating GitHub API client: %w", err)
+			return partial(fmt.Errorf("creating GitHub API client: %w", err))
 		}
 	}
-
-	// Verify the token against the API before any local file change. The
-	// same request resolves {{GITHUB_USERNAME}} for token substitution.
 	username, err := gh.FetchUsername(client)
 	if err != nil {
-		return fmt.Errorf("verifying GitHub authentication: %w", err)
+		return partial(fmt.Errorf("verifying GitHub authentication: %w", err))
 	}
+	options.stage("auth", "GitHub authentication verified", "complete")
 	target := RepoTarget{Client: client, Host: repo.Host, Owner: repo.Owner, Name: repo.Name, HasRepo: hasRepo, Stderr: stderr}
+	options.stage("pages-preflight", stageLabel(mode, "Checking Pages readiness", "Updating Pages readiness"), "start")
 	pages, err := preflightPages(cfg, dir, mode, target, prepared)
 	if err != nil {
-		return err
+		return partial(err)
 	}
+	options.stage("pages-preflight", stageLabel(mode, "Pages readiness checked", "Pages readiness updated"), "complete")
+	options.stage("wiki-preflight", stageLabel(mode, "Checking wiki readiness", "Updating wiki readiness"), "start")
 	if err := preflightWikiWrites(cfg, dir, wikiDeclared, &TokenContext{GitHubUsername: username, Owner: repo.Owner, Name: repo.Name}); err != nil {
-		return err
+		return partial(err)
 	}
 	wiki, err := preflightWiki(cfg, dir, mode, target, wikiDeclared)
 	if err != nil {
-		return err
+		return partial(err)
 	}
-	defer wiki.writeNextSteps(stdout)
+	options.stage("wiki-preflight", stageLabel(mode, "Wiki readiness checked", "Wiki readiness updated"), "complete")
+	if wiki != nil {
+		wikiGuidance = wiki.nextSteps
+	}
 	target.wikiEnabled = wiki.didEnable()
-
 	if configChanged && mode.ShouldWrite() {
+		options.stage("config-write", "Writing configuration", "start")
 		todayDate := time.Now().Format("2006-01-02")
 		if err := config.Write(dir, cfg, todayDate, "Refitted"); err != nil {
-			return fmt.Errorf("writing refitted config: %w", err)
+			return partial(fmt.Errorf("writing refitted config: %w", err))
 		}
+		swatchResults = append(swatchResults, SwatchResult{Path: configPath, Category: WouldUpdateConfig})
+		options.stage("config-write", "Configuration written", "complete")
 	}
-
-	retiredResults, err := ProcessRetiredWorkflows(dir, mode)
+	options.stage("retired-workflows", stageLabel(mode, "Checking retired workflows", "Updating retired workflows"), "start")
+	retiredResults, err = ProcessRetiredWorkflows(dir, mode)
 	if err != nil {
-		return err
+		return partial(err)
 	}
-
-	tokens := TokenContext{
-		GitHubUsername: username,
-		Owner:          repo.Owner,
-		Name:           repo.Name,
-	}
-
-	repoResults, err := processRepoStages(cfg, mode, target)
+	options.stage("retired-workflows", stageLabel(mode, "Retired workflows checked", "Retired workflows updated"), "complete")
+	tokens := TokenContext{GitHubUsername: username, Owner: repo.Owner, Name: repo.Name}
+	options.stage("repository", stageLabel(mode, "Reading GitHub settings", "Applying GitHub settings"), "start")
+	repoResults, err = processRepoStages(cfg, mode, target)
 	if err != nil {
-		return err
+		return partial(err)
 	}
-
-	labelResults, err := ProcessLabels(cfg, mode, target)
+	options.stage("repository", stageLabel(mode, "GitHub settings read", "GitHub settings applied"), "complete")
+	options.stage("labels", stageLabel(mode, "Reading labels", "Applying labels"), "start")
+	labelResults, err = ProcessLabels(cfg, mode, target)
 	if err != nil {
-		return err
+		return partial(err)
 	}
-
-	variableResults, err := ProcessVariables(cfg, mode, target)
+	options.stage("labels", stageLabel(mode, "Labels read", "Labels applied"), "complete")
+	options.stage("variables", stageLabel(mode, "Reading variables", "Applying variables"), "start")
+	variableResults, err = ProcessVariables(cfg, mode, target)
 	if err != nil {
-		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
-		return err
+		return partial(err)
 	}
+	options.stage("variables", stageLabel(mode, "Variables read", "Variables applied"), "complete")
+	options.stage("pages", stageLabel(mode, "Planning Pages changes", "Applying Pages changes"), "start")
 	pagesResults, pagesWorkflow, err := processPages(cfg, dir, mode, target, pages)
 	repoResults = append(repoResults, pagesResults...)
 	if pagesWorkflow != nil {
 		retiredResults = append(retiredResults, *pagesWorkflow)
 	}
 	if err != nil {
-		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
-		return err
+		return partial(err)
 	}
-
+	options.stage("pages", stageLabel(mode, "Pages changes planned", "Pages changes applied"), "complete")
+	options.stage("wiki", stageLabel(mode, "Planning wiki changes", "Applying wiki changes"), "start")
 	wikiResults, wikiSwatches, err := processWiki(cfg, dir, mode, wiki)
 	repoResults = append(repoResults, wikiResults...)
 	retiredResults = append(retiredResults, wikiSwatches...)
 	if err != nil {
-		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
-		return err
+		return partial(err)
 	}
-
+	options.stage("wiki", stageLabel(mode, "Wiki changes planned", "Wiki changes applied"), "complete")
+	options.stage("licence", stageLabel(mode, "Planning licence", "Writing licence"), "start")
 	licenceResult, err := ProcessLicence(cfg, dir, mode, client, stderr)
 	if err != nil {
-		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
-		return err
+		return partial(err)
 	}
-
-	swatchResults, err := ProcessSwatches(cfg, dir, mode, &tokens)
+	options.stage("licence", stageLabel(mode, "Licence planned", "Licence written"), "complete")
+	options.stage("swatches", stageLabel(mode, "Planning swatches", "Writing swatches"), "start")
+	processedSwatches, err := ProcessSwatches(cfg, dir, mode, &tokens)
+	swatchResults = append(swatchResults, processedSwatches...)
 	if err != nil {
-		fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, retiredResults, mode))
-		return err
+		return partial(err)
 	}
+	options.stage("swatches", stageLabel(mode, "Swatches planned", "Swatches written"), "complete")
 	if pages != nil && len(pages.skipped) == 0 {
-		files, err := processPagesFiles(cfg, dir, mode, prepared)
+		options.stage("pages-files", stageLabel(mode, "Planning Pages files", "Writing Pages files"), "start")
+		files, filesErr := processPagesFiles(cfg, dir, mode, prepared)
 		swatchResults = append(swatchResults, files...)
-		if err != nil {
-			fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, append(swatchResults, retiredResults...), mode))
-			return err
+		if filesErr != nil {
+			return partial(filesErr)
 		}
+		options.stage("pages-files", stageLabel(mode, "Pages files planned", "Pages files written"), "complete")
 	}
-
-	// Merge licence result into swatch results for unified output.
 	if licenceResult != nil {
 		swatchResults = append([]SwatchResult{*licenceResult}, swatchResults...)
 	}
-	if configChanged {
+	if configChanged && !mode.ShouldWrite() {
 		swatchResults = append(swatchResults, SwatchResult{Path: configPath, Category: WouldUpdateConfig})
 	}
 	swatchResults = append(swatchResults, retiredResults...)
+	report := buildReport(command, context, repoResults, labelResults, variableResults, swatchResults, mode)
+	if wiki != nil {
+		appendGuidance(&report, wiki.nextSteps)
+	}
+	options.stage("complete", "Complete", "complete")
+	return report, nil
+}
 
-	fmt.Fprint(stdout, FormatOutput(repoResults, labelResults, variableResults, swatchResults, mode))
-
-	return nil
+// Run preserves the exact legacy output contract.
+func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stdout, stderr io.Writer) error {
+	if stdout == nil {
+		stdout = io.Discard
+	}
+	report, err := Execute(cfg, dir, mode, client, stderr, Options{})
+	fmt.Fprint(stdout, report.Plain)
+	return err
 }
 
 func preflightWikiWrites(cfg *config.Config, dir string, declared bool, tokens *TokenContext) error {
@@ -223,12 +282,22 @@ func processRepoStages(cfg *config.Config, mode ApplyMode, target RepoTarget) ([
 		ProcessRuleset,
 	} {
 		stageResults, err := stage(cfg, mode, target)
-		if err != nil {
-			return nil, err
-		}
 		results = append(results, stageResults...)
+		if err != nil {
+			return results, err
+		}
 	}
 	return results, nil
+}
+
+func appendGuidance(report *Report, guidance string) {
+	if guidance == "" {
+		return
+	}
+	report.Plain += guidance
+	for i, line := range strings.Split(strings.TrimSuffix(guidance, "\n"), "\n") {
+		report.Document.Guidance = append(report.Document.Guidance, output.Guidance{Order: i + 1, Text: line})
+	}
 }
 
 // validateConfig runs the repeated config validation pass in sequence.

@@ -14,6 +14,8 @@ type VariableResult struct {
 	Name       string
 	Category   LabelCategory
 	Value      string
+	Before     string
+	After      string
 	Annotation string
 	Operation  gh.Operation
 }
@@ -46,12 +48,14 @@ func compareVariables(desired, current []model.VariableEntry) []VariableResult {
 	results := make([]VariableResult, 0, len(desired))
 	for _, variable := range desired {
 		existing, found := byName[strings.ToLower(variable.Name)]
-		result := VariableResult{Name: variable.Name, Category: LabelNoChange, Value: fmt.Sprintf("%q", *variable.Value)}
+		after := fmt.Sprintf("%q", *variable.Value)
+		result := VariableResult{Name: variable.Name, Category: LabelNoChange, Value: after, After: after}
 		switch {
 		case !found:
 			result.Category = WouldCreate
 		case *existing.Value != *variable.Value:
 			result.Category = WouldUpdate
+			result.Before = fmt.Sprintf("%q", *existing.Value)
 			result.Value = fmt.Sprintf("%q -> %q", *existing.Value, *variable.Value)
 		}
 		results = append(results, result)

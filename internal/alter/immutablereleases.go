@@ -17,6 +17,7 @@ func ProcessImmutableReleases(cfg *config.Config, mode ApplyMode, target RepoTar
 	result := RepoSettingResult{Section: "immutable_releases", Field: "enabled", Category: WouldSet, Value: fmt.Sprint(enabled)}
 	live, err := gh.ReadImmutableReleases(target.Client, target.Owner, target.Name)
 	if err == nil {
+		result.Before = fmt.Sprint(*live.Enabled)
 		switch {
 		case !enabled && *live.EnforcedByOwner:
 			result.Category = WouldSkipSetup

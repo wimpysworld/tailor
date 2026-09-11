@@ -15,6 +15,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/alter"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/output"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
@@ -79,6 +80,44 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 	}
 }
 
+func TestFitPlainOutputPreservesPathControls(t *testing.T) {
+	fakeNoRepoAuth(t)
+
+	dir := filepath.Join(t.TempDir(), "safe\ninjected")
+	var stdout, stderr strings.Builder
+	cmd := FitCmd{
+		Path: dir, License: "BlueOak-1.0.0",
+		output: output.New(&stdout, &stderr, output.Plain, output.WithTTY(true)),
+	}
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+	want := fmt.Sprintf("Fitted %s with .tailor.yml\n", dir)
+	if got := stdout.String(); got != want {
+		t.Fatalf("plain fit output = %q, want exact legacy output %q", got, want)
+	}
+}
+
+func TestFitRichOutputEscapesPathControls(t *testing.T) {
+	fakeNoRepoAuth(t)
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("NO_COLOR", "1")
+
+	dir := filepath.Join(t.TempDir(), "safe\ninjected")
+	var stdout, stderr strings.Builder
+	cmd := FitCmd{
+		Path: dir, License: "BlueOak-1.0.0",
+		output: output.New(&stdout, &stderr, output.Auto, output.WithTTY(true)),
+	}
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("Run() error: %v", err)
+	}
+	got := stdout.String()
+	if strings.Contains(got, "safe\ninjected") || !strings.Contains(got, `\x0a`) {
+		t.Fatalf("rich fit output did not escape the path newline:\n%q", got)
+	}
+}
+
 func TestFitExistingDirectoryWithoutConfig(t *testing.T) {
 	fakeNoRepoAuth(t)
 
@@ -133,6 +172,19 @@ func TestFitDoesNotReadVariables(t *testing.T) {
 	}
 	if strings.Contains(string(data), "\nvariables:") || !strings.Contains(string(data), "# variables:") {
 		t.Fatal("fit must write only the commented variables example")
+	}
+}
+
+func TestRunPlainFormatPreservesFitOutput(t *testing.T) {
+	fakeNoRepoAuth(t)
+	dir := filepath.Join(t.TempDir(), "plain-project")
+	var stdout, stderr strings.Builder
+	if code := run([]string{"--format=plain", "fit", dir}, &stdout, &stderr); code != 0 {
+		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
+	}
+	want := fmt.Sprintf("Fitted %s with .tailor.yml\n", dir)
+	if got := stdout.String(); got != want {
+		t.Fatalf("stdout = %q, want %q", got, want)
 	}
 }
 

@@ -21,35 +21,51 @@ type resultComparer struct {
 	results []RepoSettingResult
 }
 
-func (c *resultComparer) add(field, value string, equal bool) {
+func (c *resultComparer) add(field, value, before string, equal bool) {
 	category := WouldSet
 	if equal {
 		category = RepoNoChange
 	}
-	c.results = append(c.results, RepoSettingResult{Section: c.section, Field: field, Category: category, Value: value})
+	c.results = append(c.results, RepoSettingResult{Section: c.section, Field: field, Category: category, Value: value, Before: before})
 }
 
 func (c *resultComparer) str(field string, declared, live *string) {
 	if declared != nil {
-		c.add(field, *declared, live != nil && *live == *declared)
+		before := ""
+		if live != nil {
+			before = *live
+		}
+		c.add(field, *declared, before, live != nil && *live == *declared)
 	}
 }
 
 func (c *resultComparer) boolean(field string, declared, live *bool) {
 	if declared != nil {
-		c.add(field, strconv.FormatBool(*declared), live != nil && *live == *declared)
+		before := ""
+		if live != nil {
+			before = strconv.FormatBool(*live)
+		}
+		c.add(field, strconv.FormatBool(*declared), before, live != nil && *live == *declared)
 	}
 }
 
 func (c *resultComparer) enabled(field string, declared, live *bool) {
 	if declared != nil {
-		c.add(field, enabledText(*declared), live != nil && *live == *declared)
+		before := ""
+		if live != nil {
+			before = enabledText(*live)
+		}
+		c.add(field, enabledText(*declared), before, live != nil && *live == *declared)
 	}
 }
 
 func (c *resultComparer) count(field string, declared, live *int) {
 	if declared != nil {
-		c.add(field, strconv.Itoa(*declared), live != nil && *live == *declared)
+		before := ""
+		if live != nil {
+			before = strconv.Itoa(*live)
+		}
+		c.add(field, strconv.Itoa(*declared), before, live != nil && *live == *declared)
 	}
 }
 
@@ -57,7 +73,11 @@ func (c *resultComparer) count(field string, declared, live *int) {
 // ", ", or "(none)" when empty.
 func (c *resultComparer) set(field string, declared, live *[]string) {
 	if declared != nil {
-		c.add(field, listText(*declared), live != nil && equalStringSets(*declared, *live))
+		before := ""
+		if live != nil {
+			before = listText(*live)
+		}
+		c.add(field, listText(*declared), before, live != nil && equalStringSets(*declared, *live))
 	}
 }
 
@@ -70,7 +90,13 @@ func (c *resultComparer) languages(declared, live *[]string) {
 	}
 	desired := slices.Clone(*declared)
 	slices.Sort(desired)
-	c.add("languages", strings.Join(desired, ", "), live != nil && equalStringSets(desired, *live))
+	before := ""
+	if live != nil {
+		current := slices.Clone(*live)
+		slices.Sort(current)
+		before = strings.Join(current, ", ")
+	}
+	c.add("languages", strings.Join(desired, ", "), before, live != nil && equalStringSets(desired, *live))
 }
 
 func enabledText(enabled bool) string {

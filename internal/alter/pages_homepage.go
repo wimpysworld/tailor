@@ -26,7 +26,7 @@ func processPagesHomepage(cfg *config.Config, mode ApplyMode, target RepoTarget,
 	if homepage == "" || homepage == repository.Homepage {
 		return nil, nil
 	}
-	result := RepoSettingResult{Field: "homepage", Category: WouldSet, Value: homepage}
+	result := RepoSettingResult{Field: "homepage", Category: WouldSet, Value: homepage, Before: repository.Homepage}
 	if mode.ShouldWrite() {
 		applied, err := gh.ApplyRepoSettings(target.Client, target.Owner, target.Name, &model.RepositorySettings{Homepage: &homepage}, &model.RepositorySettings{Homepage: &repository.Homepage})
 		if err != nil {

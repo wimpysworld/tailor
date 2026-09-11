@@ -353,6 +353,7 @@ Variable results follow labels and precede file results. They use the `variable.
 List access failures skip variable management without writes. Individual write access failures skip the affected variable and continue. Rate limits, `422`, transport errors and other hard failures stop the command. A PATCH `404` is a hard error, not a reason to create the variable. After partial writes, errors include applied and remaining counts. Tailor does not retry writes automatically.
 
 **Alteration Modes**:
+
 - `always`: Tailor compares the embedded swatch content against the on-disk file on every `alter` run and overwrites if they differ. For `.tailor.yml` specifically, `always` means "migrate retired entries and append missing defaults" rather than "overwrite content", because `.tailor.yml` content is user-managed. The config is rewritten only when migration or default merging changes it
 - `first-fit`: Tailor copies this file only if it does not already exist; never overwrites
 - `never`: Tailor skips this swatch entirely. Tailor does not write or compare the destination. Use this mode to keep a swatch visible in the config without managing its destination
@@ -390,6 +391,7 @@ List access failures skip variable management without writes. Individual write a
 **Swatch Categories**: Each swatch is designated either `health` or `development`. This designation is an internal attribute used by `measure` to scope its file presence checks.
 
 **Health swatches** (community health files tracked by GitHub):
+
 - `LICENSE` (fetched via the GitHub REST API `GET /licenses/{id}`, not an embedded swatch)
 - `SECURITY.md`
 - `CODE_OF_CONDUCT.md`
@@ -403,6 +405,7 @@ List access failures skip variable management without writes. Individual write a
 - `.github/dependabot.yml`
 
 **Development swatches** (dev environment and project tooling):
+
 - `.github/workflows/tailor-pages.yml` (only when Pages is enabled)
 - `wiki/Home.md` (only when wiki publishing is enabled)
 - `wiki/_Sidebar.md` (only when wiki publishing is enabled)
@@ -481,6 +484,28 @@ Commands divide into three categories: bootstrap commands, which create the proj
 **Apply commands**: `alter`
 **Inspection commands**: `baste`, `measure`, `docket`
 
+### Output formats
+
+Tailor has two display contracts. `--format=auto` is the default. It uses rich output when standard output is a terminal. It uses plain output for redirected output, piped output, `TERM=dumb`, and `--format=plain`.
+
+Plain output is the stable text contract that each command documents below. Its bytes, order, escaping, streams, partial-write reports, and exit codes do not change. Plain output has no ANSI or cursor controls. Help, version, parse errors, warnings, and fatal errors keep their existing streams and formats.
+
+Rich output uses typed results before flat formatting. Each result records the command, context, domain, category, outcome, action, name, before value, after value, reason, and provenance. Notices, ordered guidance, and summary totals are also typed. The renderer does not infer status from display text.
+
+Rich reports use this order: command and context summary, all planned or applied changes, all items that need attention, policy-preserved items, already-matching items, notices, then ordered guidance. Domain is the second grouping level. The default report collapses policy-preserved items by reason and unchanged items by domain. `--verbose` expands every item inside its outcome and domain groups. The default report never hides a mutation or an actionable blocker.
+
+Each group is a bordered card. At 72 columns or more, a row keeps its highlighted value beside its name and category summaries use count grids. Below 72 columns, values move below names and category counts stack. Borders fit the detected width. An ASCII terminal uses `+`, `-`, and `|` borders, `*` for active work, `ok` for completion, `~` for a change, and `!` for attention.
+
+Colour does not carry meaning. Words, symbols, and counts identify every outcome. The Tailor heading uses violet. Planned alterations use cyan, applied and matching results use green, attention uses amber, and errors use red. Policy preservation uses neutral violet, not warning colour. `--color=auto|always|never` controls colour independently from layout. `NO_COLOR` disables automatic colour. Tailor escapes control characters in untrusted presentation fields before styling them.
+
+`--quiet` prints one final summary while warnings and fatal errors remain on standard error. `--no-progress` disables live progress without changing the final rich report. `--format=plain` disables progress regardless of the other flags.
+
+### Progress
+
+`fit`, `baste`, `alter`, `measure`, and `docket` publish typed stage events around meaningful local and GitHub operations. A rich command writes one inline Bubble Tea display to standard error and never enters the alternate screen. Stage text appears promptly. The spinner starts only after the active stage lasts about 300 milliseconds. Tailor uses one indeterminate spinner because the GitHub request count can change. Tailor does not show a percentage unless planning supplies a fixed total.
+
+The live display contains at most three lines and stops before final standard output. Tailor suspends the display around warnings and errors, then redraws the active stage. Non-terminal standard error, `TERM=dumb`, `--format=plain`, and `--no-progress` emit no animation or cursor controls. With `--verbose`, stage diagnostics can use append-only records. Durable command results use standard output. Warnings and fatal errors use standard error.
+
 ### `fit <path>`
 
 Creates a new project directory and writes `.tailor.yml` with the full default swatch set and the repository settings. When run against an existing project with a GitHub remote, `fit` queries the live repository configuration and uses those values for the `repository` section, preserving the project's current state. When no repository context exists, the built-in defaults are used. Does not copy any files or apply any settings. After `fit`, change into `<path>` before running `alter`.
@@ -542,6 +567,7 @@ tailor fit ./my-project --description="My awesome project"
 If `<path>` already exists but does not contain `.tailor.yml`, `fit` proceeds without error and creates the configuration. If `<path>` already exists and contains `.tailor.yml`, `fit` exits with an error: `.tailor.yml already exists at <path>; edit it directly to change swatch configuration`. `fit` creates all intermediate directories in `<path>` as needed.
 
 Generates:
+
 - Project directory at `<path>`
 - `.tailor.yml` at `<path>/.tailor.yml`, containing the `license` key, the `repository` section (populated from live GitHub settings when available, otherwise from built-in defaults, including `secret_scanning`, `secret_scanning_push_protection`, and `secret_scanning_non_provider_patterns`), the default `actions` section, the `code_scanning` and `code_quality` sections (populated from the live default setup when available, otherwise from built-in defaults, always with `languages: []`), the `ruleset` section (populated from the live `Tailor` ruleset when it exists, otherwise from built-in defaults), the `labels` section (12 default labels with Catppuccin Latte colours), and the full default swatch set, each entry at its default alteration mode, prefixed with a `# Initially fitted by tailor on <DATE>` header comment (YYYY-MM-DD, no time).
 
@@ -557,6 +583,7 @@ tailor alter --recut      # Apply and override first-fit protection
 ```
 
 Behaviour:
+
 - If `.tailor.yml` is missing or malformed, exits immediately with the error described in Error Handling.
 - **Retired workflow migration**: before strict path and mode validation, `alter` removes both retired paths from the in-memory config. The paths are `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. This migration accepts the historical `triggered` mode only on these retired entries. The migration ignores the entry mode and the mode of the `.tailor.yml` swatch.
 - **Config update**: after migration, Tailor normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. `alter` then writes a changed config once. The write uses a `# Refitted by tailor on <DATE>` header comment (YYYY-MM-DD). It combines security prerequisite normalisation and all retired-entry removals with built-in defaults merged in the same run. The write occurs before repository API changes, except the early wiki enablement described above. Wiki readiness must pass first. If the config did not change, `alter` does not write it. The default merge runs when `.tailor.yml` has `alteration: always`. The `alteration: first-fit` mode skips the merge. Sections restored by the merge are managed in the same run, so omission alone does not disable them. Security prerequisite normalisation is independent of the config swatch mode. See "Header comment" below for the comment format. The seven merge rules are:
@@ -600,6 +627,7 @@ tailor baste
 ```
 
 Behaviour:
+
 - If `.tailor.yml` is missing or malformed, exits immediately with the error described in Error Handling.
 - Before strict validation, `baste` applies the same in-memory retired workflow migration and security prerequisite normalisation as `alter`. It accepts historical `triggered` entries only for the two retired paths. It emits the normalisation warning and reports `would update: .tailor.yml` without writing.
 - `baste` performs the same comparison and file-safety checks as `alter` but writes and removes nothing. It reports what `alter` would do.
@@ -757,6 +785,7 @@ mode-differs:   SECURITY.md          (config: first-fit, default: always)
 ```
 
 Category definitions:
+
 - `missing` - health file does not exist on disk
 - `warning` - health diagnostic that requires attention but is not a missing swatch. Three cases are recognised: `LICENSE` exists but contains known unresolved placeholder tokens (e.g. `[year]`, `[fullname]`, `{project}`), `LICENSE` exists but was not inspected because it exceeds 1 MiB or could not be read (annotated `(not inspected: exceeds 1 MiB)` or `(not inspected: read failed)`), and `README.md` is absent from the project root. A warned path appears once in the output and does not also appear as `present`
 - `present` - health file exists on disk
@@ -764,7 +793,7 @@ Category definitions:
 - `config-only` - swatch in `.tailor.yml` whose destination is not covered by any entry in the built-in default set. This arises when a swatch is removed from the built-in defaults in a newer tailor release but the project's `.tailor.yml` still references it. `alter` rejects unrecognised paths, except that it automatically migrates the two fixed retired workflow paths
 - `mode-differs` - swatch whose destination appears in both `.tailor.yml` and the default set, but with a different alteration mode; the inline annotation shows both values
 
-Output order: `missing`, `warning`, `present`, `not-configured`, `config-only`, `mode-differs`. Within each category, entries are sorted lexicographically by destination path. The category label is padded to a fixed width of 16 characters (the length of `not-configured: `) for consistent column alignment. For `warning` entries, the detail annotation (e.g. `(contains unresolved placeholders)`) is separated from the path by a single space, following the same annotation style as `mode-differs`. For `mode-differs` entries, the annotation (e.g. `(config: first-fit, default: always)`) is separated from the destination path by a single space; no additional fixed column alignment is applied to the annotation. Health file checks are always performed and reported regardless of whether `.tailor.yml` is present; config-diff categories (`not-configured`, `config-only`, `mode-differs`) are shown only when `.tailor.yml` is present.
+Output order: `missing`, `warning`, `present`, `not-configured`, `config-only`, `mode-differs`. Within each category, entries are sorted lexicographically by destination path. The category label is padded to a fixed width of 16 characters (the length of `not-configured:`) for consistent column alignment. For `warning` entries, the detail annotation (e.g. `(contains unresolved placeholders)`) is separated from the path by a single space, following the same annotation style as `mode-differs`. For `mode-differs` entries, the annotation (e.g. `(config: first-fit, default: always)`) is separated from the destination path by a single space; no additional fixed column alignment is applied to the annotation. Health file checks are always performed and reported regardless of whether `.tailor.yml` is present; config-diff categories (`not-configured`, `config-only`, `mode-differs`) are shown only when `.tailor.yml` is present.
 
 `README.md` is a local health diagnostic, not a swatch or config-diff item. It is checked by exact path at the project root only. `README`, `README.rst`, and other variants do not satisfy the check. The `README.md` warning is not emitted when the file exists. Licence placeholder detection recognises only these names inside square or curly braces: `year`, `yyyy`, `fullname`, `name of copyright owner`, `name of copyright holder`, `software name`, `project`, `projecturl`, and `email`. Matching ignores case, allows ASCII whitespace beside the delimiters, and normalises each internal sequence of ASCII whitespace to one space. Arbitrary bracketed text, complete Markdown inline links, and angle-bracket application examples do not cause a warning. The check runs only when `LICENSE` exists on disk; an absent `LICENSE` stays in the `missing` category.
 
@@ -805,6 +834,7 @@ auth:           not authenticated
 ```
 
 Behaviour:
+
 - `user` is resolved via `GET /user` if authenticated. It displays `(none)` if not authenticated.
 - `repository` displays the `owner/repo` derived from the GitHub remote in the current directory; displays `(none)` if no GitHub remote exists.
 - `auth` displays `authenticated` or `not authenticated` based on whether a valid token can be resolved for the host of the detected repository, or for the `go-gh` default host (`GH_HOST`, falling back to `github.com`) when no repository context exists.

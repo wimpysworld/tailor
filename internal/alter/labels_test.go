@@ -347,8 +347,8 @@ func TestProcessLabelsMixedResults(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	want := []alter.LabelResult{
-		{Name: "bug", Category: alter.LabelNoChange, Value: "#d73a4a \"Something isn't working\""},
-		{Name: "enhancement", Category: alter.WouldUpdate, Value: "#a2eeef \"New feature\""},
+		{Name: "bug", Category: alter.LabelNoChange, Value: "#d73a4a \"Something isn't working\"", Before: "#d73a4a \"Something isn't working\""},
+		{Name: "enhancement", Category: alter.WouldUpdate, Value: "#a2eeef \"New feature\"", Before: "#old123 \"Old description\""},
 		{Name: "documentation", Category: alter.WouldCreate, Value: "#0075ca \"Docs improvements\""},
 	}
 	if len(results) != len(want) {
