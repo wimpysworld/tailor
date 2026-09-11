@@ -268,6 +268,15 @@ func compareActions(declared, live *model.ActionsSettings) []RepoSettingResult {
 
 func suppressActionsReadWarnings(results []RepoSettingResult, warnings []error, declared, live *model.ActionsSettings) []RepoSettingResult {
 	for _, warning := range warnings {
+		var skipped *gh.ErrSetupSkipped
+		if errors.As(warning, &skipped) && skipped.Operation.Kind == gh.OpFetchForkPRContributorApproval {
+			for i, result := range results {
+				if group, ok := actionsFieldGroupFor(result.Field); ok && group == actionsForkApproval {
+					results[i] = skipResult(result, WouldSkipSetup, string(skipped.Reason))
+				}
+			}
+			continue
+		}
 		var scopeErr *gh.ErrInsufficientScope
 		if !errors.As(warning, &scopeErr) {
 			continue

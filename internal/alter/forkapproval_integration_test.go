@@ -24,6 +24,70 @@ import (
 
 const forkApprovalPath = "/repos/testowner/testrepo/actions/permissions/fork-pr-contributor-approval"
 
+func TestRunForkApprovalPrivateRepositoryContinues(t *testing.T) {
+	for _, mode := range []alter.ApplyMode{alter.DryRun, alter.Apply, alter.Recut} {
+		t.Run(fmt.Sprint(mode), func(t *testing.T) {
+			ctx := setupAlterTest(t, "license: none\nrepository:\n  has_wiki: false\nvariables:\n  - name: CONTINUE\n    value: yes\nswatches:\n  - path: .tailor.yml\n    alteration: always\n  - path: .gitignore\n    alteration: always\n")
+			before := forkApprovalFiles(t, ctx.Dir)
+			var approvalReads int
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo" {
+					fmt.Fprint(w, `{"private":true}`)
+					return
+				}
+				if r.URL.Path == forkApprovalPath {
+					if r.Method != http.MethodGet {
+						t.Errorf("unexpected approval write: %s", r.Method)
+					}
+					approvalReads++
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnprocessableEntity)
+					fmt.Fprint(w, `{"message":"Fork PR approval is not allowed for private repositories."}`)
+					return
+				}
+				ctx.Server.Config.Handler.ServeHTTP(w, r)
+			}))
+			t.Cleanup(server.Close)
+			cfg := loadTestConfig(t, ctx.Dir)
+			output := captureAlterRun(t, cfg, ctx.Dir, mode, testutil.NewTestClient(t, server))
+			requireContains(t, output, "would skip (not available):")
+			requireContains(t, output, "actions.fork_pr_contributor_approval.approval_policy")
+			requireNotContains(t, output, "actions.fork_pr_contributor_approval.approval_policy =")
+			requireContains(t, output, "variable.CONTINUE")
+			requireContains(t, output, ".gitignore")
+			assertForkApprovalPolicy(t, cfg, "first_time_contributors")
+			if approvalReads != 0 {
+				t.Errorf("approval reads = %d, want 0", approvalReads)
+			}
+			var coreWrites, variableWrites int
+			for _, call := range ctx.Calls() {
+				if mode == alter.DryRun && call.Method != http.MethodGet {
+					t.Errorf("preview mutation: %+v", call)
+				}
+				if call.Method == http.MethodPut && call.Path == "/repos/testowner/testrepo/actions/permissions" {
+					coreWrites++
+				}
+				if call.Method == http.MethodPost && call.Path == "/repos/testowner/testrepo/actions/variables" {
+					variableWrites++
+				}
+			}
+			if mode == alter.DryRun {
+				if !reflect.DeepEqual(before, forkApprovalFiles(t, ctx.Dir)) {
+					t.Error("preview changed project files")
+				}
+			} else {
+				if coreWrites == 0 || variableWrites != 1 {
+					t.Errorf("core writes = %d, variable writes = %d, want core changes and one variable write", coreWrites, variableWrites)
+				}
+				if _, err := os.Stat(ctx.Dir + "/.gitignore"); err != nil {
+					t.Errorf("swatch was not written: %v", err)
+				}
+				assertForkApprovalPolicy(t, loadTestConfig(t, ctx.Dir), "first_time_contributors")
+			}
+		})
+	}
+}
+
 func TestRunForkApprovalSecondApplyNoChange(t *testing.T) {
 	ctx := setupAlterTest(t, "license: none\nactions:\n  fork_pr_contributor_approval:\n    approval_policy: first_time_contributors\n")
 	var mu sync.Mutex
@@ -33,6 +97,8 @@ func TestRunForkApprovalSecondApplyNoChange(t *testing.T) {
 		mu.Lock()
 		defer mu.Unlock()
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo":
+			fmt.Fprint(w, `{"private":false}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/user":
 			fmt.Fprint(w, `{"login":"testuser"}`)
 		case r.Method == http.MethodGet && r.URL.Path == forkApprovalPath:
@@ -229,6 +295,8 @@ func TestRunForkApprovalAfterSelectedAndRetention(t *testing.T) {
 				path := strings.TrimPrefix(r.URL.Path, "/repos/testowner/testrepo/actions/permissions")
 				if r.Method == http.MethodGet {
 					switch path {
+					case "/repos/testowner/testrepo":
+						fmt.Fprint(w, `{"private":false}`)
 					case "/user":
 						fmt.Fprint(w, `{"login":"testuser"}`)
 					case "":
