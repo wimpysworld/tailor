@@ -110,7 +110,7 @@ func TestWikiReadinessEnabledBlockerAndEnablementFailure(t *testing.T) {
 			var stdout, stderr strings.Builder
 			err := alter.Run(loadTestConfig(t, dir), dir, mode, testutil.NewTestClient(t, server), &stdout, &stderr)
 			if tc.preview {
-				if err != nil || !strings.Contains(stdout.String(), "wiki/.tailor-wiki-base is missing") {
+				if err != nil || !strings.Contains(stdout.String(), "Tailor needs an imported copy of the wiki in wiki/.") {
 					t.Fatalf("preview error=%v stdout=%q", err, stdout.String())
 				}
 				for _, want := range []string{"repository.description", ".gitignore", "would remove", swatch.WikiDestination} {
@@ -118,7 +118,7 @@ func TestWikiReadinessEnabledBlockerAndEnablementFailure(t *testing.T) {
 						t.Errorf("preview lacks %q: %s", want, stdout.String())
 					}
 				}
-			} else if err == nil || !strings.Contains(err.Error(), "wiki readiness blocked") {
+			} else if err == nil || !strings.Contains(err.Error(), "wiki is not ready") {
 				t.Fatalf("readiness did not block: %v", err)
 			}
 			if tc.enabled {

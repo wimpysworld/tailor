@@ -69,12 +69,14 @@ func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTa
 	}
 	wikiURL := fmt.Sprintf("https://%s/%s/%s/wiki", host, target.Owner, target.Name)
 	remoteURL := fmt.Sprintf("https://%s/%s/%s.wiki.git", host, target.Owner, target.Name)
+	_, sourceErr := root.Lstat("wiki")
+	hasSource := !errors.Is(sourceErr, os.ErrNotExist)
 	blocked := func(err error) (*wikiRun, error) {
 		if mode == DryRun {
-			p.nextSteps = wikiPreviewGuidance(err, wikiURL, remoteURL)
+			p.nextSteps = wikiPreviewGuidance(err, wikiURL, remoteURL, hasSource)
 			return p, nil
 		}
-		return nil, errors.New(wikiReadinessGuidance(err, wikiURL, remoteURL))
+		return nil, errors.New(wikiReadinessGuidance(err, wikiURL, remoteURL, hasSource))
 	}
 	p.content, err = swatch.Content(swatch.WikiDestination)
 	if err != nil {
@@ -118,7 +120,7 @@ func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTa
 		if err := target.Client.Patch(fmt.Sprintf("repos/%s/%s", target.Owner, target.Name), strings.NewReader(`{"has_wiki":true}`), nil); err != nil {
 			return blocked(fmt.Errorf("enabling repository.has_wiki through the API: %w", err))
 		}
-		fmt.Fprintln(target.stderr(), "set: repository.has_wiki = true (wiki readiness preflight)")
+		fmt.Fprintln(target.stderr(), "set: repository.has_wiki = true")
 		p.enabledViaAPI = true
 	}
 	if err := gh.InspectWiki(dir, remoteURL, baseline); err != nil {
@@ -127,31 +129,28 @@ func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTa
 	return p, nil
 }
 
-func wikiReadinessGuidance(err error, wikiURL, remoteURL string) string {
-	guidance := fmt.Sprintf("wiki readiness blocked: %v", err)
-	var access *gh.WikiAccessError
-	switch {
-	case errors.As(err, &access):
-		if access.State == "wiki has no commits" {
-			guidance += fmt.Sprintf("\nOpen %s, create and save the first page, then rerun tailor alter", wikiURL)
-		} else if strings.Contains(access.State, "distinguish") {
-			guidance += fmt.Sprintf("\nOpen %s to check access. If no page exists, create and save the first page. Rerun tailor alter", wikiURL)
-		}
-	case strings.HasPrefix(err.Error(), "reading wiki repository"), strings.HasPrefix(err.Error(), "repository metadata"), strings.HasPrefix(err.Error(), "enabling repository.has_wiki"):
-		guidance += "\nCheck GitHub authentication, repository permissions and network access, then rerun tailor alter"
-	case strings.HasPrefix(err.Error(), "wiki is disabled"):
-		guidance += "\nRun tailor alter to enable the wiki and check readiness"
-	default:
-		guidance += wikiImportGuidance(remoteURL) + "\nRerun tailor alter, then review, commit and push the changes"
+func wikiReadinessGuidance(err error, wikiURL, remoteURL string, hasSource bool) string {
+	return "wiki is not ready\n" + strings.TrimSuffix(wikiPreviewGuidance(err, wikiURL, remoteURL, hasSource), "\n")
+}
+
+func wikiImportGuidance(remoteURL string, hasSource bool) string {
+	guidance := fmt.Sprintf(`   Requires rsync. Run each command from the project root, stopping if a command fails.
+   Use an unused path for ../tailor-wiki-import.
+     git clone %s ../tailor-wiki-import
+`, remoteURL)
+	if hasSource {
+		guidance += `   Copy missing files without replacing local files:
+     rsync -a --ignore-existing --exclude=.git ../tailor-wiki-import/ wiki/
+     rsync -naci --exclude=.git ../tailor-wiki-import/ wiki/
+   Review the listed differences and merge changes before recording the imported version:
+`
+	} else {
+		guidance += "     rsync -a --exclude=.git ../tailor-wiki-import/ wiki/\n"
 	}
-	return guidance
+	return guidance + "     git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base\n"
 }
 
-func wikiImportGuidance(remoteURL string) string {
-	return fmt.Sprintf("\nBack up wiki/. Use an unused sibling directory for the clone, for example:\n  git clone %s ../tailor-wiki-import\nReview local conflicts, then copy every clone file except .git into wiki/ without discarding local work.\nFrom the project root, record the imported commit with:\n  git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base\nDo not change the baseline without importing and reviewing the files.", remoteURL)
-}
-
-func wikiPreviewGuidance(err error, wikiURL, remoteURL string) string {
+func wikiPreviewGuidance(err error, wikiURL, remoteURL string, hasSource bool) string {
 	if strings.HasPrefix(err.Error(), "wiki is disabled") {
 		return fmt.Sprintf(`
 Next steps:
@@ -163,37 +162,75 @@ The wiki is off. Other changes will wait until it is ready.
    %s
 
 3. If Tailor asks you to import the wiki:
-   Back up any existing wiki/ files. Clone into a new directory:
-     git clone %s ../tailor-wiki-import
-
-   Copy the files into wiki/, excluding .git. Preserve your local changes.
-   Then, from the project root, record the imported version:
-     git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base
-
-4. Run tailor baste again. When the wiki checks pass, run tailor alter.
-`, wikiURL, remoteURL)
+%s
+4. %s
+`, wikiURL, wikiImportGuidance(remoteURL, hasSource), wikiRecheckGuidance)
 	}
-	guidance := fmt.Sprintf("\nNext steps:\nwiki readiness blocked: %v\n", err)
-	guidance += "Except for wiki enablement, the previewed changes wait until wiki readiness passes.\n"
+	const waiting = " Other changes will wait until it is ready.\n\n"
+	guidance := "\nNext steps:\n"
+	step := 2
 	var access *gh.WikiAccessError
 	switch {
 	case errors.As(err, &access):
 		switch {
 		case access.State == "wiki has no commits":
-			guidance += fmt.Sprintf("Open %s, then create and save the first page.\nImport the wiki after you save the page:", wikiURL)
-			guidance += wikiImportGuidance(remoteURL) + "\n"
+			guidance += "The wiki has no pages." + waiting
+			guidance += fmt.Sprintf("1. Create and save the first page at:\n   %s\n\n", wikiURL)
+			guidance += "2. Import the wiki:\n" + wikiImportGuidance(remoteURL, hasSource) + "\n"
+			step = 3
 		case strings.Contains(access.State, "distinguish"):
-			guidance += fmt.Sprintf("Open %s to check access and whether a first page exists.\n", wikiURL)
-			guidance += "Resolve repository access first. If access works but no page exists, create and save the first page.\n"
+			guidance += "Tailor could not open the wiki." + waiting
+			guidance += fmt.Sprintf("1. Open %s\n   If the wiki has no pages, create and save one.\n   If you cannot open the wiki, check your access.\n\n", wikiURL)
+		case strings.HasPrefix(access.State, "git could not start"):
+			guidance += "Tailor could not start Git." + waiting
+			guidance += "1. Check that Git is installed and runs from this terminal.\n\n"
+		case strings.HasPrefix(access.State, "wiki access was denied"):
+			guidance += "GitHub denied access to the wiki." + waiting
+			guidance += "1. Check your repository access.\n\n"
 		default:
-			guidance += "Resolve the reported Git, authentication or network problem before retrying.\n"
+			guidance += "Tailor could not read the wiki." + waiting
+			guidance += "1. Check your network connection and repository access.\n\n"
 		}
 	case strings.HasPrefix(err.Error(), "reading wiki repository"), strings.HasPrefix(err.Error(), "repository metadata"), strings.HasPrefix(err.Error(), "enabling repository.has_wiki"):
-		guidance += "Check GitHub authentication, repository permissions and network access.\n"
+		guidance += "Tailor could not check or enable the wiki." + waiting
+		guidance += "1. Check GitHub authentication, repository permissions and network access.\n\n"
 	default:
-		guidance += "Import or reimport the wiki after you review the reported blocker:" + wikiImportGuidance(remoteURL) + "\n"
+		if strings.HasPrefix(err.Error(), "wiki published source is not in local HEAD history") || strings.HasPrefix(err.Error(), "wiki published source tree is unavailable") {
+			guidance += "The project history for the published wiki is missing locally." + waiting
+			guidance += "1. Fetch the project history and switch to the current project branch.\n\n"
+			guidance += "2. If the history is still unavailable, review and import the wiki again:\n" + wikiImportGuidance(remoteURL, hasSource) + "\n"
+			step = 3
+			break
+		}
+		guidance += wikiReviewReason(err) + waiting
+		if strings.Contains(err.Error(), "wiki/.tailor-wiki-base is missing") {
+			guidance += "1. Import the wiki:\n"
+		} else {
+			guidance += "1. Review the wiki files, then import the wiki again:\n"
+		}
+		guidance += wikiImportGuidance(remoteURL, hasSource) + "\n"
 	}
-	return guidance + "Rerun tailor baste to check readiness before tailor alter applies the remaining changes.\n"
+	return guidance + fmt.Sprintf("%d. %s\n", step, wikiRecheckGuidance)
+}
+
+const wikiRecheckGuidance = "Run tailor baste again. When the wiki checks pass, run tailor alter."
+
+func wikiReviewReason(err error) string {
+	switch message := err.Error(); {
+	case strings.Contains(message, "wiki/.tailor-wiki-base is missing"):
+		return "Tailor needs an imported copy of the wiki in wiki/."
+	case strings.HasPrefix(message, "wiki/.tailor-wiki-base must contain"):
+		return "wiki/.tailor-wiki-base must contain the full 40-character ID of the imported wiki version."
+	case strings.HasPrefix(message, "wiki import is incomplete:"):
+		detail, _, _ := strings.Cut(strings.TrimPrefix(message, "wiki import is incomplete: "), ";")
+		return "The wiki import is incomplete: " + detail + "."
+	case strings.Contains(message, "unsafe file"), strings.Contains(message, "unsupported file"):
+		return "The wiki contains an unsafe or unsupported file. Review the wiki files before importing them."
+	case strings.Contains(message, "remote changed outside the publisher"), strings.Contains(message, "wiki remote differs from its published source"):
+		return "The wiki changed outside Tailor. Review those changes before importing the wiki again."
+	default:
+		return "Tailor could not check the wiki: " + message + "."
+	}
 }
 
 var wikiCommit = regexp.MustCompile(`^[0-9a-f]{40}$`)

@@ -50,8 +50,11 @@ func TestWikiEnablementStopsBeforeOtherWrites(t *testing.T) {
 			}))
 			var stdout, stderr strings.Builder
 			err := alter.Run(loadTestConfig(t, dir), dir, mode, client, &stdout, &stderr)
-			if !called || err == nil || !strings.Contains(err.Error(), "https://github.com/testowner/testrepo/wiki") || !strings.Contains(err.Error(), "create and save") {
+			if !called || err == nil || !strings.Contains(err.Error(), "https://github.com/testowner/testrepo/wiki") || !strings.Contains(err.Error(), "Create and save") {
 				t.Fatalf("called=%t error=%v", called, err)
+			}
+			if stderr.String() != "set: repository.has_wiki = true\n" {
+				t.Fatalf("enablement output=%q", stderr.String())
 			}
 			if len(s.writes) != 1 || !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) {
 				t.Fatal("readiness blocker allowed other writes")
@@ -90,11 +93,10 @@ func TestWikiDisabledPreviewIncludesBlockerAndOtherChanges(t *testing.T) {
    https://github.com/testowner/testrepo/wiki
 
 3. If Tailor asks you to import the wiki:
-   Back up any existing wiki/ files. Clone into a new directory:
+   Requires rsync. Run each command from the project root, stopping if a command fails.
+   Use an unused path for ../tailor-wiki-import.
      git clone https://github.com/testowner/testrepo.wiki.git ../tailor-wiki-import
-
-   Copy the files into wiki/, excluding .git. Preserve your local changes.
-   Then, from the project root, record the imported version:
+     rsync -a --exclude=.git ../tailor-wiki-import/ wiki/
      git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base
 
 4. Run tailor baste again. When the wiki checks pass, run tailor alter.
