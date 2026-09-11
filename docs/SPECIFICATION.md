@@ -1205,7 +1205,7 @@ The retired paths are `.github/workflows/tailor-automerge.yml` and `.github/work
 
 ## Justfile Integration
 
-The `justfile` swatch is a minimal bootstrap scaffold covering tailor operations only. It is placed as `first-fit` and is not updated after initial delivery; projects are expected to extend it with their own recipes.
+The `justfile` swatch provides Tailor operations and workflow linting with `actionlint`. Its `first-fit` mode preserves local recipes during normal alterations. Projects can extend the file. `--recut` replaces it unless its mode is `never`.
 
 ```makefile
 # List available recipes
@@ -1215,6 +1215,10 @@ default:
 # Alter tailor swatches
 alter:
     @tailor alter
+
+# Run linters
+lint:
+    @actionlint
 
 # Check what tailor would change and measure
 measure:

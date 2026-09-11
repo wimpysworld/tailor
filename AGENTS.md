@@ -6,6 +6,8 @@ Tailor is a local terminal CLI for managing project templates (swatches) across 
 
 The authoritative specification is `docs/SPECIFICATION.md`. All implementation decisions must align with it.
 
+Keep the introduction and installation instructions in `README.md`. Put detailed user documentation in `wiki/`.
+
 ## Tech stack
 
 - **Language**: Go (1.26+)
@@ -45,7 +47,7 @@ tailor/
 - Swatch-to-path mappings and default alteration modes are hardcoded in source, not configurable
 - Field names in the `repository` config section match GitHub REST API names exactly (snake_case)
 - Three alteration modes: `always`, `first-fit`, `never`
-- Adding a new swatch requires: the file in `swatches/`, a registry entry (`registry.go`), an entry in `swatches/.tailor.yml`, updated count assertions in `registry_test.go` and any golden-string test fixtures, plus updates to `docs/SPECIFICATION.md` and `README.md`
+- Adding a new swatch requires: the file in `swatches/`, a registry entry (`registry.go`), an entry in `swatches/.tailor.yml`, updated count assertions in `registry_test.go` and any golden-string test fixtures, plus updates to `docs/SPECIFICATION.md` and `wiki/Configuration.md`
 
 ## Testing
 
