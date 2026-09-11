@@ -132,6 +132,7 @@ func newWikiPublisherFixture(t *testing.T) *wikiPublisherFixture {
 	f.git(root, "clone", "--bare", seed, f.remote)
 	f.git(root, "init", "-b", "main", f.source)
 	f.write(filepath.Join(f.source, "wiki", "Home.md"), "Imported and revised wiki\n")
+	f.write(filepath.Join(f.source, "wiki", "Old.md"), "Old page\n")
 	f.write(filepath.Join(f.source, "wiki", "_Sidebar.md"), "[Home](Home)\n")
 	f.write(filepath.Join(f.source, "wiki", ".tailor-wiki-base"), f.baseline+"\n")
 	f.git(f.source, "add", ".")
@@ -205,7 +206,7 @@ func TestWikiPublisherAdoptionAndUpdates(t *testing.T) {
 	if branch := f.git(f.remote, "symbolic-ref", "HEAD"); branch != "refs/heads/handbook" {
 		t.Fatalf("wiki branch changed: %s", branch)
 	}
-	if names := f.git(f.remote, "ls-tree", "--name-only", "HEAD"); names != "Home.md\n_Sidebar.md" {
+	if names := f.git(f.remote, "ls-tree", "--name-only", "HEAD"); names != "Home.md\nOld.md\n_Sidebar.md" {
 		t.Fatalf("unexpected published files: %s", names)
 	}
 	if body := f.git(f.remote, "show", "HEAD:Home.md"); body != "Imported and revised wiki" {
@@ -217,6 +218,9 @@ func TestWikiPublisherAdoptionAndUpdates(t *testing.T) {
 	}
 	f.write(filepath.Join(f.source, "wiki", "Home.md"), "Second revision\n")
 	f.write(filepath.Join(f.source, "wiki", "guides", "Install.md"), "Install guide\n")
+	if err := os.Remove(filepath.Join(f.source, "wiki", "Old.md")); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Remove(filepath.Join(f.source, "wiki", "_Sidebar.md")); err != nil {
 		t.Fatal(err)
 	}
@@ -227,6 +231,32 @@ func TestWikiPublisherAdoptionAndUpdates(t *testing.T) {
 	}
 	if parent := f.git(f.remote, "rev-parse", "HEAD^"); parent != first {
 		t.Fatal("update discarded the prior publisher commit")
+	}
+}
+
+func TestWikiPublisherRefusesIncompleteAdoption(t *testing.T) {
+	for _, localState := range []string{"missing", "untracked file", "directory"} {
+		t.Run(localState, func(t *testing.T) {
+			f := newWikiPublisherFixture(t)
+			path := filepath.Join(f.source, "wiki", "Old.md")
+			if err := os.Remove(path); err != nil {
+				t.Fatal(err)
+			}
+			if localState == "directory" {
+				f.write(filepath.Join(path, "Nested.md"), "A directory does not import the remote page\n")
+			}
+			f.commit()
+			if localState == "untracked file" {
+				f.write(path, "A local file does not import the committed page\n")
+			}
+			output, err := f.publish("")
+			if err == nil || !strings.Contains(output, "source commit omits remote wiki files") {
+				t.Fatalf("incomplete adoption: %v\n%s", err, output)
+			}
+			if after := f.git(f.remote, "rev-parse", "HEAD"); after != f.baseline {
+				t.Fatal("incomplete adoption changed the wiki")
+			}
+		})
 	}
 }
 

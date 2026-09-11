@@ -138,7 +138,12 @@ jobs:
               desired_tree = content_tree(source_sha)
               remote_tree = git(remote, "rev-parse", "HEAD^{tree}").decode().strip()
               adopted = remote_sha == baseline
-              if not adopted:
+              if adopted:
+                  remote_paths = set(git(remote, "ls-tree", "-r", "-z", "--name-only", remote_tree).split(b"\0"))
+                  source_paths = set(git(remote, "ls-tree", "-r", "-z", "--name-only", desired_tree).split(b"\0"))
+                  if not remote_paths.issubset(source_paths):
+                      stop("wiki publication stopped: source commit omits remote wiki files; import and commit every file before publication")
+              else:
                   message = git(remote, "log", "-1", "--format=%B").decode()
                   previous = re.findall(r"^Tailor-Wiki-Source: ([0-9a-f]{40})$", message, re.MULTILINE)
                   if len(previous) != 1:
