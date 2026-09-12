@@ -100,7 +100,7 @@ tailor measure
 tailor fit .
 ```
 
-If `.tailor.yml` already exists, skip `fit`. With a GitHub remote, `fit` reads live repository settings for the initial configuration.
+If `.tailor.yml` already exists, skip `fit`. With a GitHub remote, `fit` imports only the repository's `description` and `homepage`. All other managed settings come from Tailor's embedded defaults.
 
 ### Review and apply
 
