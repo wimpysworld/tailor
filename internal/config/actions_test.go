@@ -77,7 +77,7 @@ func TestValidateActions(t *testing.T) {
 		{name: "invalid enum", actions: &model.ActionsSettings{AllowedActions: new("private")}, wantErr: "invalid allowed_actions"},
 		{name: "selected field without enum", actions: &model.ActionsSettings{VerifiedAllowed: new(true)}, wantErr: "require allowed_actions"},
 		{name: "selected field with all", actions: &model.ActionsSettings{AllowedActions: new("all"), GitHubOwnedAllowed: new(true)}, wantErr: "require allowed_actions"},
-		{name: "unknown", actions: &model.ActionsSettings{Extra: map[string]interface{}{"unknown": true}}, wantErr: "unrecognised actions setting"},
+		{name: "unknown", actions: &model.ActionsSettings{Extra: map[string]any{"unknown": true}}, wantErr: "unrecognised actions setting"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

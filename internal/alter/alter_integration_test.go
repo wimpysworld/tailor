@@ -1490,6 +1490,7 @@ swatches:
 	}
 	if patchCall == nil {
 		t.Fatal("no PATCH call to repos/{owner}/{repo} found")
+		return
 	}
 
 	var body map[string]any
@@ -2118,6 +2119,7 @@ func allDefaultActionsYAML(t *testing.T) string {
 	a := defaults.Actions
 	if a == nil {
 		t.Fatal("default Actions policy is nil")
+		return ""
 	}
 
 	var sb strings.Builder
@@ -2164,16 +2166,17 @@ func allDefaultLabelsYAML(t *testing.T) string {
 // the two previously missing swatch files appear on disk.
 func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 	// Config includes the .tailor.yml swatch (always) but omits SUPPORT.md and justfile.
-	configYAML := "license: none\nswatches:\n" +
-		"  - path: .tailor.yml\n    alteration: always\n"
+	var configYAML strings.Builder
+	configYAML.WriteString("license: none\nswatches:\n" +
+		"  - path: .tailor.yml\n    alteration: always\n")
 	for _, s := range swatch.All() {
 		if s.Path == ".tailor.yml" || s.Path == "SUPPORT.md" || s.Path == "justfile" {
 			continue
 		}
-		configYAML += fmt.Sprintf("  - path: %s\n    alteration: %s\n", s.Path, s.DefaultAlteration)
+		fmt.Fprintf(&configYAML, "  - path: %s\n    alteration: %s\n", s.Path, s.DefaultAlteration)
 	}
 
-	tc := setupAlterTest(t, configYAML)
+	tc := setupAlterTest(t, configYAML.String())
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
 	cfg := loadTestConfig(t, tc.Dir)

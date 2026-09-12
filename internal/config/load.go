@@ -97,6 +97,9 @@ func parseAndValidate(data []byte, context string) (*Config, error) {
 	if err := validatePagesNodes(&document); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", context, err)
 	}
+	if err := validateLanguageNodes(&document); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", context, err)
+	}
 	var cfg Config
 	if err := document.Decode(&cfg); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", context, err)

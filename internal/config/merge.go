@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/wimpysworld/tailor/internal/model"
-	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
 // repoSettingsSkipFields lists RepositorySettings YAML keys excluded from
@@ -253,7 +252,7 @@ func MergeDefaultSwatches(cfg *Config) []SwatchEntry {
 	}
 
 	var added []SwatchEntry
-	for _, s := range swatch.All() {
+	for _, s := range cfg.ActiveDefaultSwatches() {
 		if s.Path == ConfigSwatchPath {
 			continue
 		}

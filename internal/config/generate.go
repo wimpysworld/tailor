@@ -35,6 +35,9 @@ func DefaultConfig(license string) (*Config, error) {
 		cfg.Repository.Homepage = nil
 	}
 	cfg.InferredHomepage = ""
+	cfg.Swatches = slices.DeleteFunc(cfg.Swatches, func(entry SwatchEntry) bool {
+		return !cfg.SwatchActive(entry.Path)
+	})
 
 	return cfg, nil
 }

@@ -25,7 +25,7 @@ var (
 const maxLabels = 1000
 
 func validateTopLevelSettings(cfg *Config) error {
-	valid := []string{"actions", "code_quality", "code_scanning", "immutable_releases", "labels", "license", "pages", "repository", "ruleset", "swatches", "variables"}
+	valid := []string{"actions", "code_quality", "code_scanning", "immutable_releases", "labels", "languages", "license", "pages", "repository", "ruleset", "swatches", "variables"}
 	return rejectExtra("top-level", cfg.Extra, valid)
 }
 
@@ -59,7 +59,7 @@ func validatePagesPath(value *string) error {
 		if path == "" || strings.HasPrefix(path, "/") || strings.ContainsAny(path, "\\\\\n\r\x00:$`\"'") || strings.Contains(path, "${{") {
 			return fmt.Errorf("pages.path must be a safe project-relative directory")
 		}
-		for _, part := range strings.Split(path, "/") {
+		for part := range strings.SplitSeq(path, "/") {
 			if part == "" || part == "." || part == ".." {
 				return fmt.Errorf("pages.path must not contain empty, dot, or traversal components")
 			}
@@ -77,7 +77,7 @@ func validatePagesBranch(value *string) error {
 		if branch == "" || branch == "@" || strings.HasPrefix(branch, "-") || strings.HasSuffix(branch, ".") || strings.Contains(branch, "..") || strings.Contains(branch, "@{") || strings.ContainsAny(branch, " ~^:?*[\\\\\x7f") || strings.ContainsFunc(branch, unicode.IsControl) {
 			return fmt.Errorf("pages.branch must be a valid branch name")
 		}
-		for _, part := range strings.Split(branch, "/") {
+		for part := range strings.SplitSeq(branch, "/") {
 			if part == "" || strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
 				return fmt.Errorf("pages.branch must be a valid branch name")
 			}
@@ -92,7 +92,7 @@ func validatePagesCNAME(value *string) error {
 		if len(domain) > 253 || !strings.Contains(domain, ".") || net.ParseIP(domain) != nil {
 			return fmt.Errorf("pages.cname must be a domain without a scheme or path")
 		}
-		for _, label := range strings.Split(domain, ".") {
+		for label := range strings.SplitSeq(domain, ".") {
 			if len(label) == 0 || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") || !domainLabelRegexp.MatchString(label) {
 				return fmt.Errorf("pages.cname must be a domain without a scheme or path")
 			}

@@ -2,7 +2,7 @@
 
 Use `.tailor.yml` to choose the files and GitHub settings that Tailor manages.
 
-[Swatches](#swatches) · [Licences](#licences) · [Default set](#default-swatch-set) · [Modes](#alteration-modes) · [Default merging](#default-merging) · [Config example](#config-file)
+[Swatches](#swatches) · [Go support](#go-support) · [Licences](#licences) · [Default set](#default-swatch-set) · [Modes](#alteration-modes) · [Default merging](#default-merging) · [Config example](#config-file)
 
 ## Swatches
 
@@ -20,6 +20,39 @@ With default modes, the next `tailor alter` repairs `SECURITY.md`, but preserves
 
 Alternatively, use `tailor alter --recut` to regenerate the issue configuration. This overwrites all eligible first-fit swatches, not just that file.
 
+## Go support
+
+Set `languages.go: true` to add Go development and release files:
+
+```yaml
+languages:
+  go: true
+```
+
+Go is opt-in. New configs use `false`. Existing configs without this setting remain unchanged, including during default merging. Tailor accepts only the `go` key and Boolean values. Null values and unknown language keys are errors. CodeQL language settings do not enable these swatches.
+
+| Swatch | Purpose | Default mode |
+|---|---|---|
+| `.golangci.yml` | Go lint configuration | `first-fit` |
+| `.goreleaser.yaml` | Executable builds, archives, checksums, and GitHub Releases | `first-fit` |
+| `.github/workflows/build-go.yml` | Tests, lint checks, pull request snapshots, and releases from version tags | `first-fit` |
+
+The release configuration targets Linux and macOS on amd64 and arm64, with CGO disabled. Pull requests and default-branch pushes produce downloadable snapshots, not published releases. Tags that match `v*.*.*` publish GitHub Releases. The workflow needs no Nix or containers and includes no third-party package publishing or signing.
+
+Tailor discovers executable packages from local source files in the root Go module when it needs a new release configuration. It supports one or several executables. Discovery skips symlinks, vendor directories, testdata, nested modules, and test files. It also skips files and directories with a dot or underscore prefix. It never runs project code or `go list`.
+
+If Tailor finds no supported executable, or finds unsupported build constraints, the required release configuration fails preflight before writes. An existing first-fit `.goreleaser.yaml` or a `never` entry needs no discovery. For a library-only project, set `.goreleaser.yaml` and `.github/workflows/build-go.yml` to `never` and keep `.golangci.yml` if needed.
+
+Before Tailor creates or replaces the builder workflow, it checks the lint and release configurations. Both must already be regular files, or Tailor must plan to create them. Tailor does not check the contents of customised configurations.
+
+When Go is enabled, a newly rendered `justfile` adds `build` and `test` recipes for `go build ./...` and `go test ./...`. Its `lint` recipe runs golangci-lint and actionlint. Tailor keeps the other shipped recipes.
+
+Newly rendered Dependabot configuration includes `gomod` when Go is true and omits it when Go is false. An absent Go setting keeps the legacy `gomod` entry. GitHub Actions and Nix entries remain.
+
+Existing first-fit files stay unchanged after you enable Go. Review customised files and add the Go commands yourself. `tailor alter --recut` replaces all eligible first-fit files, not only Go files. `never` always preserves a file.
+
+Set Go to false, or remove the setting, to stop Tailor managing the three Go-only swatches. Tailor preserves existing files, even with `--recut`. Existing builder workflows still run on GitHub. Remove or disable that workflow yourself if you want it to stop.
+
 ## Licences
 
 Licences are not swatches. Choose an identifier supported by the [GitHub licences API](https://docs.github.com/en/rest/licenses/licenses#get-a-license), or `none` to skip licence creation.
@@ -34,7 +67,7 @@ If the licence fetch fails, check the identifier and API access. Earlier changes
 
 ## Default swatch set
 
-Tailor embeds 25 default swatches:
+Tailor embeds 28 default swatches:
 
 | Swatch | Mode |
 |--------|------|
@@ -49,6 +82,9 @@ Tailor embeds 25 default swatches:
 | `.github/FUNDING.yml` | `first-fit` |
 | `.github/ISSUE_TEMPLATE/config.yml` | `first-fit` |
 | `justfile` | `first-fit` |
+| `.golangci.yml` | `first-fit` (only when `languages.go: true`) |
+| `.goreleaser.yaml` | `first-fit` (only when `languages.go: true`) |
+| `.github/workflows/build-go.yml` | `first-fit` (only when `languages.go: true`) |
 | `flake.nix` | `first-fit` |
 | `.gitignore` | `first-fit` |
 | `.envrc` | `first-fit` |
@@ -89,6 +125,7 @@ The merge appends missing swatch entries and fills missing supported settings. I
 | `ruleset` | Restores an absent default section with `enforcement: active` and fills missing fields at each level. Explicit lists remain whole. |
 | `labels` | Restores default labels when absent or empty. A non-empty list remains unchanged. |
 | `pages` | Adds missing defaults, with `enabled: false`. Does not add personal `links` defaults. |
+| `languages` | Preserves absent and explicit settings. Does not add a missing section or `go` key. |
 | `license`, `immutable_releases`, `variables` | Does not add defaults. |
 
 Omitting a managed section does not stop management when merging restores that section. Set `.tailor.yml` to `never`, or omit its swatch entry, to disable default merging. The merge never restores its own `.tailor.yml` entry.
@@ -97,13 +134,16 @@ Omitting a managed section does not stop management when merging restores that s
 
 ## Config file
 
-All state lives in `.tailor.yml`. Its eleven sections are `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, and `swatches`.
+All state lives in `.tailor.yml`. Its twelve sections are `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `languages`, and `swatches`.
 
 Tailor opens `.tailor.yml` relative to the project root. The config must be a regular file no larger than 1 MiB.
 
 ```yaml
 # Initially fitted by tailor on 2026-03-04
 license: BlueOak-1.0.0
+
+languages:
+  go: false
 
 repository:
   topics:
@@ -253,6 +293,7 @@ If a destination is unsafe, move valuable content aside before you correct the p
 | `code_scanning`, `code_quality` | [Code scanning and quality](Code-scanning-and-quality) |
 | `ruleset` | [Ruleset](Ruleset) |
 | `pages` | [GitHub Pages](GitHub-Pages) |
+| `languages` | [Go support](#go-support) |
 | Wiki files and `repository.has_wiki` | [GitHub wiki](GitHub-wiki) |
 
 See [Commands](Commands) for licence flags, file checks, and the shipped [justfile recipes](Commands#justfile-recipes).

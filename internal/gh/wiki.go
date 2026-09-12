@@ -65,7 +65,7 @@ func inspectWikiGit(dir, remoteURL, baseline string) error {
 			return err
 		}
 		defer root.Close()
-		for _, entry := range bytes.Split(remoteTree, []byte{0}) {
+		for entry := range bytes.SplitSeq(remoteTree, []byte{0}) {
 			if len(entry) == 0 {
 				continue
 			}
@@ -100,7 +100,7 @@ func inspectWikiGit(dir, remoteURL, baseline string) error {
 		return errors.New("wiki published source contains an unsafe file; review and reimport the wiki")
 	}
 	var filtered []byte
-	for _, entry := range bytes.Split(sourceTree, []byte{0}) {
+	for entry := range bytes.SplitSeq(sourceTree, []byte{0}) {
 		if len(entry) == 0 {
 			continue
 		}
@@ -117,7 +117,7 @@ func inspectWikiGit(dir, remoteURL, baseline string) error {
 }
 
 func safeWikiTree(tree []byte) bool {
-	for _, entry := range bytes.Split(tree, []byte{0}) {
+	for entry := range bytes.SplitSeq(tree, []byte{0}) {
 		if len(entry) == 0 {
 			continue
 		}
@@ -125,7 +125,7 @@ func safeWikiTree(tree []byte) bool {
 		if !ok || (!bytes.HasPrefix(metadata, []byte("100644 blob ")) && !bytes.HasPrefix(metadata, []byte("100755 blob "))) {
 			return false
 		}
-		for _, component := range strings.Split(string(name), "/") {
+		for component := range strings.SplitSeq(string(name), "/") {
 			if strings.EqualFold(component, ".git") {
 				return false
 			}

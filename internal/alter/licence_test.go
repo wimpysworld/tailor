@@ -44,6 +44,7 @@ func TestProcessLicenceWrittenWhenAbsent(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Category != alter.WouldCopy {
 		t.Errorf("category = %q, want %q", result.Category, alter.WouldCopy)
@@ -71,6 +72,7 @@ func TestProcessLicenceDryRunDoesNotWrite(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Category != alter.WouldCopy {
 		t.Errorf("category = %q, want %q", result.Category, alter.WouldCopy)
@@ -97,6 +99,7 @@ func TestProcessLicenceSkippedWhenPresent(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Category != alter.Skipped || result.Reason != alter.SkipFirstFitExists {
 		t.Errorf("result = %+v, want skipped because first-fit destination exists", result)
@@ -128,6 +131,7 @@ func TestProcessLicenceExemptFromRecut(t *testing.T) {
 	}
 	if result == nil {
 		t.Fatal("expected non-nil result")
+		return
 	}
 	if result.Category != alter.Skipped || result.Reason != alter.SkipFirstFitExists {
 		t.Errorf("result = %+v, want skipped because first-fit destination exists", result)

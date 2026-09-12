@@ -32,11 +32,17 @@ func CheckConfigDiff(cfg *config.Config, defaults []swatch.Swatch) []DiffResult 
 	// Build lookup maps by path.
 	configByPath := make(map[string]config.SwatchEntry, len(cfg.Swatches))
 	for _, s := range cfg.Swatches {
+		if !cfg.SwatchActive(s.Path) {
+			continue
+		}
 		configByPath[s.Path] = s
 	}
 
 	defaultByPath := make(map[string]swatch.Swatch, len(defaults))
 	for _, s := range defaults {
+		if !cfg.SwatchActive(s.Path) {
+			continue
+		}
 		defaultByPath[s.Path] = s
 	}
 
@@ -44,6 +50,9 @@ func CheckConfigDiff(cfg *config.Config, defaults []swatch.Swatch) []DiffResult 
 
 	// Paths in default set but not in config.
 	for _, s := range defaults {
+		if !cfg.SwatchActive(s.Path) {
+			continue
+		}
 		if _, found := configByPath[s.Path]; !found {
 			notConfigured = append(notConfigured, DiffResult{
 				Path:     s.Path,
@@ -55,6 +64,9 @@ func CheckConfigDiff(cfg *config.Config, defaults []swatch.Swatch) []DiffResult 
 	// Paths in config but not in default set, or in both but with differing
 	// alteration mode.
 	for _, s := range cfg.Swatches {
+		if !cfg.SwatchActive(s.Path) {
+			continue
+		}
 		def, found := defaultByPath[s.Path]
 		if !found {
 			configOnly = append(configOnly, DiffResult{

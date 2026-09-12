@@ -21,10 +21,10 @@ func TestPagesStarterPathsMatchRegistry(t *testing.T) {
 	}
 }
 
-func TestAllReturns25Swatches(t *testing.T) {
+func TestAllReturns28Swatches(t *testing.T) {
 	all := swatch.All()
-	if len(all) != 25 {
-		t.Fatalf("All() returned %d swatches, want 25", len(all))
+	if len(all) != 28 {
+		t.Fatalf("All() returned %d swatches, want 28", len(all))
 	}
 }
 
@@ -59,6 +59,9 @@ func TestSwatchAttributes(t *testing.T) {
 		{"flake.nix", swatch.FirstFit, swatch.Development},
 		{"cubic.yaml", swatch.FirstFit, swatch.Development},
 		{"justfile", swatch.FirstFit, swatch.Development},
+		{swatch.GoLintDestination, swatch.FirstFit, swatch.Development},
+		{swatch.GoReleaseDestination, swatch.FirstFit, swatch.Development},
+		{swatch.GoWorkflowDestination, swatch.FirstFit, swatch.Development},
 		{".github/FUNDING.yml", swatch.FirstFit, swatch.Health},
 		{".github/dependabot.yml", swatch.FirstFit, swatch.Health},
 		{".github/ISSUE_TEMPLATE/bug_report.yml", swatch.Always, swatch.Health},
@@ -164,8 +167,8 @@ func TestHealthSwatchesReturnsCorrectSubset(t *testing.T) {
 
 func TestPathsReturnsSortedList(t *testing.T) {
 	names := swatch.Paths()
-	if len(names) != 25 {
-		t.Fatalf("Paths() returned %d names, want 25", len(names))
+	if len(names) != 28 {
+		t.Fatalf("Paths() returned %d names, want 28", len(names))
 	}
 	for i := 1; i < len(names); i++ {
 		if names[i] < names[i-1] {

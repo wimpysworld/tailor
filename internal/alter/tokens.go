@@ -10,6 +10,8 @@ type TokenContext struct {
 	GitHubUsername string // from GET /user
 	Owner          string // from repo context; empty if no context
 	Name           string // from repo context; empty if no context
+	DefaultBranch  string
+	rendered       map[string][]byte
 }
 
 // Substitute replaces tokens in content based on the swatch path.

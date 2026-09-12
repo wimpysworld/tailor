@@ -45,6 +45,17 @@ const configPath = config.ConfigSwatchPath
 // ProcessSwatches evaluates each swatch entry in cfg and returns results.
 // When mode is Apply or Recut, it writes files to disk.
 func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *TokenContext) ([]SwatchResult, error) {
+	if tokens == nil {
+		tokens = &TokenContext{}
+	}
+	contents := tokens.rendered
+	if contents == nil {
+		var err error
+		contents, err = prepareGoSwatches(cfg, dir, mode, tokens.DefaultBranch)
+		if err != nil {
+			return nil, err
+		}
+	}
 	results := make([]SwatchResult, 0, len(cfg.Swatches))
 	root, err := os.OpenRoot(dir)
 	if err != nil {
@@ -53,13 +64,19 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 	defer root.Close()
 
 	for _, entry := range cfg.Swatches {
+		if !cfg.SwatchActive(entry.Path) {
+			continue
+		}
 		if entry.Path == configPath || entry.Path == swatch.PagesDestination || swatch.IsWiki(entry.Path) || swatch.IsPagesStarter(entry.Path) {
 			continue
 		}
 
-		content, err := swatch.Content(entry.Path)
-		if err != nil {
-			return nil, fmt.Errorf("reading swatch %q: %w", entry.Path, err)
+		content, rendered := contents[entry.Path]
+		if !rendered {
+			content, err = swatch.Content(entry.Path)
+			if err != nil {
+				return nil, fmt.Errorf("reading swatch %q: %w", entry.Path, err)
+			}
 		}
 
 		content = tokens.Substitute(content, entry.Path)
@@ -137,7 +154,7 @@ func checkParents(root *os.Root, path, subject string) error {
 	}
 
 	current := ""
-	for _, component := range strings.Split(parent, string(filepath.Separator)) {
+	for component := range strings.SplitSeq(parent, string(filepath.Separator)) {
 		current = filepath.Join(current, component)
 		info, err := root.Lstat(current)
 		if err != nil {

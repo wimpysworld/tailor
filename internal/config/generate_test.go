@@ -1,6 +1,7 @@
 package config
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -21,6 +22,9 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 	if err := yaml.Unmarshal(data, &want); err != nil {
 		t.Fatalf("unmarshalling embedded config: %v", err)
 	}
+	want.Swatches = slices.DeleteFunc(want.Swatches, func(entry SwatchEntry) bool {
+		return !want.SwatchActive(entry.Path)
+	})
 
 	got, err := DefaultConfig("BlueOak-1.0.0")
 	if err != nil {

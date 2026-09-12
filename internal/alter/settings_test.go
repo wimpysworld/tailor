@@ -20,6 +20,7 @@ import (
 // repoJSON mirrors the repoResponse struct in the gh package for building
 // mock GET /repos/{owner}/{repo} responses.
 type repoJSON struct {
+	DefaultBranch            string   `json:"default_branch,omitempty"`
 	Description              string   `json:"description"`
 	Homepage                 string   `json:"homepage"`
 	HasWiki                  bool     `json:"has_wiki"`
