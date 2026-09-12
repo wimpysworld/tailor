@@ -87,7 +87,7 @@ All configs examined were golangci-lint v2 format unless noted. "Linters enabled
 
 ## Dependency Review Security Gate
 
-The `security` job in [`.github/workflows/builder.yml`](../.github/workflows/builder.yml) runs `actions/dependency-review-action@v5` for pull requests to `main`. It blocks merges that introduce a runtime dependency with a moderate-or-higher vulnerability or an unapproved licence.
+The `security` job in [`.github/workflows/builder.yml`](../.github/workflows/builder.yml) runs `actions/dependency-review-action@v5` for pull requests to `main`. It blocks merges that introduce a runtime dependency with a moderate-or-higher vulnerability.
 
 ### Trigger and CI graph position
 
@@ -98,7 +98,7 @@ The dependency review step runs only on `pull_request` events (`if: github.event
 | Setting | Value | Rationale |
 |---------|-------|-----------|
 | `fail-on-severity` | `moderate` | Blocks moderate, high, and critical CVEs; low-only vulnerabilities pass. Matches GitHub's recommended starting point. |
-| `allow-licenses` | See the full allowlist in [`.github/workflows/builder.yml`](../.github/workflows/builder.yml), including `LicenseRef-scancode-google-patent-license-golang` | Blocks every licence outside the explicit list. |
+| `license-check` | `false` | Disables dependency licence checks. No licence allowlist is enforced. |
 | `fail-on-scopes` | `runtime` | Checks runtime dependencies only; test-only imports are excluded to reduce false positives. |
 | `comment-summary-in-pr` | `on-failure` | Posts a summary comment on the PR when the job fails; no noise on clean PRs. |
 
