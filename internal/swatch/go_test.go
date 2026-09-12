@@ -127,9 +127,9 @@ func TestGoWorkflowIsolationAndVulnerabilityChecks(t *testing.T) {
 				Concurrency struct{ Group string }
 				Jobs        map[string]struct {
 					Steps []struct {
-						Name, If, Uses, Run string
-						With                map[string]string
-						ContinueOnError     bool `yaml:"continue-on-error"`
+						Name, ID, If, Uses, Run string
+						With                    map[string]string
+						ContinueOnError         bool `yaml:"continue-on-error"`
 					}
 				}
 			}
@@ -140,28 +140,43 @@ func TestGoWorkflowIsolationAndVulnerabilityChecks(t *testing.T) {
 				t.Fatal("Go workflow can share the existing builder concurrency group")
 			}
 			steps := workflow.Jobs["security"].Steps
-			checkIndex, reportIndex, uploadIndex := -1, -1, -1
+			scanIndex, checkIndex, reportIndex, uploadIndex := -1, -1, -1, -1
+			scans := 0
 			for index, step := range steps {
+				if strings.HasPrefix(step.Uses, "golang/govulncheck-action@") {
+					scans++
+				}
 				switch step.Name {
 				case "Run govulncheck":
-					checkIndex = index
-					if !strings.HasPrefix(step.Uses, "golang/govulncheck-action@") || step.With["output-format"] != "text" || step.With["output-file"] != "" || step.ContinueOnError {
-						t.Fatal("vulnerability check must print findings and fail on vulnerabilities")
+					scanIndex = index
+					if !strings.HasPrefix(step.Uses, "golang/govulncheck-action@") || step.ID != "govulncheck" || step.With["output-format"] != "json" || step.With["output-file"] != "govulncheck.json" || step.ContinueOnError {
+						t.Fatal("source scan must produce JSON and propagate failures")
 					}
 					if step.If != "${{ !cancelled() }}" {
 						t.Fatal("vulnerability check must run regardless of upload eligibility or earlier failures")
 					}
+				case "Check vulnerabilities":
+					checkIndex = index
+					if step.Run != "govulncheck -mode convert -format text < govulncheck.json" || step.ContinueOnError {
+						t.Fatal("text conversion must print findings and propagate vulnerability or JSON errors")
+					}
+					if step.If != "${{ !cancelled() && steps.govulncheck.outcome == 'success' }}" {
+						t.Fatal("text conversion must require a successful scan regardless of upload eligibility or earlier failures")
+					}
 				case "Generate SARIF":
 					reportIndex = index
-					if step.Run != "govulncheck -format sarif ./... > govulncheck.sarif" {
-						t.Fatal("SARIF generation must reuse the installed scanner")
+					if step.Run != "govulncheck -mode convert -format sarif < govulncheck.json > govulncheck.sarif" || step.ContinueOnError {
+						t.Fatal("SARIF generation must convert the same JSON and propagate errors")
+					}
+					if !strings.Contains(step.If, "steps.govulncheck.outcome == 'success'") || strings.Contains(step.If, "success()") {
+						t.Fatal("SARIF conversion must require a successful scan and run after vulnerability failures")
 					}
 				case "Upload SARIF":
 					uploadIndex = index
 				}
 			}
-			if checkIndex < 0 || reportIndex <= checkIndex || uploadIndex <= reportIndex {
-				t.Fatal("expected separate validation, SARIF generation and upload steps in that order")
+			if scans != 1 || scanIndex < 0 || checkIndex <= scanIndex || reportIndex <= checkIndex || uploadIndex <= reportIndex {
+				t.Fatal("expected one source scan, text validation, SARIF conversion and upload in that order")
 			}
 			for _, index := range []int{reportIndex, uploadIndex} {
 				for _, guard := range []string{
