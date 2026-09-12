@@ -24,7 +24,7 @@ The `repository` section manages GitHub repository settings from `.tailor.yml`. 
 | `allow_auto_merge` | bool | Allow auto-merge |
 | `web_commit_signoff_required` | bool | Require sign-off on web commits |
 | `private_vulnerability_reporting_enabled` | bool | Enable private vulnerability reporting |
-| `vulnerability_alerts_enabled` | bool | Enable Dependabot vulnerability alerts |
+| `vulnerability_alerts_enabled` | bool | Enable Dependabot vulnerability alerts and the dependency graph |
 | `automated_security_fixes_enabled` | bool | Enable Dependabot security update pull requests |
 | `topics` | string[] | Repository topics for discoverability |
 | `default_workflow_permissions` | string | `GITHUB_TOKEN` default permissions: `read` or `write` |
@@ -42,6 +42,10 @@ The security prerequisite normalisations below are the exception: they can chang
 GitHub labels `can_approve_pull_request_reviews` as “Allow GitHub Actions to create and approve pull requests”. Tailor keeps the REST API field name because repository config keys match the API. Enabling the setting permits the repository `GITHUB_TOKEN` to create pull requests and submit approval reviews when the workflow has `pull-requests: write`. The setting does not permit merges, bypass branch rules, or affect personal access tokens or separate GitHub App tokens.
 
 GitHub requires vulnerability alerts before automated security fixes. When automated fixes are enabled and alerts are absent or false, Tailor sets `vulnerability_alerts_enabled` to `true` and shows a warning. `alter` and `alter --recut` save the corrected `.tailor.yml` before security API changes. `baste` previews the config update without writing.
+
+When `vulnerability_alerts_enabled` is `true`, every `alter` run repeats the enable request, including `alter --recut`. This also applies when Tailor sets `true` for the automated fixes prerequisite. GitHub documents that the [enable endpoint](https://docs.github.com/en/rest/repos/repos#enable-vulnerability-alerts) enables both vulnerability alerts and the dependency graph. In June 2025, GitHub changed the [dependency graph default to off for new public repositories](https://github.blog/changelog/2025-06-17-dependency-graph-now-defaults-to-off/).
+
+If alerts already report `true`, Tailor retains that value in the output and adds `reapply enable request for Dependency Graph`. `baste` previews the request without writes. Tailor does not read dependency graph state independently, so success confirms the request, not a separate graph check. Other security endpoint settings are written only when their values differ. A matching `false` needs no write, and a field that stays absent remains unmanaged.
 
 Tailor enables alerts first and disables automated fixes before alerts. If a prerequisite read is unknown, or its write fails or is skipped, Tailor skips the dependent write. A security `404` stays unknown unless Tailor can distinguish a disabled feature from denied access. Access failures produce warnings.
 
