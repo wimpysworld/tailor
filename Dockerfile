@@ -1,5 +1,5 @@
-# cgr.dev/chainguard/static:latest
-FROM cgr.dev/chainguard/static@sha256:f68e3a8244c7d0f4cd56635aaff8e6a533cf6cc3850d8fb339567a5782d6a0b0
+# cgr.dev/chainguard/git:latest
+FROM cgr.dev/chainguard/git@sha256:42eb72ec1720b0703220d1a7cd3ced2b360659a6cbc94898187faee4469d4c47
 ARG TARGETPLATFORM
 COPY ${TARGETPLATFORM}/tailor /usr/local/bin/tailor
 USER 65532

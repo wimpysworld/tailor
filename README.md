@@ -62,10 +62,13 @@ Images are published to GHCR for `linux/amd64` and `linux/arm64`. Mount your pro
 
 ```bash
 docker run --rm \
+  --user "$(id -u):$(id -g)" \
   -v "$PWD":/work -w /work \
   -e GH_TOKEN \
   ghcr.io/wimpysworld/tailor alter
 ```
+
+The `--user` option uses your host identity for Git ownership checks and writes to the mounted checkout.
 
 ### Native packages
 
