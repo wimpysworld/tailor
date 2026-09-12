@@ -1,6 +1,5 @@
-# Tailor is pure Go and releases build with CGO_ENABLED=0. Pin the same
-# here so lint and test analyse the code the release ships; a broken local
-# C toolchain otherwise degrades staticcheck into false positives.
+# Match the pure-Go release build so lint and test check the same code.
+# Disabling CGO also prevents false positives from a broken local C toolchain.
 export CGO_ENABLED := "0"
 
 # List available recipes
@@ -38,24 +37,22 @@ measure:
     @go run ./cmd/tailor baste
     @go run ./cmd/tailor measure
 
-# Create a new release tag (requires VERSION=x.y.z)
+# Create a local release tag with just release x.y.z
 release VERSION:
     #!/usr/bin/env bash
     set -e
 
-    # Validate version format
     if ! [[ "{{VERSION}}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
         echo "Error: VERSION must be in format x.y.z (e.g., 0.1.0)"
         exit 1
     fi
 
-    # Check for uncommitted or untracked changes
+    # A release tag must identify a clean checkout.
     if [ -n "$(git status --porcelain)" ]; then
         echo "Error: Working directory is not clean"
         exit 1
     fi
 
-    # Check if tag already exists
     if git show-ref --tags --verify --quiet "refs/tags/v{{VERSION}}"; then
         echo "Error: Tag v{{VERSION}} already exists"
         exit 1

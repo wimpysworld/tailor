@@ -133,7 +133,7 @@ func ReadTailorRuleset(client *api.RESTClient, owner, name string) (*model.Rules
 	err := boundedHTTPError(client.Get(rulesetPath(owner, name, id)+rulesetReadQuery, &response))
 	var httpErr *api.HTTPError
 	if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
-		// The ruleset disappeared between the list and the read.
+		// Treat a ruleset that disappears between the list and the read as absent.
 		return nil, 0, nil
 	}
 	if err := classifySetupError(err, Op(OpFetchRuleset), false); err != nil {
@@ -318,7 +318,7 @@ func codeScanningFromJSON(raw json.RawMessage) *model.RulesetCodeScanning {
 }
 
 // rulesetBody builds the complete request body for a ruleset write. Every
-// managed field is sent; nothing else is.
+// managed top-level field is sent. Optional nested parameters follow the declaration.
 func rulesetBody(desired *model.RulesetSettings) map[string]any {
 	refName := map[string]any{"include": []string{}, "exclude": []string{}}
 	if desired.Conditions != nil && desired.Conditions.RefName != nil {

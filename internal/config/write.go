@@ -59,9 +59,8 @@ func yamlScalar(v string, style yaml.Style) (string, error) {
 	return result, nil
 }
 
-// settingLines renders one "  key: value" line per set field. Scalar fields
-// keep struct order; list fields follow them, preserving the output order
-// that places topics last.
+// settingLines renders set fields as indented YAML. Scalars keep struct order,
+// followed by lists, so topics appear last in repository settings.
 func settingLines(fields []model.SettingField) ([]string, error) {
 	var lines, lists []string
 	for _, field := range fields {
@@ -163,9 +162,8 @@ var templateFuncs = template.FuncMap{
 	"rulesetLines": rulesetLines,
 }
 
-// rulesetWriter collects the indented lines of the ruleset section. The
-// guidance comments come from the model slices so the documented values
-// cannot drift from the values validation accepts.
+// rulesetWriter collects indented YAML lines and the first scalar encoding error.
+// Guidance comments use model slices so documented values match the values that validation accepts.
 type rulesetWriter struct {
 	lines []string
 	err   error
@@ -397,9 +395,8 @@ func withLanguagesComment(lines []string, valid []string) []string {
 	return slices.Insert(lines, index, comment...)
 }
 
-// configTemplate renders .tailor.yml in the exact format specified. It uses
-// text/template rather than yaml.Marshal to control key order, blank lines
-// between swatch entries, and omission of nil pointer fields.
+// configTemplate uses text/template to control key order, blank lines between
+// swatch entries, guidance comments and omission of nil pointer fields.
 var configTemplate = template.Must(template.New("config").Funcs(templateFuncs).Parse(
 	`# {{ .Verb }} by tailor on {{ .Date }}
 license: {{ yamlVal .License }}
@@ -518,6 +515,7 @@ swatches:
 `))
 
 // Write renders cfg to <dir>/.tailor.yml with the given header date and verb.
+// It replaces the file through a synced temporary file and preserves existing file permissions.
 func Write(dir string, cfg *Config, date string, verb string) (retErr error) {
 	var buf bytes.Buffer
 	if err := configTemplate.Execute(&buf, struct {

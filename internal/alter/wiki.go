@@ -29,6 +29,8 @@ type wikiRun struct {
 
 func (p *wikiRun) didEnable() bool { return p != nil && p.enabledViaAPI }
 
+// preflightWiki checks workflow ownership and remote adoption before ordinary writes.
+// Enabling a public wiki is the sole permitted early write. DryRun reports readiness blockers and continues the preview.
 func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTarget, declared bool) (*wikiRun, error) {
 	if !declared || cfg.Repository == nil || cfg.Repository.HasWiki == nil {
 		return nil, nil

@@ -24,7 +24,7 @@ type (
 	}
 )
 
-// ProgressModel is the testable stage lifecycle used by the inline programme.
+// ProgressModel tracks stage state and delayed spinner activation for the inline display.
 type ProgressModel struct {
 	spinner       spinner.Model
 	stage         StageEvent
@@ -33,7 +33,9 @@ type ProgressModel struct {
 	colour, ascii bool
 }
 
+// NewProgressModel returns an inactive model with a colourless Unicode spinner.
 func NewProgressModel() ProgressModel { return newProgressModel(false, false) }
+
 func newProgressModel(colour, ascii bool) ProgressModel {
 	model := ProgressModel{spinner: spinner.New(), colour: colour, ascii: ascii}
 	model.spinner.Spinner = spinner.MiniDot
@@ -43,6 +45,7 @@ func newProgressModel(colour, ascii bool) ProgressModel {
 	return model
 }
 
+// Init starts spinner ticks only when the model is already active.
 func (m ProgressModel) Init() tea.Cmd {
 	if m.active {
 		return m.spinner.Tick
@@ -50,6 +53,7 @@ func (m ProgressModel) Init() tea.Cmd {
 	return nil
 }
 
+// Update handles stage events and spinner ticks, ignoring activation from an earlier stage generation.
 func (m ProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case StageEvent:
@@ -81,6 +85,7 @@ func (m ProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// View escapes stage text and renders the label with optional counts, item and error details.
 func (m ProgressModel) View() tea.View {
 	prefix := "*"
 	colour := "6"
@@ -117,7 +122,7 @@ func (m ProgressModel) View() tea.View {
 	return tea.NewView(line)
 }
 
-// Progress runs one Bubble Tea programme in inline mode on stderr.
+// Progress serialises stage events, warnings and shutdown for an inline display on stderr.
 type Progress struct {
 	program    *tea.Program
 	writer     io.Writer
@@ -131,8 +136,8 @@ type Progress struct {
 	mu         sync.Mutex
 }
 
-// StartProgress starts a colourless Unicode live display for compatibility.
-// Command code starts progress through Policy.StartProgress instead.
+// StartProgress prepares a colourless Unicode display without terminal detection.
+// Command code uses Policy.StartProgress to honour output flags and terminal capabilities.
 func StartProgress(stderr io.Writer) *Progress {
 	return startProgress(stderr, progressConfig{animate: true})
 }
@@ -144,6 +149,8 @@ func startProgress(stderr io.Writer, config progressConfig) *Progress {
 	return &Progress{writer: stderr, config: config, done: make(chan struct{})}
 }
 
+// Observe records a stage event and delays terminal activation until work lasts 300 milliseconds.
+// Nil and stopped receivers ignore events.
 func (p *Progress) Observe(event StageEvent) {
 	if p == nil {
 		return
@@ -220,6 +227,9 @@ func (p *Progress) WarningWriter(fallback io.Writer) io.Writer {
 type writerFunc func([]byte) (int, error)
 
 func (f writerFunc) Write(data []byte) (int, error) { return f(data) }
+
+// Stop cancels pending activation and waits for the display to restore terminal state.
+// Repeated calls and nil receivers are safe.
 func (p *Progress) Stop() {
 	if p == nil {
 		return

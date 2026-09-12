@@ -1,3 +1,4 @@
+// Package gh handles GitHub authentication, repository discovery and managed API operations.
 package gh
 
 import (
@@ -51,11 +52,8 @@ func NewRESTClient(host string) (*api.RESTClient, error) {
 	return newRESTClient(host)
 }
 
-// VerifyAuth checks that a token is present for the given host and verifies
-// it against the API with a single GET /user request. It returns the REST
-// client and the authenticated username so callers can reuse both without a
-// second request. An empty host falls back to the default host (see
-// ResolveHost).
+// VerifyAuth verifies a token with one GET /user request and returns the client
+// and username for reuse. An empty host uses ResolveHost's default.
 func VerifyAuth(host string) (*api.RESTClient, string, error) {
 	resolved := ResolveHost(host)
 	if err := CheckAuth(resolved); err != nil {

@@ -15,6 +15,7 @@ const (
 
 var variableNameRegexp = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// validateVariableNodes rejects non-string values before YAML decoding can coerce them.
 func validateVariableNodes(document *yaml.Node) error {
 	var sections map[string]yaml.Node
 	if err := document.Decode(&sections); err != nil {

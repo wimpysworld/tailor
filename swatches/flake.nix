@@ -26,6 +26,7 @@
         system:
         let
           pkgs = import nixpkgs { inherit system; };
+          # Keep the development shell available when Tailor has no package for this system.
           tailorPkgs = nix-packages.packages.${system} or { };
         in
         {

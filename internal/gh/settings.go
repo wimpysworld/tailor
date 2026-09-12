@@ -75,14 +75,9 @@ func ReadRepoMetadata(client *api.RESTClient, owner, name string) (*model.Reposi
 	}, nil
 }
 
-// ReadRepoSettings fetches repository settings from the GitHub API and returns
-// them as a model.RepositorySettings. It makes separate API calls for the
-// standard repository fields, security features, and Actions workflow permissions.
-//
-// The returned warnings slice contains classified access errors
-// (ErrInsufficientScope) for sub-calls that returned 403 or an ambiguous 404.
-// The corresponding fields in the returned settings are left nil. Callers can
-// log these warnings or ignore them.
+// ReadRepoSettings reads repository fields, security features and workflow permissions.
+// Inaccessible endpoints and an omitted security_and_analysis block produce
+// ErrInsufficientScope warnings, with the corresponding settings left nil.
 func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.RepositorySettings, []error, error) {
 	var repo repoResponse
 	if err := boundedHTTPError(client.Get(fmt.Sprintf("repos/%s/%s", owner, name), &repo)); err != nil {
@@ -169,7 +164,7 @@ func ReadRepoSettings(client *api.RESTClient, owner, name string) (*model.Reposi
 
 // applySecurityAndAnalysis copies the secret scanning statuses into s. It
 // returns an access warning when the block is absent, because GitHub omits it
-// for tokens without admin access, and leaves every field nil.
+// for tokens without admin access, and leaves s unchanged.
 func applySecurityAndAnalysis(block *securityAndAnalysisResponse, s *model.RepositorySettings) error {
 	if block == nil {
 		return &ErrInsufficientScope{
@@ -193,7 +188,7 @@ func applySecurityAndAnalysis(block *securityAndAnalysisResponse, s *model.Repos
 // readSecurityFeature reads one security feature endpoint. statusOnly is for
 // endpoints that answer with a bare status code (204 enabled, 404 disabled)
 // instead of a JSON body. allow404Disabled treats 404 as a confirmed disabled
-// state; that reading is only safe with confirmed admin access, because 404
+// state. That reading is only safe with confirmed admin access, because 404
 // also means the endpoint is not visible to the token.
 func readSecurityFeature(client *api.RESTClient, path string, statusOnly, allow404Disabled bool) (enabled bool, known bool, err error) {
 	var response any
@@ -406,7 +401,7 @@ func putWorkflowPermissions(client *api.RESTClient, owner, name string, settings
 	return nil
 }
 
-// nonPatchFields lists yaml keys that must not appear in the flat PATCH body,
+// nonPatchFields lists YAML keys that must not appear in the flat PATCH body,
 // either because a separate API endpoint manages them or because the PATCH
 // body nests them under security_and_analysis.
 var nonPatchFields = map[string]bool{
@@ -421,11 +416,9 @@ var nonPatchFields = map[string]bool{
 	"secret_scanning_non_provider_patterns":   true,
 }
 
-// buildSettingsPayload uses reflection to build the PATCH /repos/{owner}/{repo}
-// body from the non-nil fields of settings, keyed by their yaml tags. Fields
-// listed in nonPatchFields never appear in the body because their own
-// endpoints manage them. Secret scanning fields nest under
-// security_and_analysis in the PATCH body.
+// buildSettingsPayload builds the repository PATCH body from declared fields
+// using model.RepositorySettingFields. It excludes fields with separate endpoints
+// and nests secret scanning fields under security_and_analysis.
 func buildSettingsPayload(settings *model.RepositorySettings) map[string]any {
 	body := make(map[string]any)
 	if settings == nil {

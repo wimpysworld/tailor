@@ -4,10 +4,11 @@ import "fmt"
 
 // OperationKind identifies a GitHub API operation recorded in
 // ErrInsufficientScope warnings and ApplyResult skip records. internal/alter
-// maps skips back to config fields by kind; user-facing text comes only from
+// maps skips back to config fields by kind. User-facing text comes only from
 // Operation.String.
 type OperationKind int
 
+// Operation kinds identify managed reads, writes and policy transitions.
 const (
 	OpNone OperationKind = iota
 	OpFetchActionsPermissions
@@ -69,18 +70,17 @@ type Operation struct {
 	Variable string
 }
 
-// SkippedOperation records a sub-operation that was skipped due to
-// insufficient token scope.
+// SkippedOperation records an operation skipped because of an access failure or a skipped prerequisite.
 type SkippedOperation struct {
 	Operation Operation
 	Err       error // *ErrInsufficientScope
 }
 
 // ApplyResult collects the outcome of an apply operation. Skipped lists
-// operations that failed with access errors and were gracefully skipped.
+// operations with access failures and their skipped dependants.
 type ApplyResult struct {
 	Skipped []SkippedOperation
-	Applied []Operation // Confirmed successful writes, including before a later failure.
+	Applied []Operation // Confirmed writes from callers that track partial completion.
 }
 
 // recordAccessError appends the operation to result.Skipped when err is an

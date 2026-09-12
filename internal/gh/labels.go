@@ -21,7 +21,7 @@ type labelResponse struct {
 }
 
 // ReadLabels fetches all labels from a repository using paginated GET requests.
-// Returns an empty slice (not nil) when the repository has no labels.
+// It returns an empty slice (not nil) when the repository has no labels.
 func ReadLabels(client *api.RESTClient, owner, repo string) ([]model.LabelEntry, error) {
 	var all []model.LabelEntry
 
@@ -68,18 +68,10 @@ func hasNextPage(link string) bool {
 	return strings.Contains(link, `rel="next"`)
 }
 
-// ApplyLabels diffs desired labels against current labels and reconciles the
-// difference. Missing labels are created (POST), changed labels are updated
-// (PATCH), and matched labels are skipped. Labels present on GitHub but absent
-// from desired are left untouched (no delete/prune).
-//
-// Name matching is case-insensitive per GitHub's label behaviour.
-//
-// Access errors (insufficient scope or role) on individual labels are collected
-// in the returned ApplyResult rather than aborting, so a 403 on one label does
-// not prevent others from being applied. Rate-limit errors abort immediately
-// with a partial-completion error, so the loop does not burn the remaining
-// API budget.
+// ApplyLabels creates missing labels and updates changed labels, matching names
+// case-insensitively and preserving undeclared labels. It collects access errors
+// in ApplyResult so other labels can continue. Rate limits stop further requests
+// and return the counts of applied and remaining changes.
 func ApplyLabels(client *api.RESTClient, owner, repo string, desired, current []model.LabelEntry) (*ApplyResult, error) {
 	result := &ApplyResult{}
 
@@ -170,7 +162,7 @@ func createLabel(client *api.RESTClient, owner, repo string, label model.LabelEn
 	return nil
 }
 
-// updateLabel sends a PATCH to update an existing label's colour or description.
+// updateLabel sends a PATCH to update an existing label's name, colour or description.
 // The name parameter is the current name on GitHub (used in the URL path).
 func updateLabel(client *api.RESTClient, owner, repo, name string, label model.LabelEntry) error {
 	body := map[string]string{

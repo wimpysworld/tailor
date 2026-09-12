@@ -11,8 +11,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-// specYAML is the exact config body from the specification, minus the leading
-// comment which is not part of the data model.
+// specYAML covers the core configuration fields without optional sections.
 const specYAML = `license: BlueOak-1.0.0
 
 repository:
@@ -119,7 +118,6 @@ func TestUnmarshalSpecYAML(t *testing.T) {
 		t.Fatalf("Swatches count = %d, want 16", len(cfg.Swatches))
 	}
 
-	// Spot-check the first and last swatch entries.
 	first := cfg.Swatches[0]
 	if first.Path != ".github/dependabot.yml" {
 		t.Errorf("first swatch Path = %q", first.Path)

@@ -42,6 +42,7 @@ type PagesCertificate struct {
 // ErrPagesPending means that DNS, ownership or certificate setup needs another run.
 type ErrPagesPending struct{ Reason string }
 
+// Error describes the pending Pages setup step.
 func (e *ErrPagesPending) Error() string { return "pages: " + e.Reason }
 
 // ReadPagesRepository proves classic token grants separately from the repository role.

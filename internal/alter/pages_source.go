@@ -18,6 +18,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// preparePagesSource validates local source and dependency declarations without executing a site build.
 func preparePagesSource(cfg *config.Config, dir string, _ ApplyMode) (*pagesPreparation, error) {
 	if cfg.Pages == nil || cfg.Pages.Enabled == nil || !*cfg.Pages.Enabled {
 		return nil, nil

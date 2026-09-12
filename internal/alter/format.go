@@ -153,10 +153,8 @@ func isActionsPolicyField(field string) bool {
 	return ok
 }
 
-// removeSkipped drops actionable results whose write operation was reported
-// as skipped. skipKey identifies the skipped operation a scope-skip result
-// records; actionKey identifies the operation an actionable result would
-// perform. Each returns false when the result is not of its kind.
+// removeSkipped drops planned results for skipped writes so output cannot claim that those writes succeeded.
+// skipKey and actionKey identify matching operations, returning false for results outside their category.
 func removeSkipped[T any, K comparable](results []T, skipKey, actionKey func(T) (K, bool)) []T {
 	skipped := make(map[K]bool)
 	for _, result := range results {
@@ -227,10 +225,7 @@ func labelActionName(r LabelResult) (string, bool) {
 	return r.Name, r.Category == WouldCreate || r.Category == WouldUpdate
 }
 
-// resultLabel formats a status label, translating dry-run categories to
-// write-mode wording and embedding a skip annotation when present. For
-// example: "would skip (insufficient scope: token missing required scope):"
-// or "would skip (not available):".
+// resultLabel converts preview categories to write-mode wording and adds skip context inside parentheses.
 func resultLabel(category, annotation string, isSkip bool, mode ApplyMode) string {
 	category = outputCategory(category, mode)
 	if annotation != "" && isSkip {
@@ -283,11 +278,8 @@ func sortResults[T any](results []T, order func(T) int, key func(T) string) []T 
 	})
 }
 
-// repoSortKey returns the field name, or the skipped operation text for
-// write-skip results, which have no field name. Ruleset results share the
-// empty key: the stable sort keeps their emission order, which is config
-// order, and the empty key sorts them before every other section inside a
-// category.
+// repoSortKey uses the field name or, for unnamed skips, the operation text.
+// Rulesets share an empty key to retain comparison order and sort first within each category.
 func repoSortKey(r RepoSettingResult) string {
 	if r.Section == rulesetSection {
 		return ""

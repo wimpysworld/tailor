@@ -9,10 +9,14 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
+// ForkPRContributorApprovalResponse holds the approval policy for contributors from forks.
+// A nil policy means that GitHub did not return a value.
 type ForkPRContributorApprovalResponse struct {
 	ApprovalPolicy *string `json:"approval_policy"`
 }
 
+// ReadForkPRContributorApproval reads the approval policy for contributors from forks.
+// Private repositories, unknown policies and access failures return warnings.
 func ReadForkPRContributorApproval(client *api.RESTClient, owner, name string) (*ForkPRContributorApprovalResponse, []error, error) {
 	var warnings []error
 	var repo struct {
@@ -40,6 +44,7 @@ func ReadForkPRContributorApproval(client *api.RESTClient, owner, name string) (
 	return &current, nil, nil
 }
 
+// ApplyForkPRContributorApproval writes a changed policy only when the current policy is known.
 func ApplyForkPRContributorApproval(client *api.RESTClient, owner, name, policy string, current *ForkPRContributorApprovalResponse) (*ApplyResult, error) {
 	if !slices.Contains(model.ForkPRContributorApprovalPolicies, policy) {
 		return nil, fmt.Errorf("actions.fork_pr_contributor_approval.approval_policy is invalid")

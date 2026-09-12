@@ -9,20 +9,23 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
-// LabelCategory classifies the outcome of processing a single label entry.
+// LabelCategory classifies label and variable outcomes.
 type LabelCategory string
 
 const (
-	WouldCreate    LabelCategory = "would create"
-	WouldUpdate    LabelCategory = "would update"
-	LabelNoChange  LabelCategory = "no change"
+	// WouldCreate marks a missing label or variable.
+	WouldCreate LabelCategory = "would create"
+	// WouldUpdate marks an existing label or variable that differs.
+	WouldUpdate LabelCategory = "would update"
+	// LabelNoChange marks a label or variable that already matches.
+	LabelNoChange LabelCategory = "no change"
+	// LabelSkipScope marks an operation blocked by insufficient access.
 	LabelSkipScope LabelCategory = "would skip (insufficient scope)"
 )
 
 // LabelResult records the label name, category, and display value for one
 // label entry. Skip results leave Name empty and carry the skipped Operation
-// instead. Annotation carries optional context for skip categories, embedded
-// in the label (e.g. "token missing required scope").
+// instead. Annotation adds context to the displayed status label.
 type LabelResult struct {
 	Name       string
 	Category   LabelCategory
@@ -32,8 +35,7 @@ type LabelResult struct {
 	Operation  gh.Operation
 }
 
-// ProcessLabels compares declared labels against live labels and optionally
-// applies them. Returns results for output formatting.
+// ProcessLabels previews or applies declared labels without deleting undeclared labels.
 func ProcessLabels(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]LabelResult, error) {
 	if len(cfg.Labels) == 0 {
 		return nil, nil

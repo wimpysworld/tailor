@@ -49,10 +49,9 @@ func statusServer(t *testing.T, status int, body string) *httptest.Server {
 	return server
 }
 
-// assertBoundedHTTPError checks that err is an *api.HTTPError with wantStatus,
-// that it keeps at most three of the details, and that the rendered message
-// carries no control characters, no unbounded detail, and stays under 1200
-// bytes. It returns the HTTP error for further assertions.
+// assertBoundedHTTPError checks the status, exactly three retained details,
+// selected control characters and fixture tails, with a maximum rendered length of 1200 bytes.
+// It returns the HTTP error for further assertions.
 func assertBoundedHTTPError(t *testing.T, err error, wantStatus int, details []string) *api.HTTPError {
 	t.Helper()
 	var httpErr *api.HTTPError

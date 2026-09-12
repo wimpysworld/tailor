@@ -1,3 +1,4 @@
+// Package model defines shared configuration types and the settings that Tailor manages.
 package model
 
 import (
@@ -36,16 +37,19 @@ type ActionsSettings struct {
 	Extra map[string]any `yaml:",inline"`
 }
 
+// ArtifactAndLogRetentionSettings declares how long Actions keeps artefacts and logs.
 type ArtifactAndLogRetentionSettings struct {
 	Days  *int           `yaml:"days,omitempty"`
 	Extra map[string]any `yaml:",inline"`
 }
 
+// ForkPRContributorApprovalSettings declares which fork contributors need approval to run workflows.
 type ForkPRContributorApprovalSettings struct {
 	ApprovalPolicy *string        `yaml:"approval_policy,omitempty"`
 	Extra          map[string]any `yaml:",inline"`
 }
 
+// ForkPRContributorApprovalPolicies lists the accepted policies for approval of fork workflows.
 var ForkPRContributorApprovalPolicies = []string{"first_time_contributors_new_to_github", "first_time_contributors", "all_external_contributors"}
 
 // LabelNeedsUpdate reports whether existing differs from desired in name casing,
@@ -127,7 +131,8 @@ type CodeQualitySettings struct {
 	Extra map[string]any `yaml:",inline"`
 }
 
-// SettingField describes one supported setting field, keyed by its yaml tag.
+// SettingField describes one supported setting field, keyed by its YAML tag.
+// Value is invalid for nil settings. Set identifies a non-nil pointer field.
 type SettingField struct {
 	YAMLKey string
 	Index   int
@@ -159,7 +164,8 @@ func CodeQualitySettingFields(settings *CodeQualitySettings) []SettingField {
 	return settingFields(settings)
 }
 
-// settingFields walks the yaml-tagged pointer fields of a settings struct.
+// settingFields returns named YAML fields in struct order, excluding inline fields.
+// Nil settings still expose field names and indices for validation.
 func settingFields[T any](settings *T) []SettingField {
 	t := reflect.TypeFor[T]()
 	var v reflect.Value
@@ -296,6 +302,7 @@ type RulesetRules struct {
 }
 
 // RulesetPullRequest holds the pull request rule and its parameters.
+// Enabled is a Tailor setting that keeps parameters in the config while the rule is off.
 type RulesetPullRequest struct {
 	Enabled    *bool                         `yaml:"enabled,omitempty"`
 	Parameters *RulesetPullRequestParameters `yaml:"parameters,omitempty"`
@@ -379,7 +386,7 @@ type RulesetCodeScanningTool struct {
 	Extra map[string]any `yaml:",inline"`
 }
 
-// Sorted yaml key names for each ruleset level. Validation reports them
+// Sorted YAML key names for each ruleset level. Validation reports them
 // when it rejects an unrecognised key.
 var (
 	RulesetSettingNames               = yamlKeys[RulesetSettings]()
@@ -395,7 +402,7 @@ var (
 	RulesetCodeScanningToolNames      = yamlKeys[RulesetCodeScanningTool]()
 )
 
-// yamlKeys returns the sorted yaml tag names of T, excluding the inline
+// yamlKeys returns the sorted YAML tag names of T, excluding the inline
 // Extra field.
 func yamlKeys[T any]() []string {
 	fields := settingFields[T](nil)

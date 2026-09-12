@@ -48,17 +48,15 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 	}
 	content := string(data)
 
-	// Licence uses the requested default.
 	if !strings.Contains(content, "license: BlueOak-1.0.0") {
 		t.Error("config missing 'license: BlueOak-1.0.0'")
 	}
 
-	// The default config includes all registered swatches.
+	// Go swatches stay out of the default config until Go is explicitly enabled.
 	if count := strings.Count(content, "- path:"); count != 25 {
 		t.Errorf("swatch count = %d, want 25", count)
 	}
 
-	// The default config includes the default repo settings.
 	wantSettings := []string{
 		"has_wiki:",
 		"has_discussions:",
@@ -194,7 +192,6 @@ func TestFitExistingDirectoryWithConfigError(t *testing.T) {
 
 	dir := t.TempDir()
 
-	// Pre-create .tailor.yml.
 	testutil.WriteConfig(t, dir, "license: BlueOak-1.0.0\n")
 
 	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0"}
@@ -266,14 +263,12 @@ func TestFitNoRepoContextUsesDefaults(t *testing.T) {
 	}
 	content := string(data)
 
-	// Default repo settings should be present.
 	if !strings.Contains(content, "repository:") {
 		t.Error("config missing repository section")
 	}
 
-	// merge_commit_title and merge_commit_message should be absent
-	// because they are nil in the default embedded config.
-	// Use leading newline+spaces to avoid matching squash_merge_commit_title.
+	// The embedded defaults leave both merge_commit fields nil, so neither is written.
+	// The leading newline and spaces exclude squash_merge_commit_title matches.
 	if strings.Contains(content, "\n  merge_commit_title:") {
 		t.Error("default config should not contain merge_commit_title")
 	}

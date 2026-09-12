@@ -16,8 +16,11 @@ import (
 type RepoSettingCategory string
 
 const (
-	WouldSet       RepoSettingCategory = "would set"
-	RepoNoChange   RepoSettingCategory = "no change"
+	// WouldSet marks a declared setting that needs a write.
+	WouldSet RepoSettingCategory = "would set"
+	// RepoNoChange marks a setting that already matches its declaration.
+	RepoNoChange RepoSettingCategory = "no change"
+	// WouldSkipScope marks a setting or operation blocked by insufficient access.
 	WouldSkipScope RepoSettingCategory = "would skip (insufficient scope)"
 )
 
@@ -35,8 +38,7 @@ type RepoSettingResult struct {
 	Operation  gh.Operation
 }
 
-// ProcessRepoSettings compares declared settings against live settings
-// and optionally applies them. Returns results for output formatting.
+// ProcessRepoSettings compares declared repository settings and applies changes outside DryRun.
 func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]RepoSettingResult, error) {
 	if cfg.Repository == nil {
 		return nil, nil
@@ -119,8 +121,7 @@ func skippedToResults(ar *gh.ApplyResult) []RepoSettingResult {
 	return results
 }
 
-// compareSettings iterates non-nil pointer fields in declared and compares
-// each against the corresponding field in live. Returns a result per declared field.
+// compareSettings returns one result per declared field, including repeated vulnerability-alert enable requests for Dependency Graph.
 func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResult {
 	var results []RepoSettingResult
 
@@ -178,9 +179,8 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 	return results
 }
 
-// equalStringSets reports whether a and b contain the same elements regardless
-// of order. GitHub imposes no meaning on list order for topics or
-// patterns_allowed. Sorts copies; neither input is mutated.
+// equalStringSets compares sorted copies without changing either input.
+// GitHub ignores list order for topics and patterns_allowed. Duplicate counts must still match.
 func equalStringSets(a, b []string) bool {
 	as := slices.Clone(a)
 	bs := slices.Clone(b)
@@ -199,11 +199,8 @@ var readWarningOperationFields = map[gh.OperationKind][]string{
 	gh.OpFetchSecurityAnalysis:              {"secret_scanning", "secret_scanning_push_protection", "secret_scanning_non_provider_patterns"},
 }
 
-// readWarningsToResults replaces the compare result of each field affected by
-// a read-path access-error warning with a WouldSkipScope result. A field whose
-// live value is nil only because the read returned a 403 is not a real diff.
-// Only fields that the user declared in their config have a compare result, so
-// undeclared fields are silently ignored.
+// readWarningsToResults skips declared fields and dependent changes when an access error prevents a safe comparison.
+// An unreadable live value is not evidence that a setting differs. Undeclared fields produce no results.
 func readWarningsToResults(results []RepoSettingResult, warnings []error, declared, live *model.RepositorySettings) []RepoSettingResult {
 	for _, w := range warnings {
 		op := warningOperation(w)

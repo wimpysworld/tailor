@@ -1,3 +1,4 @@
+// Package output renders typed command results and controls terminal progress.
 package output
 
 import (
@@ -16,7 +17,9 @@ import (
 type Format string
 
 const (
-	Auto  Format = "auto"
+	// Auto uses rich output on a terminal unless TERM is dumb.
+	Auto Format = "auto"
+	// Plain uses the command's stable text format without live progress.
 	Plain Format = "plain"
 )
 
@@ -24,21 +27,30 @@ const (
 type Color string
 
 const (
-	ColorAuto   Color = "auto"
+	// ColorAuto honours NO_COLOR.
+	ColorAuto Color = "auto"
+	// ColorAlways enables colour regardless of NO_COLOR.
 	ColorAlways Color = "always"
-	ColorNever  Color = "never"
+	// ColorNever disables ANSI colour.
+	ColorNever Color = "never"
 )
 
 // Outcome controls visibility, colour, badges, and summary counts.
 type Outcome string
 
 const (
+	// Alteration identifies a planned change.
 	Alteration Outcome = "alteration"
-	Applied    Outcome = "applied"
-	Attention  Outcome = "needs attention"
-	Preserved  Outcome = "preserved by policy"
-	Unchanged  Outcome = "already matches"
-	Created    Outcome = "created"
+	// Applied identifies a completed change.
+	Applied Outcome = "applied"
+	// Attention identifies a result that needs user action.
+	Attention Outcome = "needs attention"
+	// Preserved identifies an item left unchanged by policy.
+	Preserved Outcome = "preserved by policy"
+	// Unchanged identifies an item that already matches the declared state.
+	Unchanged Outcome = "already matches"
+	// Created identifies a new item and counts towards the applied total.
+	Created Outcome = "created"
 )
 
 // Item is one typed result. Presentation never derives state from display text.
@@ -80,14 +92,29 @@ type Document struct {
 // Option changes terminal detection and rendering for a Policy.
 type Option func(*Policy)
 
-func WithTTY(tty bool) Option       { return func(p *Policy) { p.tty = tty } }
+// WithTTY overrides terminal detection for standard output.
+func WithTTY(tty bool) Option { return func(p *Policy) { p.tty = tty } }
+
+// WithStderrTTY overrides terminal detection for standard error.
 func WithStderrTTY(tty bool) Option { return func(p *Policy) { p.stderrTTY = tty } }
-func WithWidth(width int) Option    { return func(p *Policy) { p.width = width } }
-func WithColor(color Color) Option  { return func(p *Policy) { p.color = color } }
-func WithVerbose(v bool) Option     { return func(p *Policy) { p.verbose = v } }
-func WithQuiet(v bool) Option       { return func(p *Policy) { p.quiet = v } }
-func WithNoProgress(v bool) Option  { return func(p *Policy) { p.noProgress = v } }
-func WithASCII(v bool) Option       { return func(p *Policy) { p.ascii = v } }
+
+// WithWidth sets the available number of terminal columns.
+func WithWidth(width int) Option { return func(p *Policy) { p.width = width } }
+
+// WithColor sets the ANSI colour policy independently of layout.
+func WithColor(color Color) Option { return func(p *Policy) { p.color = color } }
+
+// WithVerbose expands result groups and uses append-only stage records.
+func WithVerbose(v bool) Option { return func(p *Policy) { p.verbose = v } }
+
+// WithQuiet limits final output to a summary.
+func WithQuiet(v bool) Option { return func(p *Policy) { p.quiet = v } }
+
+// WithNoProgress disables animation without changing final output.
+func WithNoProgress(v bool) Option { return func(p *Policy) { p.noProgress = v } }
+
+// WithASCII selects ASCII borders and spinner frames.
+func WithASCII(v bool) Option { return func(p *Policy) { p.ascii = v } }
 
 // Policy owns command writers and independent layout, colour, and progress decisions.
 type Policy struct {
@@ -98,6 +125,8 @@ type Policy struct {
 	width                                             int
 }
 
+// New detects terminal capabilities, then applies options in order.
+// Nil writers use the corresponding process streams.
 func New(stdout, stderr io.Writer, format Format, options ...Option) *Policy {
 	if stdout == nil {
 		stdout = os.Stdout
@@ -121,10 +150,16 @@ func New(stdout, stderr io.Writer, format Format, options ...Option) *Policy {
 	return p
 }
 
+// Stdout returns the writer for durable command results.
 func (p *Policy) Stdout() io.Writer { return p.stdout }
-func (p *Policy) Stderr() io.Writer { return p.stderr }
-func (p *Policy) Rich() bool        { return p.format == Auto && p.tty && os.Getenv("TERM") != "dumb" }
 
+// Stderr returns the writer for progress, warnings and errors.
+func (p *Policy) Stderr() io.Writer { return p.stderr }
+
+// Rich reports whether automatic format and terminal capabilities permit rich output.
+func (p *Policy) Rich() bool { return p.format == Auto && p.tty && os.Getenv("TERM") != "dumb" }
+
+// StartProgress selects live animation or verbose stage records, or returns nil when neither is enabled.
 func (p *Policy) StartProgress() *Progress {
 	if p.format == Plain {
 		return nil
@@ -136,11 +171,13 @@ func (p *Policy) StartProgress() *Progress {
 	return startProgress(p.stderr, progressConfig{animate: animate, verbose: p.verbose, colour: p.colourEnabled(), ascii: p.ascii})
 }
 
+// ProgressEnabled checks terminal and progress flags, before StartProgress applies the verbose policy.
 func (p *Policy) ProgressEnabled(noProgress bool) bool {
 	return !noProgress && !p.noProgress && p.Rich() && p.stderrTTY && os.Getenv("TERM") != "dumb"
 }
 
-// Print writes the typed document, or the exact legacy bytes outside rich mode.
+// Print writes the typed document in rich mode or the supplied plain bytes otherwise.
+// Quiet mode replaces either format with a summary.
 func (p *Policy) Print(doc Document, plain string) {
 	if p.quiet {
 		summary := doc.Summary
@@ -223,6 +260,7 @@ func (p *Policy) Render(doc Document) string {
 	return b.String()
 }
 
+// Count totals recognised outcomes, counting Created as Applied.
 func Count(items []Item) Summary {
 	var s Summary
 	for _, item := range items {

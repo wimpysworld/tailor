@@ -6,9 +6,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
-// ProcessCodeQuality compares the declared Code Quality setup against GitHub
-// and applies only the fields that differ. A repository without the feature,
-// or with a setup run in progress, reports the declared fields as skipped.
+// ProcessCodeQuality previews or applies changed fields in the declared Code Quality setup.
+// Unavailable or busy setup skips all declared fields on reads, and only changed fields on writes.
 func ProcessCodeQuality(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]RepoSettingResult, error) {
 	if cfg.CodeQuality == nil || !target.HasRepo {
 		return nil, nil

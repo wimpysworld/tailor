@@ -8,8 +8,8 @@ import (
 // TokenContext holds resolved values for template substitution.
 type TokenContext struct {
 	GitHubUsername string // from GET /user
-	Owner          string // from repo context; empty if no context
-	Name           string // from repo context; empty if no context
+	Owner          string // From repository context, empty when unavailable.
+	Name           string // From repository context, empty when unavailable.
 	DefaultBranch  string
 	rendered       map[string][]byte
 }

@@ -1,3 +1,4 @@
+// Package measure inspects local project health and compares configuration with built-in swatches without network access.
 package measure
 
 import (
@@ -65,7 +66,7 @@ func completeInlineLinks(data []byte) []bool {
 // hasUnresolvedPlaceholders reports whether data contains a known unresolved
 // token inside matching square or curly delimiters. A single forward pass
 // pairs each closing delimiter with the nearest unconsumed opener of its
-// kind; an earlier opener cannot match because its content contains another
+// kind. An earlier opener cannot match because its content contains another
 // opening delimiter, which no placeholder name allows.
 func hasUnresolvedPlaceholders(data []byte) bool {
 	inlineLinks := completeInlineLinks(data)
@@ -154,7 +155,7 @@ func isRegularFile(root *os.Root, path string) bool {
 }
 
 // CheckHealth checks whether each health swatch path, the LICENSE file, and
-// README.md exist in dir as regular files; symlinks, paths whose parents
+// README.md exist in dir as regular files. Symlinks, paths whose parents
 // resolve outside dir, and other non-regular files count as absent. LICENSE
 // files containing unresolved placeholder tokens are reported as warnings
 // rather than present, as are LICENSE files that exist but could not be
@@ -186,8 +187,7 @@ func CheckHealth(dir string) []HealthResult {
 		if p == swatch.LicenseDestination {
 			data, err := readLicence(root, p)
 			if err != nil {
-				// The licence exists but was not inspected, so present
-				// would overstate what the check verified. Warn instead.
+				// Warn because present implies that the licence passed inspection.
 				detail := "(not inspected: read failed)"
 				if errors.Is(err, errLicenceTooLarge) {
 					detail = "(not inspected: exceeds 1 MiB)"

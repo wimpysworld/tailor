@@ -43,8 +43,7 @@ type repoJSON struct {
 	Permissions              struct {
 		Admin bool `json:"admin"`
 	} `json:"permissions"`
-	// SecurityAndAnalysis is omitted when nil, which mirrors a token
-	// without admin access.
+	// Omission of SecurityAndAnalysis simulates a token that cannot read security settings, independently of repository admin access.
 	SecurityAndAnalysis *securityAndAnalysisJSON `json:"security_and_analysis,omitempty"`
 }
 
@@ -587,14 +586,13 @@ func TestProcessRepoSettingsTopicsWouldSet(t *testing.T) {
 func TestProcessRepoSettingsTopicsEmptyVsNil(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	// Live has no topics (nil from JSON unmarshalling)
+	// JSON null decodes to nil, unlike an explicit empty topics list.
 	live := repoJSON{}
 	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
 	client := testutil.NewTestClient(t, server)
 
-	// Declared: empty slice (clear all topics)
-	// The set comparison treats nil and empty as equal, so this is no change
+	// An empty declaration clears topics, but the live nil list is already empty under set comparison.
 	topics := []string{}
 	cfg := &config.Config{
 		Repository: &model.RepositorySettings{
@@ -623,7 +621,6 @@ func TestProcessRepoSettingsTopicsEmptyVsNil(t *testing.T) {
 func TestProcessRepoSettingsTopicsEmptyMatchesEmpty(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	// Live has empty topics from JSON
 	live := repoJSON{Topics: []string{}}
 	server := settingsServer(live, nil)
 	t.Cleanup(server.Close)
@@ -1206,7 +1203,6 @@ func TestProcessRepoSettingsSkippedSecurityWriteSkipsDependentOutput(t *testing.
 func TestProcessRepoSettingsPatch403ScopeProducesSkipScope(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	// Server that returns 403 on PATCH (simulating insufficient scope on the main settings call).
 	live := repoJSON{HasWiki: true}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
@@ -1221,7 +1217,7 @@ func TestProcessRepoSettingsPatch403ScopeProducesSkipScope(t *testing.T) {
 			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
 
 		case r.Method == http.MethodPatch && path == "/repos/testowner/testrepo":
-			// Return 403 to simulate insufficient scope on PATCH.
+			// Scope headers distinguish insufficient scope from other forbidden responses.
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("X-OAuth-Scopes", "public_repo")
 			w.Header().Set("X-Accepted-OAuth-Scopes", "repo")
@@ -1343,7 +1339,7 @@ func TestProcessRepoSettingsReadPath403DoesNotProduceWouldSet(t *testing.T) {
 		}
 	}
 
-	// Both fields should have skip results.
+	// Both fields share the failed workflow permissions read, so both need skip results.
 	skipCount := 0
 	for _, r := range results {
 		if r.Category == alter.WouldSkipScope {

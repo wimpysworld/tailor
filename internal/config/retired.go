@@ -24,6 +24,7 @@ func IsRetiredWorkflowPath(path string) bool {
 }
 
 // RemoveRetiredWorkflowEntries removes every retired workflow entry from cfg.
+// It reports whether the config changed, without removing files from disk.
 func RemoveRetiredWorkflowEntries(cfg *Config) bool {
 	originalLength := len(cfg.Swatches)
 	cfg.Swatches = slices.DeleteFunc(cfg.Swatches, func(entry SwatchEntry) bool {

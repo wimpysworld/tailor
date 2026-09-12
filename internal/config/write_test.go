@@ -13,8 +13,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// wantSpecOutput is the exact byte-for-byte expected output from the
-// specification when writing DefaultConfig("BlueOak-1.0.0") with date 2026-03-02.
+// wantSpecOutput is the expected output of Write for DefaultConfig("BlueOak-1.0.0") on 2026-03-02.
 const wantSpecOutput = `# Initially fitted by tailor on 2026-03-02
 license: BlueOak-1.0.0
 
@@ -338,7 +337,6 @@ func TestWriteCreatesFile(t *testing.T) {
 	dir := t.TempDir()
 	configFile := filepath.Join(dir, ".tailor.yml")
 
-	// Confirm .tailor.yml does not exist before Write.
 	if _, err := os.Stat(configFile); err == nil {
 		t.Fatal(".tailor.yml already exists before Write")
 	}
@@ -828,7 +826,6 @@ func TestWriteTopicsPreserved(t *testing.T) {
 		t.Fatalf("output missing topics:\n%s", output)
 	}
 
-	// Round-trip through YAML to confirm topics survive.
 	var parsed Config
 	if err := yaml.Unmarshal([]byte(output), &parsed); err != nil {
 		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, output)
@@ -884,7 +881,7 @@ func TestWriteEmptyTopicsRoundTrip(t *testing.T) {
 		t.Fatalf("expected 'topics: []' in output, got:\n%s", output)
 	}
 
-	// Round-trip: parse back and verify Topics is non-nil empty slice.
+	// An explicit empty list must survive encoding so it can clear remote topics.
 	var parsed Config
 	if err := yaml.Unmarshal([]byte(output), &parsed); err != nil {
 		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, output)
@@ -911,7 +908,6 @@ func TestWriteNilRepositoryOmitted(t *testing.T) {
 		t.Errorf("output contains 'repository:' when Repository is nil:\n%s", output)
 	}
 
-	// Must still be valid YAML.
 	var parsed Config
 	if err := yaml.Unmarshal([]byte(output), &parsed); err != nil {
 		t.Fatalf("output is not valid YAML: %v\n--- output ---\n%s", err, output)

@@ -10,6 +10,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
+// processPagesIgnore appends a generator output rule after ordinary swatches so Recut cannot remove it.
+// Existing rules remain unchanged, and never mode prevents the addition.
 func processPagesIgnore(cfg *config.Config, dir string, mode ApplyMode, prepared *pagesPreparation) (*SwatchResult, error) {
 	if prepared == nil || prepared.Generator == "static" {
 		return nil, nil

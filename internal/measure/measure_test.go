@@ -9,8 +9,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-// buildDefaultConfigYAML builds a config YAML string containing all 25 default
-// swatches at their default alteration modes.
+// buildDefaultConfigYAML includes every registered swatch at its default alteration mode.
 func buildDefaultConfigYAML() string {
 	var b strings.Builder
 	b.WriteString("license: BlueOak-1.0.0\n")
@@ -60,7 +59,6 @@ func TestIntegrationEmptyDirNoConfig(t *testing.T) {
 func TestIntegrationSomeHealthFilesNoConfig(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create three health files.
 	testutil.CreateFile(t, dir, "CODE_OF_CONDUCT.md")
 	testutil.CreateFile(t, dir, "LICENSE")
 	testutil.CreateFile(t, dir, "SECURITY.md")
@@ -102,7 +100,6 @@ func TestIntegrationConfigMatchesDefaults(t *testing.T) {
 	testutil.CreateFile(t, dir, "LICENSE")
 	testutil.CreateFile(t, dir, "SECURITY.md")
 
-	// Write a config that matches all 25 defaults exactly.
 	testutil.WriteConfig(t, dir, buildDefaultConfigYAML())
 
 	health := CheckHealth(dir)
@@ -142,7 +139,6 @@ func TestIntegrationConfigMatchesDefaults(t *testing.T) {
 func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create a subset of health files.
 	testutil.CreateFile(t, dir, "LICENSE")
 	testutil.CreateFile(t, dir, "SECURITY.md")
 
@@ -155,19 +151,16 @@ func TestIntegrationConfigWithAllDiffCategories(t *testing.T) {
 	b.WriteString("license: BlueOak-1.0.0\n")
 	b.WriteString("swatches:\n")
 	for _, s := range swatch.All() {
-		// Skip .github/dependabot.yml to produce not-configured.
 		if s.Path == ".github/dependabot.yml" {
 			continue
 		}
 		alt := string(s.DefaultAlteration)
-		// Override SECURITY.md mode to produce mode-differs.
 		if s.Path == "SECURITY.md" {
 			alt = "first-fit"
 		}
 		b.WriteString("  - path: " + s.Path + "\n")
 		b.WriteString("    alteration: " + alt + "\n")
 	}
-	// Add a custom swatch not in defaults to produce config-only.
 	b.WriteString("  - path: some-custom-swatch.yml\n")
 	b.WriteString("    alteration: always\n")
 

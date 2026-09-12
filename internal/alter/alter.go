@@ -1,3 +1,4 @@
+// Package alter previews and applies local files and GitHub settings in a fixed safety order.
 package alter
 
 import (
@@ -13,16 +14,16 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// ApplyMode controls whether changes are written to disk.
+// ApplyMode controls local and GitHub writes, and first-fit protection.
 type ApplyMode int
 
 const (
-	DryRun ApplyMode = iota // preview only
-	Apply                   // write if file is absent or alteration permits
-	Recut                   // overwrite unconditionally
+	DryRun ApplyMode = iota // DryRun previews changes without writes.
+	Apply                   // Apply writes changes under each processor's alteration rules.
+	Recut                   // Recut overrides first-fit protection, except for config merging, licences and starter files.
 )
 
-// ShouldWrite reports whether the mode permits writing to disk.
+// ShouldWrite reports whether the mode permits local and GitHub writes.
 func (m ApplyMode) ShouldWrite() bool { return m == Apply || m == Recut }
 
 func stageLabel(mode ApplyMode, dryRun, mutation string) string {
@@ -219,7 +220,7 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	return report, nil
 }
 
-// Run preserves the exact legacy output contract.
+// Run executes alterations and writes plain output, including partial results on failure.
 func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stdout, stderr io.Writer) error {
 	if stdout == nil {
 		stdout = io.Discard
@@ -307,7 +308,7 @@ func appendGuidance(report *Report, guidance string) {
 	}
 }
 
-// validateConfig runs the repeated config validation pass in sequence.
+// validateConfig checks both loaded configuration and the result of default merging.
 func validateConfig(cfg *config.Config) error {
 	if err := config.ValidatePages(cfg); err != nil {
 		return err

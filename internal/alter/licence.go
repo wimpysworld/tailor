@@ -13,9 +13,7 @@ import (
 
 const licenceDestination = "LICENSE"
 
-// ProcessLicence evaluates and optionally writes the LICENSE file.
-// Returns a SwatchResult (reusing the same type for consistent formatting)
-// and an error.
+// ProcessLicence previews or creates LICENSE, preserving existing regular files even under Recut.
 func ProcessLicence(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer) (*SwatchResult, error) {
 	if stderr == nil {
 		stderr = io.Discard

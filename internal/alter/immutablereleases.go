@@ -8,7 +8,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/gh"
 )
 
-// ProcessImmutableReleases applies only a declared toggle that differs.
+// ProcessImmutableReleases previews or applies a changed declaration, preserving owner-enforced enablement.
 func ProcessImmutableReleases(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]RepoSettingResult, error) {
 	if cfg.ImmutableReleases == nil || cfg.ImmutableReleases.Enabled == nil || target.missingRepo("Immutable releases") {
 		return nil, nil

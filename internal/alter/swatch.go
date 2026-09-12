@@ -16,20 +16,28 @@ import (
 type SwatchCategory string
 
 const (
+	// WouldUpdateConfig marks a config rewrite, not replacement with the embedded swatch.
 	WouldUpdateConfig SwatchCategory = "would update"
-	WouldCopy         SwatchCategory = "would copy"
-	WouldOverwrite    SwatchCategory = "would overwrite"
-	WouldRemove       SwatchCategory = "would remove"
-	NoChange          SwatchCategory = "no change"
-	Skipped           SwatchCategory = "skipped"
+	// WouldCopy marks creation of an absent destination.
+	WouldCopy SwatchCategory = "would copy"
+	// WouldOverwrite marks replacement of existing file content.
+	WouldOverwrite SwatchCategory = "would overwrite"
+	// WouldRemove marks removal of a managed or retired workflow.
+	WouldRemove SwatchCategory = "would remove"
+	// NoChange marks content that already matches.
+	NoChange SwatchCategory = "no change"
+	// Skipped marks a file that Tailor preserves under its alteration rules.
+	Skipped SwatchCategory = "skipped"
 )
 
 // SwatchReason explains why a swatch was skipped.
 type SwatchReason string
 
 const (
+	// SkipFirstFitExists preserves an existing first-fit destination.
 	SkipFirstFitExists SwatchReason = "first-fit, exists"
-	SkipModeNever      SwatchReason = "mode never"
+	// SkipModeNever preserves a destination excluded from alterations.
+	SkipModeNever SwatchReason = "mode never"
 )
 
 // SwatchResult records the path and categorised outcome for one swatch entry.
@@ -39,11 +47,10 @@ type SwatchResult struct {
 	Reason   SwatchReason
 }
 
-// configPath is the path of the config swatch entry.
 const configPath = config.ConfigSwatchPath
 
-// ProcessSwatches evaluates each swatch entry in cfg and returns results.
-// When mode is Apply or Recut, it writes files to disk.
+// ProcessSwatches previews or writes active swatches after token substitution.
+// Config, Pages and wiki files use separate processors.
 func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *TokenContext) ([]SwatchResult, error) {
 	if tokens == nil {
 		tokens = &TokenContext{}
@@ -91,9 +98,7 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 	return results, nil
 }
 
-// processSwatch determines the category for a single swatch and writes
-// the file when the mode permits. Token substitution occurs upstream in
-// ProcessSwatches before this function is called.
+// processSwatch previews or writes a swatch whose content the caller has already rendered.
 func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode ApplyMode) (SwatchResult, error) {
 	// Never mode skips unconditionally, regardless of apply mode or file existence.
 	if entry.Alteration == swatch.Never {
@@ -173,6 +178,8 @@ func checkParents(root *os.Root, path, subject string) error {
 	return nil
 }
 
+// prepareSwatchDestination counts only regular files as existing destinations.
+// A write removes a destination symlink without following it.
 func prepareSwatchDestination(root *os.Root, path string, shouldWrite bool) (bool, error) {
 	info, err := root.Lstat(path)
 	if err != nil {

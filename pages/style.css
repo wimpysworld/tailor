@@ -67,6 +67,7 @@
   --site-on-blue: #11111b;
 }
 
+/* Match Pico's theme selectors so site colours override its defaults. */
 :root:not([data-theme]), :root[data-theme] {
   --pico-background-color: var(--site-base);
   --pico-color: var(--site-text);
@@ -112,7 +113,7 @@ nav a { color: var(--site-muted); font-size: 0.9rem; }
 .header-tools { display: flex; align-items: center; gap: 0.4rem; }
 .icon-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; padding: 10px; margin: 0; border: 0; border-radius: 0.4rem; background: transparent; color: var(--site-text); box-shadow: none; }
 .icon-button:hover { background: var(--site-surface); color: var(--site-link); }
-/* Octicons 19.36.0, loaded from the CDN as colourable masks. */
+/* SVG masks inherit the text colour in both themes. */
 .octicon { display: inline-block; width: 24px; height: 24px; background-color: currentColor; -webkit-mask: var(--icon) center / contain no-repeat; mask: var(--icon) center / contain no-repeat; }
 .octicon[hidden] { display: none; }
 .github-icon { --icon: url("https://cdn.jsdelivr.net/npm/@primer/octicons@19.36.0/build/svg/mark-github-24.svg"); }

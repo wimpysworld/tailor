@@ -13,7 +13,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 )
 
-// ErrInsufficientScope signals the token lacks a required scope.
+// ErrInsufficientScope signals that token permissions are missing or cannot be confirmed.
 type ErrInsufficientScope struct {
 	StatusCode int
 	HaveScopes []string // parsed from X-OAuth-Scopes (empty for fine-grained tokens)
@@ -22,6 +22,7 @@ type ErrInsufficientScope struct {
 	Operation  Operation
 }
 
+// Error describes the operation and any reported OAuth scopes.
 func (e *ErrInsufficientScope) Error() string {
 	// A successful response that omits an admin-only block carries no scope
 	// headers, so the message stands alone.
@@ -32,15 +33,13 @@ func (e *ErrInsufficientScope) Error() string {
 		e.Operation, e.HaveScopes, e.NeedScopes, e.Message)
 }
 
-// isAccessError returns true when err is an *ErrInsufficientScope, indicating
-// the token lacks permission for the operation.
+// isAccessError reports whether err contains an *ErrInsufficientScope.
 func isAccessError(err error) bool {
 	var scope *ErrInsufficientScope
 	return errors.As(err, &scope)
 }
 
-// ErrRateLimited signals the API rejected the request because the caller
-// exhausted a rate limit.
+// ErrRateLimited signals that the API rejected a request because of a rate limit.
 type ErrRateLimited struct {
 	StatusCode int
 	Message    string // from JSON body
@@ -48,6 +47,7 @@ type ErrRateLimited struct {
 	Operation  Operation
 }
 
+// Error describes the rate limit and includes retry guidance when available.
 func (e *ErrRateLimited) Error() string {
 	msg := fmt.Sprintf("%s: rate limited (HTTP %d): %s", e.Operation, e.StatusCode, e.Message)
 	if e.RetryAfter != "" {
@@ -81,8 +81,8 @@ func isRateLimitHTTPError(httpErr *api.HTTPError) bool {
 	return strings.Contains(strings.ToLower(httpErr.Message), "rate limit")
 }
 
-// parseCSVScopes splits a comma-separated scope header value into a slice,
-// trimming whitespace from each entry. Returns nil for an empty string.
+// parseCSVScopes trims comma-separated scopes and discards empty entries.
+// It returns nil for an empty header.
 func parseCSVScopes(header string) []string {
 	if header == "" {
 		return nil

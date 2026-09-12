@@ -7,18 +7,22 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// LanguageSettings controls the language-specific swatches. Nil fields leave the language undeclared.
 type LanguageSettings struct {
 	Go *bool `yaml:"go,omitempty"`
 }
 
+// GoDeclared reports whether languages.go is explicitly set, including false.
 func (cfg *Config) GoDeclared() bool {
 	return cfg != nil && cfg.Languages != nil && cfg.Languages.Go != nil
 }
 
+// GoEnabled reports whether languages.go is explicitly true.
 func (cfg *Config) GoEnabled() bool {
 	return cfg.GoDeclared() && *cfg.Languages.Go
 }
 
+// SwatchActive applies the language opt-in requirement, not Pages or wiki readiness checks.
 func (cfg *Config) SwatchActive(path string) bool {
 	switch path {
 	case ".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", "Dockerfile":
@@ -28,6 +32,7 @@ func (cfg *Config) SwatchActive(path string) bool {
 	}
 }
 
+// ActiveDefaultSwatches returns registered swatches that pass the language opt-in requirement, in registry order.
 func (cfg *Config) ActiveDefaultSwatches() []swatch.Swatch {
 	var active []swatch.Swatch
 	for _, s := range swatch.All() {
@@ -38,6 +43,7 @@ func (cfg *Config) ActiveDefaultSwatches() []swatch.Swatch {
 	return active
 }
 
+// validateLanguageNodes checks YAML types before decoding can coerce scalar values.
 func validateLanguageNodes(document *yaml.Node) error {
 	var sections map[string]yaml.Node
 	if err := document.Decode(&sections); err != nil {

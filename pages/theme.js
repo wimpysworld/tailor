@@ -12,6 +12,7 @@
   }
 
   function applyTheme() {
+    // Without an explicit theme, CSS follows the system colour scheme.
     if (preference === "system") root.removeAttribute("data-theme");
     else root.setAttribute("data-theme", preference);
   }

@@ -624,9 +624,7 @@ swatches:
 }
 
 func TestAlterRunRulesetUpgradeAddsCodeScanning(t *testing.T) {
-	// A config written by a release before the code scanning rule carries a
-	// complete ruleset section without rules.code_scanning. An always config
-	// swatch merges the built-in block before validation.
+	// An always config swatch adds missing rules.code_scanning defaults before validation.
 	configYAML := `license: none
 ruleset:
   enforcement: active
@@ -716,8 +714,7 @@ func TestAlterRunRulesetPartialSectionStopsBeforeWrite(t *testing.T) {
 			wantErr: "ruleset requires bypass_actors",
 		},
 		{
-			// An omitted Boolean key would send no rule of that type and
-			// remove a live rule without a report line.
+			// Reject an omitted Boolean key to prevent removal of a live rule without a report line.
 			name: "missing boolean rule",
 			section: `  enforcement: active
   bypass_actors: []
@@ -742,8 +739,7 @@ func TestAlterRunRulesetPartialSectionStopsBeforeWrite(t *testing.T) {
 			wantErr: "ruleset.rules requires creation",
 		},
 		{
-			// An omitted code scanning rule would remove a live rule
-			// without a report line.
+			// Reject an omitted code scanning rule to prevent removal of a live rule without a report line.
 			name: "missing code scanning rule",
 			section: `  enforcement: active
   bypass_actors: []

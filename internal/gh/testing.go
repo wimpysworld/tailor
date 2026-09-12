@@ -5,6 +5,8 @@ import (
 	"github.com/cli/go-gh/v2/pkg/repository"
 )
 
+// These test hooks change package globals. Callers must restore them and must not run in parallel.
+
 // SetInspectWikiFunc replaces wiki inspection for tests and returns a restore function.
 func SetInspectWikiFunc(fn func(string, string, string) error) func() {
 	old := inspectWiki

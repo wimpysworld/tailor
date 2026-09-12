@@ -62,7 +62,7 @@ func (c *alterTestContext) Calls() []apiCall {
 	return out
 }
 
-// MutatingCalls returns only PATCH/PUT/DELETE calls.
+// MutatingCalls returns PATCH, PUT, and DELETE calls. Use Calls to check POST requests too.
 func (c *alterTestContext) MutatingCalls() []apiCall {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -174,9 +174,7 @@ func withSecurityEndpoints(alertPutError int) testOption {
 	}
 }
 
-// setupAlterTest creates a temp dir, writes .tailor.yml from the provided
-// YAML string, sets up a mock HTTP server, stubs the repo context, and
-// returns an alterTestContext ready for use with alter.Run.
+// setupAlterTest prepares a temporary project with configYAML, a mock API, and a stubbed repository context for alter.Run.
 func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterTestContext {
 	t.Helper()
 
@@ -365,8 +363,7 @@ func setupAlterTest(t *testing.T, configYAML string, opts ...testOption) *alterT
 	return ctx
 }
 
-// loadTestConfig loads .tailor.yml from dir through the config package,
-// matching the real alter.Run code path.
+// loadTestConfig loads .tailor.yml as the CLI does before it calls alter.Run.
 func loadTestConfig(t *testing.T, dir string) *config.Config {
 	t.Helper()
 	cfg, err := config.Load(dir)
@@ -376,8 +373,7 @@ func loadTestConfig(t *testing.T, dir string) *config.Config {
 	return cfg
 }
 
-// captureAlterRun runs alter.Run in the given mode, capturing stdout and
-// suppressing stderr. Returns the stdout output.
+// captureAlterRun returns alter.Run stdout, discards stderr, and fails the test on an error.
 func captureAlterRun(t *testing.T, cfg *config.Config, dir string, mode alter.ApplyMode, client *api.RESTClient) string {
 	t.Helper()
 
@@ -390,8 +386,7 @@ func captureAlterRun(t *testing.T, cfg *config.Config, dir string, mode alter.Ap
 	return stdout.String()
 }
 
-// runAlterExpectError runs alter.Run in Apply mode and returns the error.
-// Stdout and stderr are suppressed. Fails if no error is returned.
+// runAlterExpectError returns the Apply error and discards output. It fails the test if alter.Run succeeds.
 func runAlterExpectError(t *testing.T, cfg *config.Config, dir string, client *api.RESTClient) error {
 	t.Helper()
 
@@ -403,8 +398,7 @@ func runAlterExpectError(t *testing.T, cfg *config.Config, dir string, client *a
 	return err
 }
 
-// captureAlterRunWithStderr runs alter.Run capturing both stdout and stderr.
-// Returns stdout, stderr, and the error (which may be nil).
+// captureAlterRunWithStderr returns alter.Run stdout, stderr, and error without failing the test.
 //
 //nolint:unparam // stdout return kept for test symmetry with captureAlterRun
 func captureAlterRunWithStderr(t *testing.T, cfg *config.Config, dir string, mode alter.ApplyMode, client *api.RESTClient) (string, string, error) {
@@ -543,8 +537,7 @@ func requireNotContains(t *testing.T, output, substr string) {
 	}
 }
 
-// TestAlterRunDryRunSmokeTest verifies the integration test infrastructure with
-// a single swatch entry. Dry-run reports expected output and writes no files.
+// TestAlterRunDryRunSmokeTest checks that dry-run reports a single swatch and licence without writes.
 func TestAlterRunDryRunSmokeTest(t *testing.T) {
 	configYAML := `license: mit
 swatches:
@@ -778,10 +771,8 @@ swatches:
 	}
 }
 
-// TestAlterRunDryRunAllFilesPresent verifies the output when all swatch files
-// and licence already exist on disk with matching content. Non-substituted
-// "always" swatches show "no change", "first-fit" swatches show "skipped",
-// and substituted "always" swatches show "would overwrite".
+// TestAlterRunDryRunAllFilesPresent checks matching embedded files and first-fit skips.
+// SECURITY.md still contains its unresolved token, so its resolved content requires an overwrite.
 func TestAlterRunDryRunAllFilesPresent(t *testing.T) {
 	configYAML := `license: mit
 repository:
@@ -933,9 +924,8 @@ swatches:
 	}
 }
 
-// TestAlterRunDryRunSubstitutedSwatchAlwaysOverwrites verifies that substituted
-// "always" swatches (SECURITY.md, .github/FUNDING.yml, .github/ISSUE_TEMPLATE/config.yml)
-// always show "would overwrite" even when on-disk content matches the embedded template.
+// TestAlterRunDryRunSubstitutedSwatchAlwaysOverwrites checks that unresolved SECURITY.md differs from its resolved swatch.
+// Hash comparison uses resolved content, not the raw embedded template.
 func TestAlterRunDryRunSubstitutedSwatchAlwaysOverwrites(t *testing.T) {
 	configYAML := `license: none
 swatches:
@@ -987,7 +977,6 @@ swatches:
 	existingContent := []byte("original content")
 	writeOnDisk(t, tc.Dir, "CODE_OF_CONDUCT.md", existingContent)
 
-	// Capture filesystem state before dry-run.
 	dirEntries := func() map[string]int64 {
 		entries := make(map[string]int64)
 		_ = filepath.Walk(tc.Dir, func(path string, info os.FileInfo, _ error) error {
@@ -1069,7 +1058,6 @@ swatches:
 		t.Fatal("expected non-empty output")
 	}
 
-	// Classify each line as actionable or informational.
 	actionableLabels := []string{"would set:", "would copy:", "would overwrite:"}
 	informationalLabels := []string{"no change:", "skipped:"}
 
@@ -1409,7 +1397,7 @@ swatches:
 	original := mustContent(t, "CODE_OF_CONDUCT.md")
 	writeOnDisk(t, tc.Dir, "CODE_OF_CONDUCT.md", original)
 
-	// Capture modification time before apply.
+	// An unchanged modification time distinguishes a skipped write from an identical rewrite.
 	infoBefore, err := os.Stat(filepath.Join(tc.Dir, "CODE_OF_CONDUCT.md"))
 	if err != nil {
 		t.Fatal(err)
@@ -1598,9 +1586,7 @@ swatches:
 	}
 }
 
-// TestAlterRunRecutResolvesTokens verifies that recut runs full
-// token resolution on substituted swatches. Pre-writes FUNDING.yml with stale
-// content, then checks it contains the freshly resolved username.
+// TestAlterRunRecutResolvesTokens checks that recut replaces stale FUNDING.yml content with the resolved username.
 func TestAlterRunRecutResolvesTokens(t *testing.T) {
 	configYAML := `license: none
 swatches:
@@ -1833,8 +1819,7 @@ swatches:
 	}
 }
 
-// TestAlterRunPatch403GracefulDegradation verifies that a 403 from PATCH on
-// repo settings is gracefully degraded (skipped), and swatches still proceed.
+// TestAlterRunPatch403GracefulDegradation checks that a repository PATCH 403 skips settings without blocking swatches.
 func TestAlterRunPatch403GracefulDegradation(t *testing.T) {
 	configYAML := `license: none
 repository:
@@ -1908,7 +1893,7 @@ swatches:
 		t.Fatalf("alter.Run() error: %v", err)
 	}
 
-	// SECURITY.md should contain the raw {{ADVISORY_URL}} token.
+	// Without repository context, SECURITY.md retains {{ADVISORY_URL}} for a later alteration.
 	secData, err := os.ReadFile(filepath.Join(tc.Dir, "SECURITY.md"))
 	if err != nil {
 		t.Fatalf("SECURITY.md not written: %v", err)
@@ -1917,7 +1902,7 @@ swatches:
 		t.Error("SECURITY.md does not contain raw {{ADVISORY_URL}} token; expected unsubstituted")
 	}
 
-	// .github/ISSUE_TEMPLATE/config.yml should contain the raw {{SUPPORT_URL}} token.
+	// The issue template also needs repository context to resolve {{SUPPORT_URL}}.
 	issueData, err := os.ReadFile(filepath.Join(tc.Dir, ".github/ISSUE_TEMPLATE/config.yml"))
 	if err != nil {
 		t.Fatalf(".github/ISSUE_TEMPLATE/config.yml not written: %v", err)
@@ -1932,9 +1917,7 @@ swatches:
 	}
 }
 
-// issueContactURL parses issue template config data as YAML and returns the
-// first contact link URL, failing the test if the data is not valid YAML or
-// the URL is not a plain string.
+// issueContactURL returns the first contact URL and fails the test on invalid YAML or a non-string URL.
 func issueContactURL(t *testing.T, data []byte) string {
 	t.Helper()
 	var parsed struct {
@@ -1976,9 +1959,7 @@ swatches:
 	}
 }
 
-// allNonConfigSwatchesYAML returns a YAML swatches block containing every
-// registered swatch except .tailor.yml, using each swatch's default
-// alteration mode.
+// allNonConfigSwatchesYAML returns YAML list entries for every swatch except .tailor.yml, with their default modes.
 func allNonConfigSwatchesYAML() string {
 	var sb strings.Builder
 	for _, s := range swatch.All() {
@@ -2164,11 +2145,8 @@ func allDefaultLabelsYAML(t *testing.T) string {
 	return sb.String()
 }
 
-// TestConfigMergeMissingSwatchesApply verifies that Apply mode with a config
-// missing two swatches merges them into cfg.Swatches so they are processed.
-// The merge step rewrites the config file on disk with a "Refitted" header
-// (swatch processing skips the .tailor.yml entry). The net observable effect:
-// the two previously missing swatch files appear on disk.
+// TestConfigMergeMissingSwatchesApply checks that merged swatches apply in the same run.
+// The config merge writes .tailor.yml separately because swatch processing skips that entry.
 func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 	// Config includes the .tailor.yml swatch (always) but omits SUPPORT.md and justfile.
 	var configYAML strings.Builder
@@ -2205,10 +2183,8 @@ func TestConfigMergeMissingSwatchesApply(t *testing.T) {
 	}
 }
 
-// TestConfigMergeAllPresentApply verifies that Apply mode with all swatches,
-// repo settings, and labels already present does not trigger a merge rewrite.
-// The merge step finds no missing entries, so config.Write is not called and
-// .tailor.yml stays untouched (swatch processing skips the config entry).
+// TestConfigMergeAllPresentApply checks that a complete config needs no merge rewrite.
+// Swatch processing skips .tailor.yml, so no other stage replaces its content.
 func TestConfigMergeAllPresentApply(t *testing.T) {
 	configYAML := "license: none\npages:\n  enabled: false\n  generator: static\n  path: pages\n" +
 		allDefaultRepoSettingsYAML(t) +
@@ -2233,9 +2209,7 @@ func TestConfigMergeAllPresentApply(t *testing.T) {
 		t.Fatalf("reading config after apply: %v", err)
 	}
 
-	// The merge step added zero entries, so config.Write does not run and
-	// swatch processing skips the .tailor.yml entry. The file keeps its
-	// original content, without a "Refitted" header.
+	// With no missing defaults, the config retains its original content and header.
 	if strings.Contains(string(afterData), "Refitted by tailor on") {
 		t.Error(".tailor.yml contains 'Refitted' header despite no entries being merged")
 	}
@@ -2361,7 +2335,6 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	_ = captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 
-	// Read the rewritten config file.
 	data, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading config after merge: %v", err)
@@ -2738,7 +2711,6 @@ func TestAlterRunMergeCompleteConfigNotRewritten(t *testing.T) {
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	// Capture original config content.
 	originalData, err := os.ReadFile(filepath.Join(tc.Dir, ".tailor.yml"))
 	if err != nil {
 		t.Fatalf("reading original config: %v", err)

@@ -8,18 +8,16 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
-// repoSettingsSkipFields lists RepositorySettings YAML keys excluded from
-// default merging. Description and Homepage are project-specific (nil'd by
-// DefaultConfig). Topics are project-specific per spec.
+// repoSettingsSkipFields excludes project metadata from default merging.
+// Description, homepage and topics must come from the project, not the embedded config.
 var repoSettingsSkipFields = map[string]bool{
 	"description": true,
 	"homepage":    true,
 	"topics":      true,
 }
 
-// MergeDefaults merges missing swatch entries, repository settings, Actions
-// policy fields, and labels from the embedded defaults into cfg. It reports
-// whether anything changed.
+// MergeDefaults fills missing swatches, repository, Actions, scanning, quality, Pages, ruleset and label defaults.
+// It preserves set fields and project metadata, and reports whether anything changed.
 func MergeDefaults(cfg *Config) (bool, error) {
 	swatchesChanged := len(MergeDefaultSwatches(cfg)) > 0
 
@@ -233,8 +231,8 @@ func mergeLabelsFrom(cfg *Config, defaults *Config) bool {
 	return true
 }
 
-// ConfigSwatchPath is the path of the config swatch entry, which is excluded
-// from merge because it describes the config file itself.
+// ConfigSwatchPath is the config file path. Default merging excludes its swatch entry
+// because the entry controls that merge itself.
 const ConfigSwatchPath = ".tailor.yml"
 
 // MergeDefaultSwatches appends missing default swatch entries to cfg.Swatches.

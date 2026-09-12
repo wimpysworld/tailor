@@ -11,6 +11,8 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 )
 
+// PagesEnvironmentState records preflight results for the fixed github-pages environment.
+// Only ReadPagesEnvironment can mark the state as verified for writes.
 type PagesEnvironmentState struct {
 	Missing   bool
 	AddBranch bool

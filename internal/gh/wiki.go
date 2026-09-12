@@ -20,6 +20,7 @@ type WikiAccessError struct {
 	State string
 }
 
+// Error describes remote availability without exposing Git's diagnostic output.
 func (e *WikiAccessError) Error() string { return e.State }
 
 // InspectWiki checks adoption and publication history without changing the project or remote.
@@ -59,6 +60,7 @@ func inspectWikiGit(dir, remoteURL, baseline string) error {
 	if !safeWikiTree(remoteTree) {
 		return errors.New("wiki contains an unsafe file; review remote files before adoption")
 	}
+	// A matching import baseline permits local edits but requires every remote file.
 	if strings.TrimSpace(string(head)) == baseline {
 		root, err := os.OpenRoot(dir)
 		if err != nil {
@@ -80,6 +82,7 @@ func inspectWikiGit(dir, remoteURL, baseline string) error {
 		}
 		return nil
 	}
+	// A changed remote must match a published source tree from local HEAD's ancestry.
 	message, err := wikiGit(ctx, remote, "log", "-1", "--format=%B")
 	if err != nil {
 		return errors.New("wiki history cannot be inspected")
@@ -153,6 +156,7 @@ func classifyWikiAccess(ctx context.Context, err error) error {
 	}
 }
 
+// wikiGit isolates anonymous reads from user Git configuration, credentials and prompts.
 func wikiGit(ctx context.Context, dir string, args ...string) ([]byte, error) {
 	command := exec.CommandContext(ctx, "git", append([]string{"-c", "credential.helper=", "-c", "core.askPass=", "-C", dir}, args...)...) // #nosec G204 -- Fixed Git operations, separate arguments, no shell.
 	command.WaitDelay = 2 * time.Second

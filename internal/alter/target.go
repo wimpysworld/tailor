@@ -7,9 +7,7 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 )
 
-// RepoTarget identifies the GitHub repository that the alter processors act
-// on: the API client, the owner and name, and whether a repository context
-// exists.
+// RepoTarget supplies repository identity, API access and diagnostics to alteration processors.
 type RepoTarget struct {
 	Client      *api.RESTClient
 	Host        string
