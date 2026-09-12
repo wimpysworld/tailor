@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -36,6 +37,38 @@ func TestPagesParsing(t *testing.T) {
 			_, err := parseAndValidate([]byte("license: MIT\n"+tt.body+"\n"), "test")
 			if (err != nil) != tt.wantError {
 				t.Fatalf("parse error = %v, want error %v", err, tt.wantError)
+			}
+		})
+	}
+}
+
+func TestPagesRoundTripWithoutDefaults(t *testing.T) {
+	for _, tt := range []struct {
+		name, body string
+	}{
+		{"omitted", ""},
+		{"empty", "pages: {}"},
+		{"disabled", "pages:\n  enabled: false"},
+		{"empty links", "pages:\n  links: {}"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, ConfigSwatchPath), []byte("license: none\n"+tt.body+"\n"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			cfg, err := Load(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := Write(dir, cfg, "2026-09-12", "Altered"); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := Load(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(loaded.Pages, cfg.Pages) {
+				t.Fatalf("round trip changed Pages declarations: got %+v, want %+v", loaded.Pages, cfg.Pages)
 			}
 		})
 	}
