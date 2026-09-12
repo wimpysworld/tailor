@@ -316,6 +316,8 @@ Multiple executables append a hyphen and a normalised binary name. Tailor lowerc
 
 The Dockerfile swatch uses the same digest-pinned Chainguard static base as Tailor's root Dockerfile. It accepts a `BINARY` argument and copies the selected platform's executable to a fixed application entrypoint. The image runs as a non-root user. Existing custom first-fit Dockerfiles remain unchanged during normal alterations, and `never` always preserves them.
 
+The digest fixes the base image for reproducible builds. Tailor maintainers review newer upstream digests and update the root Dockerfile and swatch together when they accept a refresh. The generated Dependabot configuration does not manage Docker images. Existing projects must review and update their Dockerfile digest explicitly because normal `first-fit` alterations preserve it.
+
 The generated release configuration requires `GITHUB_REPOSITORY` and `GITHUB_REPOSITORY_OWNER` at runtime. GitHub Actions supplies both variables. Local GoReleaser runs must set them explicitly. Use GoReleaser v2.18.0 or later for local snapshots. Local snapshots require Docker with a running daemon and Docker Buildx.
 
 #### Go builder workflow

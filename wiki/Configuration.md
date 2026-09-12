@@ -58,6 +58,8 @@ Multiple executables append a hyphen and a normalised binary name. Tailor lowerc
 
 The Dockerfile uses the same digest-pinned Chainguard static base as Tailor's root Dockerfile. It runs as a non-root user. The `BINARY` build argument selects the executable, which the image installs at a fixed entrypoint.
 
+The digest fixes the base image for reproducible builds. Tailor maintainers review newer upstream digests and update the root Dockerfile and swatch together when they accept a refresh. The generated Dependabot configuration does not update Docker images. For an existing project, review a newer upstream digest and update the `FROM` line manually. Normal `first-fit` alterations preserve your Dockerfile, even after a Tailor upgrade.
+
 Use GoReleaser v2.18.0 or later for local snapshots. Local snapshots require Docker with a running daemon and Docker Buildx. Replace `owner/repo` and `owner` with your repository's values. Run this command from the project root:
 
 ```bash
