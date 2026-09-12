@@ -2,7 +2,7 @@
 
 ## Overview
 
-Tailor's golangci-lint configuration targets three goals: catch real bugs (resource leaks, error handling, security), prevent code quality issues (duplicate words, hardcoded constants, stale idioms), and keep contributor friction low. With 15 explicitly enabled linters and selective govet/revive rules, the config sits in the moderate tier of the Go ecosystem, comparable to Prometheus in philosophy but leaner in total linter count. Projects at the strict end (Traefik, Gitea, Moby) enable 25-50 linters; projects at the lenient end (GitHub CLI, Kubernetes) enable 14-19 but disable many sub-checks.
+Tailor's golangci-lint configuration targets three goals: catch real bugs (resource leaks, error handling, security), prevent code quality issues (duplicate words, hardcoded constants, stale idioms), and keep contributor friction low. The config explicitly enables 16 linters, including `modernize` for modern Go idioms, with selective govet/revive rules. The approach is moderate, similar to Prometheus but with fewer linters. Projects at the strict end (Traefik, Gitea, Moby) enable 25-50 linters; projects at the lenient end (GitHub CLI, Kubernetes) enable 14-19 but disable many sub-checks.
 
 ## Enabled Linters
 
@@ -16,6 +16,7 @@ Tailor's golangci-lint configuration targets three goals: catch real bugs (resou
 | gocyclo | Reports functions with cyclomatic complexity above 30, excluding test files, replacing the standalone `gocyclo` tool |
 | gosec | Security-focused analysis (SQL injection, hardcoded credentials, weak crypto) |
 | misspell | Catches typos in comments, strings, and identifiers |
+| modernize | Suggests modern Go idioms to replace outdated patterns |
 | noctx | Flags HTTP requests made without an explicit context, enforcing cancellation support |
 | revive | Configurable linter replacing golint, run with 18 explicit rules (see below) |
 | staticcheck | The most widely adopted Go linter after govet, catches bugs govet misses |
@@ -24,7 +25,7 @@ Tailor's golangci-lint configuration targets three goals: catch real bugs (resou
 | usestdlibvars | Flags hardcoded HTTP status codes and methods that should use `net/http` constants |
 | wastedassign | Detects assignments to variables that are never subsequently used |
 
-The configuration does not override the golangci-lint v2 default set, so the defaults `errcheck`, `govet`, `ineffassign`, `staticcheck`, and `unused` also run. In total 19 linters are enabled.
+The configuration does not override the golangci-lint v2 default set, so the defaults `errcheck`, `govet`, `ineffassign`, `staticcheck`, and `unused` also run. In total 20 linters are enabled, because `staticcheck` also appears in the explicit list.
 
 ## Configuration Choices
 
@@ -54,7 +55,7 @@ All configs examined were golangci-lint v2 format unless noted. "Linters enabled
 
 | Project | Linters enabled | Approach | govet | gocritic | revive rules | Formatter | Strictness |
 |---------|----------------|----------|-------|----------|-------------|-----------|------------|
-| **Tailor** | 15 | Selective enable | enable-all (minus fieldalignment, shadow) | Default checks | 18 rules | gofumpt | Moderate |
+| **Tailor** | 16 | Selective enable | enable-all (minus fieldalignment, shadow) | Default checks | 18 rules | gofumpt | Moderate |
 | **Moby/Docker** | 28 | Selective enable | enable-all (minus fieldalignment) | enable-all (38 checks disabled) | 7 rules | gofmt, goimports | High |
 | **Prometheus** | 19 | Selective enable | enable-all (minus shadow, fieldalignment) | enable-all (28 checks disabled) | 22 rules | gci, gofumpt, goimports | High |
 | **Caddy** | 26 | default: none, selective | default | default | none | gci, gofmt, gofumpt, goimports | High |
@@ -83,7 +84,6 @@ All configs examined were golangci-lint v2 format unless noted. "Linters enabled
 | wsl, nlreturn | Whitespace style linters. Traefik explicitly disables both ("Too strict"). |
 | testpackage, paralleltest, tparallel | Test structure linters. Traefik disables them ("Not relevant"). |
 | ireturn, wrapcheck, varnamelen | Traefik disables all three as too strict. |
-| modernize | Suggests modern Go idioms. Useful but flags existing code that contributors did not write, creating churn in unrelated PRs. |
 
 ## Dependency Review Security Gate
 
