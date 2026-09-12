@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -425,6 +426,7 @@ func requireContains(t *testing.T, output, substr string) {
 
 func TestAlterRunNormalisesSecurityPrerequisite(t *testing.T) {
 	const configYAML = `license: none
+pages: {}
 repository:
   vulnerability_alerts_enabled: false
   automated_security_fixes_enabled: true
@@ -475,6 +477,9 @@ swatches:
 			if tt.wantWrite {
 				persisted := loadTestConfig(t, tc.Dir)
 				testutil.AssertPtrEqual(t, persisted.Repository.VulnerabilityAlertsEnabled, new(true), "vulnerability_alerts_enabled")
+				if !reflect.DeepEqual(persisted.Pages, &model.PagesSettings{}) {
+					t.Errorf("security normalisation changed empty Pages declarations: %+v", persisted.Pages)
+				}
 				if bytes.Equal(after, before) {
 					t.Error(".tailor.yml bytes did not change")
 				}

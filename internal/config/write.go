@@ -466,8 +466,9 @@ ruleset:
 # path: project-relative source directory, default pages.
 # branch: omit to use the current repository default branch.
 # cname: omit to preserve the domain, use "" to clear it, or set a domain.
-pages:
-{{- range pagesLines .Pages }}
+{{- $pagesLines := pagesLines .Pages }}
+pages:{{ if not $pagesLines }} {}{{ end }}
+{{- range $pagesLines }}
 {{ . }}
 {{- end }}
   # branch: main
