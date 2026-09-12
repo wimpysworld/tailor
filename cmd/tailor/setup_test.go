@@ -1,11 +1,14 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -13,329 +16,163 @@ import (
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/ghfake"
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-const (
-	liveCodeScanningJSON = `{"state":"configured","languages":["actions","go"],"query_suite":"extended","threat_model":"remote_and_local","runner_type":"standard","runner_label":null}`
-	liveCodeQualityJSON  = `{"state":"configured","languages":["go"],"runner_type":"standard","runner_label":null,"ai_findings_option":"disabled"}`
-)
-
-// fitRulesets controls the fake rulesets endpoints that fit reads.
-type fitRulesets struct {
-	listStatus int    // zero: 200
-	listBody   string // empty: no rulesets
-	readBody   string // served for GET /rulesets/1
-}
-
-// fitSetupServer fakes the auth, the repository, and the endpoints that fit
-// reads. setupStatus and the two bodies control the code scanning and Code
-// Quality setup reads. rulesets controls the rulesets reads; a zero value
-// lists no rulesets.
-func fitSetupServer(t *testing.T, setupStatus int, codeScanningJSON, codeQualityJSON string, rulesets fitRulesets) {
-	t.Helper()
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeRepo(t, "octocat", "my-project")
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/immutable-releases"):
-			fmt.Fprint(w, `{"enabled":true,"enforced_by_owner":false}`)
-		case strings.HasSuffix(r.URL.Path, "/rulesets"):
-			if rulesets.listStatus != 0 {
-				w.WriteHeader(rulesets.listStatus)
-				fmt.Fprint(w, `{"message":"error"}`)
-				return
-			}
-			if rulesets.listBody == "" {
-				fmt.Fprint(w, `[]`)
-				return
-			}
-			fmt.Fprint(w, rulesets.listBody)
-		case strings.HasSuffix(r.URL.Path, "/rulesets/1"):
-			fmt.Fprint(w, rulesets.readBody)
-		case strings.HasSuffix(r.URL.Path, "/user"):
-			fmt.Fprint(w, `{"login":"octocat"}`)
-		case strings.HasSuffix(r.URL.Path, "/code-scanning/default-setup"):
-			w.WriteHeader(setupStatus)
-			fmt.Fprint(w, codeScanningJSON)
-		case strings.HasSuffix(r.URL.Path, "/code-quality/setup"):
-			w.WriteHeader(setupStatus)
-			fmt.Fprint(w, codeQualityJSON)
-		case strings.HasSuffix(r.URL.Path, "/actions/permissions/workflow"):
-			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
-		case strings.HasSuffix(r.URL.Path, "/private-vulnerability-reporting"),
-			strings.HasSuffix(r.URL.Path, "/automated-security-fixes"):
-			fmt.Fprint(w, `{"enabled":true}`)
-		case strings.HasSuffix(r.URL.Path, "/vulnerability-alerts"):
-			w.WriteHeader(http.StatusNoContent)
-		case strings.HasSuffix(r.URL.Path, "/repos/octocat/my-project"):
-			fmt.Fprint(w, `{"squash_merge_commit_title":"PR_TITLE","squash_merge_commit_message":"PR_BODY","merge_commit_title":"PR_TITLE","merge_commit_message":"PR_BODY",`+
-				`"security_and_analysis":{"secret_scanning":{"status":"enabled"},"secret_scanning_push_protection":{"status":"disabled"},"secret_scanning_non_provider_patterns":{"status":"enabled"}}}`)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	t.Cleanup(srv.Close)
-	restore := gh.SetNewRESTClientFunc(func(string) (*api.RESTClient, error) {
-		return testutil.NewTestClient(t, srv), nil
-	})
-	t.Cleanup(restore)
-}
-
-// fitResult is what runFit returns: the project directory, the written
-// .tailor.yml, and the stderr text.
-type fitResult struct {
-	dir    string
-	config string
-	stderr string
-}
-
-// runFit installs the fakes through fitSetupServer, runs fit into a temporary
-// directory, and reads the written .tailor.yml. It stops the test when fit
-// exits with a non-zero code.
-func runFit(t *testing.T, setupStatus int, codeScanningJSON, codeQualityJSON string, rulesets fitRulesets) fitResult {
-	t.Helper()
-	fitSetupServer(t, setupStatus, codeScanningJSON, codeQualityJSON, rulesets)
-
-	dir := t.TempDir()
-	var stdout, stderr strings.Builder
-	if code := run([]string{"fit", dir}, &stdout, &stderr); code != 0 {
-		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	return fitResult{dir: dir, config: string(data), stderr: stderr.String()}
-}
-
-func TestFitWritesLiveSetupWithEmptyLanguages(t *testing.T) {
-	got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{})
-	if got.stderr != "" {
-		t.Errorf("stderr = %q, want empty", got.stderr)
-	}
-
-	for _, want := range []string{
-		"\nimmutable_releases:\n  enabled: true\n",
-		"  secret_scanning: enabled\n  secret_scanning_push_protection: disabled\n  secret_scanning_non_provider_patterns: enabled\n",
-		"\ncode_scanning:\n  state: configured\n  query_suite: extended\n  threat_model: remote_and_local\n" +
-			"  # An empty list means GitHub detects the languages. Valid values:\n" +
-			"  # actions, c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift\n" +
-			"  languages: []\n",
-		"\ncode_quality:\n  state: configured\n" +
-			"  # An empty list means GitHub detects the languages. Valid values:\n" +
-			"  # csharp, go, java-kotlin, javascript-typescript, python, ruby\n" +
-			"  languages: []\n",
-	} {
-		if !strings.Contains(got.config, want) {
-			t.Errorf("config missing %q:\n%s", want, got.config)
-		}
-	}
-}
-
-func TestFitWritesForkApprovalDefault(t *testing.T) {
-	got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{})
-	cfg, err := config.Load(got.dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.Actions == nil || cfg.Actions.ForkPRContributorApproval == nil || cfg.Actions.ForkPRContributorApproval.ApprovalPolicy == nil {
-		t.Fatal("fit omitted the contributor approval default")
-	}
-	if policy := *cfg.Actions.ForkPRContributorApproval.ApprovalPolicy; policy != "first_time_contributors" {
-		t.Errorf("fit approval_policy = %q, want first_time_contributors", policy)
-	}
-}
-
-func TestFitSetupEmptyFieldsKeepBuiltInDefaults(t *testing.T) {
-	got := runFit(t, http.StatusOK, `{"state":"not-configured","languages":[]}`, `{"state":"not-configured","languages":[]}`, fitRulesets{})
-
-	want := "\ncode_scanning:\n  state: not-configured\n  query_suite: default\n  threat_model: remote\n"
-	if !strings.Contains(got.config, want) {
-		t.Errorf("config missing %q:\n%s", want, got.config)
-	}
-	for _, empty := range []string{`query_suite: ""`, `threat_model: ""`, "query_suite: \n", "threat_model: \n"} {
-		if strings.Contains(got.config, empty) {
-			t.Errorf("config contains empty value %q:\n%s", empty, got.config)
-		}
-	}
-
-	// The written config must load and validate on the next alter.
-	if _, err := config.Load(got.dir); err != nil {
-		t.Fatalf("config.Load() error: %v", err)
-	}
-}
-
-func TestFitSetupReadHardErrorStopsCommand(t *testing.T) {
-	fitSetupServer(t, http.StatusInternalServerError, `{"message":"boom"}`, `{"message":"boom"}`, fitRulesets{})
-
-	dir := t.TempDir()
-	var stdout, stderr strings.Builder
-	if code := run([]string{"fit", dir}, &stdout, &stderr); code == 0 {
-		t.Fatal("run() = 0, want failure for a 500 setup read")
-	}
-	if !strings.Contains(stderr.String(), "fetch code scanning setup") || !strings.Contains(stderr.String(), "boom") {
-		t.Errorf("stderr = %q, want the API error", stderr.String())
-	}
-	if _, err := os.Stat(filepath.Join(dir, ".tailor.yml")); err == nil {
-		t.Error("fit wrote .tailor.yml despite the failed setup read")
-	}
-}
-
-func TestFitSetupNotAvailableUsesBuiltIn(t *testing.T) {
-	got := runFit(t, http.StatusNotFound, `{"message":"Not Found"}`, `{"message":"Not Found"}`, fitRulesets{})
-	wantStderr := "warning: fetch code scanning setup: not available (HTTP 404)\n" +
-		"warning: fetch code quality setup: not available (HTTP 404)\n"
-	if got.stderr != wantStderr {
-		t.Errorf("stderr = %q, want %q", got.stderr, wantStderr)
-	}
-
-	for _, want := range []string{
-		"\ncode_scanning:\n  state: configured\n  query_suite: default\n  threat_model: remote\n",
-		"\ncode_quality:\n  state: not-configured\n",
-	} {
-		if !strings.Contains(got.config, want) {
-			t.Errorf("config missing built-in section %q:\n%s", want, got.config)
-		}
-	}
-}
-
-const (
-	tailorRulesetList = `[{"id":1,"name":"Tailor","target":"branch","enforcement":"disabled","source_type":"Repository"}]`
-	liveRulesetJSON   = `{"id":1,"name":"Tailor","target":"branch","enforcement":"disabled",` +
-		`"bypass_actors":[{"actor_id":4,"actor_type":"RepositoryRole","bypass_mode":"pull_request"},{"actor_id":null,"actor_type":"DeployKey","bypass_mode":"always"}],` +
-		`"conditions":{"ref_name":{"include":["refs/heads/main","release/*"],"exclude":["refs/heads/wip/*"]}},` +
-		`"rules":[{"type":"creation"},{"type":"required_status_checks","parameters":{"strict_required_status_checks_policy":true,"do_not_enforce_on_create":false,` +
-		`"required_status_checks":[{"context":"lint","integration_id":15368}]}},` +
-		`{"type":"code_scanning","parameters":{"code_scanning_tools":[{"tool":"CodeQL","alerts_threshold":"errors_and_warnings","security_alerts_threshold":"critical"}]}}]}`
-)
-
-func TestFitWritesLiveRuleset(t *testing.T) {
-	got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: liveRulesetJSON})
-	if got.stderr != "" {
-		t.Errorf("stderr = %q, want empty", got.stderr)
-	}
-
-	for _, want := range []string{
-		"\nruleset:\n",
-		"  enforcement: disabled\n",
-		"    - actor_id: 4\n      actor_type: RepositoryRole\n      bypass_mode: pull_request\n    - actor_type: DeployKey\n      bypass_mode: always\n",
-		"      include:\n        - refs/heads/main\n        - \"release/*\"\n      exclude:\n        - \"refs/heads/wip/*\"\n",
-		"    creation: true\n    update: false\n    deletion: false\n",
-		// The live ruleset has no pull request rule, so the built-in
-		// parameters stay for the day the rule is enabled.
-		"    pull_request:\n      enabled: false\n      parameters:\n        required_approving_review_count: 1\n",
-		"    required_status_checks:\n      enabled: true\n      parameters:\n        # Require branches to be up to date before merging.\n        strict_required_status_checks_policy: true\n",
-		"        required_status_checks:\n          - context: lint\n            integration_id: 15368\n",
-		"    code_scanning:\n      enabled: true\n      parameters:\n" +
-			"        # tool is the tool name as GitHub shows it, for example CodeQL.\n" +
-			"        # alerts_threshold: none, errors, errors_and_warnings, all\n" +
-			"        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all\n" +
-			"        code_scanning_tools:\n          - tool: CodeQL\n            alerts_threshold: errors_and_warnings\n            security_alerts_threshold: critical\n",
-	} {
-		if !strings.Contains(got.config, want) {
-			t.Errorf("config missing %q:\n%s", want, got.config)
-		}
-	}
-	if _, err := config.Load(got.dir); err != nil {
-		t.Fatalf("config.Load() error: %v", err)
-	}
-}
-
-func TestFitRulesetWithoutCodeScanningKeepsBuiltInTools(t *testing.T) {
-	withoutRule := strings.Replace(liveRulesetJSON,
-		`,{"type":"code_scanning","parameters":{"code_scanning_tools":[{"tool":"CodeQL","alerts_threshold":"errors_and_warnings","security_alerts_threshold":"critical"}]}}`, "", 1)
-	if withoutRule == liveRulesetJSON {
-		t.Fatal("liveRulesetJSON does not carry the code scanning rule")
-	}
-	got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: withoutRule})
-	if got.stderr != "" {
-		t.Errorf("stderr = %q, want empty", got.stderr)
-	}
-
-	want := "    code_scanning:\n      enabled: false\n      parameters:\n" +
-		"        # tool is the tool name as GitHub shows it, for example CodeQL.\n" +
-		"        # alerts_threshold: none, errors, errors_and_warnings, all\n" +
-		"        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all\n" +
-		"        code_scanning_tools:\n          - tool: CodeQL\n            alerts_threshold: errors\n            security_alerts_threshold: high_or_higher\n"
-	if !strings.Contains(got.config, want) {
-		t.Errorf("config missing the built-in code scanning block %q:\n%s", want, got.config)
-	}
-	if _, err := config.Load(got.dir); err != nil {
-		t.Fatalf("config.Load() error: %v", err)
-	}
-}
-
-func TestFitRulesetFallbackUsesBuiltIn(t *testing.T) {
+func TestFitWritesDefaultsWithLiveMetadata(t *testing.T) {
 	tests := []struct {
-		name       string
-		rulesets   fitRulesets
-		wantStderr string
+		name        string
+		metadata    map[string]any
+		args        []string
+		description string
+		homepage    string
 	}{
-		{name: "absent", rulesets: fitRulesets{}},
-		{name: "other rulesets only", rulesets: fitRulesets{listBody: `[{"id":9,"name":"Other"}]`}},
-		{name: "forbidden", rulesets: fitRulesets{listStatus: http.StatusForbidden}, wantStderr: "warning: list rulesets: not available (HTTP 403)\n"},
-		{
-			name:       "bypass actors omitted",
-			rulesets:   fitRulesets{listBody: tailorRulesetList, readBody: `{"id":1,"name":"Tailor","enforcement":"active","conditions":{"ref_name":{"include":["~ALL"],"exclude":[]}},"rules":[]}`},
-			wantStderr: "warning: fetch ruleset: response omitted bypass_actors; the token cannot manage the ruleset\n",
-		},
+		{name: "live metadata", metadata: map[string]any{"description": "live description", "homepage": "https://example.com"}, description: "live description", homepage: "https://example.com"},
+		{name: "empty metadata", metadata: map[string]any{"description": "", "homepage": ""}},
+		{name: "null metadata", metadata: map[string]any{"description": nil, "homepage": nil}},
+		{name: "absent metadata", metadata: map[string]any{}},
+		{name: "description override", metadata: map[string]any{"description": "live description", "homepage": "https://example.com"}, args: []string{"--description=flag description"}, description: "flag description", homepage: "https://example.com"},
+		{name: "empty description override", metadata: map[string]any{"description": "live description", "homepage": ""}, args: []string{"--description="}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, tt.rulesets)
-			if got.stderr != tt.wantStderr {
-				t.Errorf("stderr = %q, want %q", got.stderr, tt.wantStderr)
+			ghfake.FakeAuth(t, "gho_test")
+			ghfake.FakeRepo(t, "octocat", "my-project")
+			want, err := config.DefaultConfig("BlueOak-1.0.0")
+			if err != nil {
+				t.Fatal(err)
 			}
-			for _, want := range []string{
-				"\nruleset:\n",
-				"  enforcement: active\n",
-				"    - actor_id: 5\n      actor_type: RepositoryRole\n      bypass_mode: always\n",
-				"      include:\n        - ~DEFAULT_BRANCH\n      exclude: []\n",
-				"    pull_request:\n      enabled: true\n",
-			} {
-				if !strings.Contains(got.config, want) {
-					t.Errorf("config missing built-in ruleset text %q:\n%s", want, got.config)
+			live := map[string]any{}
+			for _, field := range model.RepositorySettingFields(want.Repository) {
+				if !field.Set {
+					continue
 				}
+				value := field.Value.Elem()
+				switch value.Kind() {
+				case reflect.Bool:
+					live[field.YAMLKey] = !value.Bool()
+				case reflect.String:
+					live[field.YAMLKey] = "opposite-default"
+				}
+			}
+			live["topics"] = []string{"existing-topic"}
+			live["security_and_analysis"] = map[string]any{
+				"secret_scanning":                       map[string]string{"status": "disabled"},
+				"secret_scanning_push_protection":       map[string]string{"status": "disabled"},
+				"secret_scanning_non_provider_patterns": map[string]string{"status": "disabled"},
+			}
+			maps.Copy(live, tt.metadata)
+			managed := map[string]string{
+				"/immutable-releases":              `{"enabled":false,"enforced_by_owner":false}`,
+				"/code-scanning/default-setup":     `{"state":"not-configured","query_suite":"extended","threat_model":"remote_and_local","languages":["go"]}`,
+				"/code-quality/setup":              `{"state":"configured","languages":["go"]}`,
+				"/actions/permissions/workflow":    `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`,
+				"/actions/permissions":             `{"enabled":false,"allowed_actions":"selected"}`,
+				"/private-vulnerability-reporting": `{"enabled":false}`,
+				"/automated-security-fixes":        `{"enabled":false}`,
+				"/rulesets":                        `[{"id":1,"name":"Tailor","target":"branch","enforcement":"disabled","source_type":"Repository"}]`,
+				"/rulesets/1":                      `{"id":1,"name":"Tailor","target":"branch","enforcement":"disabled","bypass_actors":[],"conditions":{"ref_name":{"include":["~ALL"],"exclude":[]}},"rules":[]}`,
+				"/labels":                          `[{"name":"live-label","color":"abcdef","description":"live label"}]`,
+				"/actions/variables":               `{"total_count":1,"variables":[{"name":"LIVE_VARIABLE","value":"live"}]}`,
+				"/pages":                           `{"build_type":"workflow","html_url":"https://octocat.github.io/my-project/"}`,
+			}
+			var requests []string
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				requests = append(requests, r.Method+" "+r.URL.Path)
+				w.Header().Set("Content-Type", "application/json")
+				switch r.URL.Path {
+				case "/user":
+					fmt.Fprint(w, `{"login":"octocat"}`)
+				case "/repos/octocat/my-project":
+					if err := json.NewEncoder(w).Encode(live); err != nil {
+						t.Error(err)
+					}
+				default:
+					t.Errorf("fit requested managed settings: %s %s", r.Method, r.URL.Path)
+					if body, ok := managed[strings.TrimPrefix(r.URL.Path, "/repos/octocat/my-project")]; ok {
+						fmt.Fprint(w, body)
+						return
+					}
+					w.WriteHeader(http.StatusForbidden)
+					fmt.Fprint(w, `{"message":"forbidden"}`)
+				}
+			}))
+			t.Cleanup(srv.Close)
+			restore := gh.SetNewRESTClientFunc(func(string) (*api.RESTClient, error) {
+				return testutil.NewTestClient(t, srv), nil
+			})
+			t.Cleanup(restore)
+			dir := t.TempDir()
+			var stdout, stderr strings.Builder
+			args := append([]string{"fit", dir}, tt.args...)
+			if code := run(args, &stdout, &stderr); code != 0 {
+				t.Fatalf("fit = %d, stderr: %s", code, stderr.String())
+			}
+			if stderr.Len() != 0 {
+				t.Errorf("stderr = %q, want empty", stderr.String())
+			}
+			if !reflect.DeepEqual(requests, []string{"GET /user", "GET /repos/octocat/my-project"}) {
+				t.Errorf("requests = %v, want only auth and repository metadata", requests)
+			}
+			got, err := config.Load(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want.Repository.Description = new(tt.description)
+			want.Repository.Homepage = new(tt.homepage)
+			want.InferredHomepage = tt.homepage
+			expectedDir := t.TempDir()
+			if err := config.Write(expectedDir, want, "2026-09-12", "Initially fitted"); err != nil {
+				t.Fatal(err)
+			}
+			want, err = config.Load(expectedDir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Errorf("generated config differs from embedded defaults plus metadata:\ngot: %+v\nwant: %+v", got, want)
+			}
+			if tt.homepage != "" && got.HomepageDeclared() {
+				t.Error("imported homepage lost its inferred provenance")
+			}
+			if got.Repository.Topics != nil {
+				t.Error("fit imported topics")
 			}
 		})
 	}
 }
 
-func TestFitRulesetEvaluateEnforcementKeepsBuiltIn(t *testing.T) {
-	evaluateRulesetJSON := strings.Replace(liveRulesetJSON, `"enforcement":"disabled"`, `"enforcement":"evaluate"`, 1)
-	got := runFit(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listBody: tailorRulesetList, readBody: evaluateRulesetJSON})
-	want := "warning: the Tailor ruleset enforcement \"evaluate\" is not managed; wrote enforcement: active\n"
-	if got.stderr != want {
-		t.Errorf("stderr = %q, want %q", got.stderr, want)
-	}
-	for _, want := range []string{
-		"  enforcement: active\n",
-		"    creation: true\n",
-	} {
-		if !strings.Contains(got.config, want) {
-			t.Errorf("config missing %q:\n%s", want, got.config)
-		}
-	}
-	if _, err := config.Load(got.dir); err != nil {
-		t.Fatalf("config.Load() error: %v", err)
-	}
-}
-
-func TestFitRulesetHardErrorStopsCommand(t *testing.T) {
-	fitSetupServer(t, http.StatusOK, liveCodeScanningJSON, liveCodeQualityJSON, fitRulesets{listStatus: http.StatusInternalServerError})
-
-	dir := t.TempDir()
-	var stdout, stderr strings.Builder
-	if code := run([]string{"fit", dir}, &stdout, &stderr); code == 0 {
-		t.Fatal("run() = 0, want failure for a 500 rulesets read")
-	}
-	if !strings.Contains(stderr.String(), "list rulesets") {
-		t.Errorf("stderr = %q, want the API error", stderr.String())
-	}
-	if _, err := os.Stat(filepath.Join(dir, ".tailor.yml")); err == nil {
-		t.Error("fit wrote .tailor.yml despite the failed rulesets read")
+func TestFitMetadataReadFailureStopsCommand(t *testing.T) {
+	for _, status := range []int{http.StatusForbidden, http.StatusNotFound, http.StatusInternalServerError} {
+		t.Run(fmt.Sprint(status), func(t *testing.T) {
+			ghfake.FakeAuth(t, "gho_test")
+			ghfake.FakeRepo(t, "octocat", "my-project")
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				if r.URL.Path == "/user" {
+					fmt.Fprint(w, `{"login":"octocat"}`)
+					return
+				}
+				w.WriteHeader(status)
+				fmt.Fprint(w, `{"message":"metadata unavailable"}`)
+			}))
+			t.Cleanup(srv.Close)
+			restore := gh.SetNewRESTClientFunc(func(string) (*api.RESTClient, error) {
+				return testutil.NewTestClient(t, srv), nil
+			})
+			t.Cleanup(restore)
+			dir := t.TempDir()
+			var stdout, stderr strings.Builder
+			if code := run([]string{"fit", dir}, &stdout, &stderr); code == 0 {
+				t.Fatal("fit succeeded despite metadata read failure")
+			}
+			if !strings.Contains(stderr.String(), "fetching repo metadata") {
+				t.Errorf("stderr = %q", stderr.String())
+			}
+			if _, err := os.Stat(filepath.Join(dir, ".tailor.yml")); !os.IsNotExist(err) {
+				t.Errorf("fit wrote config after metadata failure: %v", err)
+			}
+		})
 	}
 }

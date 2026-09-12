@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -41,9 +40,9 @@ type CLI struct {
 
 // FitCmd creates a new project directory with a default .tailor.yml.
 type FitCmd struct {
-	Path        string `arg:"" help:"Project directory to create."`
-	License     string `help:"Licence identifier." default:"BlueOak-1.0.0"`
-	Description string `help:"Repository description."`
+	Path        string  `arg:"" help:"Project directory to create."`
+	License     string  `help:"Licence identifier." default:"BlueOak-1.0.0"`
+	Description *string `help:"Repository description."`
 
 	stdout io.Writer
 	stderr io.Writer
@@ -111,29 +110,17 @@ func (f *FitCmd) Run() (runErr error) {
 	}
 
 	if ok {
-		live, warnings, err := gh.ReadRepoSettings(client, repo.Owner, repo.Name)
+		live, err := gh.ReadRepoMetadata(client, repo.Owner, repo.Name)
 		if err != nil {
 			return err
 		}
-		stderr := f.stderr
-		if stderr == nil {
-			stderr = os.Stderr
-		}
-		for _, w := range warnings {
-			fmt.Fprintf(stderr, "warning: %v\n", w)
-		}
-		config.MergeRepoSettings(cfg, live, f.Description)
-		homepage := fmt.Sprintf("https://%s/%s/%s", repo.Host, repo.Owner, repo.Name)
-		config.ApplyRepoDefaults(cfg, repo.Name, homepage)
-		if err := mergeLiveSetup(cfg, client, repo, stderr); err != nil {
-			return err
-		}
+		config.MergeRepoMetadata(cfg, live, f.Description)
 	} else {
-		if f.Description != "" {
+		if f.Description != nil {
 			if cfg.Repository == nil {
 				cfg.Repository = &model.RepositorySettings{}
 			}
-			cfg.Repository.Description = &f.Description
+			cfg.Repository.Description = f.Description
 		}
 		config.ApplyRepoDefaults(cfg, projectName(f.Path), "")
 	}
@@ -152,78 +139,6 @@ func (f *FitCmd) Run() (runErr error) {
 	}
 	doc := output.Document{Command: "fit", Context: renderedPath, Items: []output.Item{{Domain: "Configuration", Outcome: output.Created, Action: "create", Name: ".tailor.yml", Provenance: renderedPath}}, Guidance: []output.Guidance{{Order: 1, Text: "Change into the project directory, then run `tailor alter`."}}}
 	policy.Print(doc, fmt.Sprintf("Fitted %s with .tailor.yml\n", f.Path))
-	return nil
-}
-
-// mergeLiveSetup copies the live code scanning and Code Quality setup into
-// cfg. A read that is skipped because the feature is not available keeps the
-// built-in section and warns, because plan availability is not a token
-// problem. Other read errors stop the command.
-func mergeLiveSetup(cfg *config.Config, client *api.RESTClient, repo gh.Repo, stderr io.Writer) error {
-	immutable, err := gh.ReadImmutableReleases(client, repo.Owner, repo.Name)
-	if err != nil {
-		if _, ok := errors.AsType[*gh.ErrInsufficientScope](err); !ok {
-			return err
-		}
-		fmt.Fprintf(stderr, "warning: %v\n", err)
-		cfg.ImmutableReleases = nil
-	} else {
-		cfg.ImmutableReleases = &model.ImmutableReleasesSettings{Enabled: immutable.Enabled}
-	}
-	codeScanning, err := gh.ReadCodeScanningSetup(client, repo.Owner, repo.Name)
-	if err != nil {
-		if err = warnSkipped(err, stderr); err != nil {
-			return err
-		}
-	} else {
-		config.MergeCodeScanningSetup(cfg, codeScanning)
-	}
-
-	codeQuality, err := gh.ReadCodeQualitySetup(client, repo.Owner, repo.Name)
-	if err != nil {
-		if err = warnSkipped(err, stderr); err != nil {
-			return err
-		}
-	} else {
-		config.MergeCodeQualitySetup(cfg, codeQuality)
-	}
-	return mergeLiveRuleset(cfg, client, repo, stderr)
-}
-
-// warnSkipped writes a skipped setup read as a warning and returns nil, so
-// the caller keeps the built-in section. Any other error is returned as is.
-func warnSkipped(err error, stderr io.Writer) error {
-	if _, ok := errors.AsType[*gh.ErrSetupSkipped](err); ok {
-		fmt.Fprintf(stderr, "warning: %v\n", err)
-		return nil
-	}
-	return err
-}
-
-// mergeLiveRuleset copies the live Tailor ruleset into cfg. An absent
-// ruleset keeps the built-in section. A live enforcement level that Tailor
-// does not manage, such as evaluate, keeps the built-in level and warns,
-// because the written config must pass validation. A read that is skipped,
-// or a token that can read but not write the ruleset, keeps the built-in
-// section and warns. Other read errors stop the command.
-func mergeLiveRuleset(cfg *config.Config, client *api.RESTClient, repo gh.Repo, stderr io.Writer) error {
-	var skipped *gh.ErrSetupSkipped
-	var scope *gh.ErrInsufficientScope
-
-	ruleset, _, err := gh.ReadTailorRuleset(client, repo.Owner, repo.Name)
-	switch {
-	case err == nil && ruleset != nil:
-		if config.MergeRulesetSetup(cfg, ruleset) {
-			fmt.Fprintf(stderr, "warning: the Tailor ruleset enforcement %q is not managed; wrote enforcement: %s\n",
-				*ruleset.Enforcement, *cfg.Ruleset.Enforcement)
-		}
-	case err == nil:
-		// The Tailor ruleset does not exist yet; the built-in section stands.
-	case errors.As(err, &skipped), errors.As(err, &scope):
-		fmt.Fprintf(stderr, "warning: %v\n", err)
-	default:
-		return err
-	}
 	return nil
 }
 

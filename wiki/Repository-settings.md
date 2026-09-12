@@ -35,7 +35,7 @@ The `repository` section manages GitHub repository settings from `.tailor.yml`. 
 
 To stop repository settings management, omit the `repository` section and disable [default merging](Configuration#default-merging). An omitted field stays unmanaged only if default merging and the security prerequisites below leave it absent.
 
-Generated configs expose all six security settings, three Boolean and three string. The built-in values are `true` for the Boolean settings and `enabled` for `secret_scanning`, `secret_scanning_push_protection`, and `secret_scanning_non_provider_patterns`. When a GitHub remote exists, `fit` uses live values. Default merging appends missing security settings without changing explicit values.
+Generated configs expose all six security settings, three Boolean and three string. The built-in values are `true` for the Boolean settings and `enabled` for `secret_scanning`, `secret_scanning_push_protection`, and `secret_scanning_non_provider_patterns`. `fit` uses these defaults even when a GitHub remote exists. Default merging appends missing security settings without changing explicit values.
 
 The security prerequisite normalisations below are the exception: they can change an explicit `vulnerability_alerts_enabled: false` to `true`, and an explicit `secret_scanning: disabled` to `enabled`.
 
@@ -73,7 +73,7 @@ Names must be unique and at most 50 characters long. Each name must start with a
 
 Release immutability defaults to `immutable_releases.enabled: false`. Before enabling it, change release CI to upload every asset to a draft, then publish. Workflows that upload or replace assets after publication will fail. Enabling protects future releases only.
 
-Disabling does not unlock existing immutable releases. Tailor skips disabling when the repository owner enforces immutability. An omitted section or `enabled` key stays unmanaged, including during default merging. For an existing repository, `fit` preserves the live setting.
+Disabling does not unlock existing immutable releases. Tailor skips disabling when the repository owner enforces immutability. An omitted section or `enabled` key stays unmanaged, including during default merging. `fit` writes `enabled: false` even when the live setting is enabled. Set `enabled: true` before `alter` to keep immutability enabled.
 
 The token needs Administration-read permission to inspect immutability and Administration-write permission to change it. Access failures report `would skip (insufficient scope)`. A conflict or other non-access error stops the command.
 

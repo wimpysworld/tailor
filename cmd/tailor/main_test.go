@@ -13,6 +13,7 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/alter"
+	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/ghfake"
 	"github.com/wimpysworld/tailor/internal/output"
@@ -232,22 +233,20 @@ func TestFitLicenseNone(t *testing.T) {
 }
 
 func TestFitDescriptionNoRepoContext(t *testing.T) {
-	fakeNoRepoAuth(t)
-
-	dir := filepath.Join(t.TempDir(), "with-desc")
-
-	cmd := FitCmd{Path: dir, License: "BlueOak-1.0.0", Description: "My project description"}
-	if err := cmd.Run(); err != nil {
-		t.Fatalf("Run() error: %v", err)
-	}
-
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-
-	if !strings.Contains(string(data), "description: My project description") {
-		t.Errorf("config does not contain description:\n%s", data)
+	for _, description := range []string{"My project description", ""} {
+		t.Run(description, func(t *testing.T) {
+			fakeNoRepoAuth(t)
+			dir := filepath.Join(t.TempDir(), "with-desc")
+			var stdout, stderr strings.Builder
+			if code := run([]string{"fit", dir, "--description=" + description}, &stdout, &stderr); code != 0 {
+				t.Fatalf("fit = %d, stderr: %s", code, stderr.String())
+			}
+			cfg, err := config.Load(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			testutil.AssertPtrEqual(t, cfg.Repository.Description, new(description), "description")
+		})
 	}
 }
 
@@ -562,67 +561,6 @@ func TestRunUnknownFlag(t *testing.T) {
 	}
 	if !strings.Contains(stderr.String(), "unknown flag --bogus") {
 		t.Errorf("stderr = %q, want unknown flag error", stderr.String())
-	}
-}
-
-func TestRunFitWarningsToStderr(t *testing.T) {
-	ghfake.FakeAuth(t, "gho_test")
-	ghfake.FakeRepo(t, "octocat", "my-project")
-
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case strings.HasSuffix(r.URL.Path, "/user"):
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"login":"octocat"}`)
-		case strings.HasSuffix(r.URL.Path, "/actions/permissions/workflow"):
-			w.WriteHeader(http.StatusForbidden)
-			fmt.Fprint(w, `{"message":"forbidden"}`)
-		case strings.HasSuffix(r.URL.Path, "/private-vulnerability-reporting"),
-			strings.HasSuffix(r.URL.Path, "/automated-security-fixes"):
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{"enabled":true}`)
-		case strings.HasSuffix(r.URL.Path, "/vulnerability-alerts"):
-			w.WriteHeader(http.StatusNoContent)
-		case strings.HasSuffix(r.URL.Path, "/repos/octocat/my-project"):
-			w.Header().Set("Content-Type", "application/json")
-			fmt.Fprint(w, `{}`)
-		default:
-			w.WriteHeader(http.StatusNotFound)
-		}
-	}))
-	t.Cleanup(srv.Close)
-	restore := gh.SetNewRESTClientFunc(func(string) (*api.RESTClient, error) {
-		return testutil.NewTestClient(t, srv), nil
-	})
-	t.Cleanup(restore)
-
-	dir := t.TempDir()
-	var stdout, stderr strings.Builder
-
-	code := run([]string{"fit", dir}, &stdout, &stderr)
-
-	if code != 0 {
-		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
-	}
-	if !strings.HasPrefix(stderr.String(), "warning: fetch workflow permissions") {
-		t.Errorf("stderr = %q, want plain warning prefix", stderr.String())
-	}
-	if !strings.HasSuffix(stderr.String(), "\n") {
-		t.Errorf("stderr = %q, want trailing newline", stderr.String())
-	}
-
-	// The live repository carries no description or homepage, so fit
-	// defaults them to the repository name and URL.
-	data, err := os.ReadFile(filepath.Join(dir, ".tailor.yml"))
-	if err != nil {
-		t.Fatalf("ReadFile: %v", err)
-	}
-	content := string(data)
-	if !strings.Contains(content, "description: my-project") {
-		t.Errorf("config does not contain 'description: my-project':\n%s", content)
-	}
-	if !strings.Contains(content, "homepage: https://github.com/octocat/my-project") {
-		t.Errorf("config does not contain default homepage:\n%s", content)
 	}
 }
 

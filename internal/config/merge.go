@@ -31,7 +31,7 @@ func MergeDefaults(cfg *Config) (bool, error) {
 	repoChanged := mergeSettingsFrom(&cfg.Repository, defaults.Repository, model.RepositorySettingFields, skipRepoField)
 	actionsChanged := mergeActionsFrom(cfg, defaults)
 	if cfg.Actions != nil && defaults.Actions != nil && cfg.Actions.ForkPRContributorApproval != nil && defaults.Actions.ForkPRContributorApproval != nil {
-		if fillNilFields(reflect.ValueOf(cfg.Actions.ForkPRContributorApproval).Elem(), reflect.ValueOf(defaults.Actions.ForkPRContributorApproval).Elem(), false) {
+		if fillNilFields(reflect.ValueOf(cfg.Actions.ForkPRContributorApproval).Elem(), reflect.ValueOf(defaults.Actions.ForkPRContributorApproval).Elem()) {
 			actionsChanged = true
 		}
 	}
@@ -57,15 +57,14 @@ func mergeRulesetFrom(cfg *Config, defaults *Config) bool {
 	if cfg.Ruleset == nil {
 		cfg.Ruleset = &model.RulesetSettings{}
 	}
-	return fillNilFields(reflect.ValueOf(cfg.Ruleset).Elem(), reflect.ValueOf(defaults.Ruleset).Elem(), false)
+	return fillNilFields(reflect.ValueOf(cfg.Ruleset).Elem(), reflect.ValueOf(defaults.Ruleset).Elem())
 }
 
 // fillNilFields walks the yaml-tagged pointer fields of two structs of the
 // same type. A nil dst field takes a deep copy of the src field. When both
-// point to structs it recurses. When overwrite is true a set src field
-// replaces the dst field instead, which copies live values over defaults.
+// point to structs it recurses.
 // It reports whether it changed dst.
-func fillNilFields(dst, src reflect.Value, overwrite bool) bool {
+func fillNilFields(dst, src reflect.Value) bool {
 	changed := false
 	for i := range dst.NumField() {
 		tag := dst.Type().Field(i).Tag.Get("yaml")
@@ -81,12 +80,9 @@ func fillNilFields(dst, src reflect.Value, overwrite bool) bool {
 			df.Set(deepCopy(sf))
 			changed = true
 		case sf.Elem().Kind() == reflect.Struct:
-			if fillNilFields(df.Elem(), sf.Elem(), overwrite) {
+			if fillNilFields(df.Elem(), sf.Elem()) {
 				changed = true
 			}
-		case overwrite:
-			df.Set(deepCopy(sf))
-			changed = true
 		}
 	}
 	return changed

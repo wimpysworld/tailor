@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"reflect"
 	"slices"
 
 	"github.com/wimpysworld/tailor/internal/model"
@@ -29,7 +28,7 @@ func DefaultConfig(license string) (*Config, error) {
 	}
 
 	// Nil out the project-specific description and homepage defaults.
-	// MergeRepoSettings replaces them with live GitHub values when available.
+	// MergeRepoMetadata replaces them with live GitHub values when available.
 	if cfg.Repository != nil {
 		cfg.Repository.Description = nil
 		cfg.Repository.Homepage = nil
@@ -59,82 +58,22 @@ func ApplyRepoDefaults(cfg *Config, name, url string) {
 	}
 }
 
-// MergeCodeScanningSetup copies the live code scanning state, query suite,
-// and threat model into cfg. Languages are always written as an empty list so
-// GitHub detects them.
-func MergeCodeScanningSetup(cfg *Config, live *model.CodeScanningSettings) {
-	if cfg.CodeScanning == nil {
-		cfg.CodeScanning = &model.CodeScanningSettings{}
+// MergeRepoMetadata imports project metadata without changing managed defaults.
+// An explicit homepage declaration takes precedence over the imported value.
+func MergeRepoMetadata(cfg *Config, live *model.RepositorySettings, description *string) {
+	if cfg.Repository == nil {
+		cfg.Repository = &model.RepositorySettings{}
 	}
-	if live.State != nil {
-		cfg.CodeScanning.State = live.State
+	declaredHomepage := cfg.HomepageDeclared()
+	cfg.Repository.Description = live.Description
+	if description != nil {
+		cfg.Repository.Description = description
 	}
-	if live.QuerySuite != nil {
-		cfg.CodeScanning.QuerySuite = live.QuerySuite
-	}
-	if live.ThreatModel != nil {
-		cfg.CodeScanning.ThreatModel = live.ThreatModel
-	}
-	cfg.CodeScanning.Languages = &[]string{}
-}
-
-// MergeCodeQualitySetup copies the live Code Quality state into cfg.
-// Languages are always written as an empty list so GitHub detects them.
-func MergeCodeQualitySetup(cfg *Config, live *model.CodeQualitySettings) {
-	if cfg.CodeQuality == nil {
-		cfg.CodeQuality = &model.CodeQualitySettings{}
-	}
-	if live.State != nil {
-		cfg.CodeQuality.State = live.State
-	}
-	cfg.CodeQuality.Languages = &[]string{}
-}
-
-// MergeRulesetSetup copies every set field of the live ruleset over cfg,
-// creating the section when it is absent. Fields that live leaves nil keep
-// their existing value, so the built-in parameters of a rule that GitHub
-// does not carry stay in the config. An enforcement level that
-// ValidateRuleset rejects, such as evaluate, is not copied, so the
-// existing level stands. It reports whether it left the live enforcement
-// out.
-func MergeRulesetSetup(cfg *Config, live *model.RulesetSettings) bool {
-	if cfg.Ruleset == nil {
-		cfg.Ruleset = &model.RulesetSettings{}
-	}
-	source := *live
-	skipped := source.Enforcement != nil && !slices.Contains(model.RulesetEnforcements, *source.Enforcement)
-	if skipped {
-		source.Enforcement = nil
-	}
-	fillNilFields(reflect.ValueOf(cfg.Ruleset).Elem(), reflect.ValueOf(&source).Elem(), true)
-	return skipped
-}
-
-// MergeRepoSettings assigns live to cfg.Repository and mutates live in place.
-// The description flag, when non-empty, overrides whatever the live settings
-// carried. Empty live Description and Homepage values become nil. An explicit
-// homepage declaration takes precedence, including an empty value.
-func MergeRepoSettings(cfg *Config, live *model.RepositorySettings, description string) {
-	var declaredHomepage *string
-	if cfg.HomepageDeclared() {
-		declaredHomepage = cfg.Repository.Homepage
-	}
-	cfg.Repository = live
-	cfg.InferredHomepage = ""
-
-	if description != "" {
-		cfg.Repository.Description = &description
-	}
-
-	if cfg.Repository.Description != nil && *cfg.Repository.Description == "" {
-		cfg.Repository.Description = nil
-	}
-	if cfg.Repository.Homepage != nil && *cfg.Repository.Homepage == "" {
-		cfg.Repository.Homepage = nil
-	}
-	if declaredHomepage != nil {
-		cfg.Repository.Homepage = declaredHomepage
-	} else if cfg.Repository.Homepage != nil {
-		cfg.InferredHomepage = *cfg.Repository.Homepage
+	if !declaredHomepage {
+		cfg.Repository.Homepage = live.Homepage
+		cfg.InferredHomepage = ""
+		if live.Homepage != nil {
+			cfg.InferredHomepage = *live.Homepage
+		}
 	}
 }

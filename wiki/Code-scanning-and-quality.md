@@ -19,7 +19,7 @@ An empty `languages` list sends no `languages` field, so GitHub detects the lang
 
 ## Code Quality
 
-The top-level `code_quality` section manages GitHub Code Quality. Generated configs leave Code Quality not configured with GitHub language detection.
+The top-level `code_quality` section manages GitHub Code Quality. Generated configs set `state: not-configured` with GitHub language detection, even when Code Quality is already enabled. Set `state: configured` before `alter` to keep it enabled.
 
 | Field | Type | Description |
 |-------|------|-------------|

@@ -60,6 +60,21 @@ type workflowPermissionsResponse struct {
 	CanApprovePullRequestReviews bool   `json:"can_approve_pull_request_reviews"`
 }
 
+// ReadRepoMetadata reads project metadata without fetching managed settings.
+func ReadRepoMetadata(client *api.RESTClient, owner, name string) (*model.RepositorySettings, error) {
+	var repo struct {
+		Description string `json:"description"`
+		Homepage    string `json:"homepage"`
+	}
+	if err := boundedHTTPError(client.Get(fmt.Sprintf("repos/%s/%s", owner, name), &repo)); err != nil {
+		return nil, fmt.Errorf("fetching repo metadata: %w", err)
+	}
+	return &model.RepositorySettings{
+		Description: new(repo.Description),
+		Homepage:    new(repo.Homepage),
+	}, nil
+}
+
 // ReadRepoSettings fetches repository settings from the GitHub API and returns
 // them as a model.RepositorySettings. It makes separate API calls for the
 // standard repository fields, security features, and Actions workflow permissions.
