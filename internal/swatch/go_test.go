@@ -52,7 +52,7 @@ func TestRenderGoVariants(t *testing.T) {
 				t.Fatalf("unexpected justfile variants")
 			}
 			for _, variant := range [][]byte{base, absent, disabled, enabled} {
-				if !bytes.Contains(variant, []byte("\nrelease VERSION:\n")) {
+				if !bytes.Contains(variant, []byte("\nrelease $VERSION:\n")) {
 					t.Fatal("justfile variant omits the release recipe")
 				}
 			}
