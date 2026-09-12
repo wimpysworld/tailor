@@ -32,7 +32,7 @@ func TestCheckConfigDiffGoActivation(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		cfg := &config.Config{Languages: &config.LanguageSettings{Go: &enabled}}
 		results := CheckConfigDiff(cfg, swatch.All())
-		for _, path := range []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml"} {
+		for _, path := range []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", "Dockerfile"} {
 			found := false
 			for _, result := range results {
 				if result.Path == path {

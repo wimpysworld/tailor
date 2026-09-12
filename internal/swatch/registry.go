@@ -53,6 +53,7 @@ var registry = []Swatch{
 	{Path: "justfile", DefaultAlteration: FirstFit, Category: Development},
 	{Path: GoLintDestination, DefaultAlteration: FirstFit, Category: Development},
 	{Path: GoReleaseDestination, DefaultAlteration: FirstFit, Category: Development},
+	{Path: "Dockerfile", DefaultAlteration: FirstFit, Category: Development},
 	{Path: GoWorkflowDestination, DefaultAlteration: FirstFit, Category: Development},
 	{Path: ".github/FUNDING.yml", DefaultAlteration: FirstFit, Category: Health},
 	{Path: ".github/dependabot.yml", DefaultAlteration: FirstFit, Category: Health},

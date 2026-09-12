@@ -34,14 +34,43 @@ Go is opt-in. New configs use `false`. Existing configs without this setting rem
 | Swatch | Purpose | Default mode |
 |---|---|---|
 | `.golangci.yml` | Go lint configuration | `first-fit` |
-| `.goreleaser.yaml` | Executable builds, archives, checksums, and GitHub Releases | `first-fit` |
+| `.goreleaser.yaml` | Executable builds, archives, native packages, container images, and GitHub Releases | `first-fit` |
 | `.github/workflows/build-go.yml` | Tests, lint checks, pull request snapshots, and releases from version tags | `first-fit` |
+| `Dockerfile` | Non-root container image for each executable | `first-fit` |
 
-The release configuration targets Linux and macOS on amd64 and arm64, with CGO disabled. Pull requests and default-branch pushes produce downloadable snapshots, not published releases. Tags that match `v*.*.*` publish GitHub Releases. The workflow needs no Nix or containers and includes no third-party package publishing or signing.
+The release configuration disables CGO and produces these outputs by default:
+
+| Output | Platforms | Contents or destination |
+|---|---|---|
+| Archives | Linux and macOS, amd64 and arm64 | All discovered executables, attached to GitHub Releases with checksums |
+| Native packages | Linux, amd64 and arm64 | `deb`, `rpm`, and `apk` packages with all discovered executables, attached to GitHub Releases |
+| Container images | Linux, amd64 and arm64 | One image per executable, published to GHCR |
+
+Pull requests and default-branch pushes produce downloadable archives, native packages, and checksums without publication. Snapshot jobs also build container images locally, but do not upload or push those images. Tags that match `v*.*.*` publish releases and versioned container images. Only stable releases update the container `latest` tag.
+
+The release job uses the existing GitHub token with `packages: write`. No extra secret, Nix environment, GoReleaser Pro licence, or signing setup is required.
+
+Native packages use `GITHUB_REPOSITORY_OWNER` as their default maintainer. Before publication, replace `nfpms[].maintainer` in `.goreleaser.yaml` with your project's maintainer name and email address.
+
+A single executable uses `ghcr.io/<owner>/<repo>`, in lowercase. Tailor replaces each `_` and `.` in the repository name with a hyphen. Tailor adds `image` before a leading hyphen and after a trailing hyphen. For example, `Owner/my_app` becomes `ghcr.io/owner/my-app`, and `Owner/.app` becomes `ghcr.io/owner/image-app`.
+
+Multiple executables append a hyphen and a normalised binary name. Tailor lowercases binary names, converts non-alphanumeric runs to hyphens, and trims leading and trailing hyphens. Numeric suffixes resolve collisions.
+
+The Dockerfile uses the same digest-pinned Chainguard static base as Tailor's root Dockerfile. It runs as a non-root user. The `BINARY` build argument selects the executable, which the image installs at a fixed entrypoint.
+
+Use GoReleaser v2.18.0 or later for local snapshots. Local snapshots require Docker with a running daemon and Docker Buildx. Replace `owner/repo` and `owner` with your repository's values. Run this command from the project root:
+
+```bash
+GITHUB_REPOSITORY=owner/repo GITHUB_REPOSITORY_OWNER=owner goreleaser release --snapshot --clean
+```
+
+`--clean` removes the previous `dist` directory before the build. GitHub Actions supplies both environment variables automatically.
 
 Tailor discovers executable packages from local source files in the root Go module when it needs a new release configuration. It supports one or several executables. Discovery skips symlinks, vendor directories, testdata, nested modules, and test files. It also skips files and directories with a dot or underscore prefix. It never runs project code or `go list`.
 
-If Tailor finds no supported executable, or finds unsupported build constraints, the required release configuration fails preflight before writes. An existing first-fit `.goreleaser.yaml` or a `never` entry needs no discovery. For a library-only project, set `.goreleaser.yaml` and `.github/workflows/build-go.yml` to `never` and keep `.golangci.yml` if needed.
+If Tailor finds no supported executable, or finds unsupported build constraints, the required release configuration fails preflight before writes. An existing first-fit `.goreleaser.yaml` or a `never` entry needs no discovery. For a library-only project, set `.goreleaser.yaml`, `.github/workflows/build-go.yml`, and `Dockerfile` to `never`. Keep `.golangci.yml` if needed.
+
+Before Tailor creates or replaces the release configuration, `Dockerfile` must be a regular file, or Tailor must plan to create it. Tailor preserves an existing first-fit Dockerfile during normal alterations. A custom Dockerfile must accept the generated release configuration's `BINARY` argument and platform-specific binary layout.
 
 Before Tailor creates or replaces the builder workflow, it checks the lint and release configurations. Both must already be regular files, or Tailor must plan to create them. Tailor does not check the contents of customised configurations.
 
@@ -51,7 +80,7 @@ Newly rendered Dependabot configuration includes `gomod` when Go is true and omi
 
 Existing first-fit files stay unchanged after you enable Go. Review customised files and add the Go commands yourself. `tailor alter --recut` replaces all eligible first-fit files, not only Go files. `never` always preserves a file.
 
-Set Go to false, or remove the setting, to stop Tailor managing the three Go-only swatches. Tailor preserves existing files, even with `--recut`. Existing builder workflows still run on GitHub. Remove or disable that workflow yourself if you want it to stop.
+Set Go to false, or remove the setting, to stop Tailor managing the four Go-only swatches. Tailor preserves existing files, even with `--recut`. Existing builder workflows still run on GitHub. Remove or disable that workflow yourself if you want it to stop.
 
 ## Licences
 
@@ -67,7 +96,7 @@ If the licence fetch fails, check the identifier and API access. Earlier changes
 
 ## Default swatch set
 
-Tailor embeds 28 default swatches:
+Tailor embeds 29 default swatches:
 
 | Swatch | Mode |
 |--------|------|
@@ -85,6 +114,7 @@ Tailor embeds 28 default swatches:
 | `.golangci.yml` | `first-fit` (only when `languages.go: true`) |
 | `.goreleaser.yaml` | `first-fit` (only when `languages.go: true`) |
 | `.github/workflows/build-go.yml` | `first-fit` (only when `languages.go: true`) |
+| `Dockerfile` | `first-fit` (only when `languages.go: true`) |
 | `flake.nix` | `first-fit` |
 | `.gitignore` | `first-fit` |
 | `.envrc` | `first-fit` |

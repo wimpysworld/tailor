@@ -22,7 +22,7 @@ func TestMeasureGoSelectionWithoutTools(t *testing.T) {
 			if err := (&MeasureCmd{stdout: &stdout}).Run(); err != nil {
 				t.Fatal(err)
 			}
-			for _, path := range []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml"} {
+			for _, path := range []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", "Dockerfile"} {
 				if strings.Contains(stdout.String(), path) != (enabled == "true") {
 					t.Fatalf("unexpected Go path %s in measure output: %s", path, stdout.String())
 				}

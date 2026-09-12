@@ -34,7 +34,7 @@ func TestExecuteGoBuilderDefaultBranch(t *testing.T) {
 			tc := setupAlterTest(t, "languages:\n  go: true\nswatches: []\n", options...)
 			writeOnDisk(t, tc.Dir, "go.mod", []byte("module example.com/demo\n\ngo 1.26\n"))
 			writeOnDisk(t, tc.Dir, "main.go", []byte("package main\nfunc main() {}\n"))
-			cfg := goConfig(entry(".golangci.yml", swatch.FirstFit), entry(".goreleaser.yaml", swatch.FirstFit), entry(".github/workflows/build-go.yml", swatch.FirstFit))
+			cfg := goConfig(entry(".golangci.yml", swatch.FirstFit), entry(".goreleaser.yaml", swatch.FirstFit), entry("Dockerfile", swatch.FirstFit), entry(".github/workflows/build-go.yml", swatch.FirstFit))
 			if _, err := alter.Execute(cfg, tc.Dir, alter.Apply, tc.Client, nil, alter.Options{}); err != nil {
 				t.Fatal(err)
 			}
@@ -116,7 +116,7 @@ func TestExecuteGoBuilderMetadata(t *testing.T) {
 					writeOnDisk(t, dir, "go.mod", []byte("module example.com/demo\n\ngo 1.26\n"))
 					writeOnDisk(t, dir, "main.go", []byte("package main\nfunc main() {}\n"))
 					writeOnDisk(t, dir, "pages/index.html", []byte("<h1>Existing site</h1>"))
-					cfg := goConfig(entry(".golangci.yml", swatch.FirstFit), entry(".goreleaser.yaml", swatch.FirstFit), entry(".github/workflows/build-go.yml", swatch.FirstFit))
+					cfg := goConfig(entry(".golangci.yml", swatch.FirstFit), entry(".goreleaser.yaml", swatch.FirstFit), entry("Dockerfile", swatch.FirstFit), entry(".github/workflows/build-go.yml", swatch.FirstFit))
 					cfg.Pages = &model.PagesSettings{Enabled: &pagesEnabled}
 					before := pagesAcceptanceSnapshot(t, dir)
 					report, err := alter.Execute(cfg, dir, mode, testutil.NewTestClient(t, server), nil, alter.Options{})
@@ -166,9 +166,9 @@ func TestGoSwatchModes(t *testing.T) {
 			dir := t.TempDir()
 			writeOnDisk(t, dir, "go.mod", []byte("module example.com/demo\n\ngo 1.26\n"))
 			writeOnDisk(t, dir, "cmd/demo/main.go", []byte("package main\nfunc main() {}\n"))
-			cfg := goConfig(entry(".golangci.yml", swatch.FirstFit), entry(".goreleaser.yaml", swatch.FirstFit), entry(".github/workflows/build-go.yml", swatch.FirstFit))
+			cfg := goConfig(entry(".golangci.yml", swatch.FirstFit), entry(".goreleaser.yaml", swatch.FirstFit), entry("Dockerfile", swatch.FirstFit), entry(".github/workflows/build-go.yml", swatch.FirstFit))
 			results, err := alter.ProcessSwatches(cfg, dir, mode, &alter.TokenContext{DefaultBranch: "trunk"})
-			if err != nil || len(results) != 3 {
+			if err != nil || len(results) != 4 {
 				t.Fatalf("results = %v, error = %v", results, err)
 			}
 			data, err := os.ReadFile(filepath.Join(dir, ".github/workflows/build-go.yml"))
@@ -191,7 +191,7 @@ func TestGoSwatchModes(t *testing.T) {
 
 func TestGoInactivePreservesDestinations(t *testing.T) {
 	for _, declared := range []bool{false, true} {
-		cfg := goConfig(entry(".golangci.yml", swatch.Always), entry(".goreleaser.yaml", swatch.Always), entry(".github/workflows/build-go.yml", swatch.Always))
+		cfg := goConfig(entry(".golangci.yml", swatch.Always), entry(".goreleaser.yaml", swatch.Always), entry("Dockerfile", swatch.Always), entry(".github/workflows/build-go.yml", swatch.Always))
 		if declared {
 			*cfg.Languages.Go = false
 		} else {
@@ -291,6 +291,129 @@ func TestGoBuilderRejectsSymlinkDependency(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".github/workflows/build-go.yml")); !os.IsNotExist(err) {
 		t.Fatalf("builder created after failed preflight: %v", err)
+	}
+}
+
+func TestGoReleaseDockerfileDependency(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		mode     swatch.AlterationMode
+		existing string
+		wantErr  bool
+	}{
+		{name: "planned", mode: swatch.FirstFit},
+		{name: "custom unconfigured", existing: "regular"},
+		{name: "custom first-fit", mode: swatch.FirstFit, existing: "regular"},
+		{name: "custom never", mode: swatch.Never, existing: "regular"},
+		{name: "missing unconfigured", wantErr: true},
+		{name: "missing never", mode: swatch.Never, wantErr: true},
+		{name: "symlink unconfigured", existing: "symlink", wantErr: true},
+		{name: "symlink never", mode: swatch.Never, existing: "symlink", wantErr: true},
+		{name: "symlink replaced", mode: swatch.FirstFit, existing: "symlink"},
+		{name: "directory", mode: swatch.FirstFit, existing: "directory", wantErr: true},
+	} {
+		for _, mode := range []alter.ApplyMode{alter.DryRun, alter.Apply, alter.Recut} {
+			t.Run(fmt.Sprintf("%s/mode=%v", tt.name, mode), func(t *testing.T) {
+				dir := t.TempDir()
+				writeOnDisk(t, dir, "go.mod", []byte("module example.com/demo\n\ngo 1.26\n"))
+				writeOnDisk(t, dir, "main.go", []byte("package main\nfunc main() {}\n"))
+				cfg := goConfig(entry(".gitignore", swatch.FirstFit), entry(".goreleaser.yaml", swatch.FirstFit))
+				if tt.mode != "" {
+					cfg.Swatches = append(cfg.Swatches, entry("Dockerfile", tt.mode))
+				}
+				switch tt.existing {
+				case "regular":
+					writeOnDisk(t, dir, "Dockerfile", []byte("FROM custom\n"))
+				case "symlink":
+					writeOnDisk(t, dir, "custom.Dockerfile", []byte("FROM custom\n"))
+					symlinkOrSkip(t, "custom.Dockerfile", filepath.Join(dir, "Dockerfile"))
+				case "directory":
+					if err := os.Mkdir(filepath.Join(dir, "Dockerfile"), 0o755); err != nil {
+						t.Fatal(err)
+					}
+				}
+				before := pagesAcceptanceSnapshot(t, dir)
+				_, err := alter.ProcessSwatches(cfg, dir, mode, nil)
+				if (err != nil) != tt.wantErr {
+					t.Fatalf("error = %v, want error = %v", err, tt.wantErr)
+				}
+				if tt.wantErr || mode == alter.DryRun {
+					if !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) {
+						t.Fatal("preview or failed dependency check changed files")
+					}
+					return
+				}
+				info, err := os.Lstat(filepath.Join(dir, "Dockerfile"))
+				if err != nil || !info.Mode().IsRegular() {
+					t.Fatalf("Dockerfile is not a regular file: %v", err)
+				}
+				if tt.existing == "regular" && (tt.mode == "" || tt.mode == swatch.Never || mode != alter.Recut) {
+					data, err := os.ReadFile(filepath.Join(dir, "Dockerfile"))
+					if err != nil || string(data) != "FROM custom\n" {
+						t.Fatalf("custom Dockerfile changed: %s, %v", data, err)
+					}
+				}
+				if tt.existing == "symlink" {
+					data, err := os.ReadFile(filepath.Join(dir, "custom.Dockerfile"))
+					if err != nil || string(data) != "FROM custom\n" {
+						t.Fatal("symlink target changed")
+					}
+				}
+			})
+		}
+	}
+}
+
+func TestGoDockerfilePreflightBeforeWrites(t *testing.T) {
+	for _, mode := range []alter.ApplyMode{alter.DryRun, alter.Apply, alter.Recut} {
+		dir := t.TempDir()
+		writeOnDisk(t, dir, "go.mod", []byte("module example.com/demo\n\ngo 1.26\n"))
+		writeOnDisk(t, dir, "main.go", []byte("package main\nfunc main() {}\n"))
+		writeOnDisk(t, dir, ".github/workflows/tailor.yml", []byte("retired workflow"))
+		cfg := goConfig(entry(".gitignore", swatch.FirstFit), entry(".goreleaser.yaml", swatch.FirstFit), entry("Dockerfile", swatch.Never))
+		before := pagesAcceptanceSnapshot(t, dir)
+		_, err := alter.Execute(cfg, dir, mode, nil, nil, alter.Options{})
+		if err == nil || !strings.Contains(err.Error(), "requires Dockerfile") {
+			t.Fatalf("error = %v, want Dockerfile dependency error before authentication", err)
+		}
+		if !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) {
+			t.Fatal("failed preflight changed files")
+		}
+	}
+}
+
+func TestGoDockerfileDoesNotNeedDiscovery(t *testing.T) {
+	for _, mode := range []swatch.AlterationMode{swatch.FirstFit, swatch.Never} {
+		dir := t.TempDir()
+		cfg := goConfig(entry("Dockerfile", mode))
+		if _, err := alter.ProcessSwatches(cfg, dir, alter.Apply, nil); err != nil {
+			t.Fatal(err)
+		}
+		_, err := os.Stat(filepath.Join(dir, "Dockerfile"))
+		if mode == swatch.Never && !os.IsNotExist(err) {
+			t.Fatalf("never Dockerfile exists: %v", err)
+		}
+		if mode == swatch.FirstFit && err != nil {
+			t.Fatalf("first-fit Dockerfile missing: %v", err)
+		}
+	}
+}
+
+func TestGoSwatchPreflightRejectsSymlinkParent(t *testing.T) {
+	dir := t.TempDir()
+	outside := t.TempDir()
+	symlinkOrSkip(t, outside, filepath.Join(dir, ".github"))
+	cfg := goConfig(entry("Dockerfile", swatch.FirstFit), entry(".github/workflows/build-go.yml", swatch.FirstFit))
+	_, err := alter.ProcessSwatches(cfg, dir, alter.Apply, nil)
+	if err == nil || !strings.Contains(err.Error(), "swatch parent \".github\" is a symlink") {
+		t.Fatalf("error = %v, want symlink parent error", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "Dockerfile")); !os.IsNotExist(err) {
+		t.Fatalf("Dockerfile written before failed preflight: %v", err)
+	}
+	files, err := os.ReadDir(outside)
+	if err != nil || len(files) != 0 {
+		t.Fatalf("symlink parent target changed: %v, %v", files, err)
 	}
 }
 
