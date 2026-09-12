@@ -68,6 +68,8 @@ For apex domains, follow [GitHub's DNS instructions](https://docs.github.com/en/
 
 An explicit `repository.homepage`, including `""`, wins. Otherwise, Tailor replaces only a live homepage that points to this repository's GitHub URL. The inline comment `# tailor: inferred homepage <URL>` identifies an inferred config value. Remove that comment, or edit `repository.homepage`, to make the value explicit.
 
+`fit` copies the GitHub homepage exactly. Non-empty imported values carry the inferred marker. An imported empty homepage stays explicit, so Pages leaves it empty.
+
 Tailor updates the homepage only after successful Pages setup.
 
 For Hugo and Jekyll, Tailor appends the output directory to `.gitignore`, unless its swatch mode is `never`. Existing text stays unchanged, and tracked files stay tracked. Static adds no ignore rule.

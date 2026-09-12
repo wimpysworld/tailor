@@ -8,7 +8,7 @@ Tailor publishes documentation from `wiki/` to the GitHub wiki of a public repos
 
 Set `repository.has_wiki: true`, then run `tailor alter`. Tailor checks local safety, enables the wiki through GitHub's API if needed, and checks readiness before other changes. Wiki publishing supports public repositories only. The source directory is `wiki/`, independent of Pages and `pages/`.
 
-Existing-project `fit` preserves the live `has_wiki` setting. New configs default to `false`.
+`fit` writes `has_wiki: false`, including for repositories with an enabled wiki. Set it to `true` before `alter` to keep the wiki enabled.
 
 The source must contain only directories and regular files, with no symlinks or `.git` metadata. Copy shared documentation into `wiki/` instead of linking to it.
 

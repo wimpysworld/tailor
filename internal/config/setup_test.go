@@ -327,23 +327,3 @@ func TestWriteSetupSectionsRoundTrip(t *testing.T) {
 		t.Errorf("code_quality.languages = %v, want empty list", loaded.CodeQuality.Languages)
 	}
 }
-
-func TestMergeSetupWritesEmptyLanguages(t *testing.T) {
-	cfg := &Config{}
-	MergeCodeScanningSetup(cfg, &model.CodeScanningSettings{
-		State: new("configured"), QuerySuite: new("extended"), ThreatModel: new("remote_and_local"),
-		Languages: &[]string{"go", "actions"},
-	})
-	MergeCodeQualitySetup(cfg, &model.CodeQualitySettings{State: new("configured"), Languages: &[]string{"go"}})
-
-	testutil.AssertPtrEqual(t, cfg.CodeScanning.State, new("configured"), "code_scanning.state")
-	testutil.AssertPtrEqual(t, cfg.CodeScanning.QuerySuite, new("extended"), "code_scanning.query_suite")
-	testutil.AssertPtrEqual(t, cfg.CodeScanning.ThreatModel, new("remote_and_local"), "code_scanning.threat_model")
-	if cfg.CodeScanning.Languages == nil || len(*cfg.CodeScanning.Languages) != 0 {
-		t.Errorf("code_scanning.languages = %v, want empty list", cfg.CodeScanning.Languages)
-	}
-	testutil.AssertPtrEqual(t, cfg.CodeQuality.State, new("configured"), "code_quality.state")
-	if cfg.CodeQuality.Languages == nil || len(*cfg.CodeQuality.Languages) != 0 {
-		t.Errorf("code_quality.languages = %v, want empty list", cfg.CodeQuality.Languages)
-	}
-}

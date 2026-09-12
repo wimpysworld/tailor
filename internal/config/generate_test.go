@@ -1,6 +1,7 @@
 package config
 
 import (
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -172,116 +173,62 @@ func TestDefaultConfigSwatchOrder(t *testing.T) {
 	}
 }
 
-func TestMergeRepoSettings(t *testing.T) {
+func TestMergeRepoMetadata(t *testing.T) {
 	tests := []struct {
 		name        string
-		live        *model.RepositorySettings
-		description string
-		wantDesc    *string // nil means expect nil
-		wantHome    *string
+		description *string
+		homepage    *string
+		override    *string
+		wantDesc    *string
 	}{
-		{
-			name: "live settings override defaults entirely",
-			live: &model.RepositorySettings{
-				Description: new("live desc"),
-				Homepage:    new("https://live.example.com"),
-				HasWiki:     new(true),
-				HasIssues:   new(false),
-			},
-			description: "",
-			wantDesc:    new("live desc"),
-			wantHome:    new("https://live.example.com"),
-		},
-		{
-			name: "description flag overrides live description",
-			live: &model.RepositorySettings{
-				Description: new("live desc"),
-				Homepage:    new("https://live.example.com"),
-			},
-			description: "flag desc",
-			wantDesc:    new("flag desc"),
-			wantHome:    new("https://live.example.com"),
-		},
-		{
-			name: "empty description from live produces nil",
-			live: &model.RepositorySettings{
-				Description: new(""),
-				Homepage:    new("https://live.example.com"),
-			},
-			description: "",
-			wantDesc:    nil,
-			wantHome:    new("https://live.example.com"),
-		},
-		{
-			name: "empty homepage from live produces nil",
-			live: &model.RepositorySettings{
-				Description: new("live desc"),
-				Homepage:    new(""),
-			},
-			description: "",
-			wantDesc:    new("live desc"),
-			wantHome:    nil,
-		},
-		{
-			name: "non-empty description flag with empty live description sets flag value",
-			live: &model.RepositorySettings{
-				Description: new(""),
-				Homepage:    new("https://live.example.com"),
-			},
-			description: "flag desc",
-			wantDesc:    new("flag desc"),
-			wantHome:    new("https://live.example.com"),
-		},
-		{
-			name: "empty description flag with non-empty live description preserves live value",
-			live: &model.RepositorySettings{
-				Description: new("live desc"),
-				Homepage:    new("https://live.example.com"),
-			},
-			description: "",
-			wantDesc:    new("live desc"),
-			wantHome:    new("https://live.example.com"),
-		},
+		{name: "live metadata", description: new("live desc"), homepage: new("https://example.com"), wantDesc: new("live desc")},
+		{name: "empty metadata", description: new(""), homepage: new(""), wantDesc: new("")},
+		{name: "absent metadata", wantDesc: nil},
+		{name: "description override", description: new("live desc"), homepage: new("https://example.com"), override: new("flag desc"), wantDesc: new("flag desc")},
+		{name: "empty description override", description: new("live desc"), override: new(""), wantDesc: new("")},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
-				License: "BlueOak-1.0.0",
-				Repository: &model.RepositorySettings{
-					HasWiki:   new(false),
-					HasIssues: new(true),
-				},
+			cfg, err := DefaultConfig("MIT")
+			if err != nil {
+				t.Fatal(err)
 			}
-
-			MergeRepoSettings(cfg, tt.live, tt.description)
-
-			// Repository must point to the live object.
-			if cfg.Repository != tt.live {
-				t.Fatal("Repository was not replaced with live settings")
+			want, err := DefaultConfig("MIT")
+			if err != nil {
+				t.Fatal(err)
 			}
-
+			live := &model.RepositorySettings{
+				Description: tt.description, Homepage: tt.homepage,
+				HasWiki: new(true), HasIssues: new(false), Topics: &[]string{"live"},
+				MergeCommitTitle: new("MERGE_MESSAGE"),
+			}
+			MergeRepoMetadata(cfg, live, tt.override)
 			testutil.AssertPtrEqual(t, cfg.Repository.Description, tt.wantDesc, "description")
-			testutil.AssertPtrEqual(t, cfg.Repository.Homepage, tt.wantHome, "homepage")
+			testutil.AssertPtrEqual(t, cfg.Repository.Homepage, tt.homepage, "homepage")
+			testutil.AssertPtrEqual(t, live.Description, tt.description, "live description")
+			want.Repository.Description = tt.wantDesc
+			want.Repository.Homepage = tt.homepage
+			if !reflect.DeepEqual(cfg.Repository, want.Repository) {
+				t.Errorf("repository settings changed beyond metadata: got %+v, want %+v", cfg.Repository, want.Repository)
+			}
+			if tt.homepage != nil && *tt.homepage != "" && cfg.HomepageDeclared() {
+				t.Error("imported homepage lost its inferred provenance")
+			}
 		})
 	}
 }
 
-func TestMergeRepoSettingsPreservesMergeCommitFields(t *testing.T) {
-	mergeTitle := "PR_TITLE"
-	mergeMessage := "PR_BODY"
-	live := &model.RepositorySettings{
-		Description:        new("desc"),
-		AllowMergeCommit:   new(false),
-		MergeCommitTitle:   &mergeTitle,
-		MergeCommitMessage: &mergeMessage,
+func TestMergeRepoMetadataPreservesDeclaredHomepage(t *testing.T) {
+	for _, homepage := range []string{"", "https://declared.example.com"} {
+		t.Run(homepage, func(t *testing.T) {
+			cfg := &Config{Repository: &model.RepositorySettings{Homepage: new(homepage)}}
+			MergeRepoMetadata(cfg, &model.RepositorySettings{Homepage: new("https://live.example.com")}, nil)
+			testutil.AssertPtrEqual(t, cfg.Repository.Homepage, new(homepage), "homepage")
+			if !cfg.HomepageDeclared() {
+				t.Fatal("explicit homepage lost its declaration")
+			}
+		})
 	}
-
-	cfg := &Config{License: "BlueOak-1.0.0"}
-	MergeRepoSettings(cfg, live, "")
-
-	testutil.AssertPtrEqual(t, cfg.Repository.MergeCommitTitle, new("PR_TITLE"), "merge_commit_title")
-	testutil.AssertPtrEqual(t, cfg.Repository.MergeCommitMessage, new("PR_BODY"), "merge_commit_message")
 }
 
 func TestApplyRepoDefaults(t *testing.T) {
