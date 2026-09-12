@@ -14,9 +14,12 @@ import (
 )
 
 type (
-	activateSpinner struct{ id string }
-	stopProgress    struct{}
-	progressConfig  struct {
+	activateSpinner struct {
+		id         string
+		generation uint64
+	}
+	stopProgress   struct{}
+	progressConfig struct {
 		animate, verbose, colour, ascii bool
 	}
 )
@@ -25,6 +28,7 @@ type (
 type ProgressModel struct {
 	spinner       spinner.Model
 	stage         StageEvent
+	generation    uint64
 	active        bool
 	colour, ascii bool
 }
@@ -38,12 +42,14 @@ func newProgressModel(colour, ascii bool) ProgressModel {
 	}
 	return model
 }
+
 func (m ProgressModel) Init() tea.Cmd {
 	if m.active {
 		return m.spinner.Tick
 	}
 	return nil
 }
+
 func (m ProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case StageEvent:
@@ -53,10 +59,13 @@ func (m ProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.active = false
-		id := msg.ID
-		return m, tea.Tick(300*time.Millisecond, func(time.Time) tea.Msg { return activateSpinner{id: id} })
+		m.generation++
+		id, generation := msg.ID, m.generation
+		return m, tea.Tick(300*time.Millisecond, func(time.Time) tea.Msg {
+			return activateSpinner{id: id, generation: generation}
+		})
 	case activateSpinner:
-		if m.stage.ID == msg.id && m.stage.Phase == "start" {
+		if m.stage.ID == msg.id && m.generation == msg.generation && m.stage.Phase == "start" {
 			m.active = true
 			return m, m.spinner.Tick
 		}
