@@ -145,6 +145,9 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 				lSlice := lfv.Elem().Interface().([]string)
 				beforeVal = strings.Join(lSlice, ", ")
 				equal = equalStringSets(dSlice, lSlice)
+				if equal {
+					beforeVal = displayVal
+				}
 			}
 		} else {
 			displayVal = fmt.Sprintf("%v", declaredVal)

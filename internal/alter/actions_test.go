@@ -368,6 +368,15 @@ func TestProcessActionsCanonicalNoChange(t *testing.T) {
 		if result.Category != alter.RepoNoChange || result.Section != "actions" {
 			t.Errorf("result = %+v, want actions no change", result)
 		}
+		if result.Field == "patterns_allowed" {
+			if result.Before != result.Value || result.Value != "a/*, z/*" {
+				t.Errorf("unchanged patterns show a transition: %+v", result)
+			}
+			want := fmt.Sprintf("%-37s%s\n", "no change:", "actions.patterns_allowed (already a/*, z/*)")
+			if got := alter.FormatOutput([]alter.RepoSettingResult{result}, nil, nil, nil, alter.Apply); got != want {
+				t.Errorf("plain output = %q, want %q", got, want)
+			}
+		}
 	}
 }
 

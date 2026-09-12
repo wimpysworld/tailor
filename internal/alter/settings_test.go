@@ -537,6 +537,13 @@ func TestProcessRepoSettingsTopicsOrderIgnored(t *testing.T) {
 	if results[0].Value != "go, cli" {
 		t.Errorf("value = %q, want declared order %q", results[0].Value, "go, cli")
 	}
+	if results[0].Before != results[0].Value {
+		t.Errorf("unchanged topics show a transition: %+v", results[0])
+	}
+	want := fmt.Sprintf("%-37s%s\n", "no change:", "repository.topics (already go, cli)")
+	if got := alter.FormatOutput(results, nil, nil, nil, alter.DryRun); got != want {
+		t.Errorf("plain output = %q, want %q", got, want)
+	}
 }
 
 func TestProcessRepoSettingsTopicsWouldSet(t *testing.T) {
@@ -569,6 +576,9 @@ func TestProcessRepoSettingsTopicsWouldSet(t *testing.T) {
 	}
 	if results[0].Value != "go, cli, github" {
 		t.Errorf("value = %q, want %q", results[0].Value, "go, cli, github")
+	}
+	if results[0].Before != "go, cli" {
+		t.Errorf("before = %q, want live order %q", results[0].Before, "go, cli")
 	}
 }
 
