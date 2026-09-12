@@ -150,12 +150,10 @@ func processSetup(declared []RepoSettingResult, mode ApplyMode, read func() ([]R
 		return nil, nil
 	}
 	results, err := read()
-	var skipped *gh.ErrSetupSkipped
-	if errors.As(err, &skipped) {
+	if skipped, ok := errors.AsType[*gh.ErrSetupSkipped](err); ok {
 		return skipResults(declared, WouldSkipSetup, string(skipped.Reason)), nil
 	}
-	var scope *gh.ErrInsufficientScope
-	if errors.As(err, &scope) {
+	if _, ok := errors.AsType[*gh.ErrInsufficientScope](err); ok {
 		return skipResults(declared, WouldSkipScope, skipAnnotation), nil
 	}
 	if err != nil {

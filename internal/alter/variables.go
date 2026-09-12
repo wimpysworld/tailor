@@ -26,8 +26,7 @@ func ProcessVariables(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]
 	}
 	current, err := gh.ReadVariables(target.Client, target.Owner, target.Name)
 	if err != nil {
-		var scope *gh.ErrInsufficientScope
-		if errors.As(err, &scope) {
+		if scope, ok := errors.AsType[*gh.ErrInsufficientScope](err); ok {
 			return []VariableResult{{Category: LabelSkipScope, Annotation: skipAnnotation, Operation: scope.Operation}}, nil
 		}
 		return nil, err
