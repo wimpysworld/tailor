@@ -77,7 +77,12 @@ func (c *resultComparer) set(field string, declared, live *[]string) {
 		if live != nil {
 			before = listText(*live)
 		}
-		c.add(field, listText(*declared), before, live != nil && equalStringSets(*declared, *live))
+		value := listText(*declared)
+		equal := live != nil && equalStringSets(*declared, *live)
+		if equal {
+			before = value
+		}
+		c.add(field, value, before, equal)
 	}
 }
 
