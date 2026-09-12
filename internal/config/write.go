@@ -404,6 +404,17 @@ var configTemplate = template.Must(template.New("config").Funcs(templateFuncs).P
 	`# {{ .Verb }} by tailor on {{ .Date }}
 license: {{ yamlVal .License }}
 
+{{- if .Languages }}
+{{- if .GoDeclared }}
+
+languages:
+  go: {{ .Languages.Go }}
+{{- else }}
+
+languages: {}
+{{- end }}
+{{- end }}
+
 {{- if .Repository }}
 
 repository:

@@ -12,7 +12,7 @@ import (
 // allNonConfigSwatches returns every registered swatch except .tailor.yml.
 func allNonConfigSwatches() []swatch.Swatch {
 	var out []swatch.Swatch
-	for _, s := range swatch.All() {
+	for _, s := range (&Config{}).ActiveDefaultSwatches() {
 		if s.Path != ConfigSwatchPath {
 			out = append(out, s)
 		}

@@ -27,7 +27,7 @@ The `fit`, `alter`, and `baste` commands require a valid authentication token: a
 
 ## Core Concepts
 
-**Swatches**: Complete, ready-to-use template files stored in `swatches/`. Files are copied verbatim except for three substitutions. `.github/FUNDING.yml` uses `{{GITHUB_USERNAME}}`. `SECURITY.md` uses `{{ADVISORY_URL}}`. `.github/ISSUE_TEMPLATE/config.yml` uses `{{SUPPORT_URL}}`.
+**Swatches**: Template files stored in `swatches/`. Most files are copied verbatim. `.github/FUNDING.yml` uses `{{GITHUB_USERNAME}}`. `SECURITY.md` uses `{{ADVISORY_URL}}`. `.github/ISSUE_TEMPLATE/config.yml` uses `{{SUPPORT_URL}}`. Go, Pages, and wiki support also render content from project settings.
 
 **Swatch names**: Swatch references use the full source path relative to `swatches/`, including the file extension where one exists. Extensionless files are referenced as-is. For example, `swatches/.github/dependabot.yml` is referenced as `.github/dependabot.yml`. `swatches/SECURITY.md` is referenced as `SECURITY.md`. `swatches/justfile` is referenced as `justfile` without an extension.
 
@@ -43,6 +43,9 @@ The `fit`, `alter`, and `baste` commands require a valid authentication token: a
 | `SUPPORT.md` | `SUPPORT.md` |
 | `flake.nix` | `flake.nix` |
 | `justfile` | `justfile` |
+| `.golangci.yml` | `.golangci.yml` |
+| `.goreleaser.yaml` | `.goreleaser.yaml` |
+| `.github/workflows/build-go.yml` | `.github/workflows/build-go.yml` |
 | `cubic.yaml` | `cubic.yaml` |
 | `.github/FUNDING.yml` | `.github/FUNDING.yml` |
 | `.github/dependabot.yml` | `.github/dependabot.yml` |
@@ -252,13 +255,61 @@ Tailor compares only managed fields: `enforcement`, `bypass_actors` as a set, `i
 
 Settings deliberately excluded due to risk or org-level scope: `visibility`, `default_branch`, `name`, `archived`, `is_template`, `allow_forking`. Additional API areas considered and deferred: autolinks, general deployment environments, custom properties (org-level), and Dependabot secrets. Pages manages only the `github-pages` environment. Classic branch protection rules are out of scope. Rulesets replace them, and Tailor manages one ruleset through the `ruleset` section. Rulesets outside the `Tailor` ruleset are out of scope.
 
+### Go ecosystem support
+
+The top-level `languages` section selects language-specific development swatches. Go is the only supported language key:
+
+```yaml
+languages:
+  go: true
+```
+
+`languages` must be a map. Its only accepted key is `go`, with a Boolean value. Reject null sections, null values, unknown keys, and non-Boolean values. An empty map leaves Go unspecified. Internally, `Languages *LanguageSettings` and `Go *bool` preserve absent, false, and true states.
+
+New configurations contain `languages.go: false`. Default merging preserves an absent `languages` section or absent `go` key in existing configurations. It never infers language selection from source files or CodeQL settings. `code_scanning.languages` and `code_quality.languages` remain independent.
+
+Only explicit `languages.go: true` activates `.golangci.yml`, `.goreleaser.yaml`, and `.github/workflows/build-go.yml`. All three are development swatches with `first-fit` defaults. The registry contains these entries even when Go is inactive. Default merging appends missing entries only when the config swatch mode permits merging, without changing existing modes.
+
+False or absent Go selection skips the three destinations without deletion or replacement, including with `--recut`. Existing workflows continue to run on GitHub. Disabling Go in Tailor does not disable a workflow. Active Go swatches use the ordinary `always`, `first-fit`, `never`, and `--recut` rules. Existing customised first-fit files remain unchanged during normal alterations.
+
+Go selection also controls two existing swatches when Tailor renders them:
+
+| Swatch | Go behaviour |
+|---|---|
+| `justfile` | Explicit true adds `build` (`go build ./...`) and `test` (`go test ./...`). The `lint` recipe adds golangci-lint and retains actionlint. Existing recipes remain in the template. |
+| `.github/dependabot.yml` | Explicit true includes `gomod`. Explicit false omits `gomod`. An absent selection preserves the legacy `gomod` entry. GitHub Actions and Nix entries remain. |
+
+These variants retain their existing alteration modes. A language change alone never replaces an existing first-fit file.
+
+#### Go release discovery and preflight
+
+When `.goreleaser.yaml` needs rendering, Tailor discovers executable packages through local Go syntax trees in the root module. It requires a root `go.mod` and real `package main` declarations with a `main` function. It creates one build per executable, with unique build and binary names. It never executes project code, calls `go list`, or accesses the network for discovery.
+
+Discovery skips symlinks, vendor directories, testdata, nested modules, and `*_test.go` files. It also skips files and directories with a dot or underscore prefix. The root `go.mod` must be a readable regular file with a module declaration.
+
+Discovery limits are 100,000 entries, 1 MiB per file, and 64 MiB of source. The targets are Linux and Darwin, each on amd64 and arm64, with `CGO_ENABLED=0`. Tailor checks file constraints with `go/build.MatchFile` for each target.
+
+Tailor selects directories with a `package main` function that matches at least one release target. It excludes directories whose main declarations match no release target, including ignored generators. Each selected executable needs one eligible `main` function per target, without a receiver, arguments, results, or type parameters. Tailor checks executable signatures only in eligible `package main` files. Tailor rejects eligible C imports, mixed packages, and missing or duplicate entry points. Tailor does not resolve or type-check dependencies.
+
+Root executables use the module basename without a final `/vN` segment. Other executables use their directory basename. Names contain ASCII letters, digits, hyphens, and underscores. Stable numeric suffixes resolve collisions.
+
+An existing first-fit release configuration does not require discovery. A `never` entry, an absent swatch entry, or inactive Go support also skips discovery. Required discovery completes before token verification and all writes. If a required release configuration has no supported executable, Tailor stops before writes. `baste` performs these checks without writes.
+
+Before Tailor creates or overwrites the builder workflow, it checks `.golangci.yml` and `.goreleaser.yaml`. Each dependency must already be a regular file, or Tailor must plan to create it. Existing dependency files cannot be symlinks. Tailor does not parse their contents. An existing first-fit builder workflow or a `never` entry skips these checks.
+
+#### Go builder workflow
+
+The builder workflow runs tests, coverage, lint checks, and govulncheck. Pull requests and default-branch pushes build GoReleaser snapshots and upload downloadable artifacts without publishing a release. Tags that match `v*.*.*` publish archives and checksums to GitHub Releases. Default-branch handling must use the repository's default branch, not a fixed `main` or `master` branch.
+
+The Go release templates use GitHub-hosted runners and do not require Nix or containers. They do not publish to third-party package services or configure signing. Go support does not change Tailor's independent CodeQL default setup.
+
 ### GitHub wiki
 
 The wiki publication job uses `ubuntu-slim` with an explicit 15-minute timeout, which matches the runner's hard limit. The runner provides Git and Python 3 for publication.
 
 `repository.has_wiki: true` activates four wiki swatches on public repositories. No separate config section or command exists. New configs retain `has_wiki: false`. Existing-project `fit` preserves the live setting. An omitted setting leaves wiki files unmanaged, even when default merging adds `false` during that run.
 
-The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Existing starter destinations remain unchanged, including recut and an explicit `always` mode. `never` skips creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 25 swatches.
+The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Existing starter destinations remain unchanged, including recut and an explicit `always` mode. `never` skips creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 28 swatches.
 
 Local safety preflight runs before writes. It rejects source symlinks, Git metadata, non-regular files and unsafe workflow destinations or parents through rooted filesystem access. Pages preflight also completes before wiki enablement. Tailor reads repository privacy, the current default branch and `has_wiki`. Known private repositories and projects without repository context skip wiki files. Unavailable or incomplete repository metadata blocks readiness.
 
@@ -415,6 +466,9 @@ List access failures skip variable management without writes. Individual write a
 - `.envrc`
 - `flake.nix`
 - `justfile`
+- `.golangci.yml`
+- `.goreleaser.yaml`
+- `.github/workflows/build-go.yml`
 - `cubic.yaml`
 - `.tailor.yml`
 
@@ -510,7 +564,7 @@ The live display contains at most three lines and stops before final standard ou
 
 Creates a new project directory and writes `.tailor.yml` with the full default swatch set and the repository settings. When run against an existing project with a GitHub remote, `fit` queries the live repository configuration and uses those values for the `repository` section, preserving the project's current state. When no repository context exists, the built-in defaults are used. Does not copy any files or apply any settings. After `fit`, change into `<path>` before running `alter`.
 
-The default swatch set contains 25 registered destinations:
+The default swatch set contains 28 registered destinations:
 
 - `.github/workflows/tailor-pages.yml`
 - `pages/index.html`
@@ -532,6 +586,9 @@ The default swatch set contains 25 registered destinations:
 - `CONTRIBUTING.md`
 - `SUPPORT.md`
 - `justfile`
+- `.golangci.yml`
+- `.goreleaser.yaml`
+- `.github/workflows/build-go.yml`
 - `flake.nix`
 - `.gitignore`
 - `.envrc`
@@ -586,7 +643,7 @@ Behaviour:
 
 - If `.tailor.yml` is missing or malformed, exits immediately with the error described in Error Handling.
 - **Retired workflow migration**: before strict path and mode validation, `alter` removes both retired paths from the in-memory config. The paths are `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. This migration accepts the historical `triggered` mode only on these retired entries. The migration ignores the entry mode and the mode of the `.tailor.yml` swatch.
-- **Config update**: after migration, Tailor normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. `alter` then writes a changed config once. The write uses a `# Refitted by tailor on <DATE>` header comment (YYYY-MM-DD). It combines security prerequisite normalisation and all retired-entry removals with built-in defaults merged in the same run. The write occurs before repository API changes, except the early wiki enablement described above. Wiki readiness must pass first. If the config did not change, `alter` does not write it. The default merge runs when `.tailor.yml` has `alteration: always`. The `alteration: first-fit` mode skips the merge. Sections restored by the merge are managed in the same run, so omission alone does not disable them. Security prerequisite normalisation is independent of the config swatch mode. See "Header comment" below for the comment format. The seven merge rules are:
+- **Config update**: after migration, Tailor normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. `alter` then writes a changed config once. The write uses a `# Refitted by tailor on <DATE>` header comment (YYYY-MM-DD). It combines security prerequisite normalisation and all retired-entry removals with built-in defaults merged in the same run. The write occurs before repository API changes, except the early wiki enablement described above. Wiki readiness must pass first. If the config did not change, `alter` does not write it. The default merge runs when `.tailor.yml` has `alteration: always`. The `alteration: first-fit` mode skips the merge. Sections restored by the merge are managed in the same run, so omission alone does not disable them. Security prerequisite normalisation is independent of the config swatch mode. See "Header comment" below for the comment format. The merge rules are:
   - **Swatches**: appends each missing default swatch with the default alteration mode. The merge does not modify active entries.
   - **Repository settings**: fills nil fields only from built-in defaults; never overwrites non-nil fields. This appends missing security settings with the built-in defaults (`true` for the Boolean settings and `enabled` for the secret scanning settings) and preserves explicit `false` or `disabled` values except for the automated security fixes, secret scanning push protection, and secret scanning non-provider patterns prerequisites described above. `Description`, `Homepage`, and `Topics` are excluded from this merge because they are project-specific.
   - **Actions policy**: adds the complete default section when absent. Otherwise, it fills missing core fields and missing or null approval policies without changing explicit values. It fills missing selected-action fields only when the effective policy is `selected`.
@@ -595,6 +652,7 @@ Behaviour:
   - **Ruleset**: adds the complete default section when absent. Otherwise, it fills missing fields without changing explicit values.
   - **Labels**: populated only when the labels section is entirely absent or empty (all-or-nothing). If the config already has any labels defined, no defaults are merged.
   - **Variables**: no defaults. Merging preserves existing declarations and empty values.
+  - **Languages**: preserves an absent section, an absent `go` key, and explicit values. Go swatch entries follow the swatch merge rule.
 - For repository settings: if a `repository` section is present in `.tailor.yml`, reads the current repository settings via `GET /repos/{owner}/{repo}` and additional endpoints, compares each declared field against the live value, and applies changes via `PATCH /repos/{owner}/{repo}` plus separate API calls for fields with dedicated endpoints. Repository settings are the first API stage after local migration cleanup. If no GitHub repository context exists (no remote), repository settings are skipped with a warning. `--recut` has no special effect on repository settings - they are always applied declaratively.
 - For Actions policy: after any default merge, if an `actions` section is present, reads the current policy, compares each declared field, and applies only endpoint groups that differ. The Actions policy runs after repository settings and before code scanning. If the section remains absent because default merging is disabled, Tailor makes no Actions policy calls. `--recut` has no other special effect.
 - For code scanning: if a `code_scanning` section is present, reads the current default setup via `GET /repos/{owner}/{repo}/code-scanning/default-setup`, compares each declared field, and writes only the declared fields that differ via `PATCH /repos/{owner}/{repo}/code-scanning/default-setup`. An empty `languages` list sends no `languages` field. Code scanning runs after the Actions policy and before Code Quality. A `409` or `403` response produces a skip result and does not stop the command.
@@ -884,16 +942,19 @@ Behaviour:
 
 ### `.tailor.yml`
 
-`.tailor.yml` has eleven top-level sections: `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, and `swatches`. The `actions` section is a map of repository Actions policy settings. The `code_scanning` section is a map of CodeQL default setup settings, and the `code_quality` section is a map of GitHub Code Quality settings. The `ruleset` section is a map of settings for the branch ruleset named `Tailor`. `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (e.g. `justfile`) are referenced as-is. The `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, and `pages` sections can be absent in a hand-written config. Default merging adds missing Actions defaults before policy management.
+`.tailor.yml` has twelve top-level sections: `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `languages`, and `swatches`. The `actions` section is a map of repository Actions policy settings. The `code_scanning` section is a map of CodeQL default setup settings, and the `code_quality` section is a map of GitHub Code Quality settings. The `ruleset` section is a map of settings for the branch ruleset named `Tailor`. `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (e.g. `justfile`) are referenced as-is. The `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, and `pages` sections can be absent in a hand-written config. Default merging adds missing Actions defaults before policy management.
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 
-The active configuration has 25 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
+The active configuration has 28 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
 
 Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
 
 ```yaml
 # Initially fitted by tailor on 2026-03-02
+languages:
+  go: false
+
 license: BlueOak-1.0.0
 
 repository:
@@ -1136,6 +1197,15 @@ swatches:
   - path: justfile
     alteration: first-fit
 
+  - path: .golangci.yml
+    alteration: first-fit
+
+  - path: .goreleaser.yaml
+    alteration: first-fit
+
+  - path: .github/workflows/build-go.yml
+    alteration: first-fit
+
   - path: flake.nix
     alteration: first-fit
 
@@ -1200,6 +1270,8 @@ Swatches are embedded in the tailor binary at build time from `swatches/`:
 swatches/
 ├── .envrc
 ├── .gitignore
+├── .golangci.yml
+├── .goreleaser.yaml
 ├── cubic.yaml
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
@@ -1207,8 +1279,13 @@ swatches/
 ├── SUPPORT.md
 ├── flake.nix
 ├── justfile
+├── go/
+│   ├── justfile
+│   └── dependabot-disabled.yml
 ├── .github/
-│   ├── dependabot.yml  # includes GitHub Actions, Go modules, and Nix ecosystem updates
+│   ├── dependabot.yml  # Go modules follow languages.go
+│   ├── workflows/
+│   │   └── build-go.yml
 │   ├── FUNDING.yml
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug_report.yml
@@ -1226,7 +1303,7 @@ swatches/
 └── .tailor.yml
 ```
 
-`.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted automatically. `SECURITY.md` has `{{ADVISORY_URL}}` substituted automatically. If no GitHub repository context exists at `alter` time, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` substituted automatically. Resolution follows the same mechanism as `{{ADVISORY_URL}}` and constructs `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. `.github/dependabot.yml` covers the `github-actions`, `gomod`, and `nix` package ecosystems for automated dependency updates.
+`.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted automatically. `SECURITY.md` has `{{ADVISORY_URL}}` substituted automatically. If no GitHub repository context exists at `alter` time, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` substituted automatically. Resolution follows the same mechanism as `{{ADVISORY_URL}}` and constructs `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. `.github/dependabot.yml` covers `github-actions` and `nix`. Its `gomod` entry follows the Go selection rules above.
 
 Licences are not embedded - they are fetched at `alter` time via the GitHub REST API (`GET /licenses/{id}`) and written verbatim to `LICENSE`.
 
@@ -1240,6 +1317,8 @@ The retired paths are `.github/workflows/tailor-automerge.yml` and `.github/work
 ## Justfile Integration
 
 The `justfile` swatch provides Tailor operations and workflow linting with `actionlint`. Its `first-fit` mode preserves local recipes during normal alterations. Projects can extend the file. `--recut` replaces it unless its mode is `never`.
+
+With `languages.go: true`, the Go variant adds `build` and `test` recipes. It also adds golangci-lint to `lint`. See [Go ecosystem support](#go-ecosystem-support).
 
 ```makefile
 # List available recipes
@@ -1263,11 +1342,11 @@ measure:
 ## Implementation Notes
 
 1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. SHA-256 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For a token-bearing swatch configured as `always`, Tailor resolves the token before the hash comparison. `.tailor.yml` uses append-only config merging instead of a content hash. `--recut` bypasses the hash comparison for ordinary `always` and `first-fit` swatches, but still skips `never` swatches. Existing wiki and static Pages starter files remain unchanged.
-2. **Interpolation (FUNDING.yml, SECURITY.md, and issue template config)**: Swatches are complete verbatim files with three exceptions. `.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted at `alter` time from `GET /user`. `SECURITY.md` has `{{ADVISORY_URL}}` constructed from the repository context (owner/name). If no GitHub repository context exists, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` constructed from the repository context, which produces `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. If no GitHub repository context exists, the token is left unsubstituted. No per-swatch configuration is required. Licences are fetched via `GET /licenses/{id}` and written verbatim. Licences do not use token substitution.
+2. **Interpolation (FUNDING.yml, SECURITY.md, and issue template config)**: These three swatches use token substitution. `.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted at `alter` time from `GET /user`. `SECURITY.md` has `{{ADVISORY_URL}}` constructed from the repository context (owner/name). If no GitHub repository context exists, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` constructed from the repository context, which produces `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. If no GitHub repository context exists, the token is left unsubstituted. No per-swatch configuration is required. Licences are fetched via `GET /licenses/{id}` and written verbatim. Licences do not use token substitution.
 3. **No versioning**: No swatch versions, always uses swatches from current tailor binary. Upgrading tailor will cause all `always` swatches to be re-evaluated against the new embedded content; files whose swatch content has changed will be overwritten on the next `alter` run.
 4. **No global state**: All state is per-project in `.tailor.yml`
 5. **No project registry**: Tailor has no awareness of its consumers. Projects pull from tailor, tailor does not track projects.
 6. **Authentication via `go-gh`**: All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions. Token resolution follows the `go-gh` precedence order: `GH_TOKEN` environment variable, `GITHUB_TOKEN` environment variable, `gh` config file, `gh` keyring (via the `gh` binary). When `GH_TOKEN` or `GITHUB_TOKEN` is set, the `gh` binary is not required. The `gh` binary is needed only for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access when no environment variable is set. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If no token can be resolved, or the effective host rejects the token, `fit`, `alter`, and `baste` exit immediately with an error.
 7. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
 8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `.tailor.yml`, plus separate API calls for security features, topics, and Actions workflow permissions. The `secret_scanning`, `secret_scanning_push_protection`, and `secret_scanning_non_provider_patterns` fields travel in the `security_and_analysis` object of the same PATCH body. The top-level `actions` section uses separate endpoints for core permissions, selected actions, artifact and log retention, and fork pull request contributor approval. The top-level `code_scanning` and `code_quality` sections use the code scanning default setup and Code Quality setup endpoints. The top-level `ruleset` section uses the repository rulesets endpoints (list, get, `POST`, and `PUT` on `/repos/{owner}/{repo}/rulesets`). Field names map directly to the GitHub REST API without translation, except for the `rules` map and its `enabled` keys, which are Tailor's form of the API `rules` list. Current settings are read via `GET /repos/{owner}/{repo}` and the relevant separate endpoints for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client.
-9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. Next, it verifies the token with `GET /user` and completes Pages and local wiki safety preflight. For a declared public wiki, it enables `has_wiki` through the API if needed, then checks remote readiness and local adoption. A blocker stops the command before other writes. After readiness passes, it writes the changed config once and removes present retired workflow files. The same `GET /user` response resolves `{{GITHUB_USERNAME}}`, so verification adds no extra API call. It then applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, the licence, and active swatches in that order. `baste` uses `DryRun`. It reports wiki readiness blockers and continues the full preview, but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.
+9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. Next, it completes required Go discovery and builder dependency checks before token verification with `GET /user`. It completes Pages and local wiki safety preflight and renders any required Go builder workflow before wiki enablement. For a declared public wiki, it enables `has_wiki` through the API if needed, then checks remote readiness and local adoption. A blocker stops the command before other writes. After readiness passes, it writes the changed config once and removes present retired workflow files. The same `GET /user` response resolves `{{GITHUB_USERNAME}}`, so verification adds no extra API call. It then applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, the licence, and active swatches in that order. `baste` uses `DryRun`. It reports wiki readiness blockers and continues the full preview, but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.

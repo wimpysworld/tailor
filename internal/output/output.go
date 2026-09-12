@@ -343,10 +343,7 @@ func (p *Policy) summaryCard(outcome Outcome, items []Item) string {
 				cell := entries[i+j]
 				row.WriteString(cell)
 				if i+j+1 < len(entries) && j < columns-1 {
-					padding := cellWidth - lipgloss.Width(cell)
-					if padding < 2 {
-						padding = 2
-					}
+					padding := max(cellWidth-lipgloss.Width(cell), 2)
 					row.WriteString(strings.Repeat(" ", padding))
 				}
 			}
@@ -440,10 +437,7 @@ func outcomeColour(outcome Outcome) string {
 }
 
 func (p *Policy) card(title string, lines []string, colour string) string {
-	width := p.width
-	if width < 4 {
-		width = 4
-	}
+	width := max(p.width, 4)
 	inner := width - 4
 	clean := make([]string, 0, len(lines))
 	for _, line := range lines {

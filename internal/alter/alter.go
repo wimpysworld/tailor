@@ -79,6 +79,10 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	if err != nil {
 		return partial(err)
 	}
+	goContents, err := prepareGoSwatches(cfg, dir, mode, "")
+	if err != nil {
+		return partial(err)
+	}
 	prepared, err := preparePagesSource(cfg, dir, mode)
 	if err != nil {
 		return partial(err)
@@ -110,8 +114,12 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 		return partial(err)
 	}
 	options.stage("pages-preflight", stageLabel(mode, "Pages readiness checked", "Pages readiness updated"), "complete")
+	if err := resolveGoBuilder(goContents, cfg, target, pages); err != nil {
+		return partial(err)
+	}
+	tokens := TokenContext{GitHubUsername: username, Owner: repo.Owner, Name: repo.Name, rendered: goContents}
 	options.stage("wiki-preflight", stageLabel(mode, "Checking wiki readiness", "Updating wiki readiness"), "start")
-	if err := preflightWikiWrites(cfg, dir, wikiDeclared, &TokenContext{GitHubUsername: username, Owner: repo.Owner, Name: repo.Name}); err != nil {
+	if err := preflightWikiWrites(cfg, dir, wikiDeclared, &tokens); err != nil {
 		return partial(err)
 	}
 	wiki, err := preflightWiki(cfg, dir, mode, target, wikiDeclared)
@@ -138,7 +146,6 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 		return partial(err)
 	}
 	options.stage("retired-workflows", stageLabel(mode, "Retired workflows checked", "Retired workflows updated"), "complete")
-	tokens := TokenContext{GitHubUsername: username, Owner: repo.Owner, Name: repo.Name}
 	options.stage("repository", stageLabel(mode, "Reading GitHub settings", "Applying GitHub settings"), "start")
 	repoResults, err = processRepoStages(cfg, mode, target)
 	if err != nil {

@@ -18,12 +18,12 @@ import (
 func proposalDocument() Document {
 	doc := Document{Command: "baste", Context: "wimpysworld/tailor"}
 	doc.Items = append(doc.Items, Item{Domain: "Repository", Category: "Security", Outcome: Alteration, Action: "set", Name: "Generic secret patterns", After: "enabled", Provenance: "repository.secret_scanning_non_provider_patterns"})
-	for i := 0; i < 12; i++ {
+	for range 12 {
 		doc.Items = append(doc.Items, Item{Domain: "Files", Outcome: Preserved, Name: "first-fit", Reason: "first-fit, exists"})
 	}
 	doc.Items = append(doc.Items, Item{Domain: "Files", Outcome: Preserved, Name: "never", Reason: "mode never"})
 	for domain, count := range map[string]int{"Ruleset": 20, "Repository": 18, "Labels": 12, "Files": 9, "Actions": 7, "Security": 5, "Pages": 4, "Code analysis": 4} {
-		for i := 0; i < count; i++ {
+		for range count {
 			doc.Items = append(doc.Items, Item{Domain: domain, Outcome: Unchanged, Name: "check"})
 		}
 	}
@@ -132,7 +132,7 @@ func TestResponsiveGridActionsOrderAndBorders(t *testing.T) {
 	)
 	for _, width := range []int{20, 60, 100} {
 		got := New(nil, nil, Auto, WithTTY(true), WithWidth(width), WithColor(ColorNever)).Render(doc)
-		for _, line := range strings.Split(strings.TrimSuffix(got, "\n"), "\n") {
+		for line := range strings.SplitSeq(strings.TrimSuffix(got, "\n"), "\n") {
 			if rendered := lipgloss.Width(line); rendered > width {
 				t.Fatalf("width %d line is %d columns: %q", width, rendered, line)
 			}
@@ -145,7 +145,7 @@ func TestResponsiveGridActionsOrderAndBorders(t *testing.T) {
 		}
 		if width == 100 {
 			gridRow := false
-			for _, line := range strings.Split(got, "\n") {
+			for line := range strings.SplitSeq(got, "\n") {
 				if strings.Contains(line, "Actions") && strings.Contains(line, "Code analysis") {
 					gridRow = true
 				}

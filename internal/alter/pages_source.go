@@ -348,8 +348,7 @@ func validateJekyllSource(root *os.Root, source string) error {
 		}
 		if strings.HasPrefix(section, "PATH\n") {
 			for line := range strings.SplitSeq(section, "\n") {
-				if strings.HasPrefix(line, "  remote: ") {
-					name := strings.TrimPrefix(line, "  remote: ")
+				if name, ok := strings.CutPrefix(line, "  remote: "); ok {
 					if path.IsAbs(name) || name == ".." || strings.HasPrefix(path.Clean(name), "../") {
 						return fmt.Errorf("path dependency in Gemfile.lock must stay inside the site source")
 					}

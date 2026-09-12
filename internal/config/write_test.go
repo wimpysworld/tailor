@@ -18,6 +18,9 @@ import (
 const wantSpecOutput = `# Initially fitted by tailor on 2026-03-02
 license: BlueOak-1.0.0
 
+languages:
+  go: false
+
 repository:
   has_wiki: false
   has_discussions: false

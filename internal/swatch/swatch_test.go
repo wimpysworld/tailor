@@ -50,6 +50,10 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 		switch rel {
 		case "pages/static.yml", "pages/hugo.yml", "pages/jekyll.yml":
 			rel = swatch.PagesDestination
+		case "go/justfile":
+			rel = "justfile"
+		case "go/dependabot-disabled.yml":
+			rel = ".github/dependabot.yml"
 		}
 		if !registered[rel] {
 			t.Errorf("embedded file %q has no registry entry", rel)

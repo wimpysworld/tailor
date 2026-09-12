@@ -23,8 +23,34 @@ func TestCheckConfigDiffNotConfigured(t *testing.T) {
 		}
 	}
 
-	if notConfigured != len(defaults) {
-		t.Errorf("not-configured count = %d, want %d", notConfigured, len(defaults))
+	if want := len(cfg.ActiveDefaultSwatches()); notConfigured != want {
+		t.Errorf("not-configured count = %d, want %d", notConfigured, want)
+	}
+}
+
+func TestCheckConfigDiffGoActivation(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		cfg := &config.Config{Languages: &config.LanguageSettings{Go: &enabled}}
+		results := CheckConfigDiff(cfg, swatch.All())
+		for _, path := range []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml"} {
+			found := false
+			for _, result := range results {
+				if result.Path == path {
+					found = true
+				}
+			}
+			if found != enabled {
+				t.Fatalf("Go enabled %t: path %s reported %t", enabled, path, found)
+			}
+			cfg.Swatches = append(cfg.Swatches, config.SwatchEntry{Path: path, Alteration: swatch.Never})
+		}
+		if !enabled {
+			for _, result := range CheckConfigDiff(cfg, nil) {
+				if result.Category == ConfigOnly {
+					t.Fatalf("inactive entry reported config-only: %v", result)
+				}
+			}
+		}
 	}
 }
 

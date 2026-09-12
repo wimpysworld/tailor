@@ -72,7 +72,7 @@ func TestFastProgressDoesNotNegotiateTerminal(t *testing.T) {
 }
 
 func TestProgressConcurrentStopAndActivation(t *testing.T) {
-	for i := 0; i < 20; i++ {
+	for range 20 {
 		var transcript strings.Builder
 		progress := StartProgress(&transcript)
 		progress.Observe(StageEvent{ID: "stage", Label: "Work", Phase: "start"})

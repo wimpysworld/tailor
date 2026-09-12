@@ -1,0 +1,25 @@
+# List available recipes
+default:
+    @just --list
+
+# Alter tailor swatches
+alter:
+    @tailor alter
+
+# Build Go packages
+build:
+    @go build ./...
+
+# Run linters
+lint:
+    @golangci-lint run
+    @actionlint
+
+# Check what tailor would change and measure
+measure:
+    @tailor baste
+    @tailor measure
+
+# Run Go tests
+test:
+    @go test ./...

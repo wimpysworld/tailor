@@ -146,6 +146,14 @@ The `justfile` swatch provides these recipes. Install `just` to use them and `ac
 | `just lint` | `actionlint` | `actionlint` |
 | `just measure` | `tailor baste`, then `tailor measure` | Tailor, GitHub authentication, valid `.tailor.yml` |
 
+With [Go support](Configuration#go-support) enabled, a newly rendered `justfile` also includes these recipes:
+
+| Command | Runs | Requirements |
+|---|---|---|
+| `just build` | `go build ./...` | Go |
+| `just test` | `go test ./...` | Go |
+| `just lint` | `golangci-lint run`, then `actionlint` | Go, golangci-lint, actionlint |
+
 Unlike `tailor measure`, `just measure` needs authentication because its first command is `tailor baste`. If that preview fails, the recipe stops before the local health check.
 
 Extend the first-fit `justfile` with your project recipes. Normal `alter` runs preserve it. `alter --recut` overwrites it unless its mode is `never`.
