@@ -176,7 +176,11 @@ func comparePages(cfg *config.Config, p *pagesRun) []RepoSettingResult {
 		environmentBefore = "github-pages"
 	}
 	c.add("environment", "github-pages", environmentBefore, !p.environment.Missing)
-	c.add("branch", p.prepared.Branch, p.environment.Branch, !p.environment.AddBranch)
+	branchBefore := p.environment.Branch
+	if p.environment.AddBranch {
+		branchBefore = "(none)"
+	}
+	c.add("branch", p.prepared.Branch, branchBefore, !p.environment.AddBranch)
 	c.add("build_type", "workflow", p.site.BuildType, p.site.Exists && p.site.BuildType == "workflow")
 	if cfg.Pages.CNAME != nil {
 		c.add("cname", *cfg.Pages.CNAME, p.site.CNAME, *cfg.Pages.CNAME == p.site.CNAME)
