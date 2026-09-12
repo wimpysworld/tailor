@@ -1,10 +1,12 @@
 package alter
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/goproject"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
@@ -72,22 +74,28 @@ func resolveGoBuilder(contents map[string][]byte, cfg *config.Config, target Rep
 	if _, needed := contents[goBuilderPath]; !needed || !target.HasRepo {
 		return nil
 	}
-	branch := ""
-	if pages != nil && pages.repository != nil {
-		branch = pages.repository.DefaultBranch
-	}
-	if branch == "" {
-		var repository struct {
-			DefaultBranch string `json:"default_branch"`
+	var repository *gh.PagesRepositoryState
+	if pages != nil {
+		repository = pages.repository
+		if repository == nil && len(pages.skipped) != 0 {
+			return nil
 		}
-		if err := target.Client.Get(fmt.Sprintf("repos/%s/%s", target.Owner, target.Name), &repository); err != nil {
+	} else {
+		var err error
+		repository, err = gh.ReadPagesRepository(target.Client, target.Owner, target.Name)
+		_, scope := errors.AsType[*gh.ErrInsufficientScope](err)
+		_, skipped := errors.AsType[*gh.ErrSetupSkipped](err)
+		if err != nil && !scope && !skipped {
 			return fmt.Errorf("reading Go builder default branch: %w", err)
 		}
-		branch = repository.DefaultBranch
-		if branch == "" {
-			return fmt.Errorf("go builder repository response is missing default_branch")
+		if repository == nil && err != nil {
+			return nil
 		}
 	}
+	if repository == nil || repository.DefaultBranch == "" {
+		return fmt.Errorf("go builder repository response is missing default_branch")
+	}
+	branch := repository.DefaultBranch
 	content, err := swatch.Render(goBuilderPath, swatch.Options{GoDeclared: cfg.GoDeclared(), GoEnabled: cfg.GoEnabled(), DefaultBranch: branch})
 	if err != nil {
 		return fmt.Errorf("rendering Go builder: %w", err)
