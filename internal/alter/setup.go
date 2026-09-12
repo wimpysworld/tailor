@@ -172,6 +172,11 @@ func applySetup(results []RepoSettingResult, write func() error) ([]RepoSettingR
 	err := write()
 	var skipped *gh.ErrSetupSkipped
 	if !errors.As(err, &skipped) {
+		if err != nil {
+			results = slices.DeleteFunc(results, func(result RepoSettingResult) bool {
+				return result.Category == WouldSet
+			})
+		}
 		return results, err
 	}
 	applied := make([]RepoSettingResult, 0, len(results))
