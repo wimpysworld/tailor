@@ -51,10 +51,13 @@ func TestRenderGoVariants(t *testing.T) {
 			if !bytes.Equal(base, disabled) || !strings.Contains(string(enabled), "go build ./...") || !strings.Contains(string(enabled), "go test ./...") {
 				t.Fatalf("unexpected justfile variants")
 			}
-		} else {
-			if !bytes.Equal(base, enabled) || bytes.Contains(disabled, []byte("gomod")) || !bytes.Contains(disabled, []byte("github-actions")) || !bytes.Contains(disabled, []byte("nix")) {
-				t.Fatalf("unexpected Dependabot variants")
+			for _, variant := range [][]byte{base, absent, disabled, enabled} {
+				if !bytes.Contains(variant, []byte("\nrelease VERSION:\n")) {
+					t.Fatal("justfile variant omits the release recipe")
+				}
 			}
+		} else if !bytes.Equal(base, enabled) || bytes.Contains(disabled, []byte("gomod")) || !bytes.Contains(disabled, []byte("github-actions")) || !bytes.Contains(disabled, []byte("nix")) {
+			t.Fatalf("unexpected Dependabot variants")
 		}
 	}
 }
