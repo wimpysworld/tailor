@@ -8,9 +8,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// DefaultConfig returns the embedded default configuration with the given
-// license. It parses swatches/.tailor.yml from the embedded filesystem,
-// validates its contents, and overrides the license field.
+// DefaultConfig validates the embedded configuration and applies the requested licence.
+// It clears project metadata and omits language swatches that are not enabled.
 func DefaultConfig(license string) (*Config, error) {
 	data, err := swatch.Content(".tailor.yml")
 	if err != nil {
@@ -27,7 +26,7 @@ func DefaultConfig(license string) (*Config, error) {
 		return nil, fmt.Errorf("license must not be empty")
 	}
 
-	// Nil out the project-specific description and homepage defaults.
+	// The description and homepage must not come from the embedded defaults.
 	// MergeRepoMetadata replaces them with live GitHub values when available.
 	if cfg.Repository != nil {
 		cfg.Repository.Description = nil
@@ -41,10 +40,8 @@ func DefaultConfig(license string) (*Config, error) {
 	return cfg, nil
 }
 
-// ApplyRepoDefaults fills an absent description and homepage so the generated
-// config always carries both keys. The description falls back to name and the
-// homepage to url. An empty url leaves the homepage omitted, which covers a
-// project without repository context.
+// ApplyRepoDefaults fills an absent description from name and an absent homepage from url.
+// Empty fallback values leave the corresponding fields omitted.
 func ApplyRepoDefaults(cfg *Config, name, url string) {
 	if cfg.Repository == nil {
 		cfg.Repository = &model.RepositorySettings{}

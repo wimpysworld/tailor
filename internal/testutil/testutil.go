@@ -1,3 +1,4 @@
+// Package testutil provides local HTTP, filesystem and terminal fixtures for tests.
 package testutil
 
 import (
@@ -17,6 +18,7 @@ type testTransport struct {
 	Server *httptest.Server
 }
 
+// RoundTrip redirects a cloned request so the caller's request remains unchanged.
 func (t *testTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
 	clone.URL.Scheme = "http"
@@ -76,9 +78,7 @@ func WriteConfig(t *testing.T, dir, content string) {
 	WriteFile(t, dir, ".tailor.yml", content)
 }
 
-// AssertPtrEqual checks a pointer field against a pointer expectation. When
-// want is nil, it expects got to be nil. Otherwise it expects got to be
-// non-nil with the value that want points to.
+// AssertPtrEqual compares nil status and pointed-to values, reporting field on a mismatch.
 func AssertPtrEqual[T comparable](t *testing.T, got, want *T, field string) {
 	t.Helper()
 	if want == nil {

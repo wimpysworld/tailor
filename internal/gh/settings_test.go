@@ -49,10 +49,9 @@ const (
 
 func TestReadRepoSettings(t *testing.T) {
 	tests := []struct {
-		name        string
-		repoJSON    string
-		wfPermsJSON string
-		// expected field checks
+		name           string
+		repoJSON       string
+		wfPermsJSON    string
 		wantDesc       *string
 		wantHome       *string
 		wantWiki       bool
@@ -164,11 +163,9 @@ func TestReadRepoSettings(t *testing.T) {
 				t.Fatalf("ReadRepoSettings() error: %v", err)
 			}
 
-			// description and homepage
 			testutil.AssertPtrEqual(t, settings.Description, tt.wantDesc, "description")
 			testutil.AssertPtrEqual(t, settings.Homepage, tt.wantHome, "homepage")
 
-			// bool fields
 			testutil.AssertPtrEqual(t, settings.HasWiki, new(tt.wantWiki), "has_wiki")
 			testutil.AssertPtrEqual(t, settings.HasDiscussions, new(tt.wantDisc), "has_discussions")
 			testutil.AssertPtrEqual(t, settings.HasProjects, new(tt.wantProj), "has_projects")
@@ -189,7 +186,6 @@ func TestReadRepoSettings(t *testing.T) {
 			testutil.AssertPtrEqual(t, settings.MergeCommitTitle, new(tt.wantMcTitle), "merge_commit_title")
 			testutil.AssertPtrEqual(t, settings.MergeCommitMessage, new(tt.wantMcMsg), "merge_commit_message")
 
-			// topics
 			if tt.wantTopics == nil {
 				if settings.Topics != nil && *settings.Topics != nil {
 					t.Errorf("topics = %v, want nil", *settings.Topics)
@@ -284,14 +280,13 @@ func TestReadRepoSettingsWFPerms403GracefulDegradation(t *testing.T) {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
 
-	// Workflow permissions should be nil (inaccessible).
+	// Inaccessible workflow permissions stay unknown rather than taking default values.
 	if settings.DefaultWorkflowPermissions != nil {
 		t.Errorf("DefaultWorkflowPermissions = %v, want nil", *settings.DefaultWorkflowPermissions)
 	}
 	if settings.CanApprovePullRequestReviews != nil {
 		t.Errorf("CanApprovePullRequestReviews = %v, want nil", *settings.CanApprovePullRequestReviews)
 	}
-	// Other fields should be populated.
 	testutil.AssertPtrEqual(t, settings.Description, new("A tailor for your repos"), "description")
 }
 
@@ -313,7 +308,7 @@ func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
 		t.Fatalf("ReadRepoSettings() unexpected error: %v", err)
 	}
 
-	// All sub-call fields should be nil.
+	// Access failures leave each affected setting unknown.
 	if settings.DefaultWorkflowPermissions != nil {
 		t.Errorf("DefaultWorkflowPermissions = %v, want nil", *settings.DefaultWorkflowPermissions)
 	}
@@ -327,7 +322,7 @@ func TestReadRepoSettingsAll403GracefulDegradation(t *testing.T) {
 	if len(warnings) != 4 {
 		t.Errorf("expected 4 warnings, got %d", len(warnings))
 	}
-	// Core repo fields should still be populated.
+	// Access failures on separate endpoints do not discard readable repository fields.
 	testutil.AssertPtrEqual(t, settings.Description, new("A tailor for your repos"), "description")
 	testutil.AssertPtrEqual(t, settings.HasWiki, new(false), "has_wiki")
 }
@@ -554,7 +549,7 @@ func TestBuildSettingsPayloadExcludesNonPatchFields(t *testing.T) {
 
 	body := buildSettingsPayload(settings)
 
-	// PATCH body should contain only the PATCH-eligible fields.
+	// Fields with separate endpoints must not enter the repository PATCH.
 	if _, ok := body["description"]; !ok {
 		t.Error("description missing from PATCH body")
 	}
@@ -860,7 +855,7 @@ func TestApplyRepoSettingsTopicsSkippedWhenNil(t *testing.T) {
 		t.Fatalf("ApplyRepoSettings() error: %v", err)
 	}
 
-	// Should only have the PATCH call, no PUT for topics.
+	// An omitted topics field leaves the remote topics unchanged.
 	if len(methods) != 1 {
 		t.Fatalf("expected 1 API call, got %d: %v", len(methods), methods)
 	}

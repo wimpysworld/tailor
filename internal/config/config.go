@@ -1,3 +1,4 @@
+// Package config loads, validates, merges and writes project-local .tailor.yml files.
 package config
 
 import (
@@ -5,7 +6,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// Config represents the contents of .tailor.yml.
+// Config holds the contents of .tailor.yml and tracks inferred repository metadata.
 type Config struct {
 	ImmutableReleases *model.ImmutableReleasesSettings `yaml:"immutable_releases,omitempty"`
 	License           string                           `yaml:"license"`
@@ -19,7 +20,8 @@ type Config struct {
 	Labels            []model.LabelEntry               `yaml:"labels,omitempty"`
 	Variables         []model.VariableEntry            `yaml:"variables,omitempty"`
 	Swatches          []SwatchEntry                    `yaml:"swatches"`
-	InferredHomepage  string                           `yaml:"-"`
+	// InferredHomepage records the automatic value so an edited homepage becomes explicit.
+	InferredHomepage string `yaml:"-"`
 
 	// Extra captures any YAML keys not mapped to fields above.
 	// validate rejects these unrecognised top-level settings.

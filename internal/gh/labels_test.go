@@ -559,7 +559,7 @@ func TestApplyLabelsUpdate404Aborts(t *testing.T) {
 }
 
 func TestApplyLabelsNon403ErrorStillAborts(t *testing.T) {
-	// A non-access error (e.g. 500) on create should still abort.
+	// A non-access error on create must stop later label writes.
 	server := statusServer(t, http.StatusInternalServerError, `{"message": "Internal Server Error"}`)
 
 	client := newTestClient(t, server)
@@ -575,9 +575,8 @@ func TestApplyLabelsNon403ErrorStillAborts(t *testing.T) {
 }
 
 func TestApplyLabelsRateLimitStopsLoop(t *testing.T) {
-	// Three new labels: the first POST succeeds, the second returns the
-	// configured error. A rate-limit response must stop the loop before the
-	// third POST; a scope 403 must skip and continue.
+	// The second of three writes fails. Rate limits must stop the third request,
+	// while a scope 403 must skip the failed label and continue.
 	tests := []struct {
 		name     string
 		status   int
@@ -733,8 +732,7 @@ func TestApplyLabelsRateLimitReportsRemainingChanges(t *testing.T) {
 }
 
 func TestApplyLabelsMixed403AndSuccess(t *testing.T) {
-	// Three labels: create (403), update (success), no-change (no call).
-	// Verifies skipped and applied are both populated correctly.
+	// A denied create must not prevent an update or cause an unchanged label to be written.
 	var calls []string
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

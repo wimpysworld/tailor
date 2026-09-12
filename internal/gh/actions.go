@@ -23,11 +23,14 @@ type selectedActionsResponse struct {
 	PatternsAllowed    []string `json:"patterns_allowed"`
 }
 
+// ActionsRetentionResponse holds current retention days and the repository's allowed maximum.
+// Nil fields mean that GitHub did not return a value.
 type ActionsRetentionResponse struct {
 	Days               *int `json:"days"`
 	MaximumAllowedDays *int `json:"maximum_allowed_days"`
 }
 
+// ReadActionsRetention reads retention limits and returns access failures as warnings.
 func ReadActionsRetention(client *api.RESTClient, owner, name string) (*ActionsRetentionResponse, []error, error) {
 	path := fmt.Sprintf("repos/%s/%s/actions/permissions/artifact-and-log-retention", owner, name)
 	var retention ActionsRetentionResponse
@@ -39,6 +42,7 @@ func ReadActionsRetention(client *api.RESTClient, owner, name string) (*ActionsR
 	return &retention, nil, nil
 }
 
+// ValidateDays requires known retention limits and checks both Tailor's and GitHub's allowed ranges.
 func (r *ActionsRetentionResponse) ValidateDays(days int) error {
 	if days < 1 || days > 90 {
 		return fmt.Errorf("actions.artifact_and_log_retention.days must be between 1 and 90")
@@ -55,6 +59,7 @@ func (r *ActionsRetentionResponse) ValidateDays(days int) error {
 	return nil
 }
 
+// ApplyActionsRetention validates days and writes only when the retention period differs.
 func ApplyActionsRetention(client *api.RESTClient, owner, name string, days int, current *ActionsRetentionResponse) (*ApplyResult, error) {
 	if err := current.ValidateDays(days); err != nil {
 		return nil, err
@@ -158,7 +163,7 @@ func planActionsWriteOrder(desired, current *model.ActionsSettings, core, select
 }
 
 // applyRestrictAllThenSelected narrows an enabled "all" policy: the core write
-// switches to "selected" first, then the selected policy lands. When the
+// switches to "selected" first, then writes the selected policy. When the
 // update also relaxes SHA pinning, the initial core write keeps pinning
 // required and a final core write relaxes it after the selected policy exists.
 func applyRestrictAllThenSelected(client *api.RESTClient, base string, desired, current *model.ActionsSettings, coreBody, selectedBody map[string]any, result *ApplyResult) (*ApplyResult, error) {

@@ -8,6 +8,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
+// processPagesHomepage replaces only an undeclared homepage that still points to the repository itself.
+// Explicit declarations and other live values, including an empty homepage, remain unchanged.
 func processPagesHomepage(cfg *config.Config, mode ApplyMode, target RepoTarget, repository *gh.PagesRepositoryState, site *gh.PagesState) ([]RepoSettingResult, error) {
 	if cfg.HomepageDeclared() || repository == nil || site == nil || !site.Exists {
 		return nil, nil

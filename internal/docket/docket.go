@@ -1,3 +1,4 @@
+// Package docket reports GitHub identity and repository context without requiring authentication.
 package docket
 
 import (
@@ -18,9 +19,9 @@ type Result struct {
 	Auth       string
 }
 
-// Run gathers diagnostic context: repository, authentication, and username.
-// Missing information is represented as "(none)" or "not authenticated"
-// in the returned Result.
+// Run gathers repository, authentication and username diagnostics, using the resolved host when client is nil.
+// Missing fields use "(none)" or "not authenticated", including when GitHub rejects the token with HTTP 401.
+// Other API failures return an error.
 func Run(client *api.RESTClient) (*Result, error) {
 	r := &Result{
 		User:       "(none)",
@@ -66,7 +67,7 @@ func Run(client *api.RESTClient) (*Result, error) {
 // labelWidth is the fixed column width for field labels in formatted output.
 const labelWidth = 16
 
-// FormatOutput produces the docket command output from a Result.
+// FormatOutput formats docket fields with escaped control characters for terminal output.
 func FormatOutput(r *Result) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "%-*s%s\n", labelWidth, "user:", termtext.EscapeControlText(r.User))

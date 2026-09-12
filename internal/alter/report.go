@@ -7,7 +7,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/output"
 )
 
-// Report retains typed and plain forms so legacy output remains exact.
+// Report retains structured results and the plain rendering of the same alterations.
 type Report struct {
 	Document output.Document
 	Plain    string

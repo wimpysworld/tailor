@@ -25,16 +25,14 @@ type Repo struct {
 }
 
 // RepoContext detects the GitHub repository for the current directory.
-// It returns the host, owner, and name if a GitHub remote is found.
-// When no remote is configured, it returns ok=false.
+// It returns ok=false when discovery fails, including directory access errors.
 func RepoContext() (repo Repo, ok bool) {
 	repo, ok, _ = RepoContextAt(".")
 	return repo, ok
 }
 
 // RepoContextAt detects the GitHub repository for the given directory.
-// It returns the host, owner, and name if a GitHub remote is found;
-// ok=false otherwise.
+// It returns directory access errors, but treats failed remote discovery as ok=false.
 func RepoContextAt(dir string) (repo Repo, ok bool, err error) {
 	info, err := os.Stat(dir)
 	if err != nil {
@@ -104,7 +102,7 @@ func repositoryFromRemotes(dir string) (repository.Repository, error) {
 
 // resolvedRepository honours the remote resolution that `gh repo set-default`
 // stores in git config as remote.<name>.gh-resolved. A value of "base" selects
-// the remote's own repository; any other value names a repository directly.
+// the remote's own repository. Any other value names a repository directly.
 func resolvedRepository(dir string, remotes map[string]repository.Repository, acceptedHosts []string) (repository.Repository, bool) {
 	output, err := exec.CommandContext(context.Background(), "git", "-C", dir,
 		"config", "--get-regexp", `^remote\..+\.gh-resolved$`).Output()

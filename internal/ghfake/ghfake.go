@@ -1,3 +1,5 @@
+// Package ghfake replaces GitHub package hooks with local test doubles.
+// Helpers restore hooks when tests end. Tests that share these hooks must not run in parallel.
 package ghfake
 
 import (
@@ -24,7 +26,7 @@ func FakeAuth(t *testing.T, token string) {
 }
 
 // FakeUserAPI installs a REST client stub backed by a test server. GET /user
-// responds with the given status; on http.StatusOK it returns the login.
+// responds with the given status. On http.StatusOK it returns the login.
 func FakeUserAPI(t *testing.T, status int, login string) {
 	t.Helper()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

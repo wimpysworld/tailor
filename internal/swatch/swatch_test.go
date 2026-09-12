@@ -30,9 +30,8 @@ func TestContentAvailableForAllRegisteredSwatches(t *testing.T) {
 	}
 }
 
-// TestAllEmbeddedFilesAreRegistered verifies the reverse: every file in the
-// embedded filesystem has a registry entry, so a stray file added under
-// swatches/ without registration fails the suite.
+// TestAllEmbeddedFilesAreRegistered checks that every embedded source maps to a
+// registered destination, including sources for conditional variants.
 func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 	registered := make(map[string]bool)
 	for _, p := range swatch.Paths() {

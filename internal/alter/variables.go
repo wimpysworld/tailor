@@ -10,6 +10,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
+// VariableResult records a variable change or skipped operation, using label categories.
 type VariableResult struct {
 	Name       string
 	Category   LabelCategory
@@ -20,6 +21,8 @@ type VariableResult struct {
 	Operation  gh.Operation
 }
 
+// ProcessVariables previews or applies declared repository variables without deleting undeclared variables.
+// Write results include only confirmed changes, unchanged values and skipped operations.
 func ProcessVariables(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]VariableResult, error) {
 	if len(cfg.Variables) == 0 || target.missingRepo("Variables") {
 		return nil, nil

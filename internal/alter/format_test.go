@@ -334,7 +334,7 @@ func TestFormatOutputColumnAlignment(t *testing.T) {
 }
 
 func TestFormatOutputActionableBeforeInformational(t *testing.T) {
-	// All informational first in input, actionable should appear first in output.
+	// Informational input comes first to check that sorting moves actionable results ahead.
 	swatches := []SwatchResult{
 		{Path: "info1.md", Category: NoChange},
 		{Path: "info2.md", Category: Skipped, Reason: SkipFirstFitExists},
@@ -438,7 +438,7 @@ func TestFormatOutputSkipAnnotationScope(t *testing.T) {
 	}
 
 	got := FormatOutput(repos, nil, nil, nil, DryRun)
-	// "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 space = 63 width.
+	// The annotation extends the label column beyond its default width.
 	want := "would skip (insufficient scope: token missing required scope): default_workflow_permissions\n"
 
 	if got != want {
@@ -455,7 +455,7 @@ func TestFormatOutputSkipAnnotationMixed(t *testing.T) {
 	}
 
 	got := FormatOutput(repos, nil, nil, nil, DryRun)
-	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 chars + 1 = 63.
+	// The widest annotated label sets the width for every repository result.
 	want := "would set:                                                     repository.has_wiki = false\n" +
 		"no change:                                                     repository.has_issues (already true)\n" +
 		"would skip (insufficient scope: token missing required scope): can_approve_pull_request_reviews\n" +
@@ -492,7 +492,7 @@ func TestFormatOutputLabelSkipAnnotations(t *testing.T) {
 	}
 
 	got := FormatOutput(nil, labels, nil, nil, DryRun)
-	// Widest label is "would skip (insufficient scope: token missing required scope):" = 62 + 1 = 63.
+	// Label results share the width of the annotated skip label.
 	want := "would create:                                                  label.bug = #d73a4a\n" +
 		"would skip (insufficient scope: token missing required scope): create label \"enhancement\"\n"
 
@@ -502,14 +502,12 @@ func TestFormatOutputLabelSkipAnnotations(t *testing.T) {
 }
 
 func TestFormatOutputSkipAnnotationColumnWidth(t *testing.T) {
-	// Annotated skip labels widen the column correctly.
 	repos := []RepoSettingResult{
 		{Field: "vuln", Category: WouldSkipScope, Annotation: "token missing required scope"},
 	}
 	got := FormatOutput(repos, nil, nil, nil, DryRun)
 
-	// "would skip (insufficient scope: token missing required scope):" is 62 chars.
-	// Column width = 63 (62 + 1 space). The field starts at position 63.
+	// The field needs one separating space after the longest label.
 	label := "would skip (insufficient scope: token missing required scope): "
 	if len(label) != 63 {
 		t.Fatalf("expected label+space to be 63 chars, got %d", len(label))
@@ -521,7 +519,6 @@ func TestFormatOutputSkipAnnotationColumnWidth(t *testing.T) {
 }
 
 func TestFormatOutputSkipWithoutAnnotation(t *testing.T) {
-	// Skip results without annotations still render with the base label.
 	repos := []RepoSettingResult{
 		{Operation: gh.Op(gh.OpPatchRepoSettings), Category: WouldSkipScope},
 	}

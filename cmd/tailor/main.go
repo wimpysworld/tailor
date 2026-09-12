@@ -38,7 +38,7 @@ type CLI struct {
 	Docket     DocketCmd        `cmd:"" help:"Display GitHub authentication state and repository context."`
 }
 
-// FitCmd creates a new project directory with a default .tailor.yml.
+// FitCmd writes a default .tailor.yml in a new or existing project directory.
 type FitCmd struct {
 	Path        string  `arg:"" help:"Project directory to create."`
 	License     string  `help:"Licence identifier." default:"BlueOak-1.0.0"`
@@ -69,9 +69,8 @@ func (f *FitCmd) Run() (runErr error) {
 	}()
 	f.stderr = progress.WarningWriter(policy.Stderr())
 	observe(output.StageEvent{ID: stageID, Label: stageLabel, Phase: "start"})
-	// Resolve the repository context before the auth check so the check
-	// verifies a token for the host that will be written to. The path may
-	// not exist yet; a fresh directory has no repository context.
+	// Resolve repository context first to verify a token for the metadata host.
+	// A path that does not exist has no repository context.
 	var repo gh.Repo
 	var ok bool
 	if info, statErr := os.Stat(f.Path); statErr == nil && info.IsDir() {
@@ -150,7 +149,7 @@ func projectName(path string) string {
 	return filepath.Base(path)
 }
 
-// AlterCmd applies swatch templates to the current project.
+// AlterCmd applies configured swatches and GitHub settings to the current project.
 type AlterCmd struct {
 	Recut  bool `help:"Overwrite existing first-fit swatches and merge missing .tailor.yml defaults (never swatches and the licence stay untouched)." name:"recut"`
 	stdout io.Writer
@@ -179,8 +178,7 @@ func (b *BasteCmd) Run() error {
 	return runAlterWithPolicy(alter.DryRun, b.output, b.stdout, b.stderr)
 }
 
-// runAlter performs auth check, resolves the working directory, loads the
-// tailor config, and runs alter with the given mode.
+// runAlter uses plain output for callers without a command output policy.
 func runAlter(mode alter.ApplyMode, stdout, stderr io.Writer) error {
 	return runAlterWithPolicy(mode, output.New(stdout, stderr, output.Plain), stdout, stderr)
 }

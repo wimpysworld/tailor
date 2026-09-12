@@ -8,7 +8,7 @@ import (
 )
 
 func TestCheckConfigDiffNotConfigured(t *testing.T) {
-	// Config has no swatches, so every default is not-configured.
+	// Config has no swatches, so every active default is not-configured.
 	cfg := &config.Config{
 		Swatches: []config.SwatchEntry{},
 	}

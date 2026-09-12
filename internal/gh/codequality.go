@@ -31,10 +31,9 @@ func ReadCodeQualitySetup(client *api.RESTClient, owner, name string) (*model.Co
 	}, nil
 }
 
-// ApplyCodeQualitySetup sends the set fields of desired to the Code Quality
-// setup endpoint. It sends nothing when no field is set. It returns an
-// *ErrSetupSkipped when the feature is not available or a setup run is in
-// progress.
+// ApplyCodeQualitySetup sends declared fields to the Code Quality endpoint,
+// excluding empty language lists. An empty body sends no request.
+// It returns *ErrSetupSkipped when the feature is unavailable or setup is in progress.
 func ApplyCodeQualitySetup(client *api.RESTClient, owner, name string, desired *model.CodeQualitySettings) error {
 	body := codeQualitySetupBody(desired)
 	if len(body) == 0 {

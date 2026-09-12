@@ -10,13 +10,10 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
-// rulesetSection is the Section of every ruleset result.
 const rulesetSection = "ruleset"
 
-// ProcessRuleset compares the declared Tailor ruleset against GitHub and
-// writes the complete ruleset when any managed field differs. A repository
-// without rulesets reports the declared fields as skipped. A token that can
-// read but not write the ruleset reports them as scope skips.
+// ProcessRuleset compares the declared Tailor ruleset and, outside DryRun, writes it in full when any managed field differs.
+// A read without bypass_actors reports insufficient scope. Unavailable rulesets produce skip results.
 func ProcessRuleset(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]RepoSettingResult, error) {
 	if cfg.Ruleset == nil || !target.HasRepo {
 		return nil, nil
@@ -87,9 +84,8 @@ func compareRules(c *resultComparer, declared, live *model.RulesetRules) {
 	compareRulesetCodeScanning(c, declared.CodeScanning, live.CodeScanning)
 }
 
-// comparePullRequest compares the rule presence and, when the declared rule
-// is enabled, its seven parameters. A disabled rule sends no parameters, so
-// they are not compared.
+// comparePullRequest compares rule presence and the parameters of an enabled rule.
+// Disabled rules send no parameters, so stored parameter values do not produce differences.
 func comparePullRequest(c *resultComparer, declared, live *model.RulesetPullRequest) {
 	if declared == nil {
 		return

@@ -81,6 +81,7 @@ func TestWikiWorkflowContract(t *testing.T) {
 	}
 }
 
+// wikiPublisherFixture runs the actual publisher script against local Git repositories and HTTP metadata.
 type wikiPublisherFixture struct {
 	t            *testing.T
 	root, source string

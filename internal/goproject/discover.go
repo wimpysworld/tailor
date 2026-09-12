@@ -1,3 +1,4 @@
+// Package goproject discovers release executables from local Go syntax without running project code or resolving dependencies.
 package goproject
 
 import (
@@ -16,14 +17,17 @@ import (
 	"strings"
 )
 
+// Build describes a GoReleaser executable with unique build and binary names.
 type Build struct {
 	ID     string
 	Binary string
-	Main   string
+	Main   string // Main is the package directory relative to the project root.
 }
 
 const maxFileSize = 1 << 20
 
+// Discover finds executables in the root module for Linux and Darwin on amd64 and arm64 without CGO.
+// It rejects missing or incompatible entry points and bounds filesystem reads.
 func Discover(directory string) ([]Build, error) {
 	root, err := os.OpenRoot(directory)
 	if err != nil {
@@ -64,6 +68,7 @@ func readModuleName(project fs.FS) (string, error) {
 	if moduleName == "" {
 		return "", fmt.Errorf("go release discovery requires a module declaration in go.mod")
 	}
+	// A semantic import version suffix is not part of the root binary name.
 	if version := path.Base(moduleName); len(version) > 1 && version[0] == 'v' {
 		if number, err := strconv.Atoi(version[1:]); err == nil && number >= 2 {
 			moduleName = path.Dir(moduleName)
@@ -149,6 +154,8 @@ func parseSource(name string, data []byte) (source, error) {
 	return item, nil
 }
 
+// discoverBuilds excludes main packages that match no release target, including ignored generators.
+// Each remaining executable must support every target.
 func discoverBuilds(moduleName string, packages map[string][]source) ([]Build, error) {
 	var dirs []string
 	for dir, sources := range packages {
@@ -174,6 +181,7 @@ func discoverBuilds(moduleName string, packages map[string][]source) ([]Build, e
 		}
 		dirs = append(dirs, dir)
 	}
+	// Stable directory order keeps numeric name suffixes reproducible.
 	slices.Sort(dirs)
 	if len(dirs) == 0 {
 		return nil, fmt.Errorf("go release discovery found no main packages; provide a custom .goreleaser.yaml or set its alteration to never")
@@ -220,6 +228,7 @@ type source struct {
 func (file source) matchesTarget(goos, goarch string) (bool, error) {
 	context := build.Default
 	context.GOOS, context.GOARCH, context.CgoEnabled = goos, goarch, false
+	// Match the release baseline rather than the host's architecture features or custom tags.
 	context.BuildTags = nil
 	context.ToolTags = []string{goarch + ".v1"}
 	if goarch == "arm64" {

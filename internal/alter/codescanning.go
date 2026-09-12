@@ -6,10 +6,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
-// ProcessCodeScanning compares the declared code scanning default setup
-// against GitHub and applies only the fields that differ. A repository
-// without the feature, or with a setup run in progress, reports the declared
-// fields as skipped.
+// ProcessCodeScanning previews or applies changed fields in the declared code scanning setup.
+// Unavailable or busy setup skips all declared fields on reads, and only changed fields on writes.
 func ProcessCodeScanning(cfg *config.Config, mode ApplyMode, target RepoTarget) ([]RepoSettingResult, error) {
 	if cfg.CodeScanning == nil || !target.HasRepo {
 		return nil, nil

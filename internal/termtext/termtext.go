@@ -9,7 +9,7 @@ import (
 
 // EscapeControlText renders control characters as visible escapes so that
 // values from config or the GitHub API cannot inject terminal control
-// sequences into output. C0 controls and DEL render as \xNN; C1 controls,
+// sequences into output. C0 controls and DEL render as \xNN. C1 controls,
 // other Unicode controls, and bidirectional control characters (U+061C,
 // U+200E, U+200F, U+202A-U+202E, U+2066-U+2069) render as \uNNNN, blocking
 // Trojan Source reordering (CVE-2021-42574). Other format characters, such

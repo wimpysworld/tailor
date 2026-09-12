@@ -176,7 +176,6 @@ func TestCheckHealthAllPresent(t *testing.T) {
 func TestCheckHealthMixedPresence(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create a subset: LICENSE, CODE_OF_CONDUCT.md, SECURITY.md
 	testutil.CreateFile(t, dir, "LICENSE")
 	testutil.CreateFile(t, dir, "CODE_OF_CONDUCT.md")
 	testutil.CreateFile(t, dir, "SECURITY.md")
@@ -269,7 +268,6 @@ func TestCheckHealthSortOrder(t *testing.T) {
 func TestCheckHealthDirectoryNotCountedAsFile(t *testing.T) {
 	dir := t.TempDir()
 
-	// Create LICENSE as a directory, not a file.
 	if err := os.MkdirAll(filepath.Join(dir, "LICENSE"), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
@@ -484,7 +482,7 @@ func TestHasUnresolvedPlaceholdersAdversarialContent(t *testing.T) {
 func TestCheckHealthSingleResultPerPath(t *testing.T) {
 	dir := t.TempDir()
 
-	// LICENSE with placeholders should appear once as warning, not also as present.
+	// A licence with placeholders appears once as warning, not also as present.
 	testutil.WriteFile(t, dir, "LICENSE", "MIT License\n\nCopyright (c) [year] [fullname]\n")
 
 	results := CheckHealth(dir)

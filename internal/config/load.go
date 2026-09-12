@@ -37,8 +37,8 @@ func Exists(dir string) (bool, error) {
 	}
 }
 
-// Load reads and parses .tailor.yml from dir, returning the validated Config
-// or an error.
+// Load reads and validates the regular .tailor.yml file in dir, up to 1 MiB.
+// Callers must remove retired entries before checking known paths and duplicates.
 func Load(dir string) (*Config, error) {
 	root, err := os.OpenRoot(dir)
 	if err != nil {
@@ -105,6 +105,7 @@ func parseAndValidate(data []byte, context string) (*Config, error) {
 		return nil, fmt.Errorf("parsing %s: %w", context, err)
 	}
 	var sections map[string]yaml.Node
+	// An edited value or removed marker makes the homepage an explicit declaration.
 	if err := document.Decode(&sections); err == nil {
 		if repository, ok := sections["repository"]; ok {
 			var fields map[string]yaml.Node
@@ -212,7 +213,8 @@ func validatePagesNodes(document *yaml.Node) error {
 	return nil
 }
 
-// ValidateSwatches checks active swatch entries without legacy allowances.
+// ValidateSwatches requires non-empty paths and active alteration modes.
+// ValidatePaths and ValidateDuplicatePaths check path membership and uniqueness separately.
 func ValidateSwatches(cfg *Config) error {
 	return validateSwatches(cfg, false)
 }
@@ -224,7 +226,6 @@ func validateSwatches(cfg *Config, allowLegacyRetired bool) error {
 		}
 		switch s.Alteration {
 		case swatch.Always, swatch.FirstFit, swatch.Never:
-			// valid
 		default:
 			if allowLegacyRetired && isLegacyRetiredEntry(s) {
 				continue

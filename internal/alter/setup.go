@@ -9,9 +9,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/gh"
 )
 
-// WouldSkipSetup marks a code scanning or Code Quality field that Tailor
-// skipped because the feature is not available to the repository or a setup
-// run is in progress. Annotation carries the reason.
+// WouldSkipSetup marks a setting that Tailor cannot apply or must preserve.
+// Annotation gives the access, availability, readiness or owner-policy reason.
 const WouldSkipSetup RepoSettingCategory = "would skip"
 
 // resultComparer collects one result per declared field of one config
@@ -139,12 +138,9 @@ func skipResults(results []RepoSettingResult, category RepoSettingCategory, anno
 	return skipped
 }
 
-// processSetup is the shared skeleton of the ruleset, code scanning, and
-// Code Quality stages. declared holds the results against an empty live
-// state, so a read that is skipped can report every declared field. read
-// fetches the live state and compares it. write sends the change. A read
-// that returns *gh.ErrSetupSkipped or *gh.ErrInsufficientScope turns every
-// declared field into a skip result and the command continues.
+// processSetup shares comparison and write handling for rulesets, code scanning and Code Quality.
+// declared contains comparisons against an empty state, so skipped reads can report each declared field.
+// Reads that return *gh.ErrSetupSkipped or *gh.ErrInsufficientScope produce skip results without stopping the command.
 func processSetup(declared []RepoSettingResult, mode ApplyMode, read func() ([]RepoSettingResult, error), write func(results []RepoSettingResult) error) ([]RepoSettingResult, error) {
 	if len(declared) == 0 {
 		return nil, nil

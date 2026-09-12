@@ -14,7 +14,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// pagesStarterEmpty checks the whole destination before planning or writing.
+// pagesStarterEmpty requires an absent or empty directory so starter creation cannot replace an authored site.
 func pagesStarterEmpty(root *os.Root, dir string) (bool, error) {
 	if err := checkParents(root, path.Join(dir, "index.html"), "pages source parent"); err != nil {
 		return false, err

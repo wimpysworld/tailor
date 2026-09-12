@@ -37,7 +37,7 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 		t.Errorf("License = %q, want %q", got.License, "BlueOak-1.0.0")
 	}
 
-	// Repository settings should match the embedded config exactly.
+	// Managed repository settings retain the embedded defaults, apart from project metadata.
 	if got.Repository == nil {
 		t.Fatal("Repository is nil, want non-nil")
 	}
@@ -69,7 +69,7 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 		t.Fatal("default all policy contains selected-only fields")
 	}
 
-	// Labels should match the embedded defaults.
+	// Labels retain the embedded defaults.
 	if len(got.Labels) != 12 {
 		t.Fatalf("Labels count = %d, want 12", len(got.Labels))
 	}
@@ -95,7 +95,7 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 		}
 	}
 
-	// Fields absent from the embedded config should remain nil.
+	// Project metadata is cleared, while undeclared merge settings stay nil.
 	if got.Repository.Description != nil {
 		t.Errorf("Description = %q, want nil", *got.Repository.Description)
 	}

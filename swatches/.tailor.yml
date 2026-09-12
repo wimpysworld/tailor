@@ -38,7 +38,7 @@ pages:
     feed: ""
   # branch: main
   # cname: www.example.com
-  # Static only. Omit links to leave the page unchanged; {} clears its marked links.
+  # Static only. Omit links to leave the page unchanged. {} clears its marked links.
   # Use full HTTPS URLs, or a bare address for email. Empty values add no icon.
   # links:
   #   website: https://example.com
@@ -97,8 +97,8 @@ code_quality:
 
 ruleset:
   # Tailor manages one ruleset named "Tailor" and owns it entirely.
-  # active enforces the rules. disabled keeps the ruleset on GitHub but
-  # GitHub ignores it, so a hand-made ruleset can govern instead.
+  # active enforces the rules. disabled retains the ruleset without enforcement.
+  # Other rulesets apply independently of this setting.
   enforcement: active
   bypass_actors:
     # actor_type: RepositoryRole, Team, User, Integration, DeployKey
@@ -137,15 +137,15 @@ ruleset:
     required_status_checks:
       enabled: false
       parameters:
-        # Require branches to be up to date before merging.
+        # When true, require branches to be up to date before merging.
         strict_required_status_checks_policy: false
-        # Do not require status checks on creation.
+        # When true, allow branch creation without status checks.
         do_not_enforce_on_create: false
-        # context is the check name as shown on a pull request. For a GitHub
-        # Actions job that is the job's name. integration_id is optional and
-        # restricts the check to one app; 15368 is GitHub Actions.
+        # context is the check name on a pull request, usually the GitHub Actions job name.
+        # Optional integration_id restricts the check to one app. 15368 is GitHub Actions.
         required_status_checks: []
     code_scanning:
+      # Enable only when the tool has results for both the pull request commit and the base branch.
       enabled: false
       parameters:
         # tool is the tool name as GitHub shows it, for example CodeQL.

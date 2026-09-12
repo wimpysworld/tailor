@@ -13,6 +13,8 @@ import (
 
 const goBuilderPath = ".github/workflows/build-go.yml"
 
+// prepareGoSwatches validates dependencies and renders planned Go files without writes or network access.
+// Existing first-fit files skip discovery unless Recut requests replacement.
 func prepareGoSwatches(cfg *config.Config, dir string, mode ApplyMode, branch string) (map[string][]byte, error) {
 	contents := make(map[string][]byte)
 	root, err := os.OpenRoot(dir)
@@ -76,6 +78,7 @@ func prepareGoSwatches(cfg *config.Config, dir string, mode ApplyMode, branch st
 	return contents, nil
 }
 
+// resolveGoBuilder renders the planned builder with GitHub's current default branch, reusing Pages metadata when available.
 func resolveGoBuilder(contents map[string][]byte, cfg *config.Config, target RepoTarget, pages *pagesRun) error {
 	if _, needed := contents[goBuilderPath]; !needed || !target.HasRepo {
 		return nil

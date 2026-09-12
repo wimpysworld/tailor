@@ -472,9 +472,7 @@ func TestProcessLabelsExactNameNoChange(t *testing.T) {
 	}
 }
 
-// partialLabelsServer creates a test server where the first POST returns 403
-// (simulating a scope error) and subsequent POSTs/PATCHes succeed. GET returns
-// the provided current labels.
+// partialLabelsServer serves current labels and rejects the first POST with a scope error. Later POST and PATCH requests succeed.
 func partialLabelsServer(current []model.LabelEntry) *httptest.Server {
 	var postCount atomic.Int32
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -530,7 +528,7 @@ func TestProcessLabelsPartialApplicationWithSkipped(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Expect 3 results: 2 from compareLabels (both WouldCreate) + 1 skip from ApplyResult.
+	// The failed create retains its comparison result and adds a scope skip.
 	if len(results) != 3 {
 		t.Fatalf("got %d results, want 3", len(results))
 	}
@@ -550,8 +548,7 @@ func TestProcessLabelsPartialApplicationWithSkipped(t *testing.T) {
 func TestProcessLabelsSkipDoesNotAbort(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 
-	// One existing label needing update, one new label. The first POST (create)
-	// returns 403, but the second label (update via PATCH) should still succeed.
+	// A forbidden create must not prevent an update to a separate label.
 	current := []model.LabelEntry{
 		{Name: "beta", Color: "old000", Description: "old"},
 	}
@@ -603,7 +600,7 @@ func TestProcessLabelsSkipDoesNotAbort(t *testing.T) {
 		t.Error("expected PATCH call for beta, but none received")
 	}
 
-	// Should have skip result for alpha.
+	// The failed create needs a skip result, not a command error.
 	var hasSkip bool
 	for _, r := range results {
 		if r.Category == alter.LabelSkipScope {

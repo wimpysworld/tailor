@@ -12,8 +12,10 @@ import (
 )
 
 const (
+	// PagesDestination is the shared path for all Pages workflow variants.
 	PagesDestination = ".github/workflows/tailor-pages.yml"
-	PagesMarker      = "# Managed by Tailor: pages"
+	// PagesMarker identifies workflows managed by Tailor.
+	PagesMarker = "# Managed by Tailor: pages"
 )
 
 // PagesContent renders the selected Pages workflow without reading project files.
@@ -37,7 +39,6 @@ func PagesContent(generator, source, branch string) ([]byte, error) {
 		return nil, fmt.Errorf("parsing pages workflow: %w", err)
 	}
 	var content bytes.Buffer
-	// Escape filter syntax before YAML quoting; validation rejects the other glob characters.
 	err = tmpl.Execute(&content, struct{ Path, Branch string }{source, branchFilter})
 	if err != nil {
 		return nil, fmt.Errorf("rendering pages workflow: %w", err)
@@ -45,6 +46,7 @@ func PagesContent(generator, source, branch string) ([]byte, error) {
 	return content.Bytes(), nil
 }
 
+// workflowBranchFilter rejects unsafe branches and escapes filter syntax before YAML quoting.
 func workflowBranchFilter(branch string) (string, error) {
 	if branch == "" || strings.ContainsAny(branch, "\\\r\n\x00~^:?*[") || strings.Contains(branch, "..") || strings.Contains(branch, "@{") || strings.Contains(branch, "${{") || strings.HasPrefix(branch, "-") || strings.HasPrefix(branch, "/") || strings.HasSuffix(branch, "/") {
 		return "", fmt.Errorf("unsafe workflow branch %q", branch)

@@ -264,9 +264,8 @@ func validateMembers(list, noun string, values, valid []string) error {
 	return nil
 }
 
-// ValidateActions checks the Actions policy field names, enum values, and
-// selected-action field combinations, and rejects patterns_allowed entries
-// containing control characters.
+// ValidateActions checks Actions policy keys, values, retention limits and selected-action field combinations.
+// It also rejects control characters in allowed patterns.
 func ValidateActions(cfg *Config) error {
 	if cfg.Actions == nil {
 		return nil
@@ -358,9 +357,8 @@ func containsControl(s string) bool {
 	return strings.ContainsFunc(s, unicode.IsControl)
 }
 
-// ValidateRepoStringSettings checks repository string enum values and rejects
-// control characters, which could inject terminal control sequences into
-// output. Topics carry their own stricter format validation in ValidateTopics.
+// ValidateRepoStringSettings checks repository string enums and rejects control characters to prevent terminal control sequences in output.
+// ValidateTopics applies stricter validation to topics.
 func ValidateRepoStringSettings(cfg *Config) error {
 	if cfg.Repository == nil {
 		return nil
@@ -456,10 +454,8 @@ const rulesetEnterpriseEnforcement = "evaluate"
 // the rulesets API accepts.
 const maxRulesetReviewCount = 10
 
-// ValidateRuleset checks the ruleset field names, enum values, bypass
-// actors, branch conditions, and rule parameters. Fields that default
-// merging fills are checked only when set; ValidateCompleteRuleset checks
-// for their presence after merging.
+// ValidateRuleset checks ruleset keys, values, bypass actors, branch conditions and rule parameters.
+// It checks fields supplied by default merging only when set. ValidateCompleteRuleset checks their presence after merging.
 func ValidateRuleset(cfg *Config) error {
 	r := cfg.Ruleset
 	if r == nil {
@@ -619,10 +615,8 @@ func validateRulesetRules(rules *model.RulesetRules) error {
 	return validateRulesetCodeScanning(rules.CodeScanning)
 }
 
-// validateLinearHistoryMergeMethods rejects required_linear_history with an
-// enabled pull request rule that allows merge commits only. GitHub requires
-// squash or rebase merging when history must be linear, so that ruleset
-// could never merge a pull request.
+// validateLinearHistoryMergeMethods rejects an enabled pull request rule that permits only merge commits when required_linear_history is true.
+// Linear history requires squash or rebase, so that combination blocks every pull request merge.
 func validateLinearHistoryMergeMethods(rules *model.RulesetRules) error {
 	pr := rules.PullRequest
 	if rules.RequiredLinearHistory == nil || !*rules.RequiredLinearHistory ||
@@ -748,13 +742,8 @@ func validateRulesetCodeScanning(rule *model.RulesetCodeScanning) error {
 	return nil
 }
 
-// ValidateCompleteRuleset checks that the ruleset carries every field the
-// rulesets API requires after default merging: the enforcement level, the
-// bypass actor list, both branch condition lists, the six Boolean rule
-// keys, the pull request rule with its seven parameters, the required
-// status checks rule with its two policy flags, and the code scanning rule
-// with its tool list. A write sends the whole ruleset, so an absent list or
-// Boolean would clear the live value without a report line.
+// ValidateCompleteRuleset requires the fields that Tailor needs for a complete ruleset write after default merging.
+// It requires parameters only for enabled rules. Missing fields can clear live values without a report line because writes replace the whole ruleset.
 func ValidateCompleteRuleset(cfg *Config) error {
 	r := cfg.Ruleset
 	if r == nil {
@@ -787,9 +776,8 @@ func ValidateCompleteRuleset(cfg *Config) error {
 	return validateCompleteCodeScanning(r.Rules.CodeScanning)
 }
 
-// validateCompleteBooleanRules requires the six Boolean rule keys. A write
-// sends a rule only when its key is true, so an absent key would remove the
-// live rule without a report line.
+// validateCompleteBooleanRules requires the six Boolean rule keys.
+// Writes send only true rules, so an absent key removes the live rule without a report line.
 func validateCompleteBooleanRules(rules *model.RulesetRules) error {
 	for _, rule := range []struct {
 		key   string
@@ -842,9 +830,8 @@ func validateCompleteStatusChecks(rule *model.RulesetStatusChecks) error {
 	return nil
 }
 
-// validateCompleteCodeScanning requires the tool list when the rule is
-// enabled. GitHub rejects a code scanning rule with no tools, so an empty
-// list would fail the write.
+// validateCompleteCodeScanning requires a non-empty tool list when the rule is enabled.
+// GitHub rejects a code scanning rule with no tools.
 func validateCompleteCodeScanning(rule *model.RulesetCodeScanning) error {
 	const name = "ruleset.rules.code_scanning"
 	if rule == nil || rule.Enabled == nil {
@@ -860,9 +847,8 @@ func validateCompleteCodeScanning(rule *model.RulesetCodeScanning) error {
 	return nil
 }
 
-// RulesetMergeMethodWarnings reports every merge method that the ruleset
-// allows but the repository settings in the same config disable. Neither
-// value is changed; the warning tells the user that the two disagree.
+// RulesetMergeMethodWarnings reports configured merge methods that the repository settings disable, even when the pull request rule is disabled.
+// It leaves both settings unchanged.
 func RulesetMergeMethodWarnings(cfg *Config) []string {
 	if cfg.Ruleset == nil || cfg.Repository == nil || cfg.Ruleset.Rules == nil ||
 		cfg.Ruleset.Rules.PullRequest == nil || cfg.Ruleset.Rules.PullRequest.Parameters == nil ||

@@ -27,6 +27,7 @@ func pagesEnabled(cfg *config.Config) bool {
 	return cfg.Pages != nil && cfg.Pages.Enabled != nil && *cfg.Pages.Enabled
 }
 
+// preflightPages checks local output and remote prerequisites without writes, before wiki enablement or other changes.
 func preflightPages(cfg *config.Config, dir string, mode ApplyMode, target RepoTarget, prepared *pagesPreparation) (*pagesRun, error) {
 	if prepared == nil {
 		return nil, nil
@@ -189,6 +190,7 @@ func comparePages(cfg *config.Config, p *pagesRun) []RepoSettingResult {
 	return c.results
 }
 
+// confirmedPagesResults prevents failed or pending writes from appearing as successful alterations.
 func confirmedPagesResults(results []RepoSettingResult, applied []gh.Operation, complete bool) []RepoSettingResult {
 	fields := make(map[string]bool)
 	for _, op := range applied {
@@ -217,6 +219,7 @@ func confirmedPagesResults(results []RepoSettingResult, applied []gh.Operation, 
 	return confirmed
 }
 
+// checkPagesActions uses planned policy during preflight and live policy after the Actions stage, which can skip writes.
 func checkPagesActions(cfg *config.Config, target RepoTarget, prepared *pagesPreparation, planned bool) error {
 	policy, warnings, err := gh.ReadActionsPolicy(target.Client, target.Owner, target.Name, true)
 	if err != nil {

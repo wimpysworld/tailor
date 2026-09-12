@@ -9,13 +9,12 @@ import (
 	"github.com/cli/go-gh/v2/pkg/api"
 )
 
-// SetupSkipReason explains why a code scanning or Code Quality setup
-// operation was skipped without stopping the command.
+// SetupSkipReason explains why a managed feature operation is skipped without stopping the command.
 type SetupSkipReason string
 
 const (
-	// SetupNotAvailable means GitHub answered 403, or 404 on a read: the
-	// feature is not available to the repository.
+	// SetupNotAvailable means that the feature is unavailable or access cannot be confirmed.
+	// Setup endpoints use this reason for non-rate-limit 403s and read 404s.
 	SetupNotAvailable SetupSkipReason = "not available"
 	// SetupInProgress means GitHub answered 409 on a write: a setup run is
 	// in progress.
@@ -31,6 +30,7 @@ type ErrSetupSkipped struct {
 	Operation  Operation
 }
 
+// Error describes the skipped operation and its recorded HTTP status, or zero without an HTTP response.
 func (e *ErrSetupSkipped) Error() string {
 	return fmt.Sprintf("%s: %s (HTTP %d)", e.Operation, e.Reason, e.StatusCode)
 }

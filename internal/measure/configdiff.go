@@ -24,12 +24,9 @@ type DiffResult struct {
 	Detail   string
 }
 
-// CheckConfigDiff compares the loaded config's swatch list against the
-// default swatch set. Returns results grouped by category in the order:
-// not-configured, config-only, mode-differs. Within each category, entries
-// are sorted lexicographically by path.
+// CheckConfigDiff compares configured and default swatches, excluding paths that cfg.SwatchActive disables from both sets.
+// Results follow not-configured, config-only, mode-differs order, with paths sorted lexicographically within each category.
 func CheckConfigDiff(cfg *config.Config, defaults []swatch.Swatch) []DiffResult {
-	// Build lookup maps by path.
 	configByPath := make(map[string]config.SwatchEntry, len(cfg.Swatches))
 	for _, s := range cfg.Swatches {
 		if !cfg.SwatchActive(s.Path) {

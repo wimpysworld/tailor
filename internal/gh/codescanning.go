@@ -35,10 +35,9 @@ func ReadCodeScanningSetup(client *api.RESTClient, owner, name string) (*model.C
 	}, nil
 }
 
-// ApplyCodeScanningSetup sends the set fields of desired to the code scanning
-// default setup endpoint. It sends nothing when no field is set. It returns an
-// *ErrSetupSkipped when the feature is not available or a setup run is in
-// progress.
+// ApplyCodeScanningSetup sends declared fields to the code scanning endpoint,
+// excluding empty language lists. An empty body sends no request.
+// It returns *ErrSetupSkipped when the feature is unavailable or setup is in progress.
 func ApplyCodeScanningSetup(client *api.RESTClient, owner, name string, desired *model.CodeScanningSettings) error {
 	body := codeScanningSetupBody(desired)
 	if len(body) == 0 {

@@ -1,3 +1,4 @@
+// Package swatch defines the built-in templates, their defaults and their renderers.
 package swatch
 
 import (
@@ -9,7 +10,9 @@ import (
 type Category string
 
 const (
-	Health      Category = "health"
+	// Health marks community health files checked by measure.
+	Health Category = "health"
+	// Development marks tooling files excluded from health checks.
 	Development Category = "development"
 )
 
@@ -17,10 +20,11 @@ const (
 type AlterationMode string
 
 const (
-	// Always compares the embedded content against the on-disk file on
-	// every alter run and overwrites the file when they differ.
+	// Always replaces changed files with resolved content on each alter run.
+	// Config updates append missing defaults, and existing wiki starter pages remain unchanged.
 	Always AlterationMode = "always"
-	// FirstFit writes the file only when it does not already exist.
+	// FirstFit creates missing files. Recut also replaces existing files,
+	// except that config updates merge defaults and wiki starter pages remain unchanged.
 	FirstFit AlterationMode = "first-fit"
 	// Never skips the swatch. Tailor does not write or compare the
 	// destination.
@@ -73,13 +77,12 @@ var registry = []Swatch{
 	{Path: ".tailor.yml", DefaultAlteration: Always, Category: Development},
 }
 
-// All returns every registered swatch in definition order.
+// All returns a copy of every registered swatch in definition order.
 func All() []Swatch {
 	return slices.Clone(registry)
 }
 
-// Paths returns the paths of all registered swatches, sorted
-// lexicographically.
+// Paths returns all registered paths in lexicographic order.
 func Paths() []string {
 	names := make([]string, len(registry))
 	for i, s := range registry {

@@ -9,16 +9,15 @@ import (
 	"testing"
 )
 
-// RulesetStub fakes the rulesets endpoints of the acme/widget repository.
-// The list serves ListBody with ListStatus, the read by id 42 serves
-// ReadBody with ReadStatus, and every write answers WriteStatus. A write
-// with WriteStatus 200 answers 201 to a POST. Writes and LastBody record
-// the writes; ListQuery and ReadQuery record the last query strings.
+// RulesetStub fakes list, read and write endpoints for ruleset 42 in acme/widget.
+// Writes and LastBody record write requests, including rejected writes.
+// ListQuery and ReadQuery record the last query strings.
 type RulesetStub struct {
-	ListStatus  int
-	ListBody    string
-	ReadStatus  int
-	ReadBody    string
+	ListStatus int
+	ListBody   string
+	ReadStatus int
+	ReadBody   string
+	// WriteStatus becomes 201 for POST when set to 200.
 	WriteStatus int
 	Writes      []string // "METHOD path" per write
 	LastBody    map[string]any
@@ -26,7 +25,7 @@ type RulesetStub struct {
 	ReadQuery   string
 }
 
-// NewRulesetStub returns a stub that answers every request with 200.
+// NewRulesetStub defaults to 200 for reads and PUT, 201 for POST, and 404 for unknown routes.
 func NewRulesetStub(listBody, readBody string) *RulesetStub {
 	return &RulesetStub{
 		ListStatus:  http.StatusOK,

@@ -11,18 +11,28 @@ import (
 )
 
 const (
-	GoLintDestination     = ".golangci.yml"
-	GoReleaseDestination  = ".goreleaser.yaml"
+	// GoLintDestination is the Go lint configuration path.
+	GoLintDestination = ".golangci.yml"
+	// GoReleaseDestination is the GoReleaser configuration path.
+	GoReleaseDestination = ".goreleaser.yaml"
+	// GoWorkflowDestination is the Go builder workflow path.
 	GoWorkflowDestination = ".github/workflows/build-go.yml"
 )
 
+// Options supplies language selection and local build discovery results to Render.
 type Options struct {
-	GoDeclared    bool
-	GoEnabled     bool
+	// GoDeclared distinguishes explicit false from an absent languages.go setting.
+	GoDeclared bool
+	// GoEnabled selects Go variants of shared development swatches.
+	GoEnabled bool
+	// DefaultBranch selects the workflow branch. Empty uses a runtime job guard.
 	DefaultBranch string
-	Builds        []goproject.Build
+	// Builds lists the executables required to render the release configuration.
+	Builds []goproject.Build
 }
 
+// Render resolves Go variants and placeholders without reading project files.
+// Callers select active swatches and supply discovered builds before rendering.
 func Render(path string, options Options) ([]byte, error) {
 	if path == "justfile" && options.GoEnabled {
 		return tailor.SwatchFS.ReadFile("swatches/go/justfile")
@@ -38,6 +48,7 @@ func Render(path string, options Options) ([]byte, error) {
 	case GoWorkflowDestination:
 		branch, guard := "**", ""
 		if options.DefaultBranch == "" {
+			// Without repository metadata, resolve the default branch when the workflow runs.
 			guard = "    if: github.event_name != 'push' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) || startsWith(github.ref, 'refs/tags/')"
 		} else {
 			branch, err = workflowBranchFilter(options.DefaultBranch)
@@ -62,6 +73,7 @@ func Render(path string, options Options) ([]byte, error) {
 			packageIDs = append(packageIDs, strconv.Quote(build.ID))
 			image := `ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY_OWNER }}/{{ $name := replace (replace (tolower (index (split .Env.GITHUB_REPOSITORY "/") 1)) "_" "-") "." "-" }}{{ if not (filter $name "^[a-z0-9]") }}image{{ end }}{{ $name }}{{ if not (filter $name "[a-z0-9]$") }}image{{ end }}`
 			if len(options.Builds) > 1 {
+				// Different binary names can normalise to the same image suffix.
 				parts := strings.FieldsFunc(strings.ToLower(build.Binary), func(r rune) bool {
 					return (r < 'a' || r > 'z') && (r < '0' || r > '9')
 				})

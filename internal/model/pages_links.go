@@ -32,7 +32,8 @@ var PagesLinkTypes = []PagesLinkType{
 	{"feed", "RSS or Atom feed", "rss-24"},
 }
 
-// OrderedLinks returns declared links in YAML order, with defaults for new keys.
+// OrderedLinks returns supported declared links in YAML order.
+// Keys without a recorded YAML position follow in PagesLinkTypes order.
 func (p *PagesSettings) OrderedLinks() []PagesLinkType {
 	if p == nil || p.Links == nil {
 		return nil

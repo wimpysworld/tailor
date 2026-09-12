@@ -9,7 +9,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
-// allNonConfigSwatches returns every registered swatch except .tailor.yml.
+// allNonConfigSwatches returns defaults for a config with no language opt-in, except .tailor.yml.
 func allNonConfigSwatches() []swatch.Swatch {
 	var out []swatch.Swatch
 	for _, s := range (&Config{}).ActiveDefaultSwatches() {
@@ -89,7 +89,7 @@ func TestMergeNeverNotDuplicated(t *testing.T) {
 
 	added := MergeDefaultSwatches(cfg)
 
-	// .gitignore already present (with never), should not be duplicated.
+	// A different alteration mode does not make an existing path a new entry.
 	count := 0
 	for _, e := range cfg.Swatches {
 		if e.Path == ".gitignore" {
@@ -100,7 +100,6 @@ func TestMergeNeverNotDuplicated(t *testing.T) {
 		t.Fatalf(".gitignore appears %d times, want 1", count)
 	}
 
-	// Should not be in the added slice either.
 	for _, e := range added {
 		if e.Path == ".gitignore" {
 			t.Fatal(".gitignore should not appear in added slice")
@@ -355,7 +354,7 @@ func TestMergeRepoSettingsPreservesExplicitFalseSecuritySettings(t *testing.T) {
 func TestMergeRepoSettingsFullRepository(t *testing.T) {
 	def := defaultConfig(t).Repository
 
-	// Deep-copy default into a new RepositorySettings so every field is set.
+	// Copy the set defaults independently so mutation cannot affect the comparison source.
 	full := &model.RepositorySettings{}
 	dv := reflect.ValueOf(def).Elem()
 	fv := reflect.ValueOf(full).Elem()
