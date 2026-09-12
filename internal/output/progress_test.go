@@ -19,7 +19,7 @@ func TestFastProgressPTYHelper(t *testing.T) {
 	}
 	if mode == "probe-control" {
 		_, _ = io.WriteString(os.Stderr, "\x1b[?2026$p\x1b[?2027$p")
-		time.Sleep(100 * time.Millisecond)
+		testutil.WaitForPTYProbeEcho(t)
 		return
 	}
 	progress := New(os.Stdout, os.Stderr, Auto, WithColor(ColorNever)).StartProgress()
