@@ -4,12 +4,15 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/output"
+	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
@@ -171,6 +174,73 @@ func TestExecuteEmitsEveryAlterStage(t *testing.T) {
 	for _, label := range []string{"Applying GitHub settings", "Applying labels", "Applying variables", "Applying Pages changes", "Applying wiki changes", "Writing licence", "Writing swatches"} {
 		if !slices.ContainsFunc(events, func(event output.StageEvent) bool { return event.Label == label }) {
 			t.Errorf("missing mutation label %q: %#v", label, events)
+		}
+	}
+}
+
+func TestExecuteRetainsLicenceResult(t *testing.T) {
+	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
+		for _, failSwatch := range []bool{false, true} {
+			name := stageLabel(mode, "dry-run", "apply")
+			if mode == Recut {
+				name = "recut"
+			}
+			if failSwatch {
+				name += "/swatch-failure"
+			} else {
+				name += "/success"
+			}
+			t.Run(name, func(t *testing.T) {
+				dir := t.TempDir()
+				if failSwatch {
+					if err := os.Mkdir(filepath.Join(dir, "SECURITY.md"), 0o755); err != nil {
+						t.Fatal(err)
+					}
+				}
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/user":
+						_, _ = io.WriteString(w, `{"login":"tailor"}`)
+					case "/licenses/MIT":
+						_, _ = io.WriteString(w, `{"body":"MIT licence text"}`)
+					default:
+						t.Errorf("unexpected request: %s", r.URL.Path)
+						http.NotFound(w, r)
+					}
+				}))
+				defer server.Close()
+				cfg := &config.Config{License: "MIT", Swatches: []config.SwatchEntry{{Path: "SECURITY.md", Alteration: swatch.FirstFit}}}
+				report, err := Execute(cfg, dir, mode, testutil.NewTestClient(t, server), io.Discard, Options{})
+				if failSwatch {
+					if err == nil || !strings.Contains(err.Error(), "SECURITY.md") {
+						t.Fatalf("expected swatch failure, got %v", err)
+					}
+				} else if err != nil {
+					t.Fatal(err)
+				}
+				count := 0
+				for _, item := range report.Document.Items {
+					if item.Name == licenceDestination {
+						count++
+						want := output.Alteration
+						if mode.ShouldWrite() {
+							want = output.Applied
+						}
+						if item.Outcome != want || item.Action != "copy" {
+							t.Errorf("licence item = %#v", item)
+						}
+					}
+				}
+				if count != 1 || strings.Count(report.Plain, licenceDestination) != 1 {
+					t.Fatalf("expected one licence result, got %d typed and plain %q", count, report.Plain)
+				}
+				if mode.ShouldWrite() {
+					data, err := os.ReadFile(filepath.Join(dir, licenceDestination))
+					if err != nil || string(data) != "MIT licence text" {
+						t.Fatalf("licence file = %q, error = %v", data, err)
+					}
+				}
+			})
 		}
 	}
 }
