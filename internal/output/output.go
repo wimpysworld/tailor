@@ -124,6 +124,7 @@ func New(stdout, stderr io.Writer, format Format, options ...Option) *Policy {
 func (p *Policy) Stdout() io.Writer { return p.stdout }
 func (p *Policy) Stderr() io.Writer { return p.stderr }
 func (p *Policy) Rich() bool        { return p.format == Auto && p.tty && os.Getenv("TERM") != "dumb" }
+
 func (p *Policy) StartProgress() *Progress {
 	if p.format == Plain {
 		return nil

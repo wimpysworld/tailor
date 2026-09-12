@@ -103,11 +103,12 @@ func buildReport(command, context string, repo []RepoSettingResult, labels []Lab
 	}
 	doc.Summary = output.Count(doc.Items)
 	if mode == DryRun {
-		if doc.Summary.Alterations > 0 {
+		switch {
+		case doc.Summary.Alterations > 0:
 			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Text: "No changes made. Run `tailor alter` to apply " + alterationCount(doc.Summary.Alterations) + "."})
-		} else if doc.Summary.Attention > 0 {
+		case doc.Summary.Attention > 0:
 			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Text: "No changes made. Resolve the items that need attention, then run `tailor baste` again."})
-		} else {
+		default:
 			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Text: "No changes needed."})
 		}
 	}
