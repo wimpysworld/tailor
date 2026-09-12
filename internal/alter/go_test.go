@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -24,6 +25,34 @@ func goConfig(entries ...config.SwatchEntry) *config.Config {
 	return &config.Config{Languages: &config.LanguageSettings{Go: &enabled}, Swatches: entries}
 }
 
+func assertGeneratedDockerfile(t *testing.T, dir string) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, "Dockerfile"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var instructions []string
+	for line := range strings.SplitSeq(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line != "" && !strings.HasPrefix(line, "#") {
+			instructions = append(instructions, line)
+		}
+	}
+	if len(instructions) == 0 || !regexp.MustCompile(`^FROM cgr\.dev/chainguard/static@sha256:[0-9a-f]{64}$`).MatchString(instructions[0]) {
+		t.Fatalf("Dockerfile lacks a digest-pinned Chainguard static base:\n%s", data)
+	}
+	want := []string{
+		"ARG TARGETPLATFORM",
+		"ARG BINARY",
+		"COPY ${TARGETPLATFORM}/${BINARY} /usr/local/bin/app",
+		"USER 65532",
+		`ENTRYPOINT ["/usr/local/bin/app"]`,
+	}
+	if !reflect.DeepEqual(instructions[1:], want) {
+		t.Fatalf("Dockerfile instructions after FROM = %q, want %q", instructions[1:], want)
+	}
+}
+
 func TestExecuteGoBuilderDefaultBranch(t *testing.T) {
 	for _, noRepo := range []bool{false, true} {
 		t.Run(map[bool]string{false: "repository", true: "local"}[noRepo], func(t *testing.T) {
@@ -38,6 +67,7 @@ func TestExecuteGoBuilderDefaultBranch(t *testing.T) {
 			if _, err := alter.Execute(cfg, tc.Dir, alter.Apply, tc.Client, nil, alter.Options{}); err != nil {
 				t.Fatal(err)
 			}
+			assertGeneratedDockerfile(t, tc.Dir)
 			data, err := os.ReadFile(filepath.Join(tc.Dir, ".github/workflows/build-go.yml"))
 			if err != nil || bytes.Contains(data, []byte("[[TAILOR_")) {
 				t.Fatalf("builder unresolved: %v", err)
@@ -145,6 +175,7 @@ func TestExecuteGoBuilderMetadata(t *testing.T) {
 						}
 					}
 					if mode == alter.Apply {
+						assertGeneratedDockerfile(t, dir)
 						data, err := os.ReadFile(filepath.Join(dir, ".github/workflows/build-go.yml"))
 						want := tt.branch
 						if want == "" {
@@ -181,6 +212,7 @@ func TestGoSwatchModes(t *testing.T) {
 			if err != nil || !bytes.Contains(data, []byte("trunk")) {
 				t.Fatalf("builder lacks default branch: %v", err)
 			}
+			assertGeneratedDockerfile(t, dir)
 			data, err = os.ReadFile(filepath.Join(dir, ".goreleaser.yaml"))
 			if err != nil || !bytes.Contains(data, []byte("./cmd/demo")) {
 				t.Fatalf("release config lacks discovered build: %s, %v", data, err)
@@ -352,6 +384,8 @@ func TestGoReleaseDockerfileDependency(t *testing.T) {
 					if err != nil || string(data) != "FROM custom\n" {
 						t.Fatalf("custom Dockerfile changed: %s, %v", data, err)
 					}
+				} else {
+					assertGeneratedDockerfile(t, dir)
 				}
 				if tt.existing == "symlink" {
 					data, err := os.ReadFile(filepath.Join(dir, "custom.Dockerfile"))
