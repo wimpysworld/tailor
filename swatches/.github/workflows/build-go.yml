@@ -100,21 +100,28 @@ jobs:
           comment-summary-in-pr: never
 
       - name: Run govulncheck
+        id: govulncheck
         if: ${{ !cancelled() }}
         uses: golang/govulncheck-action@032d45514ae346b1db93c04b0c90b841c370344f # v1.1.0
         with:
           go-version-file: go.mod
           repo-checkout: false
-          output-format: text
+          output-format: json
+          output-file: govulncheck.json
+
+      - name: Check vulnerabilities
+        if: ${{ !cancelled() && steps.govulncheck.outcome == 'success' }}
+        run: govulncheck -mode convert -format text < govulncheck.json
 
       - name: Generate SARIF
         if: >-
           !cancelled()
+          && steps.govulncheck.outcome == 'success'
           && !github.event.repository.private
           && github.actor != 'dependabot[bot]'
           && (github.event_name != 'pull_request'
               || github.event.pull_request.head.repo.full_name == github.repository)
-        run: govulncheck -format sarif ./... > govulncheck.sarif
+        run: govulncheck -mode convert -format sarif < govulncheck.json > govulncheck.sarif
 
       - name: Upload SARIF
         uses: github/codeql-action/upload-sarif@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
