@@ -180,6 +180,9 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	if err != nil {
 		return partial(err)
 	}
+	if licenceResult != nil {
+		swatchResults = append([]SwatchResult{*licenceResult}, swatchResults...)
+	}
 	options.stage("licence", stageLabel(mode, "Licence planned", "Licence written"), "complete")
 	options.stage("swatches", stageLabel(mode, "Planning swatches", "Writing swatches"), "start")
 	processedSwatches, err := ProcessSwatches(cfg, dir, mode, &tokens)
@@ -196,9 +199,6 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 			return partial(filesErr)
 		}
 		options.stage("pages-files", stageLabel(mode, "Pages files planned", "Pages files written"), "complete")
-	}
-	if licenceResult != nil {
-		swatchResults = append([]SwatchResult{*licenceResult}, swatchResults...)
 	}
 	if configChanged && !mode.ShouldWrite() {
 		swatchResults = append(swatchResults, SwatchResult{Path: configPath, Category: WouldUpdateConfig})
