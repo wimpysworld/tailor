@@ -94,7 +94,7 @@ func (c *resultComparer) languages(declared, live *[]string) {
 	if live != nil {
 		current := slices.Clone(*live)
 		slices.Sort(current)
-		before = strings.Join(current, ", ")
+		before = listText(current)
 	}
 	c.add("languages", strings.Join(desired, ", "), before, live != nil && equalStringSets(desired, *live))
 }
