@@ -312,6 +312,25 @@ func TestProgressPolicyControlsColourASCIIAndVerbose(t *testing.T) {
 	}
 }
 
+func TestProgressSpinnerIgnoresPreviousStart(t *testing.T) {
+	for _, phase := range []string{"complete", "error", "start"} {
+		t.Run(phase, func(t *testing.T) {
+			model := NewProgressModel()
+			updated, oldCmd := model.Update(StageEvent{ID: "auth", Phase: "start"})
+			updated, _ = updated.(ProgressModel).Update(StageEvent{ID: "auth", Phase: phase})
+			updated, currentCmd := updated.(ProgressModel).Update(StageEvent{ID: "auth", Phase: "start"})
+			updated, cmd := updated.(ProgressModel).Update(oldCmd())
+			if updated.(ProgressModel).active || cmd != nil {
+				t.Fatal("previous start activated the spinner for a reused stage ID")
+			}
+			updated, cmd = updated.(ProgressModel).Update(currentCmd())
+			if !updated.(ProgressModel).active || cmd == nil {
+				t.Fatal("current start did not activate the spinner")
+			}
+		})
+	}
+}
+
 func TestProgressSpinnerDelayAndLifecycle(t *testing.T) {
 	model := NewProgressModel()
 	updated, cmd := model.Update(StageEvent{ID: "auth", Label: "Authenticating", Phase: "start"})
@@ -319,7 +338,7 @@ func TestProgressSpinnerDelayAndLifecycle(t *testing.T) {
 	if started.active || cmd == nil {
 		t.Fatal("spinner must wait and schedule activation")
 	}
-	updated, _ = started.Update(activateSpinner{id: "auth"})
+	updated, _ = started.Update(activateSpinner{id: "auth", generation: started.generation})
 	active := updated.(ProgressModel)
 	if !active.active || !strings.Contains(active.View().Content, "Authenticating") {
 		t.Fatal("spinner did not activate")
