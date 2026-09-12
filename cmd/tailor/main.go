@@ -162,8 +162,7 @@ func (f *FitCmd) Run() (runErr error) {
 func mergeLiveSetup(cfg *config.Config, client *api.RESTClient, repo gh.Repo, stderr io.Writer) error {
 	immutable, err := gh.ReadImmutableReleases(client, repo.Owner, repo.Name)
 	if err != nil {
-		var scope *gh.ErrInsufficientScope
-		if !errors.As(err, &scope) {
+		if _, ok := errors.AsType[*gh.ErrInsufficientScope](err); !ok {
 			return err
 		}
 		fmt.Fprintf(stderr, "warning: %v\n", err)
@@ -194,8 +193,7 @@ func mergeLiveSetup(cfg *config.Config, client *api.RESTClient, repo gh.Repo, st
 // warnSkipped writes a skipped setup read as a warning and returns nil, so
 // the caller keeps the built-in section. Any other error is returned as is.
 func warnSkipped(err error, stderr io.Writer) error {
-	var skipped *gh.ErrSetupSkipped
-	if errors.As(err, &skipped) {
+	if _, ok := errors.AsType[*gh.ErrSetupSkipped](err); ok {
 		fmt.Fprintf(stderr, "warning: %v\n", err)
 		return nil
 	}

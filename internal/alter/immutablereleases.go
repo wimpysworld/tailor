@@ -29,8 +29,7 @@ func ProcessImmutableReleases(cfg *config.Config, mode ApplyMode, target RepoTar
 		}
 	}
 	if err != nil {
-		var scope *gh.ErrInsufficientScope
-		if !errors.As(err, &scope) {
+		if _, ok := errors.AsType[*gh.ErrInsufficientScope](err); !ok {
 			return nil, err
 		}
 		result.Category = WouldSkipSetup

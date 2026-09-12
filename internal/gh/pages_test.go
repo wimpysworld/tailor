@@ -43,8 +43,7 @@ func TestReadPagesRepository(t *testing.T) {
 				t.Fatalf("state = %+v", state)
 			}
 			if err != nil && !tt.private {
-				var scope *ErrInsufficientScope
-				if !errors.As(err, &scope) {
+				if _, ok := errors.AsType[*ErrInsufficientScope](err); !ok {
 					t.Fatalf("want scope error, got %v", err)
 				}
 			}
@@ -82,13 +81,11 @@ func TestReadPagesAbsenceAndErrors(t *testing.T) {
 					t.Fatalf("state=%+v err=%v", state, err)
 				}
 			case "scope":
-				var scope *ErrInsufficientScope
-				if !errors.As(err, &scope) {
+				if _, ok := errors.AsType[*ErrInsufficientScope](err); !ok {
 					t.Fatalf("err=%v", err)
 				}
 			case "rate":
-				var limited *ErrRateLimited
-				if !errors.As(err, &limited) {
+				if _, ok := errors.AsType[*ErrRateLimited](err); !ok {
 					t.Fatalf("err=%v", err)
 				}
 			case "hard":

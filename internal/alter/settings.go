@@ -229,8 +229,7 @@ func readWarningsToResults(results []RepoSettingResult, warnings []error, declar
 
 // warningOperation extracts the operation kind from a read-path warning.
 func warningOperation(err error) gh.OperationKind {
-	var scopeErr *gh.ErrInsufficientScope
-	if errors.As(err, &scopeErr) {
+	if scopeErr, ok := errors.AsType[*gh.ErrInsufficientScope](err); ok {
 		return scopeErr.Operation.Kind
 	}
 	return gh.OpNone
