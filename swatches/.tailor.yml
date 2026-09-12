@@ -253,6 +253,9 @@ swatches:
   - path: .goreleaser.yaml
     alteration: first-fit
 
+  - path: Dockerfile
+    alteration: first-fit
+
   - path: .github/workflows/build-go.yml
     alteration: first-fit
 

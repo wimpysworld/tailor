@@ -21,7 +21,7 @@ func (cfg *Config) GoEnabled() bool {
 
 func (cfg *Config) SwatchActive(path string) bool {
 	switch path {
-	case ".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml":
+	case ".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", "Dockerfile":
 		return cfg.GoEnabled()
 	default:
 		return true

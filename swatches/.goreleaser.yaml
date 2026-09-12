@@ -1,11 +1,28 @@
 version: 2
 
+before:
+  hooks:
+    - >-
+      sh -c 'test -n "$GITHUB_REPOSITORY" && test -n "$GITHUB_REPOSITORY_OWNER" ||
+      { echo "set GITHUB_REPOSITORY=owner/repository and GITHUB_REPOSITORY_OWNER=owner before running GoReleaser" >&2; exit 1; }'
+
 [[TAILOR_GO_BUILDS]]
 
 archives:
   - formats:
       - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+nfpms:
+  - id: packages
+    ids: [[TAILOR_GO_PACKAGE_IDS]]
+    package_name: '{{ $name := replace (tolower .ProjectName) "_" "-" }}{{ if or (not (filter $name "^[a-z0-9]")) (lt (len $name) 2) }}pkg-{{ end }}{{ $name }}'
+    formats: [deb, rpm, apk]
+    maintainer: '{{ .Env.GITHUB_REPOSITORY_OWNER }}'
+    homepage: 'https://github.com/{{ .Env.GITHUB_REPOSITORY }}'
+    bindir: /usr/bin
+
+[[TAILOR_GO_DOCKERS]]
 
 checksum:
   name_template: "{{ .ProjectName }}_{{ .Version }}_checksums.txt"

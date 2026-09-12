@@ -61,7 +61,7 @@ func TestLanguagesStrictParsing(t *testing.T) {
 }
 
 func TestGoDefaultsAndMerge(t *testing.T) {
-	paths := []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml"}
+	paths := []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", "Dockerfile"}
 	defaults, err := DefaultConfig("MIT")
 	if err != nil {
 		t.Fatal(err)
@@ -110,11 +110,13 @@ func TestGoDefaultsAndMerge(t *testing.T) {
 func TestGoMergePreservesExistingEntries(t *testing.T) {
 	for _, enabled := range []bool{false, true} {
 		for _, mode := range []swatch.AlterationMode{swatch.Always, swatch.FirstFit, swatch.Never} {
-			entry := SwatchEntry{Path: ".golangci.yml", Alteration: mode}
-			cfg := &Config{Languages: &LanguageSettings{Go: &enabled}, Swatches: []SwatchEntry{entry}}
-			MergeDefaultSwatches(cfg)
-			if cfg.Swatches[0] != entry {
-				t.Fatalf("merge changed existing entry %v", entry)
+			for _, path := range []string{".golangci.yml", "Dockerfile"} {
+				entry := SwatchEntry{Path: path, Alteration: mode}
+				cfg := &Config{Languages: &LanguageSettings{Go: &enabled}, Swatches: []SwatchEntry{entry}}
+				MergeDefaultSwatches(cfg)
+				if cfg.Swatches[0] != entry {
+					t.Fatalf("merge changed existing entry %v", entry)
+				}
 			}
 		}
 	}

@@ -26,7 +26,7 @@ func prepareGoSwatches(cfg *config.Config, dir string, mode ApplyMode, branch st
 			continue
 		}
 		switch entry.Path {
-		case ".golangci.yml", ".goreleaser.yaml", goBuilderPath, ".github/dependabot.yml", "justfile":
+		case ".golangci.yml", ".goreleaser.yaml", goBuilderPath, "Dockerfile", ".github/dependabot.yml", "justfile":
 		default:
 			continue
 		}
@@ -55,6 +55,12 @@ func prepareGoSwatches(cfg *config.Config, dir string, mode ApplyMode, branch st
 		options.Builds, err = goproject.Discover(dir)
 		if err != nil {
 			return nil, fmt.Errorf("preparing GoReleaser: %w", err)
+		}
+		if !planned["Dockerfile"] {
+			info, err := root.Lstat("Dockerfile")
+			if err != nil || !info.Mode().IsRegular() {
+				return nil, fmt.Errorf("goreleaser requires Dockerfile: provide a regular file or enable its swatch")
+			}
 		}
 	}
 	for path, needed := range planned {

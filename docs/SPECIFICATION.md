@@ -46,6 +46,7 @@ The `fit`, `alter`, and `baste` commands require a valid authentication token: a
 | `.golangci.yml` | `.golangci.yml` |
 | `.goreleaser.yaml` | `.goreleaser.yaml` |
 | `.github/workflows/build-go.yml` | `.github/workflows/build-go.yml` |
+| `Dockerfile` | `Dockerfile` |
 | `cubic.yaml` | `cubic.yaml` |
 | `.github/FUNDING.yml` | `.github/FUNDING.yml` |
 | `.github/dependabot.yml` | `.github/dependabot.yml` |
@@ -268,9 +269,9 @@ languages:
 
 New configurations contain `languages.go: false`. Default merging preserves an absent `languages` section or absent `go` key in existing configurations. It never infers language selection from source files or CodeQL settings. `code_scanning.languages` and `code_quality.languages` remain independent.
 
-Only explicit `languages.go: true` activates `.golangci.yml`, `.goreleaser.yaml`, and `.github/workflows/build-go.yml`. All three are development swatches with `first-fit` defaults. The registry contains these entries even when Go is inactive. Default merging appends missing entries only when the config swatch mode permits merging, without changing existing modes.
+Only explicit `languages.go: true` activates `.golangci.yml`, `.goreleaser.yaml`, `.github/workflows/build-go.yml`, and `Dockerfile`. All four are development swatches with `first-fit` defaults. The registry contains these entries even when Go is inactive. Default merging appends missing entries only when the config swatch mode permits merging, without changing existing modes.
 
-False or absent Go selection skips the three destinations without deletion or replacement, including with `--recut`. Existing workflows continue to run on GitHub. Disabling Go in Tailor does not disable a workflow. Active Go swatches use the ordinary `always`, `first-fit`, `never`, and `--recut` rules. Existing customised first-fit files remain unchanged during normal alterations.
+False or absent Go selection skips the four destinations without deletion or replacement, including with `--recut`. Existing workflows continue to run on GitHub. Disabling Go in Tailor does not disable a workflow. Active Go swatches use the ordinary `always`, `first-fit`, `never`, and `--recut` rules. Existing customised first-fit files remain unchanged during normal alterations.
 
 Go selection also controls two existing swatches when Tailor renders them:
 
@@ -297,11 +298,31 @@ An existing first-fit release configuration does not require discovery. A `never
 
 Before Tailor creates or overwrites the builder workflow, it checks `.golangci.yml` and `.goreleaser.yaml`. Each dependency must already be a regular file, or Tailor must plan to create it. Existing dependency files cannot be symlinks. Tailor does not parse their contents. An existing first-fit builder workflow or a `never` entry skips these checks.
 
+Before Tailor creates or overwrites `.goreleaser.yaml`, it checks `Dockerfile` with the same regular-file or planned-creation requirement. An existing first-fit release configuration or a `never` entry skips this check. Tailor does not parse custom Dockerfiles or check their compatibility with the generated release configuration.
+
+Library-only projects can retain `.golangci.yml` and set `.goreleaser.yaml`, `.github/workflows/build-go.yml`, and `Dockerfile` to `never`.
+
+#### Go release outputs
+
+The default release configuration uses free GoReleaser features and disables CGO. It retains archives for Linux and macOS, each on amd64 and arm64.
+
+The nFPM configuration produces `deb`, `rpm`, and `apk` packages for Linux on amd64 and arm64. Each package includes all discovered executables. GitHub Releases contain the archives, native packages, and checksums.
+
+The default package maintainer is `{{ .Env.GITHUB_REPOSITORY_OWNER }}`. Projects can replace `nfpms[].maintainer` with their maintainer's name and email address before publication.
+
+Each executable also produces one multi-platform GHCR image for Linux on amd64 and arm64. A single executable uses `ghcr.io/<owner>/<repo>`, in lowercase. Tailor replaces each `_` and `.` in the repository name with a hyphen. Tailor adds `image` before a leading hyphen and after a trailing hyphen. Other repository names remain unchanged apart from case.
+
+Multiple executables append a hyphen and a normalised binary name. Tailor lowercases binary names, collapses non-alphanumeric runs to hyphens, and trims leading and trailing hyphens. Stable numeric suffixes resolve collisions. Version tags apply to all releases. Only stable releases update `latest`.
+
+The Dockerfile swatch uses the same digest-pinned Chainguard static base as Tailor's root Dockerfile. It accepts a `BINARY` argument and copies the selected platform's executable to a fixed application entrypoint. The image runs as a non-root user. Existing custom first-fit Dockerfiles remain unchanged during normal alterations, and `never` always preserves them.
+
+The generated release configuration requires `GITHUB_REPOSITORY` and `GITHUB_REPOSITORY_OWNER` at runtime. GitHub Actions supplies both variables. Local GoReleaser runs must set them explicitly. Use GoReleaser v2.18.0 or later for local snapshots. Local snapshots require Docker with a running daemon and Docker Buildx.
+
 #### Go builder workflow
 
-The builder workflow runs tests, coverage, lint checks, and govulncheck. Pull requests and default-branch pushes build GoReleaser snapshots and upload downloadable artifacts without publishing a release. Tags that match `v*.*.*` publish archives and checksums to GitHub Releases. Default-branch handling must use the repository's default branch, not a fixed `main` or `master` branch.
+The builder workflow runs tests, coverage, lint checks, and govulncheck. Pull requests and default-branch pushes build GoReleaser snapshots and upload archives, native packages, and checksums without publication. Snapshot jobs build container images locally, but do not push images or include them in downloadable artifacts. Tags that match `v*.*.*` publish GitHub Releases and GHCR images. Default-branch handling must use the repository's default branch, not a fixed `main` or `master` branch.
 
-The Go release templates use GitHub-hosted runners and do not require Nix or containers. They do not publish to third-party package services or configure signing. Go support does not change Tailor's independent CodeQL default setup.
+The Go release templates use GitHub-hosted runners and do not require Nix or GoReleaser Pro. The release job authenticates to GHCR with the existing GitHub token and grants `packages: write`. No extra secrets are required. The templates do not configure signing or external package repositories. Go support does not change Tailor's independent CodeQL default setup.
 
 ### GitHub wiki
 
@@ -309,7 +330,7 @@ The wiki publication job uses `ubuntu-slim` with an explicit 15-minute timeout, 
 
 `repository.has_wiki: true` activates four wiki swatches on public repositories. No separate config section or command exists. New configs retain `has_wiki: false`. Existing-project `fit` preserves the live setting. An omitted setting leaves wiki files unmanaged, even when default merging adds `false` during that run.
 
-The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Existing starter destinations remain unchanged, including recut and an explicit `always` mode. `never` skips creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 28 swatches.
+The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Existing starter destinations remain unchanged, including recut and an explicit `always` mode. `never` skips creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 29 swatches.
 
 Local safety preflight runs before writes. It rejects source symlinks, Git metadata, non-regular files and unsafe workflow destinations or parents through rooted filesystem access. Pages preflight also completes before wiki enablement. Tailor reads repository privacy, the current default branch and `has_wiki`. Known private repositories and projects without repository context skip wiki files. Unavailable or incomplete repository metadata blocks readiness.
 
@@ -440,6 +461,7 @@ List access failures skip variable management without writes. Individual write a
 | `.golangci.yml` (only when `languages.go: true`) | `first-fit` |
 | `.goreleaser.yaml` (only when `languages.go: true`) | `first-fit` |
 | `.github/workflows/build-go.yml` (only when `languages.go: true`) | `first-fit` |
+| `Dockerfile` (only when `languages.go: true`) | `first-fit` |
 | `.tailor.yml` | `always` |
 
 **Swatch Categories**: Each swatch is designated either `health` or `development`. This designation is an internal attribute used by `measure` to scope its file presence checks.
@@ -472,6 +494,7 @@ List access failures skip variable management without writes. Individual write a
 - `.golangci.yml`
 - `.goreleaser.yaml`
 - `.github/workflows/build-go.yml`
+- `Dockerfile`
 - `cubic.yaml`
 - `.tailor.yml`
 
@@ -567,7 +590,7 @@ The live display contains at most three lines and stops before final standard ou
 
 Creates a new project directory and writes `.tailor.yml` with the full default swatch set and the repository settings. When run against an existing project with a GitHub remote, `fit` queries the live repository configuration and uses those values for the `repository` section, preserving the project's current state. When no repository context exists, the built-in defaults are used. Does not copy any files or apply any settings. After `fit`, change into `<path>` before running `alter`.
 
-The default swatch set contains 28 registered destinations:
+The default swatch set contains 29 registered destinations:
 
 - `.github/workflows/tailor-pages.yml`
 - `pages/index.html`
@@ -592,6 +615,7 @@ The default swatch set contains 28 registered destinations:
 - `.golangci.yml`
 - `.goreleaser.yaml`
 - `.github/workflows/build-go.yml`
+- `Dockerfile`
 - `flake.nix`
 - `.gitignore`
 - `.envrc`
@@ -949,7 +973,7 @@ Behaviour:
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 
-The active configuration has 28 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
+The active configuration has 29 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
 
 Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
 
@@ -1209,6 +1233,9 @@ swatches:
   - path: .github/workflows/build-go.yml
     alteration: first-fit
 
+  - path: Dockerfile
+    alteration: first-fit
+
   - path: flake.nix
     alteration: first-fit
 
@@ -1275,6 +1302,7 @@ swatches/
 ├── .gitignore
 ├── .golangci.yml
 ├── .goreleaser.yaml
+├── Dockerfile
 ├── cubic.yaml
 ├── CODE_OF_CONDUCT.md
 ├── CONTRIBUTING.md
