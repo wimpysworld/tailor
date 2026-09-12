@@ -3,8 +3,12 @@ version: 2
 before:
   hooks:
     - >-
-      sh -c 'test -n "$GITHUB_REPOSITORY" && test -n "$GITHUB_REPOSITORY_OWNER" ||
-      { echo "set GITHUB_REPOSITORY=owner/repository and GITHUB_REPOSITORY_OWNER=owner before running GoReleaser" >&2; exit 1; }'
+      sh -c 'case "$GITHUB_REPOSITORY" in
+      ""|/*|*/|*/*/*|*[[:space:][:cntrl:]]*) ;;
+      */*) test -n "$GITHUB_REPOSITORY_OWNER" &&
+      test "$GITHUB_REPOSITORY_OWNER" = "${GITHUB_REPOSITORY%%/*}" && exit 0 ;;
+      esac;
+      echo "set GITHUB_REPOSITORY=owner/repository and GITHUB_REPOSITORY_OWNER=owner before running GoReleaser" >&2; exit 1'
 
 [[TAILOR_GO_BUILDS]]
 

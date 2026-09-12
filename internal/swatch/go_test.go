@@ -264,17 +264,40 @@ func TestRenderGoReleaseRequiresRuntimeRepository(t *testing.T) {
 	if len(release.Before.Hooks) != 1 {
 		t.Fatal("expected a runtime repository check")
 	}
-	for _, variables := range [][]string{nil, {"GITHUB_REPOSITORY=owner/repo"}, {"GITHUB_REPOSITORY_OWNER=owner"}, {"GITHUB_REPOSITORY=owner/repo", "GITHUB_REPOSITORY_OWNER=owner"}} {
+	for _, test := range []struct {
+		repository, owner string
+		valid             bool
+	}{
+		{},
+		{"owner/repo", "", false},
+		{"", "owner", false},
+		{"owner", "owner", false},
+		{"/repo", "owner", false},
+		{"owner/", "owner", false},
+		{"owner/repo/extra", "owner", false},
+		{"owner/repo", "other", false},
+		{"owner/re po", "owner", false},
+		{"owner/repo\n", "owner", false},
+		{"owner/re\x01po", "owner", false},
+		{"own er/repo", "own er", false},
+		{"owner/repo", "owner", true},
+		{"Owner/My_Repo", "Owner", true},
+		{"Owner/_My_Repo", "Owner", true},
+		{"Owner/app.", "Owner", true},
+		{"Owner/.app.", "Owner", true},
+		{"Owner/app..name", "Owner", true},
+		{"Owner/___", "Owner", true},
+	} {
 		command := exec.CommandContext(t.Context(), "sh")
 		command.Stdin = strings.NewReader(release.Before.Hooks[0])
-		command.Env = append([]string{"PATH=" + os.Getenv("PATH")}, variables...)
+		command.Env = []string{"PATH=" + os.Getenv("PATH"), "GITHUB_REPOSITORY=" + test.repository, "GITHUB_REPOSITORY_OWNER=" + test.owner}
 		output, err := command.CombinedOutput()
-		if len(variables) == 2 {
+		if test.valid {
 			if err != nil {
-				t.Fatalf("valid repository rejected: %v\n%s", err, output)
+				t.Fatalf("valid repository %q rejected: %v\n%s", test.repository, err, output)
 			}
 		} else if err == nil || !bytes.Contains(output, []byte("set GITHUB_REPOSITORY=owner/repository")) {
-			t.Fatalf("missing repository input did not fail clearly: %v\n%s", err, output)
+			t.Fatalf("invalid repository %q with owner %q did not fail clearly: %v\n%s", test.repository, test.owner, err, output)
 		}
 	}
 }
