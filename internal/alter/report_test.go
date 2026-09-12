@@ -8,13 +8,110 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/output"
 	"github.com/wimpysworld/tailor/internal/swatch"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
+
+func TestRepeatedAlertsEnablementReport(t *testing.T) {
+	const reason = "reapply enable request for Dependency Graph"
+	for _, tc := range []struct {
+		name       string
+		mode       ApplyMode
+		status     int
+		wantWrites int32
+		wantError  bool
+		outcome    output.Outcome
+	}{
+		{"baste", DryRun, http.StatusNoContent, 0, false, output.Alteration},
+		{"alter", Apply, http.StatusNoContent, 1, false, output.Applied},
+		{"recut", Recut, http.StatusNoContent, 1, false, output.Applied},
+		{"scope denied", Apply, http.StatusForbidden, 1, false, output.Attention},
+		{"write failed", Apply, http.StatusUnprocessableEntity, 1, true, ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var writes atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPut && r.URL.Path == "/repos/owner/repo/vulnerability-alerts" {
+					writes.Add(1)
+					w.WriteHeader(tc.status)
+					if tc.status != http.StatusNoContent {
+						_, _ = io.WriteString(w, `{"message":"Resource not accessible by integration"}`)
+					}
+					return
+				}
+				if r.Method != http.MethodGet {
+					t.Errorf("unexpected write: %s %s", r.Method, r.URL.Path)
+					http.NotFound(w, r)
+					return
+				}
+				switch r.URL.Path {
+				case "/repos/owner/repo":
+					_, _ = io.WriteString(w, `{"permissions":{"admin":true}}`)
+				case "/repos/owner/repo/actions/permissions/workflow":
+					_, _ = io.WriteString(w, `{"default_workflow_permissions":"read"}`)
+				case "/repos/owner/repo/private-vulnerability-reporting", "/repos/owner/repo/automated-security-fixes":
+					_, _ = io.WriteString(w, `{"enabled":true}`)
+				case "/repos/owner/repo/vulnerability-alerts":
+					w.WriteHeader(http.StatusNoContent)
+				default:
+					t.Errorf("unexpected read: %s", r.URL.Path)
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			cfg := &config.Config{Repository: &model.RepositorySettings{VulnerabilityAlertsEnabled: new(true)}}
+			results, err := ProcessRepoSettings(cfg, tc.mode, RepoTarget{
+				Client: testutil.NewTestClient(t, server), Owner: "owner", Name: "repo", HasRepo: true,
+			})
+			if (err != nil) != tc.wantError {
+				t.Fatalf("ProcessRepoSettings() error = %v, want error = %t", err, tc.wantError)
+			}
+			if got := writes.Load(); got != tc.wantWrites {
+				t.Errorf("writes = %d, want %d", got, tc.wantWrites)
+			}
+			command := stageLabel(tc.mode, "baste", "alter")
+			report := buildReport(command, "owner/repo", results, nil, nil, nil, tc.mode)
+			if tc.wantError {
+				if len(report.Document.Items) != 0 || report.Plain != "" {
+					t.Fatalf("failed write reported results: %#v", report)
+				}
+				return
+			}
+			if len(report.Document.Items) != 1 {
+				t.Fatalf("items = %#v, want one item", report.Document.Items)
+			}
+			item := report.Document.Items[0]
+			if item.Outcome != tc.outcome {
+				t.Fatalf("outcome = %q, want %q", item.Outcome, tc.outcome)
+			}
+			if tc.outcome == output.Attention {
+				if item.Action != "skip" || strings.Contains(report.Plain, "repository.vulnerability_alerts_enabled = true") || strings.Contains(report.Plain, reason) {
+					t.Fatalf("denied write reported success: %#v", report)
+				}
+				return
+			}
+			if len(results) != 1 || results[0].Category != WouldSet || results[0].Before != "true" || results[0].Value != "true" || results[0].Annotation != reason {
+				t.Fatalf("raw results = %#v", results)
+			}
+			if item.Action != "set" || item.Before != "true" || item.After != "true" || item.Reason != reason || item.Provenance != "repository.vulnerability_alerts_enabled" {
+				t.Errorf("typed item = %#v", item)
+			}
+			rich := output.New(io.Discard, io.Discard, output.Auto, output.WithWidth(140), output.WithColor(output.ColorNever)).Render(report.Document)
+			if !strings.Contains(rich, "true → true") || !strings.Contains(rich, reason) {
+				t.Errorf("rich output omitted observed values or reason: %q", rich)
+			}
+			if tc.mode == DryRun && (report.Document.Summary.Alterations != 1 || report.Document.Summary.Applied != 0) {
+				t.Errorf("dry-run summary = %#v", report.Document.Summary)
+			}
+		})
+	}
+}
 
 func TestBuildReportClassifiesSetupSkipsAndAddsBasteGuidance(t *testing.T) {
 	report := buildReport("baste", "owner/repo", []RepoSettingResult{

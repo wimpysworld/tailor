@@ -63,6 +63,9 @@ func repoLines(results []RepoSettingResult, mode ApplyMode) []outputLine {
 		switch r.Category {
 		case WouldSet:
 			text = fmt.Sprintf("%s.%s = %s", section, r.Field, r.Value)
+			if r.Annotation != "" {
+				text += " (" + r.Annotation + ")"
+			}
 		case RepoNoChange:
 			text = fmt.Sprintf("%s.%s (already %s)", section, r.Field, r.Value)
 		case WouldSkipScope:

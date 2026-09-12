@@ -24,7 +24,7 @@ const (
 // RepoSettingResult records the field name, category, and display value for one
 // repository setting. Skip results for write operations leave Field empty and
 // carry the skipped Operation instead. Annotation carries optional context for
-// skip categories, embedded in the label (e.g. "token missing required scope").
+// skipped operations or repeated enable requests.
 type RepoSettingResult struct {
 	Section    string
 	Field      string
@@ -83,7 +83,7 @@ func ProcessRepoSettings(cfg *config.Config, mode ApplyMode, target RepoTarget) 
 }
 
 // changedSettings copies the fields of declared whose result is WouldSet into
-// a new settings value, so a write carries only the fields that differ.
+// a new settings value, so a write carries only actionable fields.
 func changedSettings[T any](declared *T, results []RepoSettingResult, fields func(*T) []model.SettingField) *T {
 	changed := make(map[string]bool)
 	for _, result := range results {
@@ -158,14 +158,20 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 		}
 
 		category := WouldSet
+		annotation := ""
 		if equal {
 			category = RepoNoChange
+			if field.YAMLKey == "vulnerability_alerts_enabled" && declaredVal == true {
+				category = WouldSet
+				annotation = "reapply enable request for Dependency Graph"
+			}
 		}
 		results = append(results, RepoSettingResult{
-			Field:    field.YAMLKey,
-			Category: category,
-			Value:    displayVal,
-			Before:   beforeVal,
+			Field:      field.YAMLKey,
+			Category:   category,
+			Value:      displayVal,
+			Before:     beforeVal,
+			Annotation: annotation,
 		})
 	}
 

@@ -93,6 +93,29 @@ func TestFormatOutputRepoSettingsOnly(t *testing.T) {
 	}
 }
 
+func TestFormatOutputRepeatedAlertsEnablement(t *testing.T) {
+	results := []RepoSettingResult{{
+		Field: "vulnerability_alerts_enabled", Category: WouldSet,
+		Before: "true", Value: "true", Annotation: "reapply enable request for Dependency Graph",
+	}}
+	for _, tc := range []struct {
+		name  string
+		mode  ApplyMode
+		label string
+	}{
+		{"baste", DryRun, "would set:"},
+		{"alter", Apply, "set:"},
+		{"recut", Recut, "set:"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			want := fmt.Sprintf("%-37srepository.vulnerability_alerts_enabled = true (reapply enable request for Dependency Graph)\n", tc.label)
+			if got := FormatOutput(results, nil, nil, nil, tc.mode); got != want {
+				t.Errorf("FormatOutput() = %q, want %q", got, want)
+			}
+		})
+	}
+}
+
 func TestFormatOutputCombined(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},

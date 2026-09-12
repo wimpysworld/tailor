@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -773,7 +774,7 @@ func TestProcessRepoSettingsSecurityFeaturesDryRun(t *testing.T) {
 	}
 }
 
-func TestProcessRepoSettingsAppliesOnlyChangedSecurityEndpoints(t *testing.T) {
+func TestProcessRepoSettingsReappliesAlertsWithoutOtherUnchangedSecurityEndpoints(t *testing.T) {
 	ghfake.FakeRepo(t, "testowner", "testrepo")
 	var patchWrites atomic.Int32
 	var securityWrites atomic.Int32
@@ -794,6 +795,9 @@ func TestProcessRepoSettingsAppliesOnlyChangedSecurityEndpoints(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		case r.Method == http.MethodPut || r.Method == http.MethodDelete:
 			securityWrites.Add(1)
+			if r.Method != http.MethodPut || r.URL.Path != "/repos/testowner/testrepo/vulnerability-alerts" {
+				t.Errorf("unexpected security write: %s %s", r.Method, r.URL.Path)
+			}
 			w.WriteHeader(http.StatusNoContent)
 		default:
 			http.NotFound(w, r)
@@ -809,8 +813,159 @@ func TestProcessRepoSettingsAppliesOnlyChangedSecurityEndpoints(t *testing.T) {
 	if _, err := alter.ProcessRepoSettings(cfg, alter.Apply, repoTarget(testutil.NewTestClient(t, server), "testowner", "testrepo", true)); err != nil {
 		t.Fatal(err)
 	}
-	if patchWrites.Load() != 1 || securityWrites.Load() != 0 {
-		t.Fatalf("patch writes = %d, security writes = %d, want 1 and 0", patchWrites.Load(), securityWrites.Load())
+	if patchWrites.Load() != 1 || securityWrites.Load() != 1 {
+		t.Fatalf("patch writes = %d, security writes = %d, want 1 and 1", patchWrites.Load(), securityWrites.Load())
+	}
+}
+
+func TestProcessRepoSettingsReconcilesDependencyGraph(t *testing.T) {
+	const alertsPath = "/repos/testowner/testrepo/vulnerability-alerts"
+	const fixesPath = "/repos/testowner/testrepo/automated-security-fixes"
+	tests := []struct {
+		name          string
+		mode          alter.ApplyMode
+		alertsDesired *bool
+		alertsLive    bool
+		fixesDesired  *bool
+		fixesLive     bool
+		normalise     bool
+		readStatus    int
+		writeStatus   int
+		wantError     bool
+		wantCategory  alter.RepoSettingCategory
+		wantWrites    []string
+	}{
+		{
+			name: "apply", mode: alter.Apply, alertsDesired: new(true), alertsLive: true,
+			fixesDesired: new(true), fixesLive: true, wantCategory: alter.WouldSet, wantWrites: []string{"PUT " + alertsPath},
+		},
+		{
+			name: "recut", mode: alter.Recut, alertsDesired: new(true), alertsLive: true,
+			wantCategory: alter.WouldSet, wantWrites: []string{"PUT " + alertsPath},
+		},
+		{
+			name: "preview", mode: alter.DryRun, alertsDesired: new(true), alertsLive: true,
+			wantCategory: alter.WouldSet,
+		},
+		{name: "unmanaged", mode: alter.Apply, alertsLive: true},
+		{
+			name: "already disabled", mode: alter.Apply, alertsDesired: new(false),
+			wantCategory: alter.RepoNoChange,
+		},
+		{
+			name: "normalised prerequisite", mode: alter.Apply, alertsLive: true,
+			fixesDesired: new(true), fixesLive: true, normalise: true,
+			wantCategory: alter.WouldSet, wantWrites: []string{"PUT " + alertsPath},
+		},
+		{
+			name: "enable fixes after repeated alerts", mode: alter.Apply, alertsDesired: new(true), alertsLive: true,
+			fixesDesired: new(true), wantCategory: alter.WouldSet,
+			wantWrites: []string{"PUT " + alertsPath, "PUT " + fixesPath},
+		},
+		{
+			name: "alerts read denied", mode: alter.Apply, alertsDesired: new(true), alertsLive: true,
+			fixesDesired: new(true), readStatus: http.StatusForbidden, wantCategory: alter.WouldSkipScope,
+		},
+		{
+			name: "alerts enable denied", mode: alter.Apply, alertsDesired: new(true), alertsLive: true,
+			fixesDesired: new(true), writeStatus: http.StatusForbidden,
+			wantCategory: alter.WouldSet, wantWrites: []string{"PUT " + alertsPath},
+		},
+		{
+			name: "alerts enable fails", mode: alter.Apply, alertsDesired: new(true), alertsLive: true,
+			fixesDesired: new(true), writeStatus: http.StatusUnprocessableEntity,
+			wantError: true, wantWrites: []string{"PUT " + alertsPath},
+		},
+		{
+			name: "disable fixes before alerts", mode: alter.Apply, alertsDesired: new(false), alertsLive: true,
+			fixesDesired: new(false), fixesLive: true, wantCategory: alter.WouldSet,
+			wantWrites: []string{"DELETE " + fixesPath, "DELETE " + alertsPath},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var graphEnabled atomic.Bool
+			var writes []string
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet {
+					writes = append(writes, r.Method+" "+r.URL.Path)
+					if r.URL.Path == alertsPath && tt.writeStatus != 0 {
+						w.WriteHeader(tt.writeStatus)
+						fmt.Fprint(w, `{"message":"Resource not accessible by integration"}`)
+						return
+					}
+					if r.URL.Path == alertsPath && r.Method == http.MethodPut {
+						graphEnabled.Store(true)
+					}
+					w.WriteHeader(http.StatusNoContent)
+					return
+				}
+				switch r.URL.Path {
+				case "/repos/testowner/testrepo":
+					fmt.Fprint(w, `{"permissions":{"admin":true}}`)
+				case "/repos/testowner/testrepo/actions/permissions/workflow":
+					fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+				case "/repos/testowner/testrepo/private-vulnerability-reporting":
+					fmt.Fprint(w, `{"enabled":false}`)
+				case alertsPath:
+					switch {
+					case tt.readStatus != 0:
+						w.WriteHeader(tt.readStatus)
+					case tt.alertsLive:
+						w.WriteHeader(http.StatusNoContent)
+					default:
+						w.WriteHeader(http.StatusNotFound)
+					}
+				case fixesPath:
+					fmt.Fprintf(w, `{"enabled":%t,"paused":false}`, tt.fixesLive)
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			t.Cleanup(server.Close)
+			cfg := &config.Config{Repository: &model.RepositorySettings{
+				VulnerabilityAlertsEnabled: tt.alertsDesired, AutomatedSecurityFixesEnabled: tt.fixesDesired,
+			}}
+			if tt.normalise && !config.NormaliseSecurityPrerequisites(cfg) {
+				t.Fatal("expected prerequisite normalisation")
+			}
+			target := repoTarget(testutil.NewTestClient(t, server), "testowner", "testrepo", true)
+			for attempt := range 2 {
+				writes = nil
+				results, err := alter.ProcessRepoSettings(cfg, tt.mode, target)
+				if (err != nil) != tt.wantError {
+					t.Fatalf("attempt %d: error = %v, want error %t", attempt, err, tt.wantError)
+				}
+				if !slices.Equal(writes, tt.wantWrites) {
+					t.Fatalf("attempt %d: writes = %v, want %v", attempt, writes, tt.wantWrites)
+				}
+				wantGraph := slices.Contains(tt.wantWrites, "PUT "+alertsPath) && tt.writeStatus == 0
+				if graphEnabled.Load() != wantGraph {
+					t.Fatalf("attempt %d: Dependency Graph enabled = %t, want %t", attempt, graphEnabled.Load(), wantGraph)
+				}
+				if tt.wantError {
+					continue
+				}
+				index := slices.IndexFunc(results, func(result alter.RepoSettingResult) bool {
+					return result.Field == "vulnerability_alerts_enabled"
+				})
+				if tt.wantCategory == "" {
+					if index != -1 {
+						t.Fatalf("unmanaged alerts result = %+v", results[index])
+					}
+					continue
+				}
+				if index == -1 || results[index].Category != tt.wantCategory {
+					t.Fatalf("results = %+v, want alerts category %q", results, tt.wantCategory)
+				}
+				result := results[index]
+				if tt.wantCategory == alter.WouldSet && cfg.Repository.VulnerabilityAlertsEnabled != nil && *cfg.Repository.VulnerabilityAlertsEnabled {
+					if result.Before != "true" || result.Value != "true" || result.Annotation != "reapply enable request for Dependency Graph" {
+						t.Fatalf("repeated enable result = %+v", result)
+					}
+				}
+			}
+		})
 	}
 }
 
@@ -979,6 +1134,14 @@ func TestProcessRepoSettingsSkippedSecurityWriteSkipsDependentOutput(t *testing.
 	}{
 		{
 			name: "alerts write blocks fixes",
+			settings: &model.RepositorySettings{
+				VulnerabilityAlertsEnabled: new(true), AutomatedSecurityFixesEnabled: new(true),
+			},
+			dependent: "enable automated security fixes",
+		},
+		{
+			name:          "repeated alerts write blocks fixes",
+			alertsEnabled: true,
 			settings: &model.RepositorySettings{
 				VulnerabilityAlertsEnabled: new(true), AutomatedSecurityFixesEnabled: new(true),
 			},
