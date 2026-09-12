@@ -81,6 +81,21 @@ jobs:
         run: go build -o tailor ./cmd/tailor
       - name: Measure
         run: ./tailor measure
+      - name: Test container
+        if: runner.os == 'Linux'
+        run: |
+          context=$(mktemp -d)
+          arch=$(go env GOARCH)
+          mkdir -p "$context/linux/$arch" "$context/repository"
+          CGO_ENABLED=0 go build -o "$context/linux/$arch/tailor" ./cmd/tailor
+          docker build --platform "linux/$arch" -t tailor:container-test -f Dockerfile "$context"
+          test "$(docker image inspect --format '{{.Config.User}}' tailor:container-test)" = 65532
+          docker run --rm --entrypoint git tailor:container-test --version
+          git -C "$context/repository" init
+          git -C "$context/repository" remote add origin https://github.com/octocat/container-test.git
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            -v "$context/repository:/work:ro" -w /work \
+            tailor:container-test docket | grep -Eq '^repository: +octocat/container-test$'
 
   security:
     name: Security 🔒
