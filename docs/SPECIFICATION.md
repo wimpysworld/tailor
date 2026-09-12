@@ -437,6 +437,9 @@ List access failures skip variable management without writes. Individual write a
 | `justfile` | `first-fit` |
 | `cubic.yaml` | `first-fit` |
 | `flake.nix` | `first-fit` |
+| `.golangci.yml` (only when `languages.go: true`) | `first-fit` |
+| `.goreleaser.yaml` (only when `languages.go: true`) | `first-fit` |
+| `.github/workflows/build-go.yml` (only when `languages.go: true`) | `first-fit` |
 | `.tailor.yml` | `always` |
 
 **Swatch Categories**: Each swatch is designated either `health` or `development`. This designation is an internal attribute used by `measure` to scope its file presence checks.
