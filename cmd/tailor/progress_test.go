@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/wimpysworld/tailor/internal/testutil"
@@ -13,9 +14,17 @@ func TestMeasurePTYHelper(t *testing.T) {
 	if os.Getenv("TAILOR_MEASURE_PTY_HELPER") != "1" {
 		return
 	}
-	if code := run([]string{"measure", "--color=never"}, os.Stdout, os.Stderr); code != 0 {
-		t.Fatalf("measure exit status: %d", code)
-	}
+	// Local filesystem and PTY I/O do not advance the bubble's clock, so
+	// slow real I/O cannot trigger the progress activation timer.
+	synctest.Test(t, func(t *testing.T) {
+		start := time.Now()
+		if code := run([]string{"measure", "--color=never"}, os.Stdout, os.Stderr); code != 0 {
+			t.Fatalf("measure exit status: %d", code)
+		}
+		if elapsed := time.Since(start); elapsed != 0 {
+			t.Fatalf("fast measure advanced the progress clock by %s", elapsed)
+		}
+	})
 	time.Sleep(100 * time.Millisecond)
 }
 
