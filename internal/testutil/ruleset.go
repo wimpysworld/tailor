@@ -9,7 +9,8 @@ import (
 	"testing"
 )
 
-// RulesetStub fakes list, read and write endpoints for ruleset 42 in acme/widget.
+// RulesetStub fakes repository-level list and create endpoints in acme/widget.
+// It also fakes read and update endpoints for ruleset 42.
 // Writes and LastBody record write requests, including rejected writes.
 // ListQuery and ReadQuery record the last query strings.
 type RulesetStub struct {
