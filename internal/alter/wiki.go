@@ -227,8 +227,7 @@ func wikiReviewReason(err error) string {
 }
 
 func wikiReadinessDetails(err error) (gh.WikiReadinessReason, string) {
-	var readiness *gh.WikiReadinessError
-	if errors.As(err, &readiness) {
+	if readiness, ok := errors.AsType[*gh.WikiReadinessError](err); ok {
 		if readiness.Reason == gh.WikiImportIncomplete {
 			// Preserve the legacy display truncation without extracting a path from error text.
 			if prefix, _, truncated := strings.Cut(readiness.Path, ";"); truncated {
@@ -256,8 +255,7 @@ func legacyWikiReadinessDetails(err error) (gh.WikiReadinessReason, string) {
 	if strings.HasPrefix(message, "wiki is disabled") {
 		return gh.WikiDisabled, ""
 	}
-	var access *gh.WikiAccessError
-	if errors.As(err, &access) {
+	if access, ok := errors.AsType[*gh.WikiAccessError](err); ok {
 		switch {
 		case access.State == "wiki has no commits":
 			return gh.WikiEmpty, ""

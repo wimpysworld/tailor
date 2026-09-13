@@ -353,7 +353,7 @@ func TestWikiTypedGuidanceMatchesLegacy(t *testing.T) {
 				message = "repository metadata is incomplete"
 			}
 			var typed error = &gh.WikiReadinessError{Reason: tc.reason, Path: tc.path, Err: errors.New(message)}
-			if _, ok := tc.legacy.(*gh.WikiAccessError); ok {
+			if _, ok := errors.AsType[*gh.WikiAccessError](tc.legacy); ok {
 				typed = &gh.WikiAccessError{Reason: tc.reason, State: message}
 			}
 			for _, hasSource := range []bool{false, true} {
