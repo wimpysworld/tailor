@@ -100,20 +100,20 @@ func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTa
 		DefaultBranch string `json:"default_branch"`
 	}
 	if err := target.Client.Get(fmt.Sprintf("repos/%s/%s", target.Owner, target.Name), &repository); err != nil {
-		return blocked(fmt.Errorf("reading wiki repository metadata: %w", err))
+		return blocked(&gh.WikiReadinessError{Reason: gh.WikiMetadataFailed, Err: fmt.Errorf("reading wiki repository metadata: %w", err)})
 	}
 	if repository.Private != nil && *repository.Private {
 		return skip("not available for private repositories"), nil
 	}
 	if repository.Private == nil || repository.DefaultBranch == "" || repository.HasWiki == nil {
-		return blocked(errors.New("repository metadata is incomplete; check repository access and retry"))
+		return blocked(&gh.WikiReadinessError{Reason: gh.WikiMetadataFailed, Err: errors.New("repository metadata is incomplete; check repository access and retry")})
 	}
 	if !*repository.HasWiki {
 		if mode == DryRun {
-			return blocked(errors.New("wiki is disabled; tailor alter will enable repository.has_wiki through the API before checking readiness"))
+			return blocked(&gh.WikiReadinessError{Reason: gh.WikiDisabled, Err: errors.New("wiki is disabled; tailor alter will enable repository.has_wiki through the API before checking readiness")})
 		}
 		if err := target.Client.Patch(fmt.Sprintf("repos/%s/%s", target.Owner, target.Name), strings.NewReader(`{"has_wiki":true}`), nil); err != nil {
-			return blocked(fmt.Errorf("enabling repository.has_wiki through the API: %w", err))
+			return blocked(&gh.WikiReadinessError{Reason: gh.WikiMetadataFailed, Err: fmt.Errorf("enabling repository.has_wiki through the API: %w", err)})
 		}
 		fmt.Fprintln(target.stderr(), "set: repository.has_wiki = true")
 		p.enabledViaAPI = true
@@ -146,7 +146,8 @@ func wikiImportGuidance(remoteURL string, hasSource bool) string {
 }
 
 func wikiPreviewGuidance(err error, wikiURL, remoteURL string, hasSource bool) string {
-	if strings.HasPrefix(err.Error(), "wiki is disabled") {
+	reason, _ := wikiReadinessDetails(err)
+	if reason == gh.WikiDisabled {
 		return fmt.Sprintf(`
 Next steps:
 The wiki is off. Other changes will wait until it is ready.
@@ -164,41 +165,38 @@ The wiki is off. Other changes will wait until it is ready.
 	const waiting = " Other changes will wait until it is ready.\n\n"
 	guidance := "\nNext steps:\n"
 	step := 2
-	var access *gh.WikiAccessError
-	switch {
-	case errors.As(err, &access):
-		switch {
-		case access.State == "wiki has no commits":
+	switch reason {
+	case gh.WikiEmpty, gh.WikiAccessUnknown, gh.WikiGitUnavailable, gh.WikiAccessDenied, gh.WikiReadFailed, gh.WikiTimedOut:
+		switch reason {
+		case gh.WikiEmpty:
 			guidance += "The wiki has no pages." + waiting
 			guidance += fmt.Sprintf("1. Create and save the first page at:\n   %s\n\n", wikiURL)
 			guidance += "2. Import the wiki:\n" + wikiImportGuidance(remoteURL, hasSource) + "\n"
 			step = 3
-		case strings.Contains(access.State, "distinguish"):
+		case gh.WikiAccessUnknown:
 			guidance += "Tailor could not open the wiki." + waiting
 			guidance += fmt.Sprintf("1. Open %s\n   If the wiki has no pages, create and save one.\n   If you cannot open the wiki, check your access.\n\n", wikiURL)
-		case strings.HasPrefix(access.State, "git could not start"):
+		case gh.WikiGitUnavailable:
 			guidance += "Tailor could not start Git." + waiting
 			guidance += "1. Check that Git is installed and runs from this terminal.\n\n"
-		case strings.HasPrefix(access.State, "wiki access was denied"):
+		case gh.WikiAccessDenied:
 			guidance += "GitHub denied access to the wiki." + waiting
 			guidance += "1. Check your repository access.\n\n"
 		default:
 			guidance += "Tailor could not read the wiki." + waiting
 			guidance += "1. Check your network connection and repository access.\n\n"
 		}
-	case strings.HasPrefix(err.Error(), "reading wiki repository"), strings.HasPrefix(err.Error(), "repository metadata"), strings.HasPrefix(err.Error(), "enabling repository.has_wiki"):
+	case gh.WikiMetadataFailed:
 		guidance += "Tailor could not check or enable the wiki." + waiting
 		guidance += "1. Check GitHub authentication, repository permissions and network access.\n\n"
+	case gh.WikiHistoryMissing:
+		guidance += "The project history for the published wiki is missing locally." + waiting
+		guidance += "1. Fetch the project history and switch to the current project branch.\n\n"
+		guidance += "2. If the history is still unavailable, review and import the wiki again:\n" + wikiImportGuidance(remoteURL, hasSource) + "\n"
+		step = 3
 	default:
-		if strings.HasPrefix(err.Error(), "wiki published source is not in local HEAD history") || strings.HasPrefix(err.Error(), "wiki published source tree is unavailable") {
-			guidance += "The project history for the published wiki is missing locally." + waiting
-			guidance += "1. Fetch the project history and switch to the current project branch.\n\n"
-			guidance += "2. If the history is still unavailable, review and import the wiki again:\n" + wikiImportGuidance(remoteURL, hasSource) + "\n"
-			step = 3
-			break
-		}
 		guidance += wikiReviewReason(err) + waiting
-		if strings.Contains(err.Error(), "wiki/.tailor-wiki-base is missing") {
+		if reason == gh.WikiBaselineMissing {
 			guidance += "1. Import the wiki:\n"
 		} else {
 			guidance += "1. Review the wiki files, then import the wiki again:\n"
@@ -211,20 +209,86 @@ The wiki is off. Other changes will wait until it is ready.
 const wikiRecheckGuidance = "Run tailor baste again. When the wiki checks pass, run tailor alter."
 
 func wikiReviewReason(err error) string {
-	switch message := err.Error(); {
-	case strings.Contains(message, "wiki/.tailor-wiki-base is missing"):
+	reason, detail := wikiReadinessDetails(err)
+	switch reason {
+	case gh.WikiBaselineMissing:
 		return "Tailor needs an imported copy of the wiki in wiki/."
-	case strings.HasPrefix(message, "wiki/.tailor-wiki-base must contain"):
+	case gh.WikiBaselineInvalid:
 		return "wiki/.tailor-wiki-base must contain the full 40-character ID of the imported wiki version."
-	case strings.HasPrefix(message, "wiki import is incomplete:"):
-		detail, _, _ := strings.Cut(strings.TrimPrefix(message, "wiki import is incomplete: "), ";")
+	case gh.WikiImportIncomplete:
 		return "The wiki import is incomplete: " + detail + "."
-	case strings.Contains(message, "unsafe file"), strings.Contains(message, "unsupported file"):
+	case gh.WikiUnsafeFile:
 		return "The wiki contains an unsafe or unsupported file. Review the wiki files before importing them."
-	case strings.Contains(message, "remote changed outside the publisher"), strings.Contains(message, "wiki remote differs from its published source"):
+	case gh.WikiChangedOutside:
 		return "The wiki changed outside Tailor. Review those changes before importing the wiki again."
 	default:
-		return "Tailor could not check the wiki: " + message + "."
+		return "Tailor could not check the wiki: " + err.Error() + "."
+	}
+}
+
+func wikiReadinessDetails(err error) (gh.WikiReadinessReason, string) {
+	var readiness *gh.WikiReadinessError
+	if errors.As(err, &readiness) {
+		if readiness.Reason == gh.WikiImportIncomplete {
+			// Preserve the legacy display truncation without extracting a path from error text.
+			if prefix, _, truncated := strings.Cut(readiness.Path, ";"); truncated {
+				quoted := fmt.Sprintf("%q", prefix)
+				return readiness.Reason, quoted[:len(quoted)-1]
+			}
+			return readiness.Reason, fmt.Sprintf("%q is missing from wiki/", readiness.Path)
+		}
+		return readiness.Reason, ""
+	}
+	var access *gh.WikiAccessError
+	if errors.As(err, &access) && access.Reason != "" {
+		switch access.Reason {
+		case gh.WikiEmpty, gh.WikiAccessUnknown, gh.WikiGitUnavailable, gh.WikiAccessDenied, gh.WikiTimedOut:
+			return access.Reason, ""
+		default:
+			return gh.WikiReadFailed, ""
+		}
+	}
+	return legacyWikiReadinessDetails(err)
+}
+
+func legacyWikiReadinessDetails(err error) (gh.WikiReadinessReason, string) {
+	message := err.Error()
+	if strings.HasPrefix(message, "wiki is disabled") {
+		return gh.WikiDisabled, ""
+	}
+	var access *gh.WikiAccessError
+	if errors.As(err, &access) {
+		switch {
+		case access.State == "wiki has no commits":
+			return gh.WikiEmpty, ""
+		case strings.Contains(access.State, "distinguish"):
+			return gh.WikiAccessUnknown, ""
+		case strings.HasPrefix(access.State, "git could not start"):
+			return gh.WikiGitUnavailable, ""
+		case strings.HasPrefix(access.State, "wiki access was denied"):
+			return gh.WikiAccessDenied, ""
+		default:
+			return gh.WikiReadFailed, ""
+		}
+	}
+	switch {
+	case strings.HasPrefix(message, "reading wiki repository"), strings.HasPrefix(message, "repository metadata"), strings.HasPrefix(message, "enabling repository.has_wiki"):
+		return gh.WikiMetadataFailed, ""
+	case strings.HasPrefix(message, "wiki published source is not in local HEAD history"), strings.HasPrefix(message, "wiki published source tree is unavailable"):
+		return gh.WikiHistoryMissing, ""
+	case strings.Contains(message, "wiki/.tailor-wiki-base is missing"):
+		return gh.WikiBaselineMissing, ""
+	case strings.HasPrefix(message, "wiki/.tailor-wiki-base must contain"):
+		return gh.WikiBaselineInvalid, ""
+	case strings.HasPrefix(message, "wiki import is incomplete:"):
+		detail, _, _ := strings.Cut(strings.TrimPrefix(message, "wiki import is incomplete: "), ";")
+		return gh.WikiImportIncomplete, detail
+	case strings.Contains(message, "unsafe file"), strings.Contains(message, "unsupported file"):
+		return gh.WikiUnsafeFile, ""
+	case strings.Contains(message, "remote changed outside the publisher"), strings.Contains(message, "wiki remote differs from its published source"):
+		return gh.WikiChangedOutside, ""
+	default:
+		return gh.WikiInspectionFailed, ""
 	}
 }
 
@@ -274,14 +338,14 @@ func readWikiBaseline(root *os.Root) (string, error) {
 		return "", err
 	}
 	if !info.Mode().IsRegular() || info.Size() > 128 {
-		return "", fmt.Errorf("wiki/.tailor-wiki-base must contain one full 40-character commit ID")
+		return "", &gh.WikiReadinessError{Reason: gh.WikiBaselineInvalid, Err: errors.New("wiki/.tailor-wiki-base must contain one full 40-character commit ID")}
 	}
 	baseline, err := root.ReadFile(swatch.WikiBaseline)
 	if err != nil {
 		return "", err
 	}
 	if !wikiCommit.Match(bytes.TrimSpace(baseline)) {
-		return "", fmt.Errorf("wiki/.tailor-wiki-base must contain one full 40-character commit ID")
+		return "", &gh.WikiReadinessError{Reason: gh.WikiBaselineInvalid, Err: errors.New("wiki/.tailor-wiki-base must contain one full 40-character commit ID")}
 	}
 	return strings.TrimSpace(string(baseline)), nil
 }

@@ -318,6 +318,107 @@ Tailor could not open the wiki. Other changes will wait until it is ready.
 	}
 }
 
+func TestWikiTypedGuidanceMatchesLegacy(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		reason gh.WikiReadinessReason
+		legacy error
+		path   string
+	}{
+		{"empty", gh.WikiEmpty, &gh.WikiAccessError{State: "wiki has no commits"}, ""},
+		{"unavailable", gh.WikiAccessUnknown, &gh.WikiAccessError{State: "cannot distinguish a missing wiki from denied access"}, ""},
+		{"denied", gh.WikiAccessDenied, &gh.WikiAccessError{State: "wiki access was denied"}, ""},
+		{"network", gh.WikiReadFailed, &gh.WikiAccessError{State: "wiki remote could not be read"}, ""},
+		{"timeout", gh.WikiTimedOut, &gh.WikiAccessError{State: "wiki inspection timed out"}, ""},
+		{"git missing", gh.WikiGitUnavailable, &gh.WikiAccessError{State: "git could not start"}, ""},
+		{"metadata", gh.WikiMetadataFailed, errors.New("reading wiki repository metadata: forbidden"), ""},
+		{"incomplete metadata", gh.WikiMetadataFailed, errors.New("repository metadata is incomplete"), ""},
+		{"enablement failed", gh.WikiMetadataFailed, errors.New("enabling repository.has_wiki through the API: forbidden"), ""},
+		{"disabled", gh.WikiDisabled, errors.New("wiki is disabled"), ""},
+		{"missing baseline", gh.WikiBaselineMissing, errors.New("wiki/.tailor-wiki-base is missing"), ""},
+		{"invalid baseline", gh.WikiBaselineInvalid, errors.New("wiki/.tailor-wiki-base must contain one full 40-character commit ID"), ""},
+		{"incomplete import", gh.WikiImportIncomplete, errors.New("wiki import is incomplete: \"nested/Guide.md\" is missing from wiki/; import every remote file before adoption"), "nested/Guide.md"},
+		{"incomplete import semicolon", gh.WikiImportIncomplete, errors.New("wiki import is incomplete: \"nested/Guide;extra.md\" is missing from wiki/; import every remote file before adoption"), "nested/Guide;extra.md"},
+		{"unsafe file", gh.WikiUnsafeFile, errors.New("wiki contains an unsafe file; review remote files before adoption"), ""},
+		{"unsupported file", gh.WikiUnsafeFile, errors.New("wiki contains an unsupported file; review the remote files before adoption"), ""},
+		{"unsafe source", gh.WikiUnsafeFile, errors.New("wiki published source contains an unsafe file; review and reimport the wiki"), ""},
+		{"missing history", gh.WikiHistoryMissing, errors.New("wiki published source is not in local HEAD history"), ""},
+		{"missing source tree", gh.WikiHistoryMissing, errors.New("wiki published source tree is unavailable"), ""},
+		{"independent edits", gh.WikiChangedOutside, errors.New("wiki remote changed outside the publisher; import it again"), ""},
+		{"source mismatch", gh.WikiChangedOutside, errors.New("wiki remote differs from its published source; import it again"), ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			message := "wiki is disabled; unrelated diagnostic"
+			if tc.reason == gh.WikiDisabled {
+				message = "repository metadata is incomplete"
+			}
+			var typed error = &gh.WikiReadinessError{Reason: tc.reason, Path: tc.path, Err: errors.New(message)}
+			if _, ok := tc.legacy.(*gh.WikiAccessError); ok {
+				typed = &gh.WikiAccessError{Reason: tc.reason, State: message}
+			}
+			for _, hasSource := range []bool{false, true} {
+				for _, wrapped := range []bool{false, true} {
+					err := typed
+					if wrapped {
+						err = fmt.Errorf("outer diagnostic: %w", err)
+					}
+					wikiURL := "https://git.example.net/another/project/wiki"
+					remoteURL := "https://git.example.net/another/project.wiki.git"
+					want := wikiPreviewGuidance(tc.legacy, wikiURL, remoteURL, hasSource)
+					if got := wikiPreviewGuidance(err, wikiURL, remoteURL, hasSource); got != want {
+						t.Fatalf("hasSource=%t wrapped=%t: guidance=%s, want %s", hasSource, wrapped, got, want)
+					}
+					if got := wikiReadinessGuidance(err, wikiURL, remoteURL, hasSource); got != "wiki is not ready\n"+strings.TrimSuffix(want, "\n") {
+						t.Fatalf("apply guidance=%s", got)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestWikiGuidanceFallbacks(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"untyped", errors.New("unexpected diagnostic"), "Tailor could not check the wiki: unexpected diagnostic."},
+		{"typed unknown", &gh.WikiReadinessError{Reason: "future", Err: errors.New("wiki is disabled")}, "Tailor could not check the wiki: wiki is disabled."},
+		{"typed zero", &gh.WikiReadinessError{Err: errors.New("wiki/.tailor-wiki-base is missing")}, "Tailor could not check the wiki: wiki/.tailor-wiki-base is missing."},
+		{"typed inspection", &gh.WikiReadinessError{Reason: gh.WikiInspectionFailed, Err: errors.New("unsafe file")}, "Tailor could not check the wiki: unsafe file."},
+		{"access unknown reason", &gh.WikiAccessError{Reason: "future", State: "wiki has no commits"}, "Tailor could not read the wiki."},
+		{"access unknown state", &gh.WikiAccessError{State: "unexpected diagnostic"}, "Tailor could not read the wiki."},
+		{"wrapped legacy access", fmt.Errorf("outer: %w", &gh.WikiAccessError{State: "wiki has no commits"}), "The wiki has no pages."},
+		{"wrapped legacy prefix", fmt.Errorf("outer: %w", errors.New("wiki is disabled")), "Tailor could not check the wiki: outer: wiki is disabled."},
+		{"legacy disabled access", &gh.WikiAccessError{State: "wiki is disabled"}, "The wiki is off."},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := wikiPreviewGuidance(tc.err, "https://github.com/owner/repo/wiki", "https://github.com/owner/repo.wiki.git", false)
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("guidance=%s, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestWikiBaselineTypedReason(t *testing.T) {
+	for _, content := range []string{"abc", strings.Repeat("a", 129)} {
+		dir := t.TempDir()
+		wikiTestWrite(t, dir, swatch.WikiBaseline, content)
+		root, err := os.OpenRoot(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer root.Close()
+		_, err = readWikiBaseline(root)
+		var readiness *gh.WikiReadinessError
+		if !errors.As(err, &readiness) || readiness.Reason != gh.WikiBaselineInvalid || err.Error() != "wiki/.tailor-wiki-base must contain one full 40-character commit ID" {
+			t.Fatalf("baseline error=%v", err)
+		}
+	}
+}
+
 func TestWikiImportCopyCommands(t *testing.T) {
 	if _, err := exec.LookPath("rsync"); err != nil {
 		t.Skipf("copy guidance requires rsync: %v", err)
