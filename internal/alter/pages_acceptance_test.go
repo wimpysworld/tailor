@@ -22,12 +22,15 @@ import (
 
 // pagesAcceptanceAPI keeps live state across command runs and records every write.
 type pagesAcceptanceAPI struct {
-	mu       sync.Mutex
-	branch   string
-	homepage string
-	exists   bool
-	writes   []apiCall
-	reads    []string
+	mu                 sync.Mutex
+	branch             string
+	homepage           string
+	exists             bool
+	writes             []apiCall
+	reads              []string
+	actionsReads       int
+	actionsForbiddenAt int
+	actionsDisabledAt  int
 }
 
 func newPagesAcceptanceAPI(t *testing.T) (*pagesAcceptanceAPI, *api.RESTClient) {
@@ -80,7 +83,16 @@ func newPagesAcceptanceAPI(t *testing.T) (*pagesAcceptanceAPI, *api.RESTClient) 
 		case repo + "/environments/github-pages":
 			fmt.Fprint(w, `{"name":"github-pages","deployment_branch_policy":null,"protection_rules":[{"type":"wait_timer","wait_timer":30}],"can_admins_bypass":false}`)
 		case repo + "/actions/permissions":
-			fmt.Fprint(w, `{"enabled":true,"allowed_actions":"all","sha_pinning_required":true}`)
+			s.actionsReads++
+			switch s.actionsReads {
+			case s.actionsForbiddenAt:
+				w.WriteHeader(http.StatusForbidden)
+				fmt.Fprint(w, `{"message":"Resource not accessible by personal access token"}`)
+			case s.actionsDisabledAt:
+				fmt.Fprint(w, `{"enabled":false,"allowed_actions":"all"}`)
+			default:
+				fmt.Fprint(w, `{"enabled":true,"allowed_actions":"all","sha_pinning_required":true}`)
+			}
 		case repo + "/actions/permissions/workflow":
 			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
 		case repo + "/private-vulnerability-reporting", repo + "/automated-security-fixes":
@@ -126,6 +138,64 @@ func pagesAcceptanceSnapshot(t *testing.T, dir string) map[string]string {
 		t.Fatal(err)
 	}
 	return files
+}
+
+func TestPagesAcceptanceActionsRecheckPreservesSource(t *testing.T) {
+	for _, tc := range []struct {
+		name        string
+		missing     bool
+		forbiddenAt int
+		disabledAt  int
+		wantReads   int
+		wantError   string
+	}{
+		{name: "live forbidden missing source", missing: true, forbiddenAt: 2, wantReads: 2},
+		{name: "live forbidden managed links", forbiddenAt: 2, wantReads: 2},
+		{name: "preflight forbidden", forbiddenAt: 1, wantReads: 1},
+		{name: "live disabled", disabledAt: 2, wantReads: 2, wantError: "effective Actions policy disables it"},
+	} {
+		for _, mode := range []alter.ApplyMode{alter.Apply, alter.Recut} {
+			t.Run(fmt.Sprintf("%s/%d", tc.name, mode), func(t *testing.T) {
+				s, client := newPagesAcceptanceAPI(t)
+				s.actionsForbiddenAt = tc.forbiddenAt
+				s.actionsDisabledAt = tc.disabledAt
+				dir := t.TempDir()
+				writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\npages:\n  enabled: true\n  links: {}\nswatches:\n  - path: .github/workflows/tailor-pages.yml\n    alteration: always\n"))
+				if !tc.missing {
+					writeOnDisk(t, dir, "pages/index.html", []byte("<h1>My project</h1>\n<!-- tailor:links:start -->\n<a href=\"https://example.com\">Keep this link</a>\n<!-- tailor:links:end -->\n<p>My footer</p>\n"))
+				}
+				before := pagesAcceptanceSnapshot(t, dir)
+				var output strings.Builder
+				err := alter.Run(loadTestConfig(t, dir), dir, mode, client, &output, io.Discard)
+				if tc.wantError != "" {
+					if err == nil || !strings.Contains(err.Error(), tc.wantError) {
+						t.Fatalf("error = %v, want %q", err, tc.wantError)
+					}
+				} else {
+					if err != nil {
+						t.Fatal(err)
+					}
+					requireContains(t, output.String(), "pages.enabled")
+					requireContains(t, output.String(), "insufficient scope")
+				}
+				if s.actionsReads != tc.wantReads || len(s.writes) != 0 {
+					t.Fatalf("Actions reads = %d, want %d; remote writes = %v", s.actionsReads, tc.wantReads, s.writes)
+				}
+				after := pagesAcceptanceSnapshot(t, dir)
+				if _, exists := after[swatch.PagesDestination]; exists {
+					t.Error("Pages workflow was written")
+				}
+				if tc.missing {
+					if _, exists := after["pages"]; exists {
+						t.Error("missing Pages directory was created")
+					}
+				}
+				if !reflect.DeepEqual(before, after) {
+					t.Error("unavailable Pages changed local files")
+				}
+			})
+		}
+	}
 }
 
 func TestPagesAcceptanceDisabledLeavesPagesUnmanaged(t *testing.T) {

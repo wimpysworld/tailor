@@ -101,6 +101,7 @@ func processPages(cfg *config.Config, dir string, mode ApplyMode, target RepoTar
 	if mode.ShouldWrite() {
 		if err := checkPagesActions(cfg, target, p.prepared, false); err != nil {
 			results, err := pagesErrorResults(err)
+			p.skipped = results
 			return results, nil, err
 		}
 	}
