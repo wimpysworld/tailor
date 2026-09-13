@@ -1,4 +1,12 @@
-# Tailor 👔
+<h1 align="center">
+  <img src="pages/icon.svg" width="256" height="256" alt="Tailor">
+  <br />
+  Tailor
+</h1>
+
+<p align="center"><b>Ready-to-wear project templates for GitHub repositories 👔</b></p>
+
+<p align="center">Made with 💝 for 🐧🍏</p>
 
 Tailor is a local terminal CLI that keeps GitHub repositories consistent with community health files, security policies, dev tooling, and repository settings.
 
