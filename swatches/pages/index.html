@@ -16,7 +16,7 @@
     <header class="container site-header">
       <a class="brand" href="./" aria-label="{{PROJECT_NAME}} home">
         <img class="brand-mark" src="icon.svg" alt="" width="40" height="40">
-        {{PROJECT_NAME}}
+        <span class="brand-name">{{PROJECT_NAME}}</span>
       </a>
       <nav aria-label="Main navigation">
         <ul>
@@ -43,7 +43,7 @@
           <h1 id="hero-title">{{PROJECT_NAME}}</h1>
           <p class="lead">{{DESCRIPTION}}</p>
           <div class="site-hero-actions">
-            <a href="{{REPO_URL}}/releases" role="button">Download <span class="octicon inline-icon arrow-down" aria-hidden="true"></span></a>
+            <a class="primary-action" href="{{REPO_URL}}/releases">Download <span class="octicon inline-icon arrow-down" aria-hidden="true"></span></a>
             <a class="text-link" href="{{REPO_URL}}?tab=readme-ov-file">Read the overview <span class="octicon inline-icon link-external" aria-hidden="true"></span></a>
           </div>
         </div>
@@ -142,7 +142,7 @@
         <div class="footer-brand">
           <a class="brand" href="./" aria-label="{{PROJECT_NAME}} home">
             <img class="brand-mark" src="icon.svg" alt="" width="40" height="40">
-            {{PROJECT_NAME}}
+            <span class="brand-name">{{PROJECT_NAME}}</span>
           </a>
           <p>{{DESCRIPTION}}</p>
         </div>
