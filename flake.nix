@@ -2,7 +2,7 @@
   description = "Tailor flake";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-26.05-darwin";
+    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     nix-packages.url = "github:wimpysworld/nix-packages";
     nix-packages.inputs.nixpkgs.follows = "nixpkgs";
   };
@@ -16,7 +16,6 @@
     }:
     let
       supportedSystems = [
-        "x86_64-darwin"
         "x86_64-linux"
         "aarch64-darwin"
         "aarch64-linux"
@@ -29,6 +28,23 @@
         let
           pkgs = import nixpkgs { inherit system; };
           tailorPkgs = nix-packages.packages.${system} or { };
+          # The stock wrapper and playwright-test capture every browser. Replace
+          # both references so the runtime closure contains Chromium only.
+          playwrightMcpChromium =
+            let
+              browsers = pkgs.playwright-driver.browsers-chromium;
+              playwright-test = pkgs.playwright-test.overrideAttrs (old: {
+                installPhase =
+                  builtins.replaceStrings [ "${pkgs.playwright-driver.browsers}" ] [ "${browsers}" ]
+                    old.installPhase;
+              });
+            in
+            pkgs.playwright-mcp.override {
+              inherit playwright-test;
+              playwright-driver = pkgs.playwright-driver // {
+                inherit browsers;
+              };
+            };
         in
         {
           default = pkgs.mkShell {
@@ -42,6 +58,8 @@
                 golangci-lint
                 goreleaser
                 just
+                miniserve
+                playwrightMcpChromium
               ]
               ++ (if tailorPkgs ? tailor then [ tailorPkgs.tailor ] else [ ]);
           };

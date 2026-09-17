@@ -37,6 +37,10 @@ measure:
     @go run ./cmd/tailor baste
     @go run ./cmd/tailor measure
 
+# Preview the Pages site at http://127.0.0.1:18473
+pages:
+    @miniserve --index index.html --interfaces 127.0.0.1 --port 18473 pages/
+
 # Create a local release tag with just release x.y.z
 release VERSION:
     #!/usr/bin/env bash
