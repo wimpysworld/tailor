@@ -4,6 +4,8 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="color-scheme" content="light dark">
+    <meta name="theme-color" content="#fff" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="rgb(19, 22.5, 30.5)" media="(prefers-color-scheme: dark)">
     <meta name="description" content="Ready-to-wear project templates for GitHub repositories. Manage community health files, dev tooling, and repository settings with Tailor.">
     <title>Tailor · Ready-to-wear project templates</title>
     <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -31,10 +33,16 @@
         <a class="icon-button" target="_blank" rel="noopener noreferrer" href="https://github.com/wimpysworld/tailor" aria-label="Tailor on GitHub" title="Tailor on GitHub">
           <span class="octicon github-icon" aria-hidden="true"></span>
         </a>
-        <button id="theme-toggle" class="icon-button" type="button" aria-label="Switch theme" hidden>
+        <label id="theme-picker" class="theme-picker" hidden>
           <span id="theme-sun" class="octicon" aria-hidden="true"></span>
           <span id="theme-moon" class="octicon" aria-hidden="true" hidden></span>
-        </button>
+          <span class="visually-hidden">Theme</span>
+          <select id="theme-select" title="Theme">
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
       </div>
     </header>
 
