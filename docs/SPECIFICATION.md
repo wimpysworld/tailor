@@ -538,7 +538,7 @@ The generated section includes its own minimal layout and CSS masks, so it needs
 
 When Pages is enabled with `generator: static`, Tailor creates a starter in a missing or empty `pages.path` (default `pages`). The four embedded sources are `pages/index.html`, `pages/style.css`, `pages/theme.js` and `pages/icon.svg`. Their destination names stay fixed beneath `pages.path`.
 
-The starter uses Pico CSS, Catppuccin Latte and Mocha, Work Sans and Fira Code, with pinned CDN dependencies. It needs no build step. Edit the HTML for your introduction, features and installation instructions. Replace `icon.svg` to use your project icon. One icon supplies the header, footer and favicon.
+The starter uses the default azure theme from µCSS 1.4.9 (`@digicreon/mucss@1.4.9/dist/mu.css`), Work Sans and Fira Code, with pinned CDN dependencies. Custom presentation uses µCSS theme variables for light, dark and system modes. It needs no build step. Edit the HTML for your introduction, features and installation instructions. Replace `icon.svg` to use your project icon. One icon supplies the header, footer and favicon.
 
 The starter includes optional examples for a three-slide CSS scroll-snap gallery, a screenshot with a caption, a lazy YouTube embed and a native HTML FAQ. The gallery uses keyboard-accessible links without automatic rotation. Video playback is user-initiated. Users edit or remove these sections directly in HTML, with no additional configuration fields.
 

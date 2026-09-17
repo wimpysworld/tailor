@@ -49,13 +49,21 @@ func TestPagesStarterLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, want := range []string{"<title>sample</title>", "A &#34;useful&#34; &lt;project&gt;", "/wiki", "/discussions", "?tab=MIT-1-ov-file", "https://example.com"} {
+			for _, want := range []string{"<title>sample</title>", "A &#34;useful&#34; &lt;project&gt;", "/wiki", "/discussions", "?tab=MIT-1-ov-file", "https://example.com", "@digicreon/mucss@1.4.9/dist/mu.css", `<main id="main" class="container" tabindex="-1">`} {
 				if !strings.Contains(string(data), want) {
 					t.Fatalf("missing %s", want)
 				}
 			}
-			if strings.Contains(string(data), "{{") || strings.Contains(string(data), "wimpysworld") {
-				t.Fatal("unresolved or project-specific content")
+			if strings.Contains(string(data), "{{") || strings.Contains(string(data), "wimpysworld") || strings.Contains(string(data), "picocss") {
+				t.Fatal("unresolved or obsolete project content")
+			}
+			style, err := os.ReadFile(filepath.Join(dir, sitePath, "style.css"))
+			if err != nil || !strings.Contains(string(style), "var(--mu-primary)") || strings.Contains(string(style), "Catppuccin") {
+				t.Fatalf("starter theme CSS is incorrect: %v", err)
+			}
+			icon, err := os.ReadFile(filepath.Join(dir, sitePath, "icon.svg"))
+			if err != nil || !strings.Contains(string(icon), `fill="#0172ad"`) {
+				t.Fatalf("starter icon is not azure: %v", err)
 			}
 			pagesTestFile(t, dir, sitePath+"/style.css", "/* user style */")
 			pagesTestFile(t, dir, sitePath+"/index.html", "<!-- user edit -->\n"+string(data))
