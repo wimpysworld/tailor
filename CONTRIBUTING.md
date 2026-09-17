@@ -2,6 +2,12 @@
 
 Contributions are welcome and appreciated.
 
+## Development setup
+
+Enter the pinned development environment with `nix develop` or allow direnv. Run `just pages` to serve the local Pages preview at `http://127.0.0.1:18473`.
+
+The development environment includes the Playwright MCP server and its Chromium runtime. Restart your agent after you enter the environment so that it loads the repository MCP configuration from the new shell.
+
 - **Report bugs and request features** in [Issues](../../issues)
 - **Submit pull requests** to fix bugs or add new features
 - Commit messages must conform to the [Conventional Commits](https://www.conventionalcommits.org/) specification

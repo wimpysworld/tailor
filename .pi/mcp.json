@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "sh",
+      "args": [
+        "-c",
+        "if [ -n \"${HTTPS_PROXY:-}\" ]; then exec playwright-mcp --headless --isolated --proxy-server \"$HTTPS_PROXY\"; else exec playwright-mcp --headless --isolated; fi"
+      ],
+      "disabled": false,
+      "lifecycle": "lazy",
+      "directTools": false
+    }
+  },
+  "settings": {
+    "directTools": false
+  }
+}
