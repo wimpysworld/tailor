@@ -100,6 +100,14 @@ func TestPagesStarterCustomStyles(t *testing.T) {
 	}
 	for _, want := range []string{
 		`<a class="primary-action" href="{{REPO_URL}}/releases">`,
+		`<meta name="theme-color" content="#fff" media="(prefers-color-scheme: light)">`,
+		`<meta name="theme-color" content="rgb(19, 22.5, 30.5)" media="(prefers-color-scheme: dark)">`,
+		`<script src="theme.js"></script>`,
+		`<label id="theme-picker" class="theme-picker" hidden>`,
+		`<select id="theme-select" title="Theme">`,
+		`<option value="system">System</option>`,
+		`<option value="light">Light</option>`,
+		`<option value="dark">Dark</option>`,
 		`<!-- tailor:navigation:start -->`,
 		`<!-- tailor:navigation:end -->`,
 	} {
@@ -109,6 +117,9 @@ func TestPagesStarterCustomStyles(t *testing.T) {
 	}
 	if strings.Contains(index, `role="button"`) {
 		t.Fatal("starter navigation action overrides link semantics")
+	}
+	if strings.Index(index, `<script src="theme.js"></script>`) > strings.Index(index, `@digicreon/mucss@1.4.9/dist/mu.css`) {
+		t.Fatal("starter theme script must load before the stylesheet")
 	}
 
 	styleData, err := swatch.Content("pages/style.css")
@@ -124,12 +135,33 @@ func TestPagesStarterCustomStyles(t *testing.T) {
 		"color: var(--mu-inverted-color);",
 		".primary-action:is(:hover, :focus)",
 		".primary-action:focus-visible",
+		"select:focus-visible",
+		"body > main:focus-visible {\n  outline: none;",
+		"body > main:focus-visible h1:first-of-type::before",
+		".theme-picker select {",
 		".terminal figcaption {\n  display: flex;\n  align-items: center;\n  gap: 1.1rem;\n  border-bottom: 1px solid var(--mu-muted-border-color);\n  padding: 0.8rem 1.25rem;\n  color: var(--mu-code-color);",
 		".terminal-comment {\n  color: var(--mu-code-color);",
 		"@media (max-width: 1023px) {\n  .site-hero {\n    grid-template-columns: 1fr;",
 	} {
 		if !strings.Contains(style, want) {
 			t.Fatalf("starter style is missing %q", want)
+		}
+	}
+
+	themeData, err := swatch.Content("pages/theme.js")
+	if err != nil {
+		t.Fatal(err)
+	}
+	theme := string(themeData)
+	for _, want := range []string{
+		`const backgrounds = { light: "#fff", dark: "rgb(19, 22.5, 30.5)" };`,
+		`if (saved === "light" || saved === "dark") preference = saved;`,
+		`if (preference === "system") localStorage.removeItem(storageKey);`,
+		`select.addEventListener("change", () => chooseTheme(select.value));`,
+		`if (preference === "system") {`,
+	} {
+		if !strings.Contains(theme, want) {
+			t.Fatalf("starter theme script is missing %q", want)
 		}
 	}
 }

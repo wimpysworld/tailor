@@ -118,7 +118,7 @@ GitHub navigation stays separate from these optional connections.
 
 When Pages is enabled with `generator: static`, Tailor creates a starter in a missing or empty `pages.path` (default `pages`). The four embedded sources are `pages/index.html`, `pages/style.css`, `pages/theme.js` and `pages/icon.svg`. Their destination names stay fixed beneath `pages.path`.
 
-The starter uses the default azure theme from µCSS 1.4.9 (`@digicreon/mucss@1.4.9/dist/mu.css`), Work Sans and Fira Code, with pinned CDN dependencies. Custom presentation uses µCSS theme variables for light, dark and system modes. It needs no build step. Edit the HTML for your introduction, features and installation instructions. Replace `icon.svg` to use your project icon.
+The starter uses the default azure theme from µCSS 1.4.9 (`@digicreon/mucss@1.4.9/dist/mu.css`), Work Sans and Fira Code, with pinned CDN dependencies. Custom presentation uses µCSS theme variables for light, dark and system modes. A labelled native selector lets visitors choose System, Light or Dark. System follows live operating system changes and clears the stored override. Explicit choices persist when browser storage is available. Theme colour metadata uses the matching µCSS page background. Without JavaScript, the selector stays hidden and the site follows the operating system. The skip link moves focus to `main`, where a compact marker on the first heading replaces the full-container outline. It needs no build step. Edit the HTML for your introduction, features and installation instructions. Replace `icon.svg` to use your project icon.
 
 One icon supplies the header, footer and favicon.
 
