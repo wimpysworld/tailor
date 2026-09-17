@@ -89,6 +89,51 @@ func TestPagesStarterLifecycle(t *testing.T) {
 	}
 }
 
+func TestPagesStarterCustomStyles(t *testing.T) {
+	indexData, err := swatch.Content("pages/index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	index := string(indexData)
+	if count := strings.Count(index, `<span class="brand-name">{{PROJECT_NAME}}</span>`); count != 2 {
+		t.Fatalf("starter index has %d project-name brand spans, want 2", count)
+	}
+	for _, want := range []string{
+		`<a class="primary-action" href="{{REPO_URL}}/releases">`,
+		`<!-- tailor:navigation:start -->`,
+		`<!-- tailor:navigation:end -->`,
+	} {
+		if !strings.Contains(index, want) {
+			t.Fatalf("starter index is missing %q", want)
+		}
+	}
+	if strings.Contains(index, `role="button"`) {
+		t.Fatal("starter navigation action overrides link semantics")
+	}
+
+	styleData, err := swatch.Content("pages/style.css")
+	if err != nil {
+		t.Fatal(err)
+	}
+	style := string(styleData)
+	for _, want := range []string{
+		".brand-name {\n  min-width: 0;\n  overflow-wrap: anywhere;",
+		"#hero-title,\n#install-title {\n  overflow-wrap: anywhere;",
+		"flex: 0 0 33px;",
+		"background-color: var(--mu-primary);",
+		"color: var(--mu-inverted-color);",
+		".primary-action:is(:hover, :focus)",
+		".primary-action:focus-visible",
+		".terminal figcaption {\n  display: flex;\n  align-items: center;\n  gap: 1.1rem;\n  border-bottom: 1px solid var(--mu-muted-border-color);\n  padding: 0.8rem 1.25rem;\n  color: var(--mu-code-color);",
+		".terminal-comment {\n  color: var(--mu-code-color);",
+		"@media (max-width: 1023px) {\n  .site-hero {\n    grid-template-columns: 1fr;",
+	} {
+		if !strings.Contains(style, want) {
+			t.Fatalf("starter style is missing %q", want)
+		}
+	}
+}
+
 func TestPagesStarterConflicts(t *testing.T) {
 	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
 		dir := t.TempDir()
