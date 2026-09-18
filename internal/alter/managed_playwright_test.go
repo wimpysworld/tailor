@@ -165,7 +165,7 @@ func TestManagedPlaywrightRejectsUnsafeActiveDestinationsReadOnly(t *testing.T) 
 			before := snapshotManagedTree(t, dir)
 			_, err := prepareManagedExecution(managedPlaywrightConfig(true), dir, func(selections []managedSelection) (managedRenderedFiles, error) {
 				return renderManagedFiles(managedPlaywrightConfig(true), selections)
-			}, true)
+			})
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Fatalf("preflight error = %v, want %q", err, tt.want)
 			}
@@ -181,7 +181,7 @@ func TestManagedPlaywrightWriteFailureRetries(t *testing.T) {
 	cfg := managedPlaywrightConfig(true)
 	execution, err := prepareManagedExecution(cfg, dir, func(selections []managedSelection) (managedRenderedFiles, error) {
 		return renderManagedFiles(cfg, selections)
-	}, true)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

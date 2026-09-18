@@ -40,9 +40,6 @@ func renderManagedFiles(cfg *config.Config, selections []managedSelection) (mana
 		if !registered || entry != selection.Entry {
 			return nil, fmt.Errorf("managed destination %q does not match the fixed registry", selection.Entry.Path)
 		}
-		if !entry.Available {
-			return nil, fmt.Errorf("managed template %q is reserved", entry.Path)
-		}
 		content, err := swatch.Content(entry.Path)
 		if err != nil {
 			return nil, fmt.Errorf("reading managed template %q: %w", entry.Path, err)
@@ -65,7 +62,7 @@ func renderManagedLoader(destination string, content []byte, registry []managedR
 	var imports []string
 	directory := path.Dir(destination)
 	for _, entry := range registry {
-		if !entry.Available || path.Dir(entry.Path) != directory || entry.Path == destination {
+		if path.Dir(entry.Path) != directory || entry.Path == destination {
 			continue
 		}
 		switch destination {
@@ -83,7 +80,7 @@ func renderManagedLoader(destination string, content []byte, registry []managedR
 		}
 	}
 	if len(imports) == 0 {
-		return nil, fmt.Errorf("managed loader %q has no available imports", destination)
+		return nil, fmt.Errorf("managed loader %q has no imports", destination)
 	}
 
 	placeholder := []byte(managedImportsPlaceholder)
