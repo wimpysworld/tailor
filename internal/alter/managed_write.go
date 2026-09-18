@@ -21,7 +21,7 @@ type managedApplyHooks struct {
 	beforeDirectorySync func(string) error
 }
 
-func writeManagedFile(root *os.Root, destination string, content []byte, hooks managedApplyHooks) (changed bool, retErr error) {
+func writeManagedFile(root *os.Root, destination string, content []byte, noClobber bool, hooks managedApplyHooks) (changed bool, retErr error) {
 	if err := checkParents(root, destination, "managed destination parent"); err != nil {
 		return false, err
 	}
@@ -90,7 +90,17 @@ func writeManagedFile(root *os.Root, destination string, content []byte, hooks m
 	if err := runManagedHook(hooks.beforeRename, destination); err != nil {
 		return false, fmt.Errorf("replacing managed destination %q: %w", destination, err)
 	}
-	if err := root.Rename(tempPath, destination); err != nil {
+	if noClobber {
+		if err := root.Link(tempPath, destination); err != nil {
+			if errors.Is(err, fs.ErrExist) {
+				return false, nil
+			}
+			return false, fmt.Errorf("creating protected managed destination %q: %w", destination, err)
+		}
+		if err := root.Remove(tempPath); err != nil {
+			return true, fmt.Errorf("removing temporary managed file for %q: %w", destination, err)
+		}
+	} else if err := root.Rename(tempPath, destination); err != nil {
 		return false, fmt.Errorf("replacing managed destination %q: %w", destination, err)
 	}
 	tempPath = ""
