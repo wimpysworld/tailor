@@ -179,7 +179,7 @@ The configured MCP server starts its own headless, isolated browser. Do not star
 
 Unlike `tailor measure`, `just measure` needs authentication because its first command is `tailor baste`. If that preview fails, the recipe stops before the local health check.
 
-Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. If needed, add the exact loader import from [managed development files](Configuration#managed-development-files). Put project recipes in separate imports to avoid duplicate recipe names.
+Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. Before you add the exact Just loader import from [managed development files](Configuration#managed-development-files), remove or rename each user recipe that duplicates a managed recipe. Keep custom behaviour under a distinct recipe name. Tailor does not rewrite user recipes or change production recipe names.
 
 ## Retired workflow cleanup
 
