@@ -34,9 +34,17 @@ func TestRenderedJustfileRelease(t *testing.T) {
 			if err := os.Mkdir(filepath.Join(dir, "just"), 0o755); err != nil {
 				t.Fatal(err)
 			}
+			loader := string(mustSwatchContent(t, "just/loader.just"))
+			const placeholder = "[[TAILOR_MANAGED_IMPORTS]]"
+			if count := strings.Count(loader, placeholder); count != 1 {
+				t.Fatalf("just/loader.just imports placeholders = %d, want 1", count)
+			}
+			// Keep these fixture imports local. The alter package tests production registry coverage.
+			const fixtureImports = "import? \"tailor.just\"\nimport? \"go.just\"\nimport? \"pages.just\""
+			loader = strings.Replace(loader, placeholder, fixtureImports, 1)
 			files := map[string][]byte{
 				"justfile":         mustSwatchContent(t, "justfile"),
-				"just/loader.just": []byte("# Managed by Tailor: just/loader.just\nimport? \"tailor.just\"\nimport? \"go.just\"\nimport? \"pages.just\"\n"),
+				"just/loader.just": []byte(loader),
 				"just/tailor.just": mustSwatchContent(t, "just/tailor.just"),
 			}
 			if tt.includeGo {
