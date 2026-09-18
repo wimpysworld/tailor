@@ -124,30 +124,69 @@ func TestManagedReportingAddsConditionalWarningsAndAdoptionGuidance(t *testing.T
 }
 
 func TestManagedReportingWarnsWhenPlaywrightIsExplicitlyDisabled(t *testing.T) {
-	for _, mode := range []ApplyMode{DryRun, Apply} {
-		t.Run(managedModeName(mode), func(t *testing.T) {
-			disabled := false
-			cfg := &config.Config{MCP: &config.MCPSettings{Playwright: &disabled}}
-			results := []SwatchResult{{Path: "nix/playwright.nix", Category: NoChange}}
-			report := buildReport("alter", "", nil, nil, nil, results, mode)
-			appendManagedReporting(&report, cfg, results)
+	disabled := false
+	cfg := &config.Config{MCP: &config.MCPSettings{Playwright: &disabled}}
+	warning := "warning: mcp.playwright is false, so Tailor removes `nix/playwright.nix` but preserves MCP client settings. Disable or remove their Playwright servers to avoid a missing `playwright-mcp` executable"
+	tests := []struct {
+		name    string
+		mode    ApplyMode
+		results []SwatchResult
+		warn    bool
+	}{
+		{name: "missing fragment", mode: DryRun, results: []SwatchResult{{Path: "nix/playwright.nix", Category: NoChange}}, warn: true},
+		{name: "preview removal", mode: DryRun, results: []SwatchResult{{Path: "nix/playwright.nix", Category: WouldRemove}}, warn: true},
+		{name: "confirmed removal", mode: Apply, results: []SwatchResult{{Path: "nix/playwright.nix", Category: WouldRemove}}, warn: true},
+		{name: "empty partial report", mode: Apply},
+		{name: "ownership conflict", mode: Apply, results: []SwatchResult{{Path: "nix/playwright.nix", Category: ManagedConflict}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			report := buildReport("alter", "", nil, nil, nil, tt.results, tt.mode)
+			appendManagedReporting(&report, cfg, tt.results)
 
-			want := "warning: mcp.playwright is false, so Tailor removes `nix/playwright.nix` but preserves MCP client settings. Disable or remove their Playwright servers to avoid a missing `playwright-mcp` executable"
-			if !strings.Contains(report.Plain, want) {
-				t.Fatalf("report lacks retained-settings warning: %s", report.Plain)
+			if got := strings.Contains(report.Plain, warning); got != tt.warn {
+				t.Fatalf("retained-settings warning present = %t, want %t: %s", got, tt.warn, report.Plain)
 			}
-			if len(report.Document.Notices) != 1 || report.Document.Notices[0].Text != strings.TrimPrefix(want, "warning: ") {
-				t.Fatalf("structured notices = %#v", report.Document.Notices)
+			if tt.warn {
+				if len(report.Document.Notices) != 1 || report.Document.Notices[0].Text != strings.TrimPrefix(warning, "warning: ") {
+					t.Fatalf("structured notices = %#v", report.Document.Notices)
+				}
+			} else if len(report.Document.Notices) != 0 {
+				t.Fatalf("structured notices = %#v, want none", report.Document.Notices)
 			}
 		})
 	}
 
+	qualifying := []SwatchResult{{Path: "nix/playwright.nix", Category: NoChange}}
 	for _, cfg := range []*config.Config{{}, {MCP: &config.MCPSettings{Playwright: new(true)}}} {
-		report := buildReport("baste", "", nil, nil, nil, nil, DryRun)
-		appendManagedReporting(&report, cfg, nil)
+		report := buildReport("baste", "", nil, nil, nil, qualifying, DryRun)
+		appendManagedReporting(&report, cfg, qualifying)
 		if strings.Contains(report.Plain, "missing `playwright-mcp` executable") {
 			t.Fatalf("report warns without explicit false: %s", report.Plain)
 		}
+	}
+}
+
+func TestManagedExecutionOmitsDisabledPlaywrightWarningBeforeManagedStage(t *testing.T) {
+	disabled := false
+	cfg := &config.Config{
+		MCP: &config.MCPSettings{Playwright: &disabled},
+		Swatches: []config.SwatchEntry{
+			{Path: ".gitignore", Alteration: swatch.FirstFit},
+			{Path: ".gitignore", Alteration: swatch.FirstFit},
+		},
+	}
+	renderer := func([]managedSelection) (managedRenderedFiles, error) {
+		t.Fatal("managed stage ran after configuration failure")
+		return nil, nil
+	}
+
+	report, err := execute(cfg, t.TempDir(), Apply, nil, io.Discard, Options{}, renderer)
+	if err == nil || !strings.Contains(err.Error(), "duplicate swatch path") {
+		t.Fatalf("execute() error = %v, want duplicate swatch path", err)
+	}
+	if strings.Contains(report.Plain, "missing `playwright-mcp` executable") || len(report.Document.Notices) != 0 {
+		t.Fatalf("early partial report claims Playwright removal: %#v, %s", report.Document.Notices, report.Plain)
 	}
 }
 
