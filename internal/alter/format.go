@@ -333,22 +333,24 @@ func labelOrder(c LabelCategory) int {
 // Actionable categories sort before informational categories.
 func swatchOrder(result SwatchResult) int {
 	switch result.Category {
-	case WouldUpdateConfig:
+	case ManagedConflict:
 		return 0
-	case WouldRemove:
+	case WouldUpdateConfig:
 		return 1
-	case WouldCopy:
+	case WouldRemove:
 		return 2
-	case WouldOverwrite:
+	case WouldCopy:
 		return 3
-	case NoChange:
+	case WouldOverwrite:
 		return 4
+	case NoChange:
+		return 5
 	case Skipped:
 		if result.Reason == SkipFirstFitExists {
-			return 5
+			return 6
 		}
-		return 6
-	default:
 		return 7
+	default:
+		return 8
 	}
 }

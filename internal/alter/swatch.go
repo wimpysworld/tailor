@@ -28,6 +28,8 @@ const (
 	NoChange SwatchCategory = "no change"
 	// Skipped marks a file that Tailor preserves under its alteration rules.
 	Skipped SwatchCategory = "skipped"
+	// ManagedConflict marks a managed destination that needs manual resolution.
+	ManagedConflict SwatchCategory = "conflict"
 )
 
 // SwatchReason explains why a swatch was skipped.
@@ -38,6 +40,12 @@ const (
 	SkipFirstFitExists SwatchReason = "first-fit, exists"
 	// SkipModeNever preserves a destination excluded from alterations.
 	SkipModeNever SwatchReason = "mode never"
+	// SkipManagedRootExists preserves a root that needs manual loader adoption.
+	SkipManagedRootExists SwatchReason = "existing root preserved"
+	// SkipManagedSharedExists preserves shared settings that Tailor does not own.
+	SkipManagedSharedExists SwatchReason = "existing shared settings preserved"
+	// ManagedNotOwned identifies an unmarked managed destination.
+	ManagedNotOwned SwatchReason = "not owned by Tailor"
 )
 
 // SwatchResult records the path and categorised outcome for one swatch entry.
@@ -52,6 +60,10 @@ const configPath = config.ConfigSwatchPath
 // ProcessSwatches previews or writes active swatches after token substitution.
 // Config, Pages and wiki files use separate processors.
 func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *TokenContext) ([]SwatchResult, error) {
+	return processSwatches(cfg, dir, mode, tokens, nil)
+}
+
+func processSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *TokenContext, excluded map[string]struct{}) ([]SwatchResult, error) {
 	if tokens == nil {
 		tokens = &TokenContext{}
 	}
@@ -72,6 +84,9 @@ func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 
 	for _, entry := range cfg.Swatches {
 		if !cfg.SwatchActive(entry.Path) {
+			continue
+		}
+		if _, skip := excluded[entry.Path]; skip {
 			continue
 		}
 		if entry.Path == configPath || entry.Path == swatch.PagesDestination || swatch.IsWiki(entry.Path) || swatch.IsPagesStarter(entry.Path) {
