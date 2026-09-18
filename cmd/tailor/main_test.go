@@ -347,8 +347,12 @@ func TestRunBaste(t *testing.T) {
 		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
 	}
 	want := "would copy:                          SUPPORT.md\n" +
+		"would copy:                          just/loader.just\n" +
+		"would copy:                          just/tailor.just\n" +
+		"would copy:                          nix/loader.nix\n" +
 		"skipped:                             .envrc (first-fit, exists)\n" +
-		"skipped:                             .github/pull_request_template.md (mode never)\n"
+		"skipped:                             .github/pull_request_template.md (mode never)\n" +
+		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n"
 	if stdout.String() != want {
 		t.Errorf("stdout =\n%s\nwant:\n%s", stdout.String(), want)
 	}
@@ -369,8 +373,12 @@ func TestRunAlter(t *testing.T) {
 		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
 	}
 	want := "copied:                              SUPPORT.md\n" +
+		"copied:                              just/loader.just\n" +
+		"copied:                              just/tailor.just\n" +
+		"copied:                              nix/loader.nix\n" +
 		"skipped:                             .envrc (first-fit, exists)\n" +
-		"skipped:                             .github/pull_request_template.md (mode never)\n"
+		"skipped:                             .github/pull_request_template.md (mode never)\n" +
+		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n"
 	if stdout.String() != want {
 		t.Errorf("stdout =\n%s\nwant:\n%s", stdout.String(), want)
 	}
@@ -389,8 +397,12 @@ func TestRunAlterRecut(t *testing.T) {
 		t.Fatalf("run() = %d, want 0; stderr: %s", code, stderr.String())
 	}
 	want := "copied:                              SUPPORT.md\n" +
+		"copied:                              just/loader.just\n" +
+		"copied:                              just/tailor.just\n" +
+		"copied:                              nix/loader.nix\n" +
 		"overwritten:                         .envrc\n" +
-		"skipped:                             .github/pull_request_template.md (mode never)\n"
+		"skipped:                             .github/pull_request_template.md (mode never)\n" +
+		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n"
 	if stdout.String() != want {
 		t.Errorf("stdout =\n%s\nwant:\n%s", stdout.String(), want)
 	}

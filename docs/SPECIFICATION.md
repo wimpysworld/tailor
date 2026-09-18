@@ -273,43 +273,54 @@ mcp:
 
 New configurations contain false declarations for `languages.go`, `pages.enabled`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
 
-The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. This release stores configuration only. It does not register paths, create or remove files, or provision an MCP server.
+The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. Playwright paths are reserved in the internal registry, but provisioning remains deferred. The declaration does not inspect, create, replace, or remove files.
 
-#### Planned managed development files
+#### Managed development files
 
-> [!NOTE]
-> This section records the agreed internal contract. The feature stays inactive until WW-282, so the current CLI does not create, replace, or remove these files.
+Tailor uses one fixed internal registry for development roots, loaders, and fragments. It adds no configuration keys, flags, environment controls, or public registry overrides.
 
-The feature will use a fixed internal registry. It will not use ordinary swatch discovery or add configuration keys, flags, environment controls, or public registry overrides.
-
-| Policy | Fixed destinations |
+| Policy | Active destinations |
 | --- | --- |
 | Protected roots | `justfile`, `flake.nix` |
 | Loaders and core | `just/loader.just`, `nix/loader.nix`, `just/tailor.just` |
 | Go fragments | `just/go.just`, `nix/go.nix` |
 | Pages fragments | `just/pages.just`, `nix/pages.nix` |
-| Playwright fragment | `nix/playwright.nix` |
-| Protected shared starters | `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.pi/mcp.json` |
 
-Loaders and `just/tailor.just` will reconcile on every active run. Explicit `true` will create a missing capability fragment or replace an owned regular file or final symlink. Explicit `false` will remove only an owned regular file or final symlink. A missing destination is a no-op. An absent declaration will cause no destination inspection, ownership conflict, mutation, or result for that capability.
+The ordinary default set remains 29 configured swatches. The `justfile` and `flake.nix` entries now control only missing-root creation. The seven nested templates are a separate managed class and add no swatch entries.
 
-Tailor will identify an owned loader, core file, or fragment by its exact first line: `# Managed by Tailor: <registered path>`. The marker must end with LF or CRLF. A partial, misplaced, or wrong-path marker will not grant ownership. An unmarked regular file will cause an ownership conflict, including before deletion. A final symlink at one of these marked destinations will be adopted without reading its target: enablement replaces it, and disablement removes it. Registration will grant no ownership of sibling files or the containing directory.
+Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The Go and Pages declarations have this exact lifecycle:
 
-Roots and shared starters will have no ownership marker. Tailor will preserve an existing regular file or final symlink, including a dangling symlink, without reading the link target. Tailor will create a missing root only when its effective swatch entry permits creation. A missing entry or `never` will prohibit creation. Tailor will create missing shared starters only for explicit `mcp.playwright: true`. False and absent declarations will never edit or delete shared starters.
+| Declaration | Fragment action |
+| --- | --- |
+| `true` | Create a missing fragment, or replace an owned regular file or final symlink. |
+| `false` | Remove an owned regular file or final symlink. A missing destination causes no change. |
+| Absent | Do not inspect, report, replace, or remove the fragment. |
 
-When Tailor preserves an existing root, it will not parse or rewrite the root to add a loader. The report will tell the user to connect the preserved root to the loader manually. When explicit Playwright disablement retains shared settings that can invoke an unavailable executable, the report will warn about that condition.
+An owned loader, core file, or fragment starts with the exact first line `# Managed by Tailor: <registered path>`. The marker must end with LF or CRLF. A partial, misplaced, or wrong-path marker does not grant ownership. An unmarked regular file causes an ownership conflict, including before removal. Tailor replaces or removes a final symlink without reading its target. Registration grants no ownership of sibling files or the containing directory.
 
-Before any local or remote mutation, Tailor will inspect every active destination and build the complete managed-file plan. This preflight will run after configuration, Go, and Pages render preparation, but before repository context, authentication, and Pages readiness. It will reject a linked parent, directory, or special file at an active destination. Protected final symlinks are the exception described above. A conflict at any active destination will stop the run before any mutation.
+The protected roots have no ownership marker. Tailor preserves an existing regular file or final symlink, including a dangling symlink, for `always`, `first-fit`, `never`, `--recut`, and an omitted swatch entry. It reports the existing root as preserved and gives loader adoption guidance in each case. Tailor creates a missing root only when its swatch entry is `always` or `first-fit`. A missing root with an omitted entry or `never` produces no root result or adoption guidance.
 
-Tailor will apply the plan after the licence stage and immediately before ordinary swatches. Plan and apply order will be loaders first, protected roots and shared starters second, core and enabled fragments third, and disabled fragments last. Paths within each group will use lexical order.
+Tailor does not parse or rewrite a preserved root. If the line is absent, add `import 'just/loader.just'` to `justfile`. If the expression is absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in `flake.nix`.
 
-Each write will use an exclusive sibling temporary file, file sync, close, atomic rename, and directory sync within the project root. Tailor will recheck the parent and destination before each mutation. The guarantee applies to one file, not the complete plan. If a later operation fails, successful earlier operations will remain and the report will include their confirmed results. A retry will reconcile the remaining differences.
+The generated `justfile` requires Just 1.23.0 or later and owns the sole `default` recipe. `just/tailor.just` owns `alter`, `measure`, `release`, and `lint`. `just/go.just` owns `build`, `test`, and `lint-go`. `just/pages.just` owns `pages`. Generated files cannot contain duplicate recipe names.
 
-When `baste` plans a new Nix file, or `alter` confirms its creation, the report will tell the user to review and add the file to Git because Nix flakes exclude untracked files. This warning will not inspect the Git index.
+The Nix loader returns only a package list. It passes the existing `pkgs` set to each fragment and does not add inputs, change outputs, or update the lock file. This packages-only guarantee covers packages available through the existing flake inputs.
 
-Synthetic rendered bytes, malformed or duplicate registries, and injected failures will enter through package-private test seams. Production options, configuration, flags, and environment variables will not expose these seams, and tests will not mutate a global registry.
+The Pages recipe binds miniserve to `127.0.0.1:18473`. Static preview serves the effective `pages.path`. Hugo preview serves `<pages.path>/public`, and Jekyll preview serves `<pages.path>/_site`. The selected directory must contain `index.html`. The recipe tells the user to run `hugo --source <pages.path>` or `bundle exec jekyll build --source <pages.path> --destination <pages.path>/_site` when built output is absent.
 
-These planned actions will not change Pages publishing, Pages source files, ordinary Go swatches, or the current order and prerequisites of CLI operations.
+Before any local or remote mutation, Tailor inspects every active destination and builds the complete managed-file plan. This preflight runs after configuration, Go, and Pages render preparation, but before repository context, authentication, and Pages readiness. It rejects a linked parent, directory, or special file at an active destination. Protected final symlinks are the exception described above. A conflict at any active destination stops the run before mutation.
+
+Tailor applies the plan after the licence stage and immediately before ordinary swatches. Plan and apply order is loaders, protected roots, core and enabled fragments, then disabled fragments. Paths within each group use lexical order.
+
+Each write uses an exclusive sibling temporary file, file sync, close, atomic rename, and directory sync within the project root. Tailor rechecks the parent and destination before each mutation. The guarantee applies to one file, not the complete plan. If a later operation fails, successful earlier operations remain and the report includes their confirmed results. A retry reconciles the remaining differences.
+
+When `baste` plans a new Nix file, or `alter` confirms its creation, Tailor tells the user to review and add the file to Git. Nix flakes exclude untracked files. Tailor does not inspect or change the Git index.
+
+Synthetic rendered bytes, malformed or duplicate registries, and injected failures enter through package-private test seams. Production options, configuration, flags, and environment variables do not expose these seams, and tests do not mutate a global registry.
+
+Playwright provisioning remains deferred. `nix/playwright.nix`, `.mcp.json`, `.codex/config.toml`, `opencode.json`, and `.pi/mcp.json` are reserved but inactive. The `mcp.playwright` declaration does not inspect, create, replace, or remove them.
+
+Managed development files do not change Pages publishing, Pages source files, ordinary Go swatches, or CLI prerequisites.
 
 ### Go ecosystem support
 
@@ -328,14 +339,9 @@ Only explicit `languages.go: true` activates `.golangci.yml`, `.goreleaser.yaml`
 
 False or absent Go selection skips the four destinations without deletion or replacement, including with `--recut`. Existing workflows continue to run on GitHub. Disabling Go in Tailor does not disable a workflow. Active Go swatches use the ordinary `always`, `first-fit`, `never`, and `--recut` rules. Existing customised first-fit files remain unchanged during normal alterations.
 
-Go selection also controls two existing swatches when Tailor renders them:
+Go selection also controls Dependabot and the managed Go fragments. Explicit true includes `gomod` in a newly rendered `.github/dependabot.yml`. Explicit false omits `gomod`, and an absent selection preserves the legacy entry. GitHub Actions and Nix entries remain.
 
-| Swatch | Go behaviour |
-|---|---|
-| `justfile` | Explicit true adds `build` (`go build ./...`) and `test` (`go test ./...`). The `lint` recipe adds golangci-lint and retains actionlint. Existing recipes remain in the template. |
-| `.github/dependabot.yml` | Explicit true includes `gomod`. Explicit false omits `gomod`. An absent selection preserves the legacy `gomod` entry. GitHub Actions and Nix entries remain. |
-
-These variants retain their existing alteration modes. A language change alone never replaces an existing first-fit file.
+The `just/go.just` and `nix/go.nix` fragment lifecycle follows the managed-file rules above. The ordinary Go swatches retain their alteration modes. A language change alone never replaces an existing first-fit ordinary swatch.
 
 #### Go release discovery and preflight
 
@@ -1376,6 +1382,15 @@ swatches/
 ├── go/
 │   ├── justfile
 │   └── dependabot-disabled.yml
+├── just/
+│   ├── loader.just
+│   ├── tailor.just
+│   ├── go.just
+│   └── pages.just
+├── nix/
+│   ├── loader.nix
+│   ├── go.nix
+│   └── pages.nix
 ├── .github/
 │   ├── dependabot.yml  # Go modules follow languages.go
 │   ├── workflows/
@@ -1410,32 +1425,13 @@ The retired paths are `.github/workflows/tailor-automerge.yml` and `.github/work
 
 ## Justfile Integration
 
-The `justfile` swatch provides Tailor operations and workflow linting with `actionlint`. Its `first-fit` mode preserves local recipes during normal alterations. Projects can extend the file. `--recut` replaces it unless its mode is `never`.
+The generated root requires Just 1.23.0 or later and imports `just/loader.just`. Tailor preserves an existing root under every alteration mode and `--recut`. Add the exact import manually when a preserved root does not contain it.
 
-With `languages.go: true`, the Go variant adds `build` and `test` recipes. It also adds golangci-lint to `lint`. See [Go ecosystem support](#go-ecosystem-support).
-
-```makefile
-# List available recipes
-default:
-    @just --list
-
-# Alter tailor swatches
-alter:
-    @tailor alter
-
-# Run linters
-lint:
-    @actionlint
-
-# Check what tailor would change and measure
-measure:
-    @tailor baste
-    @tailor measure
-```
+The loader conditionally imports all available fragments. `just/tailor.just` provides `alter`, `measure`, `release`, and `lint`. Explicit `languages.go: true` adds `build`, `test`, and `lint-go`. Explicit `pages.enabled: true` adds `pages`. The root alone provides `default`, and generated recipe names must be unique. See [managed development files](#managed-development-files).
 
 ## Implementation Notes
 
-1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. SHA-256 comparison applies only to `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For a token-bearing swatch configured as `always`, Tailor resolves the token before the hash comparison. `.tailor.yml` uses append-only config merging instead of a content hash. `--recut` bypasses the hash comparison for ordinary `always` and `first-fit` swatches, but still skips `never` swatches. Existing wiki and static Pages starter files remain unchanged.
+1. **Overwrite detection**: SHA-256 hash comparison between the embedded swatch content (from the tailor binary) and the on-disk target file. SHA-256 comparison applies only to ordinary `always` swatches; `first-fit` swatches are skipped entirely if the destination exists, with no comparison performed. The on-disk file is overwritten only when this comparison shows a difference. For a token-bearing swatch configured as `always`, Tailor resolves the token before the hash comparison. `.tailor.yml` uses append-only config merging instead of a content hash. `--recut` bypasses the hash comparison for ordinary `always` and `first-fit` swatches, but still skips `never` swatches. Protected development roots, existing wiki pages, and static Pages starter files remain unchanged.
 2. **Interpolation (FUNDING.yml, SECURITY.md, and issue template config)**: These three swatches use token substitution. `.github/FUNDING.yml` has `{{GITHUB_USERNAME}}` substituted at `alter` time from `GET /user`. `SECURITY.md` has `{{ADVISORY_URL}}` constructed from the repository context (owner/name). If no GitHub repository context exists, the token is left unsubstituted and resolved on a subsequent run. `.github/ISSUE_TEMPLATE/config.yml` has `{{SUPPORT_URL}}` constructed from the repository context, which produces `https://github.com/<owner>/<name>/blob/HEAD/SUPPORT.md`. If no GitHub repository context exists, the token is left unsubstituted. No per-swatch configuration is required. Licences are fetched via `GET /licenses/{id}` and written verbatim. Licences do not use token substitution.
 3. **No versioning**: No swatch versions, always uses swatches from current tailor binary. Upgrading tailor will cause all `always` swatches to be re-evaluated against the new embedded content; files whose swatch content has changed will be overwritten on the next `alter` run.
 4. **No global state**: All state is per-project in `.tailor.yml`
@@ -1443,4 +1439,4 @@ measure:
 6. **Authentication via `go-gh`**: All project metadata, user metadata, licence content, and repository settings are resolved via `go-gh` (`github.com/cli/go-gh/v2`), the official Go library for GitHub CLI extensions. Token resolution follows the `go-gh` precedence order: `GH_TOKEN` environment variable, `GITHUB_TOKEN` environment variable, `gh` config file, `gh` keyring (via the `gh` binary). When `GH_TOKEN` or `GITHUB_TOKEN` is set, the `gh` binary is not required. The `gh` binary is needed only for `gh auth login` (establishing credentials) and as a fallback for keyring-based token access when no environment variable is set. Repository context detection reads git remotes via `go-gh`, so `git` must be present when a GitHub remote exists - but any directory with a GitHub remote already has `git` installed. If no token can be resolved, or the effective host rejects the token, `fit`, `alter`, and `baste` exit immediately with an error.
 7. **CLI parsing**: [Kong](https://github.com/alecthomas/kong) is used as the command line parser.
 8. **Repository settings via API**: Repository settings are applied via `PATCH /repos/{owner}/{repo}` with a JSON body constructed from the `repository` section of `.tailor.yml`, plus separate API calls for security features, topics, and Actions workflow permissions. The `secret_scanning`, `secret_scanning_push_protection`, and `secret_scanning_non_provider_patterns` fields travel in the `security_and_analysis` object of the same PATCH body. The top-level `actions` section uses separate endpoints for core permissions, selected actions, artifact and log retention, and fork pull request contributor approval. The top-level `code_scanning` and `code_quality` sections use the code scanning default setup and Code Quality setup endpoints. The top-level `ruleset` section uses the repository rulesets endpoints (list, get, `POST`, and `PUT` on `/repos/{owner}/{repo}/rulesets`). Field names map directly to the GitHub REST API without translation, except for the `rules` map and its `enabled` keys, which are Tailor's form of the API `rules` list. Current settings are read via `GET /repos/{owner}/{repo}` and the relevant separate endpoints for `baste` comparison. All API calls use `go-gh`'s pre-authenticated REST client.
-9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. Next, it completes required Go discovery and builder dependency checks before token verification with `GET /user`. It completes Pages and local wiki safety preflight and renders any required Go builder workflow before wiki enablement. For a declared public wiki, it enables `has_wiki` through the API if needed, then checks remote readiness and local adoption. A blocker stops the command before other writes. After readiness passes, it writes the changed config once and removes present retired workflow files. The same `GET /user` response resolves `{{GITHUB_USERNAME}}`, so verification adds no extra API call. It then applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, the licence, and active swatches in that order. `baste` uses `DryRun`. It reports wiki readiness blockers and continues the full preview, but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.
+9. **Execution order**: after authentication and config parsing, `alter` removes retired entries in memory. It then normalises the security prerequisites (automated security fixes, secret scanning push protection, and secret scanning non-provider patterns) and emits their warnings before validation. Next, it completes required Go discovery, Pages preparation, and the managed-file preflight before token verification with `GET /user`. It completes Pages and local wiki safety checks and renders any required Go builder workflow before wiki enablement. For a declared public wiki, it enables `has_wiki` through the API if needed, then checks remote readiness and local adoption. A blocker stops the command before other writes. After readiness passes, it writes the changed config once and removes present retired workflow files. The same `GET /user` response resolves `{{GITHUB_USERNAME}}`, so verification adds no extra API call. It then applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, the licence, managed development files, ordinary swatches, and Pages files in that order. `baste` uses `DryRun`. It reports wiki readiness blockers and continues the full preview, but writes and removes nothing. `alter` uses `Apply`, and `alter --recut` uses `Recut`.

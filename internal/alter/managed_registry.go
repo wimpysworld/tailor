@@ -33,6 +33,7 @@ type managedRegistryEntry struct {
 	Path       string
 	Policy     managedPolicy
 	Capability managedCapability
+	Available  bool
 }
 
 type managedSelection struct {
@@ -42,15 +43,15 @@ type managedSelection struct {
 
 func fixedManagedRegistry() []managedRegistryEntry {
 	return []managedRegistryEntry{
-		{Path: "justfile", Policy: managedPolicyRoot},
-		{Path: "flake.nix", Policy: managedPolicyRoot},
-		{Path: "just/loader.just", Policy: managedPolicyLoader},
-		{Path: "nix/loader.nix", Policy: managedPolicyLoader},
-		{Path: "just/tailor.just", Policy: managedPolicyCore},
-		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
-		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
-		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
-		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
+		{Path: "justfile", Policy: managedPolicyRoot, Available: true},
+		{Path: "flake.nix", Policy: managedPolicyRoot, Available: true},
+		{Path: "just/loader.just", Policy: managedPolicyLoader, Available: true},
+		{Path: "nix/loader.nix", Policy: managedPolicyLoader, Available: true},
+		{Path: "just/tailor.just", Policy: managedPolicyCore, Available: true},
+		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, Available: true},
+		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo, Available: true},
+		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, Available: true},
+		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages, Available: true},
 		{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright},
 		{Path: ".mcp.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
 		{Path: ".codex/config.toml", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},

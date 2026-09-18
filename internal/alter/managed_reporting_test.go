@@ -79,16 +79,17 @@ func TestManagedReportingSeparatesPlannedAndConfirmedResults(t *testing.T) {
 
 func TestManagedReportingAddsConditionalWarningsAndAdoptionGuidance(t *testing.T) {
 	results := []SwatchResult{
+		{Path: "justfile", Category: Skipped, Reason: SkipManagedRootExists},
 		{Path: "flake.nix", Category: Skipped, Reason: SkipManagedRootExists},
 		{Path: "nix/loader.nix", Category: WouldCopy},
 	}
 	report := buildReport("baste", "", nil, nil, nil, results, DryRun)
-	appendManagedReporting(&report, results, []string{".mcp.json"})
+	appendManagedReporting(&report, results)
 
 	for _, text := range []string{
 		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`",
-		"warning: mcp.playwright is false, but retained shared settings can invoke the unavailable Playwright MCP executable: `.mcp.json`",
-		"Connect the preserved `flake.nix` to `nix/loader.nix` manually.",
+		"If absent, add `import 'just/loader.just'` to the preserved `justfile`.",
+		"If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.",
 	} {
 		if !strings.Contains(report.Plain, text) {
 			t.Errorf("plain report lacks %q: %s", text, report.Plain)
@@ -97,11 +98,98 @@ func TestManagedReportingAddsConditionalWarningsAndAdoptionGuidance(t *testing.T
 	if strings.Contains(strings.ToLower(report.Plain), "index") {
 		t.Fatalf("report claims Git index inspection: %s", report.Plain)
 	}
-	if len(report.Document.Notices) != 2 {
+	if len(report.Document.Notices) != 1 {
 		t.Fatalf("structured notices = %#v", report.Document.Notices)
 	}
-	if !containsGuidance(report.Document.Guidance, "Connect the preserved `flake.nix` to `nix/loader.nix` manually.") {
-		t.Fatalf("structured guidance = %#v", report.Document.Guidance)
+	for _, text := range []string{
+		"If absent, add `import 'just/loader.just'` to the preserved `justfile`.",
+		"If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.",
+	} {
+		if !containsGuidance(report.Document.Guidance, text) {
+			t.Fatalf("structured guidance lacks %q: %#v", text, report.Document.Guidance)
+		}
+	}
+}
+
+func TestManagedExecutionReportsUnselectedExistingRootsWithoutBootstrappingAbsentRoots(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/user" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = io.WriteString(w, `{"login":"tailor"}`)
+	}))
+	t.Cleanup(server.Close)
+
+	modes := []struct {
+		name string
+		mode ApplyMode
+	}{
+		{name: "dry-run", mode: DryRun},
+		{name: "apply", mode: Apply},
+		{name: "recut", mode: Recut},
+	}
+	for _, mode := range modes {
+		t.Run(mode.name+"/existing", func(t *testing.T) {
+			dir := t.TempDir()
+			contents := map[string][]byte{
+				"justfile":  []byte("custom just root\n"),
+				"flake.nix": []byte("custom Nix root\n"),
+			}
+			for path, content := range contents {
+				writeManagedTestFile(t, dir, path, content)
+			}
+			cfg := &config.Config{Swatches: []config.SwatchEntry{{Path: "justfile", Alteration: swatch.Never}}}
+
+			report, err := execute(cfg, dir, mode.mode, testutil.NewTestClient(t, server), io.Discard, Options{}, managedTestRenderer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range []string{"justfile", "flake.nix"} {
+				assertManagedBytes(t, filepath.Join(dir, path), contents[path])
+				found := false
+				for _, item := range report.Document.Items {
+					if item.Name == path && item.Outcome == output.Preserved {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("report does not preserve unselected root %q: %#v", path, report.Document.Items)
+				}
+			}
+			for _, guidance := range []string{
+				"If absent, add `import 'just/loader.just'` to the preserved `justfile`.",
+				"If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.",
+			} {
+				if !containsGuidance(report.Document.Guidance, guidance) {
+					t.Errorf("report guidance lacks %q: %#v", guidance, report.Document.Guidance)
+				}
+			}
+		})
+
+		t.Run(mode.name+"/absent", func(t *testing.T) {
+			dir := t.TempDir()
+			cfg := &config.Config{Swatches: []config.SwatchEntry{{Path: "justfile", Alteration: swatch.Never}}}
+
+			report, err := execute(cfg, dir, mode.mode, testutil.NewTestClient(t, server), io.Discard, Options{}, managedTestRenderer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range []string{"justfile", "flake.nix"} {
+				if _, err := os.Lstat(filepath.Join(dir, path)); !os.IsNotExist(err) {
+					t.Errorf("unselected root %q exists or cannot be checked: %v", path, err)
+				}
+				for _, item := range report.Document.Items {
+					if item.Name == path {
+						t.Errorf("report includes absent unselected root %q: %#v", path, item)
+					}
+				}
+			}
+			if strings.Contains(report.Plain, "preserved `justfile`") || strings.Contains(report.Plain, "preserved `flake.nix`") {
+				t.Errorf("report gives adoption guidance for absent roots: %s", report.Plain)
+			}
+		})
 	}
 }
 
@@ -116,7 +204,7 @@ func TestManagedConflictIsAttentionInPlainAndStructuredReports(t *testing.T) {
 	}
 }
 
-func TestExecuteDoesNotActivateManagedFiles(t *testing.T) {
+func TestExecuteProvisionsManagedCoreFiles(t *testing.T) {
 	dir := t.TempDir()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/user" {
@@ -131,13 +219,47 @@ func TestExecuteDoesNotActivateManagedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.Plain != "" || len(report.Document.Items) != 0 || len(report.Document.Notices) != 0 {
-		t.Fatalf("public execution reported inactive managed files: %#v", report)
-	}
 	for _, path := range []string{"just/loader.just", "nix/loader.nix", "just/tailor.just"} {
-		if _, statErr := os.Lstat(filepath.Join(dir, path)); !os.IsNotExist(statErr) {
-			t.Fatalf("public execution activated %q: %v", path, statErr)
+		content, readErr := os.ReadFile(filepath.Join(dir, path))
+		if readErr != nil {
+			t.Fatalf("public execution did not provision %q: %v", path, readErr)
 		}
+		if !hasManagedMarker(content, path) {
+			t.Errorf("public execution provisioned %q without its ownership marker", path)
+		}
+		if !strings.Contains(report.Plain, path) {
+			t.Errorf("public execution report omits %q: %s", path, report.Plain)
+		}
+	}
+	if strings.Contains(strings.ToLower(report.Plain), "mcp") || strings.Contains(strings.ToLower(report.Plain), "playwright") {
+		t.Fatalf("public execution reported reserved managed files: %s", report.Plain)
+	}
+}
+
+func TestManagedExecutionRejectsDuplicateRecipesBeforeAuthenticationOrWrites(t *testing.T) {
+	dir := t.TempDir()
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		_, _ = io.WriteString(w, `{"login":"tailor"}`)
+	}))
+	t.Cleanup(server.Close)
+	renderer := func(selections []managedSelection) (managedRenderedFiles, error) {
+		files, err := managedTestRenderer(selections)
+		files["just/loader.just"] = managedContent("just/loader.just", "duplicate:")
+		files["just/tailor.just"] = managedContent("just/tailor.just", "duplicate:")
+		return files, err
+	}
+
+	_, err := execute(&config.Config{}, dir, Apply, testutil.NewTestClient(t, server), io.Discard, Options{}, renderer)
+	if err == nil || !strings.Contains(err.Error(), `duplicate recipe "duplicate"`) {
+		t.Fatalf("execute() error = %v, want duplicate recipe error", err)
+	}
+	if calls.Load() != 0 {
+		t.Fatalf("API calls before recipe validation completed = %d", calls.Load())
+	}
+	if entries, readErr := os.ReadDir(dir); readErr != nil || len(entries) != 0 {
+		t.Fatalf("duplicate recipe preflight changed project: %v, %v", entries, readErr)
 	}
 }
 

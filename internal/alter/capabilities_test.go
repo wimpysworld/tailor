@@ -45,6 +45,7 @@ func TestMCPDeclarationsAreInertAcrossAlterModes(t *testing.T) {
 		t.Run(mode.name, func(t *testing.T) {
 			var baselineOutput string
 			var baselineCalls []apiCall
+			baselineFiles := make(map[string]string)
 			for i, declaration := range declarations {
 				t.Run(declaration.name, func(t *testing.T) {
 					configYAML := "license: none\n" + declaration.yaml + "swatches: []\n"
@@ -52,14 +53,9 @@ func TestMCPDeclarationsAreInertAcrossAlterModes(t *testing.T) {
 					for path, content := range providers {
 						writeOnDisk(t, tc.Dir, path, []byte(content))
 					}
-					before := snapshotCapabilityFiles(t, tc.Dir)
-
 					cfg := loadTestConfig(t, tc.Dir)
 					output := captureAlterRun(t, cfg, tc.Dir, mode.mode, tc.Client)
 					after := snapshotCapabilityFiles(t, tc.Dir)
-					if !reflect.DeepEqual(after, before) {
-						t.Fatalf("MCP declaration changed project files: before=%v after=%v", before, after)
-					}
 					for path, content := range providers {
 						if got := after[path]; got != content {
 							t.Errorf("provider file %s = %q, want %q", path, got, content)
@@ -73,10 +69,15 @@ func TestMCPDeclarationsAreInertAcrossAlterModes(t *testing.T) {
 					}
 
 					calls := tc.Calls()
+					delete(after, ".tailor.yml")
 					if i == 0 {
 						baselineOutput = output
 						baselineCalls = calls
+						baselineFiles = after
 						return
+					}
+					if !reflect.DeepEqual(after, baselineFiles) {
+						t.Errorf("%s file results differ from absent MCP results: got=%v want=%v", declaration.name, after, baselineFiles)
 					}
 					if output != baselineOutput {
 						t.Errorf("%s output differs from absent MCP output\ngot:\n%s\nwant:\n%s", declaration.name, output, baselineOutput)

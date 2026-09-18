@@ -30,34 +30,39 @@ var releaseTemplateFuncs = template.FuncMap{
 }
 
 func TestRenderGoVariants(t *testing.T) {
-	for _, destination := range []string{"justfile", ".github/dependabot.yml"} {
-		base, err := swatch.Content(destination)
+	base, err := swatch.Content(".github/dependabot.yml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	absent, err := swatch.Render(".github/dependabot.yml", swatch.Options{})
+	if err != nil || !bytes.Equal(base, absent) {
+		t.Fatalf("absent selection changes Dependabot: %v", err)
+	}
+	disabled, err := swatch.Render(".github/dependabot.yml", swatch.Options{GoDeclared: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	enabled, err := swatch.Render(".github/dependabot.yml", swatch.Options{GoDeclared: true, GoEnabled: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(base, enabled) || bytes.Contains(disabled, []byte("gomod")) || !bytes.Contains(disabled, []byte("github-actions")) || !bytes.Contains(disabled, []byte("nix")) {
+		t.Fatal("unexpected Dependabot variants")
+	}
+}
+
+func TestRenderGoSelectionDoesNotChangeRoot(t *testing.T) {
+	base, err := swatch.Content("justfile")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, options := range []swatch.Options{{}, {GoDeclared: true}, {GoDeclared: true, GoEnabled: true}} {
+		got, err := swatch.Render("justfile", options)
 		if err != nil {
 			t.Fatal(err)
 		}
-		absent, err := swatch.Render(destination, swatch.Options{})
-		if err != nil || !bytes.Equal(base, absent) {
-			t.Fatalf("absent selection changes %s: %v", destination, err)
-		}
-		disabled, err := swatch.Render(destination, swatch.Options{GoDeclared: true})
-		if err != nil {
-			t.Fatal(err)
-		}
-		enabled, err := swatch.Render(destination, swatch.Options{GoDeclared: true, GoEnabled: true})
-		if err != nil {
-			t.Fatal(err)
-		}
-		if destination == "justfile" {
-			if !bytes.Equal(base, disabled) || !strings.Contains(string(enabled), "go build ./...") || !strings.Contains(string(enabled), "go test ./...") {
-				t.Fatalf("unexpected justfile variants")
-			}
-			for _, variant := range [][]byte{base, absent, disabled, enabled} {
-				if !bytes.Contains(variant, []byte("\nrelease $VERSION:\n")) {
-					t.Fatal("justfile variant omits the release recipe")
-				}
-			}
-		} else if !bytes.Equal(base, enabled) || bytes.Contains(disabled, []byte("gomod")) || !bytes.Contains(disabled, []byte("github-actions")) || !bytes.Contains(disabled, []byte("nix")) {
-			t.Fatalf("unexpected Dependabot variants")
+		if !bytes.Equal(got, base) {
+			t.Fatal("Go selection changed the root justfile")
 		}
 	}
 }

@@ -50,13 +50,15 @@ func (o Options) stageError(err error) {
 
 // Execute retains typed results, including partial results when a later stage fails.
 func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options) (Report, error) {
-	return execute(cfg, dir, mode, client, stderr, options, nil)
+	return execute(cfg, dir, mode, client, stderr, options, func(selections []managedSelection) (managedRenderedFiles, error) {
+		return renderManagedFiles(cfg, selections)
+	}, true)
 }
 
 // The sequence is deliberately linear because operation order is part of the safety contract.
 //
 //nolint:gocyclo
-func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options, renderer managedRenderer) (Report, error) {
+func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options, renderer managedRenderer, availableManagedOnly ...bool) (Report, error) {
 	if stderr == nil {
 		stderr = io.Discard
 	}
@@ -77,11 +79,7 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	partial := func(err error) (Report, error) {
 		allSwatches := append(append([]SwatchResult{}, swatchResults...), retiredResults...)
 		report := buildReport(command, context, repoResults, labelResults, variableResults, allSwatches, mode)
-		var retained []string
-		if managed != nil {
-			retained = managed.retainedPlaywrightSettings
-		}
-		appendManagedReporting(&report, managedResults, retained)
+		appendManagedReporting(&report, managedResults)
 		appendGuidance(&report, wikiGuidance)
 		options.stageError(err)
 		return report, err
@@ -101,7 +99,7 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 		return partial(err)
 	}
 	if renderer != nil {
-		managed, err = prepareManagedExecution(cfg, dir, renderer)
+		managed, err = prepareManagedExecution(cfg, dir, renderer, availableManagedOnly...)
 		if err != nil {
 			if conflict, ok := managedConflictResult(err); ok {
 				managedResults = append(managedResults, conflict)
@@ -257,11 +255,7 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	}
 	swatchResults = append(swatchResults, retiredResults...)
 	report := buildReport(command, context, repoResults, labelResults, variableResults, swatchResults, mode)
-	var retained []string
-	if managed != nil {
-		retained = managed.retainedPlaywrightSettings
-	}
-	appendManagedReporting(&report, managedResults, retained)
+	appendManagedReporting(&report, managedResults)
 	if wiki != nil {
 		appendGuidance(&report, wiki.nextSteps)
 	}

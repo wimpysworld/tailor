@@ -2,7 +2,7 @@
 
 Tailor configures GitHub Pages for public repositories, with a deployment workflow and the `github-pages` environment. Pages is disabled by default.
 
-[Setup](#setup) · [Workflow](#workflow) · [Existing site](#existing-site-and-environment) · [Domain](#custom-domain-and-homepage) · [Links](#static-pages-links) · [Starter](#static-pages-starter) · [Navigation](#static-pages-navigation)
+[Setup](#setup) · [Local preview](#local-preview) · [Workflow](#workflow) · [Existing site](#existing-site-and-environment) · [Domain](#custom-domain-and-homepage) · [Links](#static-pages-links) · [Starter](#static-pages-starter) · [Navigation](#static-pages-navigation)
 
 ## Setup
 
@@ -22,7 +22,7 @@ Run `tailor baste` to preview.
 Run `tailor alter` to apply. Commit the source and generated workflow to the selected branch to deploy.
 
 | Generator | Required source | Build |
-|---|---|---|
+| --- | --- | --- |
 | `static` | `index.html` | Uploads the source without changing URLs. Use URLs that support the deployment base path. |
 | `hugo` | Recognised Hugo configuration and local themes or pinned modules/submodules | Hugo Extended 0.165.0 writes `<path>/public`. Modules require `go.mod` and matching `go.sum` entries. |
 | `jekyll` | `_config.yml`, `Gemfile`, and a complete `Gemfile.lock` with Jekyll 4.4.1 | Ruby 3.3.12 builds `<path>/_site`. |
@@ -40,12 +40,31 @@ Tailor reports blocked actions without bypassing the policy or changing reposito
 > [!IMPORTANT]
 > Pages currently requires a classic token with `repo` scope. Use a repository administrator account to permit environment creation or branch-policy updates. Tailor skips Pages with `insufficient scope` when it cannot prove permissions, including with fine-grained tokens.
 
+## Local preview
+
+When `pages.enabled` is true, Tailor adds the `just pages` recipe and miniserve package. The recipe binds only to `http://127.0.0.1:18473`.
+
+| Generator | Preview directory | Required file |
+| --- | --- | --- |
+| `static` | The effective `pages.path`, including a custom path | `<pages.path>/index.html` |
+| `hugo` | `<pages.path>/public` | `<pages.path>/public/index.html` |
+| `jekyll` | `<pages.path>/_site` | `<pages.path>/_site/index.html` |
+
+Build Hugo or Jekyll before preview. If the required file is absent, the recipe stops and prints the matching command:
+
+```bash
+hugo --source "<pages.path>"
+bundle exec jekyll build --source "<pages.path>" --destination "<pages.path>/_site"
+```
+
+Run the command for the selected generator, then run `just pages`. Tailor never serves raw Hugo or Jekyll source files.
+
 ## Workflow
 
 The workflow path is `.github/workflows/tailor-pages.yml`, with default mode `always`. Tailor refuses an existing file without the first-line marker `# Managed by Tailor: pages`, even with `--recut`.
 
 | Workflow mode | Behaviour |
-|---|---|
+| --- | --- |
 | `always` | Creates or updates the marked workflow for the selected generator, path and branch. |
 | `first-fit` | Creates a missing workflow. Preserves an existing compatible workflow, unless `--recut` applies. |
 | `never` | Requires an existing compatible workflow and never writes it, including with `--recut`. |

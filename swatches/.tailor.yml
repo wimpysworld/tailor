@@ -1,13 +1,16 @@
 license: BlueOak-1.0.0
 
+# true creates or updates owned Go fragments; false removes them; omission leaves them untouched.
 languages:
   go: false
 
 # Model Context Protocol integrations are opt-in.
+# Playwright provisioning is deferred; this declaration changes no files.
 mcp:
   playwright: false
 
-# Pages is opt-in. Omission or enabled: false leaves Pages unmanaged.
+# Pages is opt-in. true manages owned Just and Nix fragments; false removes them.
+# Omission leaves the fragments untouched and leaves Pages publishing unmanaged.
 # generator: static (default) creates a starter in an empty path. Hugo and Jekyll need an existing site.
 # path: project-relative source directory, default pages.
 # branch: omit to use the current repository default branch.
@@ -248,6 +251,8 @@ swatches:
   - path: SUPPORT.md
     alteration: always
 
+  # Tailor creates a missing root for always or first-fit, but never rewrites an existing root.
+  # If an existing root lacks the loader import, add: import 'just/loader.just'
   - path: justfile
     alteration: first-fit
 
@@ -263,6 +268,9 @@ swatches:
   - path: .github/workflows/build-go.yml
     alteration: first-fit
 
+  # Tailor never rewrites an existing root. If its package list lacks the loader, add:
+  # ++ import ./nix/loader.nix { inherit pkgs; }
+  # Review and add new Nix files to Git because flakes exclude untracked files.
   - path: flake.nix
     alteration: first-fit
 

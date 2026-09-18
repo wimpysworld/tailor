@@ -30,8 +30,8 @@ func TestContentAvailableForAllRegisteredSwatches(t *testing.T) {
 	}
 }
 
-// TestAllEmbeddedFilesAreRegistered checks that every embedded source maps to a
-// registered destination, including sources for conditional variants.
+// TestAllEmbeddedFilesAreRegistered checks that every ordinary embedded source
+// maps to a registered destination. Managed templates have private coverage tests.
 func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 	registered := make(map[string]bool)
 	for _, p := range swatch.Paths() {
@@ -46,11 +46,12 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 			return nil
 		}
 		rel := strings.TrimPrefix(path, "swatches/")
+		if strings.HasPrefix(rel, "just/") || strings.HasPrefix(rel, "nix/") || rel == "go/justfile" {
+			return nil
+		}
 		switch rel {
 		case "pages/static.yml", "pages/hugo.yml", "pages/jekyll.yml":
 			rel = swatch.PagesDestination
-		case "go/justfile":
-			rel = "justfile"
 		case "go/dependabot-disabled.yml":
 			rel = ".github/dependabot.yml"
 		}

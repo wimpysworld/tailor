@@ -34,9 +34,6 @@ type Options struct {
 // Render resolves Go variants and placeholders without reading project files.
 // Callers select active swatches and supply discovered builds before rendering.
 func Render(path string, options Options) ([]byte, error) {
-	if path == "justfile" && options.GoEnabled {
-		return tailor.SwatchFS.ReadFile("swatches/go/justfile")
-	}
 	if path == ".github/dependabot.yml" && options.GoDeclared && !options.GoEnabled {
 		return tailor.SwatchFS.ReadFile("swatches/go/dependabot-disabled.yml")
 	}

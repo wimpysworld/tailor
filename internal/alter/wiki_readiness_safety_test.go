@@ -150,8 +150,9 @@ func TestWikiReadinessFalseAndOmittedDoNotProbe(t *testing.T) {
 			if err := alter.Run(loadTestConfig(t, dir), dir, alter.Apply, client, io.Discard, io.Discard); err != nil {
 				t.Fatal(err)
 			}
-			if len(s.writes) != 0 || !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) {
-				t.Fatalf("inactive wiki caused writes: %v", s.writes)
+			after := pagesAcceptanceSnapshot(t, dir)
+			if len(s.writes) != 0 || !reflect.DeepEqual(pagesAcceptanceWithoutManagedCore(before), pagesAcceptanceWithoutManagedCore(after)) {
+				t.Fatalf("inactive wiki caused writes outside the managed core: %v", s.writes)
 			}
 		})
 	}
