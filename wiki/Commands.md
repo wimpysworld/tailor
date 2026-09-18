@@ -159,6 +159,24 @@ With [Go support](Configuration#go-support) enabled, Tailor adds these recipes:
 
 With [Pages](GitHub-Pages) enabled, `just pages` previews the effective site at `http://127.0.0.1:18473`.
 
+### Activate Playwright MCP
+
+After you set `mcp.playwright: true`, preview and apply the five managed files:
+
+```bash
+tailor baste
+tailor alter
+git status --short
+```
+
+Review each new Nix and client file, then stage the approved paths with `git add`. Nix flakes ignore untracked files. Tailor does not stage files.
+
+When Tailor preserves `flake.nix`, add the [Nix loader expression](Configuration#managed-development-files) to its package list. Do the same for the Just loader only when you need other managed recipes. Playwright has no Just fragment or recipe.
+
+Enter the project shell with `nix develop`, or reload direnv after `direnv allow`. Start a new client instance from that environment, or use the client's configuration reload command. Then approve Playwright MCP tool calls through the client's normal approval prompt.
+
+The configured MCP server starts its own headless, isolated browser. Do not start a manual stdio server or CDP endpoint. Start `just pages` only when you also want the separate Pages preview server.
+
 Unlike `tailor measure`, `just measure` needs authentication because its first command is `tailor baste`. If that preview fails, the recipe stops before the local health check.
 
 Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. If needed, add the exact loader import from [managed development files](Configuration#managed-development-files). Put project recipes in separate imports to avoid duplicate recipe names.

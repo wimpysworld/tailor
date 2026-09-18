@@ -273,7 +273,7 @@ mcp:
 
 New configurations contain false declarations for `languages.go`, `pages.enabled`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
 
-The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. Playwright paths are reserved in the internal registry, but provisioning remains deferred. The declaration does not inspect, create, replace, or remove files.
+The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. A true declaration provisions the Playwright package fragment and four MCP client starters. Pages publishing and the optional `just pages` preview remain separate.
 
 #### Managed development files
 
@@ -285,10 +285,12 @@ Tailor uses one fixed internal registry for development roots, loaders, and frag
 | Loaders and core | `just/loader.just`, `nix/loader.nix`, `just/tailor.just` |
 | Go fragments | `just/go.just`, `nix/go.nix` |
 | Pages fragments | `just/pages.just`, `nix/pages.nix` |
+| Playwright package fragment | `nix/playwright.nix` |
+| Playwright MCP client starters | `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.pi/mcp.json` |
 
-The ordinary default set remains 29 configured swatches. The `justfile` and `flake.nix` entries now control only missing-root creation. The seven nested templates are a separate managed class and add no swatch entries.
+The ordinary default set remains 29 configured swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
 
-Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The Go and Pages declarations have this exact lifecycle:
+Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The Go, Pages, and Playwright package declarations have this exact lifecycle:
 
 | Declaration | Fragment action |
 | --- | --- |
@@ -298,13 +300,15 @@ Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`,
 
 An owned loader, core file, or fragment starts with the exact first line `# Managed by Tailor: <registered path>`. The marker must end with LF or CRLF. A partial, misplaced, or wrong-path marker does not grant ownership. An unmarked regular file causes an ownership conflict, including before removal. Tailor replaces or removes a final symlink without reading its target. Registration grants no ownership of sibling files or the containing directory.
 
+When `mcp.playwright` is true, Tailor creates each missing MCP client starter. Tailor preserves an existing regular file or final symlink and reports the client entry that the user must add manually. Tailor never parses, merges, or replaces these shared files. A false declaration preserves all four client files and removes only an owned `nix/playwright.nix`. Tailor warns in preview and apply that retained client settings can refer to a missing `playwright-mcp` executable. An absent declaration does not inspect or change any of the five Playwright paths.
+
 The protected roots have no ownership marker. Tailor preserves an existing regular file or final symlink, including a dangling symlink, for `always`, `first-fit`, `never`, `--recut`, and an omitted swatch entry. It reports the existing root as preserved and gives loader adoption guidance in each case. Tailor creates a missing root only when its swatch entry is `always` or `first-fit`. A missing root with an omitted entry or `never` produces no root result or adoption guidance.
 
 Tailor does not parse or rewrite a preserved root. If the line is absent, add `import 'just/loader.just'` to `justfile`. If the expression is absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in `flake.nix`.
 
 The generated `justfile` requires Just 1.23.0 or later and owns the sole `default` recipe. `just/tailor.just` owns `alter`, `measure`, `release`, and `lint`. `just/go.just` owns `build`, `test`, and `lint-go`. `just/pages.just` owns `pages`. Generated files cannot contain duplicate recipe names.
 
-The Nix loader returns only a package list. It passes the existing `pkgs` set to each fragment and does not add inputs, change outputs, or update the lock file. This packages-only guarantee covers packages available through the existing flake inputs.
+The Nix loader returns only a package list. It passes the existing `pkgs` set to each fragment and does not add inputs, change outputs, or update the lock file. This packages-only guarantee covers packages available through the existing flake inputs. The Playwright fragment supplies `playwright-mcp` with Chromium only. It excludes Firefox, WebKit, and the Chromium headless shell.
 
 The Pages recipe binds miniserve to `127.0.0.1:18473`. Static preview serves the effective `pages.path`. Hugo preview serves `<pages.path>/public`, and Jekyll preview serves `<pages.path>/_site`. The selected directory must contain `index.html`. The recipe tells the user to run `hugo --source <pages.path>` or `bundle exec jekyll build --source <pages.path> --destination <pages.path>/_site` when built output is absent.
 
@@ -318,7 +322,11 @@ When `baste` plans a new Nix file, or `alter` confirms its creation, Tailor tell
 
 Synthetic rendered bytes, malformed or duplicate registries, and injected failures enter through package-private test seams. Production options, configuration, flags, and environment variables do not expose these seams, and tests do not mutate a global registry.
 
-Playwright provisioning remains deferred. `nix/playwright.nix`, `.mcp.json`, `.codex/config.toml`, `opencode.json`, and `.pi/mcp.json` are reserved but inactive. The `mcp.playwright` declaration does not inspect, create, replace, or remove them.
+The four client starters configure `playwright-mcp --headless --isolated`. The MCP server owns and launches its browser. The configuration contains no manual stdio process, CDP endpoint, dynamic port, runtime package download, or Playwright Just fragment. MCP tool calls remain subject to the client's normal approval controls.
+
+The Pi starter alone maps a non-empty inherited `HTTPS_PROXY` to Playwright's `--proxy-server` argument. An empty or absent value adds no proxy argument. Tailor makes no proxy claim for Claude, Codex, or OpenCode. Documentation and reports must not expose proxy credentials.
+
+After file creation, the user reviews and adds the files to Git, adopts the loader expressions in preserved roots, and enters the Nix development shell. The user then reloads the MCP configuration or starts a new client instance. Existing client processes do not prove that the new configuration loaded. Browser validation must use the configured MCP server, not a manual stdio or CDP process.
 
 Managed development files do not change Pages publishing, Pages source files, ordinary Go swatches, or CLI prerequisites.
 

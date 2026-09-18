@@ -60,10 +60,38 @@ tailor/
 - `measure` emits `warning` results for three local health diagnostics: missing `README.md` (not managed by tailor), `LICENSE` files containing unresolved placeholder tokens (e.g. `[year]`, `[fullname]`), and `LICENSE` files that exist but were not inspected (over 1 MiB or unreadable)
 - `README.md` is checked by exact path at the project root; it is a local diagnostic, not a swatch or config-diff item
 
+### Managed development and browser setup
+
+- To activate Playwright in a target repository, set this declaration in `.tailor.yml`:
+
+  ```yaml
+  mcp:
+    playwright: true
+  ```
+
+- Keep Playwright independent of Pages. Activation does not require `pages.enabled: true` and creates no Playwright Just fragment.
+- Optionally run `tailor baste` for a read-only preview before `tailor alter`.
+- Apply with `tailor alter` only within the approved scope. The command can also change other declared files and repository settings.
+- Preserve existing `justfile` and `flake.nix` roots, including under `--recut` and `always`.
+- If absent, manually add `import 'just/loader.just'` to the preserved `justfile`.
+- If absent, manually append `++ import ./nix/loader.nix { inherit pkgs; }` to the preserved flake's package list.
+- Create MCP starters only at missing `.mcp.json`, `.codex/config.toml`, `opencode.json`, and `.pi/mcp.json` destinations.
+- For existing client files, manually adopt only missing Playwright entries from the corresponding `swatches/` starter. Preserve disabled servers and unrelated settings.
+- Review generated Nix files before staging them with normal approval. Nix flakes exclude untracked files.
+- Enter the target's Nix dev shell with `nix develop`, or use `direnv allow` after review and normal approval.
+- Restart the selected client from that shell to load the new configuration and `playwright-mcp` executable. Keep normal MCP approvals.
+- Never change global trust, tool approvals, network exposure, or sandbox settings to make browser setup work.
+- When `mcp.playwright` is false, remove only the owned `nix/playwright.nix` package fragment among Playwright destinations. Preserve client configurations.
+- Warn that retained client configurations can lose the `playwright-mcp` executable. Manually disable or remove their Playwright entries when appropriate.
+- When `mcp.playwright` is absent, leave Playwright destinations untouched.
+
 ### Browser validation
 
 - Use the Nix dev shell, which provides `playwright-mcp` with Chromium.
-- Start `just pages`, or reuse its existing server at `http://127.0.0.1:18473`.
+- For Pages validation, optionally start `just pages`, or reuse its existing server at `http://127.0.0.1:18473`.
+- Validate generated setup through a newly started client that loads the target configuration, not the existing repository MCP instance.
+- Record the loaded configuration and executable evidence without secrets. Open a unique loopback fixture through that client's configured MCP.
+- Check page content and browser requests. If a fresh client is unavailable, report browser acceptance as pending with restart steps.
 - Use the configured Playwright MCP, which launches its own headless, isolated browser. Do not start a separate CDP endpoint or a manual stdio process.
 - Under Fence, Pi's `.pi/mcp.json` launcher forwards `HTTPS_PROXY` to `--proxy-server` when set. Do not assume that other providers use this proxy configuration.
 - Confirm that the actual CSS, fonts, and icons load before drawing visual conclusions. Report failed loads separately from site defects. Do not quietly mirror assets to make validation pass.

@@ -21,6 +21,9 @@ func TestFixedManagedRegistry(t *testing.T) {
 	got := make([]string, 0, len(registry))
 	for _, entry := range registry {
 		got = append(got, entry.Path)
+		if !entry.Available {
+			t.Errorf("managed registry entry %q is unavailable", entry.Path)
+		}
 	}
 	want := []string{
 		"justfile", "flake.nix",

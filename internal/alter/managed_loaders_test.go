@@ -12,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
@@ -145,6 +146,34 @@ func TestManagedNixGitVisibilityUsesIsolatedRepository(t *testing.T) {
 		t.Fatalf("packages with tracked fragment = %v, want %v", got, want)
 	}
 	assertManagedBytes(t, filepath.Join(root, "flake.nix"), flake)
+}
+
+func TestManagedNixLoaderKeepsPlaywrightOptional(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		playwright *bool
+		wantFile   bool
+	}{
+		{name: "absent"},
+		{name: "false", playwright: new(false)},
+		{name: "true", playwright: new(true), wantFile: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{}
+			if tt.playwright != nil {
+				cfg.MCP = &config.MCPSettings{Playwright: tt.playwright}
+			}
+			rendered := renderSelectedManagedFiles(t, cfg)
+			_, present := rendered["nix/playwright.nix"]
+			if present != tt.wantFile {
+				t.Fatalf("Playwright fragment present = %t, want %t", present, tt.wantFile)
+			}
+			loader := string(rendered["nix/loader.nix"])
+			if !strings.Contains(loader, "builtins.pathExists ./playwright.nix") || !strings.Contains(loader, "import ./playwright.nix") {
+				t.Fatalf("Nix loader lacks its optional Playwright import:\n%s", loader)
+			}
+		})
+	}
 }
 
 func TestManagedPagesRecipeUsesCustomBuiltPathAndStubMiniserve(t *testing.T) {

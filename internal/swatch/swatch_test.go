@@ -37,6 +37,12 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 	for _, p := range swatch.Paths() {
 		registered[p] = true
 	}
+	private := map[string]bool{
+		"go/justfile":  false,
+		"just/go.just": false, "just/loader.just": false, "just/pages.just": false, "just/tailor.just": false,
+		"nix/go.nix": false, "nix/loader.nix": false, "nix/pages.nix": false, "nix/playwright.nix": false,
+		".mcp.json": false, ".codex/config.toml": false, "opencode.json": false, ".pi/mcp.json": false,
+	}
 
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -46,7 +52,8 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 			return nil
 		}
 		rel := strings.TrimPrefix(path, "swatches/")
-		if strings.HasPrefix(rel, "just/") || strings.HasPrefix(rel, "nix/") || rel == "go/justfile" {
+		if _, ok := private[rel]; ok {
+			private[rel] = true
 			return nil
 		}
 		switch rel {
@@ -62,6 +69,11 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("WalkDir returned error: %v", err)
+	}
+	for path, found := range private {
+		if !found {
+			t.Errorf("private embedded file %q is missing", path)
+		}
 	}
 }
 
