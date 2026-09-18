@@ -60,7 +60,7 @@ func applyManagedFilesWithHooks(dir string, plan managedPlan, hooks managedApply
 		var changed bool
 		switch current.Operation {
 		case managedOperationWrite:
-			changed, err = writeManagedFile(root, current.Selection.Entry.Path, current.Content, hooks)
+			changed, err = writeManagedFile(root, current.Selection.Entry.Path, current.Content, current.Selection.Entry.Policy.protected(), hooks)
 		case managedOperationRemove:
 			changed, err = removeManagedFile(root, current.Selection.Entry.Path, hooks)
 		}

@@ -372,6 +372,76 @@ func TestApplyManagedFilesRechecksDestinations(t *testing.T) {
 	})
 }
 
+func TestApplyManagedFilesProtectedCreateRaceDoesNotClobber(t *testing.T) {
+	policies := []struct {
+		name        string
+		destination string
+		policy      managedPolicy
+		capability  managedCapability
+	}{
+		{name: "root", destination: "justfile", policy: managedPolicyRoot},
+		{name: "shared starter", destination: ".codex/config.toml", policy: managedPolicySharedStarter, capability: managedCapabilityPlaywright},
+	}
+
+	for _, policy := range policies {
+		for _, kind := range []string{"regular file", "final symlink"} {
+			t.Run(policy.name+"/"+kind, func(t *testing.T) {
+				dir := t.TempDir()
+				userContent := []byte("user content\n")
+				var target string
+				if kind == "final symlink" {
+					target = filepath.Join(t.TempDir(), "target")
+					if err := os.WriteFile(target, userContent, 0o600); err != nil {
+						t.Fatal(err)
+					}
+				}
+				plan := managedPlan{Files: []managedPlanFile{
+					managedTestPlanFile(policy.destination, policy.policy, policy.capability, true, managedOperationWrite, []byte("generated\n")),
+				}}
+
+				results, err := applyManagedFilesWithHooks(dir, plan, managedApplyHooks{
+					beforeRename: func(string) error {
+						destination := filepath.Join(dir, filepath.FromSlash(policy.destination))
+						if kind == "regular file" {
+							return os.WriteFile(destination, userContent, 0o640)
+						}
+						managedSymlinkOrSkip(t, target, destination)
+						return nil
+					},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(results) != 0 {
+					t.Fatalf("results = %v, want none", results)
+				}
+
+				destination := filepath.Join(dir, filepath.FromSlash(policy.destination))
+				if kind == "regular file" {
+					content, readErr := os.ReadFile(destination)
+					if readErr != nil || !reflect.DeepEqual(content, userContent) {
+						t.Fatalf("concurrent destination content = %q, error = %v", content, readErr)
+					}
+				} else {
+					info, statErr := os.Lstat(destination)
+					if statErr != nil || info.Mode()&os.ModeSymlink == 0 {
+						t.Fatalf("concurrent destination mode = %v, error = %v", info, statErr)
+					}
+					content, readErr := os.ReadFile(target)
+					if readErr != nil || !reflect.DeepEqual(content, userContent) {
+						t.Fatalf("symlink target content = %q, error = %v", content, readErr)
+					}
+				}
+
+				matches, globErr := filepath.Glob(destination + ".tmp-*")
+				if globErr != nil || len(matches) != 0 {
+					t.Fatalf("temporary files = %v, error = %v", matches, globErr)
+				}
+			})
+		}
+	}
+}
+
 func managedSingleWritePlan(destination string, content []byte) managedPlan {
 	return managedPlan{Files: []managedPlanFile{
 		managedTestPlanFile(destination, managedPolicyLoader, managedCapabilityNone, true, managedOperationWrite, content),
