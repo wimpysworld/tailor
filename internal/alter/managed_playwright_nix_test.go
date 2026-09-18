@@ -16,7 +16,13 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
+// TestManagedPlaywrightNixFixture is opt-in because it resolves locked remote
+// flake inputs and builds or downloads the Playwright Chromium closure. Run
+// TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS=1 go test ./internal/alter -run TestManagedPlaywrightNixFixture -v.
 func TestManagedPlaywrightNixFixture(t *testing.T) {
+	if os.Getenv("TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS") != "1" {
+		t.Skip("set TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS=1 to evaluate the locked Nix fixture and build Playwright Chromium")
+	}
 	nix := requireManagedExecutable(t, "nix")
 	root := managedPlaywrightNixFixture(t)
 	flakePath := "path:" + filepath.ToSlash(root)
