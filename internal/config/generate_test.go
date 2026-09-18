@@ -37,6 +37,19 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 		t.Errorf("License = %q, want %q", got.License, "BlueOak-1.0.0")
 	}
 
+	if got.Languages == nil {
+		t.Fatal("Languages is nil, want explicit defaults")
+	}
+	testutil.AssertPtrEqual(t, got.Languages.Go, new(false), "languages.go")
+	if got.MCP == nil {
+		t.Fatal("MCP is nil, want explicit defaults")
+	}
+	testutil.AssertPtrEqual(t, got.MCP.Playwright, new(false), "mcp.playwright")
+	if got.Pages == nil {
+		t.Fatal("Pages is nil, want explicit defaults")
+	}
+	testutil.AssertPtrEqual(t, got.Pages.Enabled, new(false), "pages.enabled")
+
 	// Managed repository settings retain the embedded defaults, apart from project metadata.
 	if got.Repository == nil {
 		t.Fatal("Repository is nil, want non-nil")

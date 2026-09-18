@@ -3,6 +3,10 @@ license: BlueOak-1.0.0
 languages:
   go: false
 
+# Model Context Protocol integrations are opt-in.
+mcp:
+  playwright: false
+
 # Pages is opt-in. Omission or enabled: false leaves Pages unmanaged.
 # generator: static (default) creates a starter in an empty path. Hugo and Jekyll need an existing site.
 # path: project-relative source directory, default pages.
