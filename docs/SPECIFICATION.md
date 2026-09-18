@@ -1379,6 +1379,7 @@ swatches/
 ├── .gitignore
 ├── .golangci.yml
 ├── .goreleaser.yaml
+├── .mcp.json
 ├── Dockerfile
 ├── cubic.yaml
 ├── CODE_OF_CONDUCT.md
@@ -1387,8 +1388,12 @@ swatches/
 ├── SUPPORT.md
 ├── flake.nix
 ├── justfile
+├── opencode.json
+├── .codex/
+│   └── config.toml
+├── .pi/
+│   └── mcp.json
 ├── go/
-│   ├── justfile
 │   └── dependabot-disabled.yml
 ├── just/
 │   ├── loader.just
@@ -1398,7 +1403,8 @@ swatches/
 ├── nix/
 │   ├── loader.nix
 │   ├── go.nix
-│   └── pages.nix
+│   ├── pages.nix
+│   └── playwright.nix
 ├── .github/
 │   ├── dependabot.yml  # Go modules follow languages.go
 │   ├── workflows/
