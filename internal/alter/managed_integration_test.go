@@ -25,6 +25,7 @@ func TestManagedProductionTransitionsAcrossModes(t *testing.T) {
 		wantCaps    [2]bool
 	}{
 		{name: "absent-to-true", states: [2]string{"absent", "true"}, wantCaps: [2]bool{false, true}},
+		{name: "true-to-absent", states: [2]string{"true", "absent"}, initialCaps: true, wantCaps: [2]bool{true, true}},
 		{name: "true-to-false", states: [2]string{"true", "false"}, initialCaps: true, wantCaps: [2]bool{true, false}},
 		{name: "false-to-true", states: [2]string{"false", "true"}, initialCaps: true, wantCaps: [2]bool{false, true}},
 	}
