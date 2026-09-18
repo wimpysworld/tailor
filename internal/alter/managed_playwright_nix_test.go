@@ -134,7 +134,35 @@ func assertManagedPlaywrightClosure(t *testing.T, nix, packagePath string) {
 			t.Errorf("runtime closure contains %s:\n%s", unwanted, output)
 		}
 	}
-	if !strings.Contains(closure, "playwright-chromium") {
-		t.Fatalf("runtime closure lacks playwright-chromium:\n%s", output)
+
+	var browsersPath string
+	for path := range strings.FieldsSeq(string(output)) {
+		if strings.HasSuffix(path, "-playwright-browsers") {
+			if browsersPath != "" {
+				t.Fatalf("runtime closure contains multiple playwright-browsers paths:\n%s", output)
+			}
+			browsersPath = path
+		}
+	}
+	if browsersPath == "" {
+		t.Fatalf("runtime closure lacks playwright-browsers:\n%s", output)
+	}
+
+	entries, err := os.ReadDir(browsersPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hasChromium := false
+	for _, entry := range entries {
+		name := strings.ToLower(entry.Name())
+		switch {
+		case strings.HasPrefix(name, "chromium-"):
+			hasChromium = true
+		case strings.HasPrefix(name, "chromium_headless_shell-"), strings.HasPrefix(name, "firefox-"), strings.HasPrefix(name, "webkit-"):
+			t.Errorf("playwright-browsers contains %s", entry.Name())
+		}
+	}
+	if !hasChromium {
+		t.Fatalf("playwright-browsers lacks a Chromium entry: %s", browsersPath)
 	}
 }
