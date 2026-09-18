@@ -60,7 +60,7 @@ func TestFirstFitSkipWhenExists(t *testing.T) {
 	writeOnDisk(t, dir, ".gitignore", []byte("existing"))
 
 	cfg := newConfig(entry(".gitignore", swatch.FirstFit))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestFirstFitCopyWhenAbsent(t *testing.T) {
 	dir := t.TempDir()
 
 	cfg := newConfig(entry(".gitignore", swatch.FirstFit))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -93,7 +93,7 @@ func TestFirstFitApplyWritesFile(t *testing.T) {
 	dir := t.TempDir()
 
 	cfg := newConfig(entry(".gitignore", swatch.FirstFit))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,9 +129,9 @@ func TestFirstFitRejectsDirectoryDestination(t *testing.T) {
 			}
 
 			cfg := newConfig(entry(".gitignore", swatch.FirstFit))
-			_, err := alter.ProcessSwatches(cfg, dir, test.mode, &alter.TokenContext{})
+			_, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, test.mode, &alter.TokenContext{})
 			if err == nil {
-				t.Fatal("ProcessSwatches() error = nil, want directory error")
+				t.Fatal("ProcessOrdinarySwatchesForTest() error = nil, want directory error")
 			}
 			if !strings.Contains(err.Error(), `swatch destination ".gitignore" is a directory`) {
 				t.Errorf("error = %q, want directory error", err)
@@ -153,7 +153,7 @@ func TestAlwaysNoChangeWhenSHA256Matches(t *testing.T) {
 	writeOnDisk(t, dir, "CODE_OF_CONDUCT.md", content)
 
 	cfg := newConfig(entry("CODE_OF_CONDUCT.md", swatch.Always))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -167,7 +167,7 @@ func TestAlwaysWouldOverwriteWhenSHA256Differs(t *testing.T) {
 	writeOnDisk(t, dir, "CODE_OF_CONDUCT.md", []byte("old content"))
 
 	cfg := newConfig(entry("CODE_OF_CONDUCT.md", swatch.Always))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -183,9 +183,9 @@ func TestAlwaysRejectsDirectoryDestination(t *testing.T) {
 	}
 
 	cfg := newConfig(entry("CODE_OF_CONDUCT.md", swatch.Always))
-	_, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	_, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err == nil {
-		t.Fatal("ProcessSwatches() error = nil, want directory error")
+		t.Fatal("ProcessOrdinarySwatchesForTest() error = nil, want directory error")
 	}
 	if !strings.Contains(err.Error(), `swatch destination "CODE_OF_CONDUCT.md" is a directory`) {
 		t.Errorf("error = %q, want directory error", err)
@@ -212,7 +212,7 @@ func TestSwatchRejectsNonRegularDestination(t *testing.T) {
 			mkfifoOrSkip(t, path)
 
 			cfg := newConfig(entry(".gitignore", test.alteration))
-			_, err := alter.ProcessSwatches(cfg, dir, test.mode, &alter.TokenContext{})
+			_, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, test.mode, &alter.TokenContext{})
 			if err == nil || !strings.Contains(err.Error(), `swatch destination ".gitignore" is not a regular file`) {
 				t.Fatalf("error = %v, want non-regular destination error", err)
 			}
@@ -235,7 +235,7 @@ func TestAlwaysSubstitutedSourceNoChangeWhenHashMatches(t *testing.T) {
 	writeOnDisk(t, dir, "SECURITY.md", content)
 
 	cfg := newConfig(entry("SECURITY.md", swatch.Always))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -250,7 +250,7 @@ func TestAlwaysSubstitutedSourceOverwritesWhenDifferent(t *testing.T) {
 	writeOnDisk(t, dir, "SECURITY.md", []byte("stale on-disk content"))
 
 	cfg := newConfig(entry("SECURITY.md", swatch.Always))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, &alter.TokenContext{})
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.DryRun, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -264,7 +264,7 @@ func TestRecutOverwritesExisting(t *testing.T) {
 	writeOnDisk(t, dir, ".gitignore", []byte("old"))
 
 	cfg := newConfig(entry(".gitignore", swatch.FirstFit))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, &alter.TokenContext{})
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Recut, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -286,7 +286,7 @@ func TestConfigYmlSkippedInProcessSwatches(t *testing.T) {
 	writeOnDisk(t, dir, ".tailor.yml", []byte("old content"))
 
 	cfg := newConfig(entry(".tailor.yml", swatch.Always))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, &alter.TokenContext{})
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Recut, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,7 +309,7 @@ func TestWouldCopyWhenAbsentRegardlessOfMode(t *testing.T) {
 		t.Run(m.name, func(t *testing.T) {
 			dir := t.TempDir()
 			cfg := newConfig(entry(".gitignore", swatch.FirstFit))
-			results, err := alter.ProcessSwatches(cfg, dir, m.mode, &alter.TokenContext{})
+			results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, m.mode, &alter.TokenContext{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -325,7 +325,7 @@ func TestAlwaysApplyWritesOnOverwrite(t *testing.T) {
 	writeOnDisk(t, dir, "CODE_OF_CONDUCT.md", []byte("old"))
 
 	cfg := newConfig(entry("CODE_OF_CONDUCT.md", swatch.Always))
-	results, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,7 +356,7 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 		t.Run(m.name+"/absent", func(t *testing.T) {
 			dir := t.TempDir()
 			cfg := newConfig(entry(".gitignore", swatch.Never))
-			results, err := alter.ProcessSwatches(cfg, dir, m.mode, &alter.TokenContext{})
+			results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, m.mode, &alter.TokenContext{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -375,7 +375,7 @@ func TestNeverSkipsRegardlessOfFileExistence(t *testing.T) {
 			dir := t.TempDir()
 			writeOnDisk(t, dir, ".gitignore", []byte("existing"))
 			cfg := newConfig(entry(".gitignore", swatch.Never))
-			results, err := alter.ProcessSwatches(cfg, dir, m.mode, &alter.TokenContext{})
+			results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, m.mode, &alter.TokenContext{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -400,7 +400,7 @@ func TestNestedDestinationCreatesDirectories(t *testing.T) {
 	dir := t.TempDir()
 
 	cfg := newConfig(entry(".github/ISSUE_TEMPLATE/bug_report.yml", swatch.Always))
-	_, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
+	_, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -417,7 +417,7 @@ func TestSwatchSymlinkParentEscapeRejectsWrite(t *testing.T) {
 	symlinkOrSkip(t, outside, filepath.Join(dir, ".github"))
 
 	cfg := newConfig(entry(".github/ISSUE_TEMPLATE/bug_report.yml", swatch.Always))
-	_, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{})
+	_, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, &alter.TokenContext{})
 	if err == nil {
 		t.Fatal("expected symlink escape write error, got nil")
 	}
@@ -450,9 +450,9 @@ func TestSwatchRejectsInRootRelativeParentSymlink(t *testing.T) {
 			symlinkOrSkip(t, "managed", filepath.Join(dir, ".github"))
 
 			cfg := newConfig(entry(".github/ISSUE_TEMPLATE/bug_report.yml", test.alteration))
-			_, err := alter.ProcessSwatches(cfg, dir, test.mode, &alter.TokenContext{})
+			_, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, test.mode, &alter.TokenContext{})
 			if err == nil {
-				t.Fatal("ProcessSwatches() error = nil, want parent symlink error")
+				t.Fatal("ProcessOrdinarySwatchesForTest() error = nil, want parent symlink error")
 			}
 			if !strings.Contains(err.Error(), `swatch parent ".github" is a symlink`) {
 				t.Errorf("error = %q, want parent symlink error", err)
@@ -501,7 +501,7 @@ func TestSwatchReplacesDestinationSymlinkWithoutFollowingIt(t *testing.T) {
 				symlinkOrSkip(t, filepath.Base(targetPath), filepath.Join(dir, managed))
 
 				cfg := newConfig(entry(managed, mode.alteration))
-				results, err := alter.ProcessSwatches(cfg, dir, mode.mode, &alter.TokenContext{})
+				results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, mode.mode, &alter.TokenContext{})
 				if err != nil {
 					t.Fatal(err)
 				}

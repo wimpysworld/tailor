@@ -57,12 +57,8 @@ type SwatchResult struct {
 
 const configPath = config.ConfigSwatchPath
 
-// ProcessSwatches previews or writes active swatches after token substitution.
-// Config, Pages and wiki files use separate processors.
-func ProcessSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *TokenContext) ([]SwatchResult, error) {
-	return processSwatches(cfg, dir, mode, tokens, nil)
-}
-
+// processSwatches previews or writes active ordinary swatches after token substitution.
+// Config, managed, Pages and wiki files use separate processors.
 func processSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *TokenContext, excluded map[string]struct{}) ([]SwatchResult, error) {
 	if tokens == nil {
 		tokens = &TokenContext{}
