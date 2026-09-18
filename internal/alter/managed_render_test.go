@@ -19,24 +19,20 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-func TestAvailableManagedTemplatesMatchEmbeddedSources(t *testing.T) {
-	available := make(map[string]bool)
+func TestManagedTemplatesMatchEmbeddedSources(t *testing.T) {
+	managed := make(map[string]bool)
 	for _, entry := range fixedManagedRegistry() {
-		if !entry.Available {
-			t.Errorf("managed template %q is unavailable", entry.Path)
-			continue
-		}
-		available[entry.Path] = true
+		managed[entry.Path] = true
 		content, err := swatch.Content(entry.Path)
 		if err != nil {
-			t.Fatalf("available template %q: %v", entry.Path, err)
+			t.Fatalf("managed template %q: %v", entry.Path, err)
 		}
 		if entry.Policy.marked() && !hasManagedMarker(content, entry.Path) {
-			t.Errorf("available template %q lacks its ownership marker", entry.Path)
+			t.Errorf("managed template %q lacks its ownership marker", entry.Path)
 		}
 	}
-	if len(available) != 14 {
-		t.Fatalf("available=%d, want 14", len(available))
+	if len(managed) != 14 {
+		t.Fatalf("managed=%d, want 14", len(managed))
 	}
 
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(name string, entry fs.DirEntry, err error) error {
@@ -44,8 +40,8 @@ func TestAvailableManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 			return err
 		}
 		relative := strings.TrimPrefix(name, "swatches/")
-		if (strings.HasPrefix(relative, "just/") || strings.HasPrefix(relative, "nix/")) && !available[relative] {
-			t.Errorf("managed source %q is not available in the fixed registry", relative)
+		if (strings.HasPrefix(relative, "just/") || strings.HasPrefix(relative, "nix/")) && !managed[relative] {
+			t.Errorf("managed source %q is not in the fixed registry", relative)
 		}
 		return nil
 	})
@@ -54,7 +50,7 @@ func TestAvailableManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 	}
 }
 
-func TestManagedLoadersUseAvailableRegistryFragments(t *testing.T) {
+func TestManagedLoadersUseRegistryFragments(t *testing.T) {
 	configs := []*config.Config{
 		{},
 		{Languages: &config.LanguageSettings{Go: new(true)}},

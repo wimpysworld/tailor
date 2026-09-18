@@ -19,15 +19,10 @@ type managedExecution struct {
 	planned []SwatchResult
 }
 
-func prepareManagedExecution(cfg *config.Config, dir string, renderer managedRenderer, availableOnly ...bool) (*managedExecution, error) {
+func prepareManagedExecution(cfg *config.Config, dir string, renderer managedRenderer) (*managedExecution, error) {
 	selections, err := selectManagedFiles(cfg)
 	if err != nil {
 		return nil, err
-	}
-	if len(availableOnly) != 0 && availableOnly[0] {
-		selections = slices.DeleteFunc(selections, func(selection managedSelection) bool {
-			return !selection.Entry.Available
-		})
 	}
 	rendered, err := renderer(slices.Clone(selections))
 	if err != nil {

@@ -63,8 +63,8 @@ func managedPlaywrightNixFixture(t *testing.T) string {
 		}
 		if name == "nix/loader.nix" {
 			content, err = renderManagedLoader(name, content, []managedRegistryEntry{
-				{Path: "nix/loader.nix", Policy: managedPolicyLoader, Available: true},
-				{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright, Available: true},
+				{Path: "nix/loader.nix", Policy: managedPolicyLoader},
+				{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright},
 			})
 			if err != nil {
 				t.Fatal(err)

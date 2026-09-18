@@ -52,13 +52,13 @@ func (o Options) stageError(err error) {
 func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options) (Report, error) {
 	return execute(cfg, dir, mode, client, stderr, options, func(selections []managedSelection) (managedRenderedFiles, error) {
 		return renderManagedFiles(cfg, selections)
-	}, true)
+	})
 }
 
 // The sequence is deliberately linear because operation order is part of the safety contract.
 //
 //nolint:gocyclo
-func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options, renderer managedRenderer, availableManagedOnly ...bool) (Report, error) {
+func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options, renderer managedRenderer) (Report, error) {
 	if stderr == nil {
 		stderr = io.Discard
 	}
@@ -99,7 +99,7 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 		return partial(err)
 	}
 	if renderer != nil {
-		managed, err = prepareManagedExecution(cfg, dir, renderer, availableManagedOnly...)
+		managed, err = prepareManagedExecution(cfg, dir, renderer)
 		if err != nil {
 			if conflict, ok := managedConflictResult(err); ok {
 				managedResults = append(managedResults, conflict)

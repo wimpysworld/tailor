@@ -19,10 +19,10 @@ import (
 func TestManagedJustLoaderSupportsNestedOptionalFragments(t *testing.T) {
 	just := requireManagedExecutable(t, "just")
 	registry := []managedRegistryEntry{
-		{Path: "justfile", Policy: managedPolicyRoot, Available: true},
-		{Path: "just/loader.just", Policy: managedPolicyLoader, Available: true},
-		{Path: "just/core.just", Policy: managedPolicyCore, Available: true},
-		{Path: "just/ecosystem.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, Available: true},
+		{Path: "justfile", Policy: managedPolicyRoot},
+		{Path: "just/loader.just", Policy: managedPolicyLoader},
+		{Path: "just/core.just", Policy: managedPolicyCore},
+		{Path: "just/ecosystem.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
 	}
 	if err := validateManagedRegistry(registry); err != nil {
 		t.Fatal(err)
