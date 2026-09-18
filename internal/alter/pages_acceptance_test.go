@@ -140,6 +140,17 @@ func pagesAcceptanceSnapshot(t *testing.T, dir string) map[string]string {
 	return files
 }
 
+func pagesAcceptanceWithoutManagedCore(snapshot map[string]string) map[string]string {
+	filtered := make(map[string]string, len(snapshot))
+	for name, content := range snapshot {
+		if name == "just" || name == "nix" || strings.HasPrefix(name, "just/") || strings.HasPrefix(name, "nix/") {
+			continue
+		}
+		filtered[name] = content
+	}
+	return filtered
+}
+
 func TestPagesAcceptanceActionsRecheckPreservesSource(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
@@ -190,8 +201,8 @@ func TestPagesAcceptanceActionsRecheckPreservesSource(t *testing.T) {
 						t.Error("missing Pages directory was created")
 					}
 				}
-				if !reflect.DeepEqual(before, after) {
-					t.Error("unavailable Pages changed local files")
+				if !reflect.DeepEqual(pagesAcceptanceWithoutManagedCore(before), pagesAcceptanceWithoutManagedCore(after)) {
+					t.Error("unavailable Pages changed local files outside the managed core")
 				}
 			})
 		}
@@ -212,8 +223,9 @@ func TestPagesAcceptanceDisabledLeavesPagesUnmanaged(t *testing.T) {
 				if len(s.writes) != 0 || !reflect.DeepEqual(s.reads, []string{"/user"}) {
 					t.Fatalf("disabled Pages made API calls: reads=%v writes=%v", s.reads, s.writes)
 				}
-				if !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) || strings.Contains(output, "pages.") {
-					t.Fatalf("disabled Pages changed files or reported Pages results: %s", output)
+				after := pagesAcceptanceSnapshot(t, dir)
+				if !reflect.DeepEqual(pagesAcceptanceWithoutManagedCore(before), pagesAcceptanceWithoutManagedCore(after)) || strings.Contains(output, "repository.pages") {
+					t.Fatalf("disabled Pages changed non-managed files or remote Pages settings: %s", output)
 				}
 			})
 		}

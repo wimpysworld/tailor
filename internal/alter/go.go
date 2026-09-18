@@ -28,7 +28,7 @@ func prepareGoSwatches(cfg *config.Config, dir string, mode ApplyMode, branch st
 			continue
 		}
 		switch entry.Path {
-		case ".golangci.yml", ".goreleaser.yaml", goBuilderPath, "Dockerfile", ".github/dependabot.yml", "justfile":
+		case ".golangci.yml", ".goreleaser.yaml", goBuilderPath, "Dockerfile", ".github/dependabot.yml":
 		default:
 			continue
 		}

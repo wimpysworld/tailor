@@ -633,7 +633,11 @@ swatches:
 			want: "would set:                           repository.has_wiki = false\n" +
 				"would create:                        label.bug = #d73a4a \"A problem\"\n" +
 				"would copy:                          .gitignore\n" +
-				"would copy:                          LICENSE\n",
+				"would copy:                          LICENSE\n" +
+				"would copy:                          just/loader.just\n" +
+				"would copy:                          just/tailor.just\n" +
+				"would copy:                          nix/loader.nix\n" +
+				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 		{
 			name: "apply",
@@ -641,7 +645,11 @@ swatches:
 			want: "set:                                 repository.has_wiki = false\n" +
 				"created:                             label.bug = #d73a4a \"A problem\"\n" +
 				"copied:                              .gitignore\n" +
-				"copied:                              LICENSE\n",
+				"copied:                              LICENSE\n" +
+				"copied:                              just/loader.just\n" +
+				"copied:                              just/tailor.just\n" +
+				"copied:                              nix/loader.nix\n" +
+				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 		{
 			name: "recut",
@@ -649,7 +657,11 @@ swatches:
 			want: "set:                                 repository.has_wiki = false\n" +
 				"created:                             label.bug = #d73a4a \"A problem\"\n" +
 				"copied:                              .gitignore\n" +
-				"copied:                              LICENSE\n",
+				"copied:                              LICENSE\n" +
+				"copied:                              just/loader.just\n" +
+				"copied:                              just/tailor.just\n" +
+				"copied:                              nix/loader.nix\n" +
+				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 	}
 
@@ -818,8 +830,10 @@ swatches:
 	// Repo setting matches: "no change".
 	requireContains(t, output, "repository.has_wiki")
 
-	// No "would copy" should appear since all files exist.
-	requireNotContains(t, output, "would copy:")
+	// The always-reconciled core files are absent and must report bootstrap copies.
+	for _, path := range []string{"just/loader.just", "just/tailor.just", "nix/loader.nix"} {
+		requireContains(t, output, "would copy:                          "+path)
+	}
 
 	// Dry-run must not make mutating API calls.
 	if mc := tc.MutatingCalls(); len(mc) != 0 {
@@ -1153,6 +1167,9 @@ swatches:
 
 	const expectedWidth = 37
 	for _, line := range lines {
+		if strings.HasPrefix(line, "warning: ") {
+			continue
+		}
 		if len(line) < expectedWidth {
 			t.Errorf("line too short to contain label + content: %q", line)
 			continue
@@ -2796,7 +2813,11 @@ swatches:
 			mode: alter.DryRun,
 			wantOutput: "would update:                        .tailor.yml\n" +
 				"would remove:                        .github/workflows/tailor-automerge.yml\n" +
-				"would remove:                        .github/workflows/tailor.yml\n",
+				"would remove:                        .github/workflows/tailor.yml\n" +
+				"would copy:                          just/loader.just\n" +
+				"would copy:                          just/tailor.just\n" +
+				"would copy:                          nix/loader.nix\n" +
+				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 		{
 			name:      "apply",
@@ -2804,7 +2825,11 @@ swatches:
 			wantWrite: true,
 			wantOutput: "updated:                             .tailor.yml\n" +
 				"removed:                             .github/workflows/tailor-automerge.yml\n" +
-				"removed:                             .github/workflows/tailor.yml\n",
+				"removed:                             .github/workflows/tailor.yml\n" +
+				"copied:                              just/loader.just\n" +
+				"copied:                              just/tailor.just\n" +
+				"copied:                              nix/loader.nix\n" +
+				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 		{
 			name:      "recut",
@@ -2812,7 +2837,11 @@ swatches:
 			wantWrite: true,
 			wantOutput: "updated:                             .tailor.yml\n" +
 				"removed:                             .github/workflows/tailor-automerge.yml\n" +
-				"removed:                             .github/workflows/tailor.yml\n",
+				"removed:                             .github/workflows/tailor.yml\n" +
+				"copied:                              just/loader.just\n" +
+				"copied:                              just/tailor.just\n" +
+				"copied:                              nix/loader.nix\n" +
+				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 	}
 
@@ -2971,14 +3000,21 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	first := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 	wantFirst := "updated:                             .tailor.yml\n" +
-		"removed:                             .github/workflows/tailor.yml\n"
+		"removed:                             .github/workflows/tailor.yml\n" +
+		"copied:                              just/loader.just\n" +
+		"copied:                              just/tailor.just\n" +
+		"copied:                              nix/loader.nix\n" +
+		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n"
 	if first != wantFirst {
 		t.Errorf("first alter.Run() output =\n%s\nwant:\n%s", first, wantFirst)
 	}
 
 	second := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
-	if second != "" {
-		t.Errorf("retry alter.Run() output = %q, want empty output", second)
+	wantSecond := "no change:                           just/loader.just\n" +
+		"no change:                           just/tailor.just\n" +
+		"no change:                           nix/loader.nix\n"
+	if second != wantSecond {
+		t.Errorf("retry alter.Run() output = %q, want %q", second, wantSecond)
 	}
 	if _, err := os.Lstat(filepath.Join(tc.Dir, remaining)); !errors.Is(err, os.ErrNotExist) {
 		t.Errorf("retired workflow exists after retry: %v", err)

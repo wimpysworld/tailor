@@ -23,20 +23,29 @@ func TestRenderedJustfileRelease(t *testing.T) {
 	t.Setenv("GIT_COMMITTER_NAME", "Release Test")
 	t.Setenv("GIT_COMMITTER_EMAIL", "release@example.invalid")
 	for _, tt := range []struct {
-		name    string
-		options swatch.Options
+		name      string
+		includeGo bool
 	}{
-		{"base", swatch.Options{}},
-		{"go", swatch.Options{GoDeclared: true, GoEnabled: true}},
+		{name: "base"},
+		{name: "go", includeGo: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			content, err := swatch.Render("justfile", tt.options)
-			if err != nil {
+			if err := os.Mkdir(filepath.Join(dir, "just"), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(dir, "justfile"), content, 0o644); err != nil {
-				t.Fatal(err)
+			files := map[string][]byte{
+				"justfile":         mustSwatchContent(t, "justfile"),
+				"just/loader.just": []byte("# Managed by Tailor: just/loader.just\nimport? \"tailor.just\"\nimport? \"go.just\"\nimport? \"pages.just\"\n"),
+				"just/tailor.just": mustSwatchContent(t, "just/tailor.just"),
+			}
+			if tt.includeGo {
+				files["just/go.just"] = mustSwatchContent(t, "just/go.just")
+			}
+			for name, content := range files {
+				if err := os.WriteFile(filepath.Join(dir, name), content, 0o644); err != nil {
+					t.Fatal(err)
+				}
 			}
 			run := func(program string, args ...string) (string, error) {
 				t.Helper()
@@ -54,8 +63,8 @@ func TestRenderedJustfileRelease(t *testing.T) {
 				return output
 			}
 			git("init")
-			git("add", "justfile")
-			git("commit", "-m", "Add justfile")
+			git("add", ".")
+			git("commit", "-m", "Add just recipes")
 			for _, version := range []string{
 				"invalid",
 				"$(touch VERSION_MARKER)invalid",
@@ -88,4 +97,13 @@ func TestRenderedJustfileRelease(t *testing.T) {
 			}
 		})
 	}
+}
+
+func mustSwatchContent(t *testing.T, name string) []byte {
+	t.Helper()
+	content, err := swatch.Content(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return content
 }

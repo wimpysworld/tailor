@@ -31,7 +31,7 @@ Review `.tailor.yml` and run `tailor baste` before `tailor alter`. The defaults 
 
 ## `alter`
 
-Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, licence, and swatches in that order.
+Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, the licence, managed development files, ordinary swatches, then Pages files.
 
 Wiki setup has one earlier write: after local safety checks, Tailor enables a declared wiki before its readiness check. If readiness fails, no other changes follow. See [GitHub wiki](GitHub-wiki) for setup steps.
 
@@ -40,7 +40,7 @@ tailor alter            # Apply changes
 tailor alter --recut    # Overwrite always and first-fit swatches
 ```
 
-`--recut` overrides `first-fit` and overwrites those swatches, but it still skips `never` swatches. Existing wiki starter pages, [static Pages starter files](GitHub-Pages#static-pages-starter), and regular `LICENSE` files are exempt. For `.tailor.yml`, see [default merging](Configuration#default-merging).
+`--recut` overrides `first-fit` for ordinary swatches, but it still skips `never`. Existing `justfile` and `flake.nix` roots, wiki starter pages, [static Pages starter files](GitHub-Pages#static-pages-starter), and regular `LICENSE` files are exempt. For `.tailor.yml`, see [default merging](Configuration#default-merging).
 
 If a later step fails, completed local and repository changes remain. Tailor does not roll them back. Fix the reported error, then run `tailor baste` before you retry `tailor alter`.
 
@@ -139,26 +139,29 @@ Other bracketed licence text and complete Markdown inline links do not cause a w
 
 ## Justfile recipes
 
-The `justfile` swatch provides these recipes. Install `just` to use them and `actionlint` for the lint recipe.
+The generated files require Just 1.23.0 or later. The protected root imports managed fragments and owns the sole `default` recipe.
 
 | Command | Runs | Requirements |
 |---|---|---|
-| `just` | Lists recipes | `just` |
+| `just` | Lists recipes | Just 1.23.0 or later |
 | `just alter` | `tailor alter` | Tailor, GitHub authentication, valid `.tailor.yml` |
 | `just lint` | `actionlint` | `actionlint` |
 | `just measure` | `tailor baste`, then `tailor measure` | Tailor, GitHub authentication, valid `.tailor.yml` |
+| `just release x.y.z` | Validates a clean tree, then creates the local `vX.Y.Z` tag | Git |
 
-With [Go support](Configuration#go-support) enabled, a newly rendered `justfile` also includes these recipes:
+With [Go support](Configuration#go-support) enabled, Tailor adds these recipes:
 
 | Command | Runs | Requirements |
 |---|---|---|
 | `just build` | `go build ./...` | Go |
 | `just test` | `go test ./...` | Go |
-| `just lint` | `golangci-lint run`, then `actionlint` | Go, golangci-lint, actionlint |
+| `just lint-go` | `golangci-lint run` | golangci-lint |
+
+With [Pages](GitHub-Pages) enabled, `just pages` previews the effective site at `http://127.0.0.1:18473`.
 
 Unlike `tailor measure`, `just measure` needs authentication because its first command is `tailor baste`. If that preview fails, the recipe stops before the local health check.
 
-Extend the first-fit `justfile` with your project recipes. Normal `alter` runs preserve it. `alter --recut` overwrites it unless its mode is `never`.
+Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. If needed, add the exact loader import from [managed development files](Configuration#managed-development-files). Put project recipes in separate imports to avoid duplicate recipe names.
 
 ## Retired workflow cleanup
 

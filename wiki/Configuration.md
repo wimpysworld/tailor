@@ -2,7 +2,7 @@
 
 Use `.tailor.yml` to choose the files and GitHub settings that Tailor manages.
 
-[Swatches](#swatches) · [Go support](#go-support) · [MCP support](#mcp-support) · [Licences](#licences) · [Default set](#default-swatch-set) · [Modes](#alteration-modes) · [Default merging](#default-merging) · [Config example](#config-file)
+[Swatches](#swatches) · [Managed development files](#managed-development-files) · [Go support](#go-support) · [MCP support](#mcp-support) · [Licences](#licences) · [Default set](#default-swatch-set) · [Modes](#alteration-modes) · [Default merging](#default-merging) · [Config example](#config-file)
 
 ## Swatches
 
@@ -19,6 +19,36 @@ Without repository context, Tailor leaves `{{ADVISORY_URL}}` and `{{SUPPORT_URL}
 With default modes, the next `tailor alter` repairs `SECURITY.md`, but preserves the existing first-fit `.github/ISSUE_TEMPLATE/config.yml`. Replace its support token manually with `https://github.com/<owner>/<repo>/blob/HEAD/SUPPORT.md`.
 
 Alternatively, use `tailor alter --recut` to regenerate the issue configuration. This overwrites all eligible first-fit swatches, not just that file.
+
+## Managed development files
+
+Tailor manages Just and Nix loaders separately from ordinary swatches. The ordinary default set remains 29 entries. The `justfile` and `flake.nix` entries only control creation when those roots are missing.
+
+Tailor preserves an existing `justfile` or `flake.nix` for every mode and when its swatch entry is omitted. Tailor reports that root as preserved and gives loader adoption guidance. A missing root with mode `never` or an omitted entry stays missing and produces no root guidance. Connect an existing root only when the exact loader line is absent:
+
+```just
+import 'just/loader.just'
+```
+
+Add this expression to the existing Nix package list:
+
+```nix
+++ import ./nix/loader.nix { inherit pkgs; }
+```
+
+The Nix loader adds package lists only. It can use packages from the existing `pkgs` set, but it does not add flake inputs or change outputs. Review and add new `.nix` files to Git, because Nix flakes exclude untracked files. Tailor does not inspect or stage the Git index.
+
+Tailor always reconciles `just/loader.just`, `nix/loader.nix`, and `just/tailor.just`. Go and Pages fragments use their Boolean declarations:
+
+| Declaration | Managed fragment action |
+| --- | --- |
+| `true` | Create the fragment or replace its owned content. |
+| `false` | Remove only an owned fragment. |
+| Absent | Do not inspect or change the fragment. |
+
+Owned files start with `# Managed by Tailor: <registered path>`. Tailor stops on an unmarked file at a managed destination. A disabled fragment with a missing destination causes no change.
+
+The generated root requires Just 1.23.0 or later. Recipe names are unique: core owns `alter`, `measure`, `release`, and `lint`; Go owns `build`, `test`, and `lint-go`; Pages owns `pages`.
 
 ## Go support
 
@@ -76,13 +106,13 @@ Before Tailor creates or replaces the release configuration, `Dockerfile` must b
 
 Before Tailor creates or replaces the builder workflow, it checks the lint and release configurations. Both must already be regular files, or Tailor must plan to create them. Tailor does not check the contents of customised configurations.
 
-When Go is enabled, a newly rendered `justfile` adds `build` and `test` recipes for `go build ./...` and `go test ./...`. Its `lint` recipe runs golangci-lint and actionlint. Tailor keeps the other shipped recipes.
+When Go is true, Tailor creates or updates `just/go.just` and `nix/go.nix`. The Just fragment adds `build`, `test`, and `lint-go`. The Nix fragment adds Go, golangci-lint, and GoReleaser from the existing `pkgs` set.
 
 Newly rendered Dependabot configuration includes `gomod` when Go is true and omits it when Go is false. An absent Go setting keeps the legacy `gomod` entry. GitHub Actions and Nix entries remain.
 
-Existing first-fit files stay unchanged after you enable Go. Review customised files and add the Go commands yourself. `tailor alter --recut` replaces all eligible first-fit files, not only Go files. `never` always preserves a file.
+Existing first-fit ordinary swatches stay unchanged after you enable Go. `tailor alter --recut` replaces all eligible first-fit ordinary swatches, not only Go files. `never` always preserves an ordinary swatch.
 
-Set Go to false, or remove the setting, to stop Tailor managing the four Go-only swatches. Tailor preserves existing files, even with `--recut`. Existing builder workflows still run on GitHub. Remove or disable that workflow yourself if you want it to stop.
+Set Go to false to remove only the owned managed fragments and stop ordinary Go swatch processing. Remove the setting to leave managed fragments untouched. In both cases, Tailor preserves existing ordinary Go swatches, even with `--recut`. Existing builder workflows still run on GitHub.
 
 ## MCP support
 
@@ -99,13 +129,7 @@ Tailor accepts only the `playwright` key and a Boolean value. Null sections, nul
 
 New configs set `languages.go`, `pages.enabled`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes.
 
-| Declaration | Future managed-fragment action |
-| --- | --- |
-| `true` | Create or replace the owned fragment |
-| `false` | Remove the owned fragment |
-| Absent | Preserve the owned fragment |
-
-Tailor currently stores the declaration only. It does not create, replace, or remove tooling files. These future actions do not change Pages publishing, Pages source files, or Go swatches.
+Playwright provisioning remains deferred. Tailor reserves its future paths internally, but `true`, `false`, and absent declarations do not inspect, create, replace, or remove tooling files. The declaration does not change Pages publishing, Pages source files, or Go swatches.
 
 ## Licences
 
@@ -121,7 +145,7 @@ If the licence fetch fails, check the identifier and API access. Earlier changes
 
 ## Default swatch set
 
-Tailor embeds 29 default swatches:
+Tailor embeds 29 ordinary default swatches. Managed loaders and fragments are a separate class and do not increase this count:
 
 | Swatch | Mode |
 |--------|------|
@@ -161,7 +185,7 @@ Tailor embeds 29 default swatches:
 - **`first-fit`** - Copies a missing file and preserves an existing file, unless `--recut` applies. Use this for files that you customise.
 - **`never`** - Skips the file entirely. Use this to keep a swatch visible in the config without managing its destination.
 
-Config merging differs from ordinary file replacement. Existing wiki and static Pages starter files also have [recut exceptions](Commands#alter).
+Config merging differs from ordinary file replacement. Protected `justfile` and `flake.nix` roots, existing wiki pages, and static Pages starter files also have [recut exceptions](Commands#alter).
 
 The [Pages workflow](GitHub-Pages#workflow) and [wiki workflow](GitHub-wiki#workflow) have their own compatibility and mode checks.
 

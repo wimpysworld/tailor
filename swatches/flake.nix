@@ -38,7 +38,8 @@
                 gh
                 just
               ]
-              ++ (if tailorPkgs ? tailor then [ tailorPkgs.tailor ] else [ ]);
+              ++ (if tailorPkgs ? tailor then [ tailorPkgs.tailor ] else [ ])
+              ++ import ./nix/loader.nix { inherit pkgs; };
           };
         }
       );
