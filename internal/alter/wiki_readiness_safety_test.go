@@ -151,7 +151,7 @@ func TestWikiReadinessFalseAndOmittedDoNotProbe(t *testing.T) {
 				t.Fatal(err)
 			}
 			after := pagesAcceptanceSnapshot(t, dir)
-			if len(s.writes) != 0 || !reflect.DeepEqual(pagesAcceptanceWithoutManagedCore(before), pagesAcceptanceWithoutManagedCore(after)) {
+			if len(s.writes) != 0 || !reflect.DeepEqual(pagesAcceptanceWithoutManagedPaths(before, managedCoreAcceptancePaths...), pagesAcceptanceWithoutManagedPaths(after, managedCoreAcceptancePaths...)) {
 				t.Fatalf("inactive wiki caused writes outside the managed core: %v", s.writes)
 			}
 		})

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"reflect"
 	"strings"
 	"sync"
@@ -140,15 +141,79 @@ func pagesAcceptanceSnapshot(t *testing.T, dir string) map[string]string {
 	return files
 }
 
-func pagesAcceptanceWithoutManagedCore(snapshot map[string]string) map[string]string {
+var managedCoreAcceptancePaths = []string{
+	"just/loader.just",
+	"just/tailor.just",
+	"nix/loader.nix",
+}
+
+var managedCoreAndPagesAcceptancePaths = []string{
+	"just/loader.just",
+	"just/tailor.just",
+	"nix/loader.nix",
+	"just/pages.just",
+	"nix/pages.nix",
+}
+
+func pagesAcceptanceWithoutManagedPaths(snapshot map[string]string, managedPaths ...string) map[string]string {
+	managed := make(map[string]struct{}, len(managedPaths))
+	parents := make(map[string]struct{}, len(managedPaths))
+	for _, name := range managedPaths {
+		managed[name] = struct{}{}
+		for parent := path.Dir(name); parent != "."; parent = path.Dir(parent) {
+			parents[parent] = struct{}{}
+		}
+	}
+
 	filtered := make(map[string]string, len(snapshot))
 	for name, content := range snapshot {
-		if name == "just" || name == "nix" || strings.HasPrefix(name, "just/") || strings.HasPrefix(name, "nix/") {
+		if _, ok := managed[name]; ok {
+			continue
+		}
+		if _, ok := parents[name]; ok && content == "directory" {
 			continue
 		}
 		filtered[name] = content
 	}
 	return filtered
+}
+
+func TestPagesAcceptanceWithoutManagedPathsPreservesUserFiles(t *testing.T) {
+	before := map[string]string{
+		".":                  "directory",
+		"just":               "directory",
+		"just/loader.just":   "managed",
+		"just/tailor.just":   "managed",
+		"just/user.just":     "before",
+		"just/custom/x.just": "before",
+		"nix":                "directory",
+		"nix/loader.nix":     "managed",
+		"nix/user.nix":       "before",
+		"nix/custom/x.nix":   "before",
+	}
+	after := map[string]string{
+		".":                  "directory",
+		"just":               "directory",
+		"just/loader.just":   "updated managed",
+		"just/tailor.just":   "updated managed",
+		"just/user.just":     "after",
+		"just/custom/x.just": "after",
+		"nix":                "directory",
+		"nix/loader.nix":     "updated managed",
+		"nix/user.nix":       "after",
+		"nix/custom/x.nix":   "after",
+	}
+
+	filteredBefore := pagesAcceptanceWithoutManagedPaths(before, managedCoreAcceptancePaths...)
+	filteredAfter := pagesAcceptanceWithoutManagedPaths(after, managedCoreAcceptancePaths...)
+	if reflect.DeepEqual(filteredBefore, filteredAfter) {
+		t.Fatal("managed-path filter hid changes to user files")
+	}
+	for _, name := range []string{"just/user.just", "just/custom/x.just", "nix/user.nix", "nix/custom/x.nix"} {
+		if _, ok := filteredAfter[name]; !ok {
+			t.Errorf("managed-path filter removed user file %q", name)
+		}
+	}
 }
 
 func TestPagesAcceptanceActionsRecheckPreservesSource(t *testing.T) {
@@ -201,8 +266,8 @@ func TestPagesAcceptanceActionsRecheckPreservesSource(t *testing.T) {
 						t.Error("missing Pages directory was created")
 					}
 				}
-				if !reflect.DeepEqual(pagesAcceptanceWithoutManagedCore(before), pagesAcceptanceWithoutManagedCore(after)) {
-					t.Error("unavailable Pages changed local files outside the managed core")
+				if !reflect.DeepEqual(pagesAcceptanceWithoutManagedPaths(before, managedCoreAndPagesAcceptancePaths...), pagesAcceptanceWithoutManagedPaths(after, managedCoreAndPagesAcceptancePaths...)) {
+					t.Error("unavailable Pages changed local files outside the managed core and Pages fragments")
 				}
 			})
 		}
@@ -224,7 +289,7 @@ func TestPagesAcceptanceDisabledLeavesPagesUnmanaged(t *testing.T) {
 					t.Fatalf("disabled Pages made API calls: reads=%v writes=%v", s.reads, s.writes)
 				}
 				after := pagesAcceptanceSnapshot(t, dir)
-				if !reflect.DeepEqual(pagesAcceptanceWithoutManagedCore(before), pagesAcceptanceWithoutManagedCore(after)) || strings.Contains(output, "repository.pages") {
+				if !reflect.DeepEqual(pagesAcceptanceWithoutManagedPaths(before, managedCoreAcceptancePaths...), pagesAcceptanceWithoutManagedPaths(after, managedCoreAcceptancePaths...)) || strings.Contains(output, "repository.pages") {
 					t.Fatalf("disabled Pages changed non-managed files or remote Pages settings: %s", output)
 				}
 			})
