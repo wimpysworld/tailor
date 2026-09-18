@@ -5,7 +5,8 @@ languages:
   go: false
 
 # Model Context Protocol integrations are opt-in.
-# Playwright provisioning is deferred; this declaration changes no files.
+# true creates or updates the owned Nix fragment and creates missing MCP client starters.
+# false removes the owned Nix fragment; omission leaves all Playwright files untouched.
 mcp:
   playwright: false
 
