@@ -233,6 +233,8 @@ All state lives in `.tailor.yml`. Its thirteen sections are `license`, `reposito
 
 Tailor opens `.tailor.yml` relative to the project root. The config must be a regular file no larger than 1 MiB.
 
+This abbreviated example uses custom topics and two swatches, and omits the default labels.
+
 ```yaml
 # Initially fitted by tailor on 2026-03-04
 license: BlueOak-1.0.0
