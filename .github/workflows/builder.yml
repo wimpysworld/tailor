@@ -57,6 +57,8 @@ jobs:
       - name: Install just
         run: nix profile add --inputs-from . --no-write-lock-file nixpkgs#just
       - uses: robherley/go-test-action@2f859e0c8769d755d3174eecb9af8f64660827f3 # v1.1.0
+        env:
+          TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS: "1"
         with:
           testArguments: -coverprofile=coverage.out -covermode=atomic ./...
           omit: untested
@@ -119,6 +121,8 @@ jobs:
           "$RUNNER_TEMP/bin/just" --version
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: Test
+        env:
+          TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS: "1"
         run: go test ./...
       - name: Build tailor
         run: go build -o tailor ./cmd/tailor
