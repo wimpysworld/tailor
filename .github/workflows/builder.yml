@@ -53,11 +53,9 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install Nix
-        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
       - name: Install just
-        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-        with:
-          just-version: "1.58.0"
+        run: nix profile add --inputs-from . --no-write-lock-file nixpkgs#just
       - uses: robherley/go-test-action@2f859e0c8769d755d3174eecb9af8f64660827f3 # v1.1.0
         with:
           testArguments: -coverprofile=coverage.out -covermode=atomic ./...
@@ -82,11 +80,44 @@ jobs:
         with:
           go-version-file: go.mod
       - name: Install Nix
-        uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+        if: runner.os != 'macOS' || runner.arch != 'X64'
+        uses: DeterminateSystems/nix-installer-action@ef8a148080ab6020fd15196c2084a2eea5ff2d25 # v22
+      - name: Install Nix on Intel macOS
+        if: runner.os == 'macOS' && runner.arch == 'X64'
+        shell: bash
+        run: |
+          installer="$RUNNER_TEMP/install-nix-2.35.2"
+          curl --fail --location --retry 5 \
+            --output "$installer" \
+            https://releases.nixos.org/nix/nix-2.35.2/install
+          echo "9adda97297d9e8ab360df95c729eabff4f4f93d6db091953c3a68f29e3fb130c  $installer" \
+            | shasum -a 256 --check
+          cat > "$RUNNER_TEMP/nix.conf" <<EOF
+          experimental-features = nix-command flakes
+          ssl-cert-file = /etc/ssl/cert.pem
+          trusted-users = root $USER
+          EOF
+          sh "$installer" --daemon --no-channel-add \
+            --nix-extra-conf-file "$RUNNER_TEMP/nix.conf"
+          echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
       - name: Install just
-        uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-        with:
-          just-version: "1.58.0"
+        if: runner.os != 'macOS' || runner.arch != 'X64'
+        run: nix profile add --inputs-from . --no-write-lock-file nixpkgs#just
+      - name: Install just on Intel macOS
+        if: runner.os == 'macOS' && runner.arch == 'X64'
+        shell: bash
+        run: |
+          archive="$RUNNER_TEMP/just-1.58.0-x86_64-apple-darwin.tar.gz"
+          curl --fail --location --retry 5 \
+            --output "$archive" \
+            https://github.com/casey/just/releases/download/1.58.0/just-1.58.0-x86_64-apple-darwin.tar.gz
+          echo "9a09cfef66aaa79da58203970103a0684307716caaabd3e9844cacc4dc0f4023  $archive" \
+            | shasum -a 256 --check
+          mkdir -p "$RUNNER_TEMP/bin"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/bin" just
+          "$RUNNER_TEMP/bin/just" --version
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
       - name: Test
         run: go test ./...
       - name: Build tailor
