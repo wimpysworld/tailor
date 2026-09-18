@@ -20,6 +20,10 @@ license: BlueOak-1.0.0
 languages:
   go: false
 
+# Model Context Protocol integrations are opt-in.
+mcp:
+  playwright: false
+
 repository:
   has_wiki: false
   has_discussions: false
@@ -330,6 +334,32 @@ func TestWriteDefaultConfigMatchesSpec(t *testing.T) {
 
 	if got != wantSpecOutput {
 		t.Errorf("output does not match spec\n--- got ---\n%s\n--- want ---\n%s", got, wantSpecOutput)
+	}
+}
+
+func TestWriteMCP(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		mcp  *MCPSettings
+		want string
+	}{
+		{name: "absent"},
+		{name: "empty", mcp: &MCPSettings{}, want: "mcp: {}"},
+		{name: "disabled", mcp: &MCPSettings{Playwright: new(false)}, want: "mcp:\n  playwright: false"},
+		{name: "enabled", mcp: &MCPSettings{Playwright: new(true)}, want: "mcp:\n  playwright: true"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			got := writeConfig(t, &Config{License: "MIT", MCP: tt.mcp}, "2026-09-18", "Altered")
+			if tt.want == "" {
+				if strings.Contains(got, "\nmcp:") {
+					t.Fatalf("output contains absent MCP section:\n%s", got)
+				}
+				return
+			}
+			if !strings.Contains(got, "\n"+tt.want+"\n") {
+				t.Fatalf("output does not contain %q:\n%s", tt.want, got)
+			}
+		})
 	}
 }
 

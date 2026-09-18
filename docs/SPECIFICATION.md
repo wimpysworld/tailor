@@ -260,6 +260,31 @@ Tailor compares only managed fields: `enforcement`, `bypass_actors` as a set, `i
 
 Settings deliberately excluded due to risk or org-level scope: `visibility`, `default_branch`, `name`, `archived`, `is_template`, `allow_forking`. Additional API areas considered and deferred: autolinks, general deployment environments, custom properties (org-level), and Dependabot secrets. Pages manages only the `github-pages` environment. Classic branch protection rules are out of scope. Rulesets replace them, and Tailor manages one ruleset through the `ruleset` section. Rulesets outside the `Tailor` ruleset are out of scope.
 
+### Model Context Protocol support
+
+The top-level `mcp` section declares Model Context Protocol integrations. Playwright is the only supported integration:
+
+```yaml
+mcp:
+  playwright: true
+```
+
+`mcp` must be a map. Its only accepted key is `playwright`, with a Boolean value. Tailor rejects null sections, null values, duplicate or unknown keys, and non-Boolean values. An empty `mcp: {}` mapping preserves the section but leaves Playwright undeclared.
+
+New configurations contain false declarations for `languages.go`, `pages.enabled`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
+
+The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. This release stores configuration only. It does not register paths, create or remove files, or provision an MCP server.
+
+A later managed-fragment feature will use these declaration states:
+
+| `mcp.playwright` state | Future action for the owned fragment |
+| --- | --- |
+| `true` | Create or replace the fragment |
+| `false` | Remove the fragment |
+| Absent | Preserve the fragment |
+
+These future actions apply only to the owned fragment. They do not change Pages publishing, Pages source files, or ordinary Go swatches.
+
 ### Go ecosystem support
 
 The top-level `languages` section selects language-specific development swatches. Go is the only supported language key:
@@ -384,7 +409,7 @@ pages:
   #   email: hello@example.com
 ```
 
-An omitted section or disabled setting makes no Pages-related changes to settings, workflows, environments, ignores or homepages. Bootstrap, default merging and recut never activate Pages. Missing fields take disabled, `static` and `pages` defaults. Explicit values survive merging. Unknown keys, wrong types and unknown generators are errors.
+An omitted section, an empty mapping, an absent `enabled` key, or `enabled: false` makes no Pages-related changes to settings, workflows, environments, ignores or homepages. Bootstrap, default merging and recut never activate Pages. New configurations contain `pages.enabled: false`, `generator: static`, and `path: pages`. Default merging preserves an absent `pages` section and an absent `enabled` key. For an existing `pages` mapping, it adds missing `generator` and `path` defaults, but never adds `enabled` or personal `links`. Explicit values and empty mappings survive configuration writes. Unknown keys, wrong types and unknown generators are errors.
 
 `path` is an existing project-relative source directory. Reject absolute paths, traversal, all source and parent symlinks, and unsafe workflow interpolation. Config loading checks syntax only. Before any remote write, validate the source, dependency declarations and workflow ownership. An omitted `branch` resolves to the current repository default branch on each run. Explicit branches must be valid Git branch names. Escape workflow filter metacharacters so the branch matches literally. Neither path nor branch is a legacy Pages API source setting.
 
@@ -981,7 +1006,7 @@ Behaviour:
 
 ### `.tailor.yml`
 
-`.tailor.yml` has twelve top-level sections: `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `languages`, and `swatches`. The `actions` section is a map of repository Actions policy settings. The `code_scanning` section is a map of CodeQL default setup settings, and the `code_quality` section is a map of GitHub Code Quality settings. The `ruleset` section is a map of settings for the branch ruleset named `Tailor`. `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (e.g. `justfile`) are referenced as-is. The `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, and `pages` sections can be absent in a hand-written config. Default merging adds missing Actions defaults before policy management.
+`.tailor.yml` has thirteen top-level sections: `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `languages`, `mcp`, and `swatches`. The `actions` section is a map of repository Actions policy settings. The `code_scanning` section is a map of CodeQL default setup settings, and the `code_quality` section is a map of GitHub Code Quality settings. The `ruleset` section is a map of settings for the branch ruleset named `Tailor`. The `mcp` section declares supported Model Context Protocol integrations. `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (for example, `justfile`) are referenced as-is. The `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `languages`, and `mcp` sections can be absent in a hand-written config. Default merging adds missing Actions defaults before policy management, but preserves absent capability sections.
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 

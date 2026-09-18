@@ -411,6 +411,17 @@ languages:
 languages: {}
 {{- end }}
 {{- end }}
+{{- if .MCP }}
+{{- if .PlaywrightDeclared }}
+
+# Model Context Protocol integrations are opt-in.
+mcp:
+  playwright: {{ .MCP.Playwright }}
+{{- else }}
+
+mcp: {}
+{{- end }}
+{{- end }}
 
 {{- if .Repository }}
 

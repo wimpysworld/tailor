@@ -11,6 +11,7 @@ type Config struct {
 	ImmutableReleases *model.ImmutableReleasesSettings `yaml:"immutable_releases,omitempty"`
 	License           string                           `yaml:"license"`
 	Languages         *LanguageSettings                `yaml:"languages,omitempty"`
+	MCP               *MCPSettings                     `yaml:"mcp,omitempty"`
 	Repository        *model.RepositorySettings        `yaml:"repository,omitempty"`
 	Actions           *model.ActionsSettings           `yaml:"actions,omitempty"`
 	CodeScanning      *model.CodeScanningSettings      `yaml:"code_scanning,omitempty"`

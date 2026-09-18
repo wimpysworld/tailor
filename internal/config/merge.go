@@ -35,10 +35,13 @@ func MergeDefaults(cfg *Config) (bool, error) {
 	}
 	codeScanningChanged := mergeSettingsFrom(&cfg.CodeScanning, defaults.CodeScanning, model.CodeScanningSettingFields, nil)
 	codeQualityChanged := mergeSettingsFrom(&cfg.CodeQuality, defaults.CodeQuality, model.CodeQualitySettingFields, nil)
-	// Personal link defaults belong to new configs, not existing authored sites.
-	pagesChanged := mergeSettingsFrom(&cfg.Pages, defaults.Pages, model.PagesSettingFields, func(field model.SettingField) bool {
-		return field.YAMLKey == "links"
-	})
+	pagesChanged := false
+	if cfg.Pages != nil {
+		// Capability and personal link defaults belong to new configs, not existing authored sites.
+		pagesChanged = mergeSettingsFrom(&cfg.Pages, defaults.Pages, model.PagesSettingFields, func(field model.SettingField) bool {
+			return field.YAMLKey == "enabled" || field.YAMLKey == "links"
+		})
+	}
 	rulesetChanged := mergeRulesetFrom(cfg, defaults)
 	labelsChanged := mergeLabelsFrom(cfg, defaults)
 	return swatchesChanged || repoChanged || actionsChanged || codeScanningChanged || codeQualityChanged || pagesChanged || rulesetChanged || labelsChanged, nil

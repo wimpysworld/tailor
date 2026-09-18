@@ -83,8 +83,8 @@ func TestPagesMergeAndRoundTrip(t *testing.T) {
 		if _, err := MergeDefaults(cfg); err != nil {
 			t.Fatal(err)
 		}
-		if !*cfg.Pages.Enabled || *cfg.Pages.Generator != "static" || *cfg.Pages.Path != "pages" || cfg.Pages.Branch != nil || *cfg.Pages.CNAME != domain {
-			t.Fatalf("merge lost Pages declarations: %+v", cfg.Pages)
+		if !*cfg.Pages.Enabled || *cfg.Pages.Generator != "static" || *cfg.Pages.Path != "pages" || cfg.Pages.Branch != nil || *cfg.Pages.CNAME != domain || cfg.Pages.Links != nil {
+			t.Fatalf("merge lost Pages declarations or inserted links: %+v", cfg.Pages)
 		}
 		dir := t.TempDir()
 		if err := Write(dir, cfg, "2026-09-07", "Fitted"); err != nil {
@@ -102,8 +102,16 @@ func TestPagesMergeAndRoundTrip(t *testing.T) {
 	if _, err := MergeDefaults(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Pages == nil || cfg.Pages.Enabled == nil || *cfg.Pages.Enabled || cfg.Pages.CNAME != nil || cfg.Pages.Branch != nil {
-		t.Fatal("defaults activated Pages or declared optional values")
+	if cfg.Languages != nil || cfg.MCP != nil || cfg.Pages != nil {
+		t.Fatalf("merge inserted an absent capability section: languages=%+v mcp=%+v pages=%+v", cfg.Languages, cfg.MCP, cfg.Pages)
+	}
+
+	cfg = &Config{License: "MIT", Pages: &model.PagesSettings{}}
+	if _, err := MergeDefaults(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Pages.Enabled != nil || cfg.Pages.Links != nil || cfg.Pages.Generator == nil || *cfg.Pages.Generator != "static" || cfg.Pages.Path == nil || *cfg.Pages.Path != "pages" {
+		t.Fatalf("merge changed capability declarations or lost normal Pages defaults: %+v", cfg.Pages)
 	}
 }
 

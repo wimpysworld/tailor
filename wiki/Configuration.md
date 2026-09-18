@@ -2,7 +2,7 @@
 
 Use `.tailor.yml` to choose the files and GitHub settings that Tailor manages.
 
-[Swatches](#swatches) · [Go support](#go-support) · [Licences](#licences) · [Default set](#default-swatch-set) · [Modes](#alteration-modes) · [Default merging](#default-merging) · [Config example](#config-file)
+[Swatches](#swatches) · [Go support](#go-support) · [MCP support](#mcp-support) · [Licences](#licences) · [Default set](#default-swatch-set) · [Modes](#alteration-modes) · [Default merging](#default-merging) · [Config example](#config-file)
 
 ## Swatches
 
@@ -84,6 +84,29 @@ Existing first-fit files stay unchanged after you enable Go. Review customised f
 
 Set Go to false, or remove the setting, to stop Tailor managing the four Go-only swatches. Tailor preserves existing files, even with `--recut`. Existing builder workflows still run on GitHub. Remove or disable that workflow yourself if you want it to stop.
 
+## MCP support
+
+Use `mcp.playwright` to declare future Playwright MCP support:
+
+```yaml
+mcp:
+  playwright: true
+```
+
+Playwright is independent of Pages. You can enable Playwright when `pages` is absent or `pages.enabled` is false.
+
+Tailor accepts only the `playwright` key and a Boolean value. Null sections, null values, duplicate or unknown keys, strings, numbers, lists, and nested values are errors. An empty `mcp: {}` mapping keeps the section but leaves Playwright undeclared.
+
+New configs set `languages.go`, `pages.enabled`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes.
+
+| Declaration | Future managed-fragment action |
+| --- | --- |
+| `true` | Create or replace the owned fragment |
+| `false` | Remove the owned fragment |
+| Absent | Preserve the owned fragment |
+
+Tailor currently stores the declaration only. It does not create, replace, or remove tooling files. These future actions do not change Pages publishing, Pages source files, or Go swatches.
+
 ## Licences
 
 Licences are not swatches. Choose an identifier supported by the [GitHub licences API](https://docs.github.com/en/rest/licenses/licenses#get-a-license), or `none` to skip licence creation.
@@ -156,17 +179,18 @@ The merge appends missing swatch entries and fills missing supported settings. I
 | `code_quality` | Restores an absent section with `state: not-configured` and fills missing fields. |
 | `ruleset` | Restores an absent default section with `enforcement: active` and fills missing fields at each level. Explicit lists remain whole. |
 | `labels` | Restores default labels when absent or empty. A non-empty list remains unchanged. |
-| `pages` | Adds missing defaults, with `enabled: false`. Does not add personal `links` defaults. |
+| `pages` | Preserves an absent section and an absent `enabled` key. In an existing mapping, adds missing `generator` and `path`, but not `enabled` or personal `links`. |
 | `languages` | Preserves absent and explicit settings. Does not add a missing section or `go` key. |
+| `mcp` | Preserves an absent section, an empty mapping, and an absent or explicit `playwright` value. |
 | `license`, `immutable_releases`, `variables` | Does not add defaults. |
 
-Omitting a managed section does not stop management when merging restores that section. Set `.tailor.yml` to `never`, or omit its swatch entry, to disable default merging. The merge never restores its own `.tailor.yml` entry.
+Omitting a section can stop management only when its merge rule preserves absence. Set `.tailor.yml` to `never`, or omit its swatch entry, to disable all default merging. The merge never restores its own `.tailor.yml` entry.
 
 [Retired-entry cleanup](Commands#retired-workflow-cleanup) and [security prerequisite normalisation](Repository-settings#repository-fields) still apply when default merging is disabled. Security normalisation can change explicit values and reports a warning.
 
 ## Config file
 
-All state lives in `.tailor.yml`. Its twelve sections are `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `languages`, and `swatches`.
+All state lives in `.tailor.yml`. Its thirteen sections are `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `languages`, `mcp`, and `swatches`.
 
 Tailor opens `.tailor.yml` relative to the project root. The config must be a regular file no larger than 1 MiB.
 
@@ -176,6 +200,9 @@ license: BlueOak-1.0.0
 
 languages:
   go: false
+
+mcp:
+  playwright: false
 
 repository:
   topics:
@@ -326,6 +353,7 @@ If a destination is unsafe, move valuable content aside before you correct the p
 | `ruleset` | [Ruleset](Ruleset) |
 | `pages` | [GitHub Pages](GitHub-Pages) |
 | `languages` | [Go support](#go-support) |
+| `mcp` | [MCP support](#mcp-support) |
 | Wiki files and `repository.has_wiki` | [GitHub wiki](GitHub-wiki) |
 
 See [Commands](Commands) for licence flags, file checks, and the shipped [justfile recipes](Commands#justfile-recipes).

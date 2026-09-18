@@ -121,3 +121,42 @@ func TestGoMergePreservesExistingEntries(t *testing.T) {
 		}
 	}
 }
+
+func TestMCPDeclarationDoesNotRegisterSwatches(t *testing.T) {
+	paths := func(cfg *Config) []string {
+		active := cfg.ActiveDefaultSwatches()
+		result := make([]string, len(active))
+		for i, entry := range active {
+			result[i] = entry.Path
+		}
+		return result
+	}
+	want := paths(&Config{})
+
+	for _, tt := range []struct {
+		name string
+		mcp  *MCPSettings
+	}{
+		{name: "absent"},
+		{name: "empty", mcp: &MCPSettings{}},
+		{name: "false", mcp: &MCPSettings{Playwright: new(false)}},
+		{name: "true", mcp: &MCPSettings{Playwright: new(true)}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{MCP: tt.mcp}
+			if got := paths(cfg); !reflect.DeepEqual(got, want) {
+				t.Fatalf("active swatches changed with MCP declaration: got %v, want %v", got, want)
+			}
+			if added := MergeDefaultSwatches(cfg); len(added) != len(want)-1 {
+				t.Fatalf("added swatches = %d, want %d", len(added), len(want)-1)
+			}
+		})
+	}
+
+	for _, path := range swatch.Paths() {
+		lower := strings.ToLower(path)
+		if strings.Contains(lower, "mcp") || strings.Contains(lower, "playwright") {
+			t.Errorf("MCP tooling path is registered for production: %s", path)
+		}
+	}
+}
