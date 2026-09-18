@@ -72,8 +72,6 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	var retiredResults []SwatchResult
 	var swatchResults []SwatchResult
 	var managedResults []SwatchResult
-	var managed *managedExecution
-	var managedExclusions map[string]struct{}
 	context := ""
 	wikiGuidance := ""
 	partial := func(err error) (Report, error) {
@@ -98,17 +96,15 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	if err != nil {
 		return partial(err)
 	}
-	if renderer != nil {
-		managed, err = prepareManagedExecution(cfg, dir, renderer)
-		if err != nil {
-			if conflict, ok := managedConflictResult(err); ok {
-				managedResults = append(managedResults, conflict)
-				swatchResults = append(swatchResults, conflict)
-			}
-			return partial(err)
+	managed, err := prepareManagedExecution(cfg, dir, renderer)
+	if err != nil {
+		if conflict, ok := managedConflictResult(err); ok {
+			managedResults = append(managedResults, conflict)
+			swatchResults = append(swatchResults, conflict)
 		}
-		managedExclusions = managedExcludedPaths()
+		return partial(err)
 	}
+	managedExclusions := managedExcludedPaths()
 	repo, hasRepo, err := gh.RepoContextAt(dir)
 	if err != nil {
 		return partial(err)
@@ -214,26 +210,24 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	}
 	options.stage("licence", stageLabel(mode, "Licence planned", "Licence written"), "complete")
 	options.stage("swatches", stageLabel(mode, "Planning swatches", "Writing swatches"), "start")
-	if managed != nil {
-		var managedErr error
-		if mode.ShouldWrite() {
-			confirmed, applyErr := applyManagedFiles(dir, managed.plan)
-			managedResults, err = managedConfirmedResults(managed.planned, confirmed)
-			if err != nil {
-				return partial(err)
-			}
-			managedErr = applyErr
-		} else {
-			managedResults = append([]SwatchResult{}, managed.planned...)
+	var managedErr error
+	if mode.ShouldWrite() {
+		confirmed, applyErr := applyManagedFiles(dir, managed.plan)
+		managedResults, err = managedConfirmedResults(managed.planned, confirmed)
+		if err != nil {
+			return partial(err)
 		}
-		swatchResults = append(swatchResults, managedResults...)
-		if managedErr != nil {
-			if conflict, ok := managedConflictResult(managedErr); ok {
-				managedResults = append(managedResults, conflict)
-				swatchResults = append(swatchResults, conflict)
-			}
-			return partial(managedErr)
+		managedErr = applyErr
+	} else {
+		managedResults = append([]SwatchResult{}, managed.planned...)
+	}
+	swatchResults = append(swatchResults, managedResults...)
+	if managedErr != nil {
+		if conflict, ok := managedConflictResult(managedErr); ok {
+			managedResults = append(managedResults, conflict)
+			swatchResults = append(swatchResults, conflict)
 		}
+		return partial(managedErr)
 	}
 	processedSwatches, err := processSwatches(cfg, dir, mode, &tokens, managedExclusions)
 	swatchResults = append(swatchResults, processedSwatches...)
