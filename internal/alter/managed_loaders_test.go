@@ -257,7 +257,7 @@ func requireManagedExecutable(t *testing.T, name string) string {
 	t.Helper()
 	path, err := exec.LookPath(name)
 	if err != nil {
-		t.Fatalf("required test executable %q is unavailable: %v", name, err)
+		t.Skipf("required test executable %q is unavailable: %v", name, err)
 	}
 	return path
 }
