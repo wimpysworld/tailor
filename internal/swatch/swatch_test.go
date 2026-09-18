@@ -38,7 +38,6 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 		registered[p] = true
 	}
 	private := map[string]bool{
-		"go/justfile":  false,
 		"just/go.just": false, "just/loader.just": false, "just/pages.just": false, "just/tailor.just": false,
 		"nix/go.nix": false, "nix/loader.nix": false, "nix/pages.nix": false, "nix/playwright.nix": false,
 		".mcp.json": false, ".codex/config.toml": false, "opencode.json": false, ".pi/mcp.json": false,
