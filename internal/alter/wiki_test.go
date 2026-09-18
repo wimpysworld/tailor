@@ -242,7 +242,7 @@ func TestWikiRejectsUnsafeSourceBeforeMetadata(t *testing.T) {
 
 func TestWikiGenericSwatchesRemainInactive(t *testing.T) {
 	cfg := wikiTestConfig(new(true))
-	results, err := ProcessSwatches(cfg, t.TempDir(), Recut, nil)
+	results, err := processSwatches(cfg, t.TempDir(), Recut, nil, managedExcludedPaths())
 	if err != nil || len(results) != 0 {
 		t.Fatalf("wiki escaped conditional stage: %v %v", results, err)
 	}

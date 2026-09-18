@@ -151,21 +151,26 @@ func TestManagedReportingWarnsWhenPlaywrightIsExplicitlyDisabled(t *testing.T) {
 	}
 }
 
-func TestManagedExclusionsProtectGenericAlwaysEntries(t *testing.T) {
-	dir := t.TempDir()
-	const path = ".mcp.json"
-	content := []byte("custom settings\n")
-	writeManagedTestFile(t, dir, path, content)
-	cfg := &config.Config{Swatches: []config.SwatchEntry{{Path: path, Alteration: swatch.Always}}}
+func TestManagedExclusionsProtectGenericEntries(t *testing.T) {
+	for _, mode := range []ApplyMode{Apply, Recut} {
+		for _, path := range []string{"justfile", "flake.nix", ".mcp.json"} {
+			t.Run(managedModeName(mode)+"/"+path, func(t *testing.T) {
+				dir := t.TempDir()
+				content := []byte("custom settings\n")
+				writeManagedTestFile(t, dir, path, content)
+				cfg := &config.Config{Swatches: []config.SwatchEntry{{Path: path, Alteration: swatch.Always}}}
 
-	results, err := processSwatches(cfg, dir, Apply, &TokenContext{}, managedExcludedPaths())
-	if err != nil {
-		t.Fatal(err)
+				results, err := processSwatches(cfg, dir, mode, &TokenContext{}, managedExcludedPaths())
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(results) != 0 {
+					t.Fatalf("ordinary swatch results = %#v, want none", results)
+				}
+				assertManagedBytes(t, filepath.Join(dir, path), content)
+			})
+		}
 	}
-	if len(results) != 0 {
-		t.Fatalf("ordinary swatch results = %#v, want none", results)
-	}
-	assertManagedBytes(t, filepath.Join(dir, path), content)
 }
 
 func TestManagedExecutionReportsUnselectedExistingRootsWithoutBootstrappingAbsentRoots(t *testing.T) {
@@ -383,8 +388,7 @@ func TestManagedExecutionReportsConfirmedChangesBeforeApplyFailure(t *testing.T)
 	}
 }
 
-func TestManagedExecutionExcludesManagedRootsFromOrdinarySwatches(t *testing.T) {
-	dir := t.TempDir()
+func TestManagedExecutionExcludesManagedPathsFromOrdinarySwatches(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/user" {
 			http.NotFound(w, r)
@@ -393,29 +397,42 @@ func TestManagedExecutionExcludesManagedRootsFromOrdinarySwatches(t *testing.T) 
 		_, _ = io.WriteString(w, `{"login":"tailor"}`)
 	}))
 	t.Cleanup(server.Close)
-	cfg := &config.Config{Swatches: []config.SwatchEntry{{Path: "justfile", Alteration: swatch.FirstFit}}}
-	renderer := func(selections []managedSelection) (managedRenderedFiles, error) {
-		files, err := managedTestRenderer(selections)
-		files["justfile"] = []byte("synthetic root\n")
-		return files, err
-	}
 
-	report, err := execute(cfg, dir, Apply, testutil.NewTestClient(t, server), io.Discard, Options{}, renderer)
-	if err != nil {
-		t.Fatal(err)
-	}
-	content, err := os.ReadFile(filepath.Join(dir, "justfile"))
-	if err != nil || string(content) != "synthetic root\n" {
-		t.Fatalf("managed root content = %q, error = %v", content, err)
-	}
-	count := 0
-	for _, item := range report.Document.Items {
-		if item.Name == "justfile" {
-			count++
-		}
-	}
-	if count != 1 || strings.Contains(report.Plain, "justfile (first-fit, exists)") {
-		t.Fatalf("managed root was also processed as an ordinary swatch: %#v, plain = %q", report.Document.Items, report.Plain)
+	for _, mode := range []ApplyMode{Apply, Recut} {
+		t.Run(managedModeName(mode), func(t *testing.T) {
+			dir := t.TempDir()
+			playwright := true
+			cfg := &config.Config{
+				License: "none",
+				MCP:     &config.MCPSettings{Playwright: &playwright},
+				Swatches: []config.SwatchEntry{
+					{Path: "justfile", Alteration: swatch.FirstFit},
+					{Path: "flake.nix", Alteration: swatch.Always},
+				},
+			}
+
+			report, err := Execute(cfg, dir, mode, testutil.NewTestClient(t, server), io.Discard, Options{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, path := range []string{"justfile", "flake.nix", ".mcp.json"} {
+				want, err := swatch.Content(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertManagedBytes(t, filepath.Join(dir, path), want)
+
+				count := 0
+				for _, item := range report.Document.Items {
+					if item.Name == path {
+						count++
+					}
+				}
+				if count != 1 {
+					t.Fatalf("managed path %q appeared %d times: %#v", path, count, report.Document.Items)
+				}
+			}
+		})
 	}
 }
 

@@ -195,7 +195,7 @@ func TestPagesStarterNotGeneric(t *testing.T) {
 	for _, source := range swatch.PagesStarterPaths {
 		cfg.Swatches = append(cfg.Swatches, config.SwatchEntry{Path: source, Alteration: swatch.Always})
 	}
-	if _, err := ProcessSwatches(cfg, dir, Apply, nil); err != nil {
+	if _, err := processSwatches(cfg, dir, Apply, nil, managedExcludedPaths()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(dir, "pages")); !os.IsNotExist(err) {

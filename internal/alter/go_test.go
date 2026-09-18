@@ -198,7 +198,7 @@ func TestGoSwatchModes(t *testing.T) {
 			writeOnDisk(t, dir, "go.mod", []byte("module example.com/demo\n\ngo 1.26\n"))
 			writeOnDisk(t, dir, "cmd/demo/main.go", []byte("package main\nfunc main() {}\n"))
 			cfg := goConfig(entry(".golangci.yml", swatch.FirstFit), entry(".goreleaser.yaml", swatch.FirstFit), entry("Dockerfile", swatch.FirstFit), entry(".github/workflows/build-go.yml", swatch.FirstFit))
-			results, err := alter.ProcessSwatches(cfg, dir, mode, &alter.TokenContext{DefaultBranch: "trunk"})
+			results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, mode, &alter.TokenContext{DefaultBranch: "trunk"})
 			if err != nil || len(results) != 4 {
 				t.Fatalf("results = %v, error = %v", results, err)
 			}
@@ -233,7 +233,7 @@ func TestGoInactivePreservesDestinations(t *testing.T) {
 		for _, s := range cfg.Swatches {
 			writeOnDisk(t, dir, s.Path, []byte("custom"))
 		}
-		results, err := alter.ProcessSwatches(cfg, dir, alter.Recut, nil)
+		results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Recut, nil)
 		if err != nil || len(results) != 0 {
 			t.Fatalf("inactive results = %v, error = %v", results, err)
 		}
@@ -255,7 +255,7 @@ func TestGoProtectedFilesDoNotNeedDiscovery(t *testing.T) {
 				writeOnDisk(t, dir, s.Path, []byte("custom"))
 			}
 		}
-		results, err := alter.ProcessSwatches(cfg, dir, alter.Apply, nil)
+		results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, nil)
 		if err != nil || len(results) != 2 {
 			t.Fatalf("protected results = %v, error = %v", results, err)
 		}
@@ -271,7 +271,7 @@ func TestGoRecutRequiresDiscoveryBeforeReplacingFirstFit(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, ".goreleaser.yaml", []byte("custom"))
 	cfg := goConfig(entry(".goreleaser.yaml", swatch.FirstFit))
-	if _, err := alter.ProcessSwatches(cfg, dir, alter.Recut, nil); err == nil {
+	if _, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Recut, nil); err == nil {
 		t.Fatal("recut without a Go module succeeded")
 	}
 	data, err := os.ReadFile(filepath.Join(dir, ".goreleaser.yaml"))
@@ -303,7 +303,7 @@ func TestGoBuilderDependencies(t *testing.T) {
 			writeOnDisk(t, dir, ".goreleaser.yaml", []byte("custom release configuration"))
 			writeOnDisk(t, dir, ".golangci.yml", []byte("custom lint configuration"))
 		}
-		_, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{DefaultBranch: "trunk"})
+		_, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, &alter.TokenContext{DefaultBranch: "trunk"})
 		if existing && err != nil {
 			t.Fatalf("existing custom dependencies rejected: %v", err)
 		}
@@ -318,7 +318,7 @@ func TestGoBuilderRejectsSymlinkDependency(t *testing.T) {
 	writeOnDisk(t, dir, "custom-lint.yml", []byte("custom"))
 	symlinkOrSkip(t, "custom-lint.yml", filepath.Join(dir, ".golangci.yml"))
 	cfg := goConfig(entry(".github/workflows/build-go.yml", swatch.FirstFit))
-	if _, err := alter.ProcessSwatches(cfg, dir, alter.Apply, &alter.TokenContext{DefaultBranch: "trunk"}); err == nil {
+	if _, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, &alter.TokenContext{DefaultBranch: "trunk"}); err == nil {
 		t.Fatal("symlink dependency accepted")
 	}
 	if _, err := os.Stat(filepath.Join(dir, ".github/workflows/build-go.yml")); !os.IsNotExist(err) {
@@ -365,7 +365,7 @@ func TestGoReleaseDockerfileDependency(t *testing.T) {
 					}
 				}
 				before := pagesAcceptanceSnapshot(t, dir)
-				_, err := alter.ProcessSwatches(cfg, dir, mode, nil)
+				_, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, mode, nil)
 				if (err != nil) != tt.wantErr {
 					t.Fatalf("error = %v, want error = %v", err, tt.wantErr)
 				}
@@ -420,7 +420,7 @@ func TestGoDockerfileDoesNotNeedDiscovery(t *testing.T) {
 	for _, mode := range []swatch.AlterationMode{swatch.FirstFit, swatch.Never} {
 		dir := t.TempDir()
 		cfg := goConfig(entry("Dockerfile", mode))
-		if _, err := alter.ProcessSwatches(cfg, dir, alter.Apply, nil); err != nil {
+		if _, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, nil); err != nil {
 			t.Fatal(err)
 		}
 		_, err := os.Stat(filepath.Join(dir, "Dockerfile"))
@@ -438,7 +438,7 @@ func TestGoSwatchPreflightRejectsSymlinkParent(t *testing.T) {
 	outside := t.TempDir()
 	symlinkOrSkip(t, outside, filepath.Join(dir, ".github"))
 	cfg := goConfig(entry("Dockerfile", swatch.FirstFit), entry(".github/workflows/build-go.yml", swatch.FirstFit))
-	_, err := alter.ProcessSwatches(cfg, dir, alter.Apply, nil)
+	_, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, nil)
 	if err == nil || !strings.Contains(err.Error(), "swatch parent \".github\" is a symlink") {
 		t.Fatalf("error = %v, want symlink parent error", err)
 	}
@@ -460,20 +460,20 @@ func TestGoDependabotVariantsAndFirstFit(t *testing.T) {
 		} else {
 			*cfg.Languages.Go = declaration == "true"
 		}
-		if _, err := alter.ProcessSwatches(cfg, dir, alter.Apply, nil); err != nil {
+		if _, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, nil); err != nil {
 			t.Fatal(err)
 		}
 		data, err := os.ReadFile(filepath.Join(dir, ".github/dependabot.yml"))
 		if err != nil || bytes.Contains(data, []byte("gomod")) != (declaration != "false") {
 			t.Fatalf("incorrect Dependabot variant for %s: %v", declaration, err)
 		}
-		results, err := alter.ProcessSwatches(cfg, dir, alter.DryRun, nil)
+		results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.DryRun, nil)
 		if err != nil || results[0].Category != alter.NoChange {
 			t.Fatalf("resolved-content comparison = %v, %v", results, err)
 		}
 		cfg.Swatches[0].Alteration = swatch.FirstFit
 		cfg.Languages = &config.LanguageSettings{Go: new(bool)}
-		if _, err := alter.ProcessSwatches(cfg, dir, alter.Apply, nil); err != nil {
+		if _, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, nil); err != nil {
 			t.Fatal(err)
 		}
 		after, err := os.ReadFile(filepath.Join(dir, ".github/dependabot.yml"))
