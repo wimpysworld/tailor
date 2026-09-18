@@ -52,11 +52,11 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo, Available: true},
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, Available: true},
 		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages, Available: true},
-		{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright},
-		{Path: ".mcp.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
-		{Path: ".codex/config.toml", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
-		{Path: "opencode.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
-		{Path: ".pi/mcp.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
+		{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright, Available: true},
+		{Path: ".mcp.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright, Available: true},
+		{Path: ".codex/config.toml", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright, Available: true},
+		{Path: "opencode.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright, Available: true},
+		{Path: ".pi/mcp.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright, Available: true},
 	}
 }
 

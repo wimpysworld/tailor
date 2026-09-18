@@ -79,7 +79,7 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	partial := func(err error) (Report, error) {
 		allSwatches := append(append([]SwatchResult{}, swatchResults...), retiredResults...)
 		report := buildReport(command, context, repoResults, labelResults, variableResults, allSwatches, mode)
-		appendManagedReporting(&report, managedResults)
+		appendManagedReporting(&report, cfg, managedResults)
 		appendGuidance(&report, wikiGuidance)
 		options.stageError(err)
 		return report, err
@@ -255,7 +255,7 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	}
 	swatchResults = append(swatchResults, retiredResults...)
 	report := buildReport(command, context, repoResults, labelResults, variableResults, swatchResults, mode)
-	appendManagedReporting(&report, managedResults)
+	appendManagedReporting(&report, cfg, managedResults)
 	if wiki != nil {
 		appendGuidance(&report, wiki.nextSteps)
 	}

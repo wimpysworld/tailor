@@ -239,26 +239,41 @@ func managedConflictResult(err error) (SwatchResult, bool) {
 	return SwatchResult{Path: ownershipErr.Path, Category: ManagedConflict, Reason: ManagedNotOwned}, true
 }
 
-func appendManagedReporting(report *Report, results []SwatchResult) {
+func appendManagedReporting(report *Report, cfg *config.Config, results []SwatchResult) {
 	var newNix []string
 	var guidance []string
 	for _, result := range results {
 		if result.Category == WouldCopy && (result.Path == "flake.nix" || strings.HasSuffix(result.Path, ".nix")) {
 			newNix = append(newNix, result.Path)
 		}
-		if result.Category != Skipped || result.Reason != SkipManagedRootExists {
+		if result.Category != Skipped {
 			continue
 		}
-		switch result.Path {
-		case "justfile":
-			guidance = append(guidance, "If absent, add `import 'just/loader.just'` to the preserved `justfile`.")
-		case "flake.nix":
-			guidance = append(guidance, "If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.")
+		switch result.Reason {
+		case SkipManagedRootExists:
+			switch result.Path {
+			case "justfile":
+				guidance = append(guidance, "If absent, add `import 'just/loader.just'` to the preserved `justfile`.")
+			case "flake.nix":
+				guidance = append(guidance, "If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.")
+			}
+		case SkipManagedSharedExists:
+			switch result.Path {
+			case ".mcp.json", ".pi/mcp.json":
+				guidance = append(guidance, "If absent, add Tailor's `mcpServers.playwright` starter entry to the preserved `"+result.Path+"`.")
+			case ".codex/config.toml":
+				guidance = append(guidance, "If absent, add Tailor's `[mcp_servers.playwright]` starter table to the preserved `.codex/config.toml`.")
+			case "opencode.json":
+				guidance = append(guidance, "If absent, add Tailor's `mcp.playwright` starter entry to the preserved `opencode.json`.")
+			}
 		}
 	}
 	if len(newNix) != 0 {
 		sort.Strings(newNix)
 		appendManagedNotice(report, "review and add new Nix files to Git because Nix flakes exclude untracked files: "+managedPathList(newNix))
+	}
+	if cfg.PlaywrightDeclared() && !cfg.PlaywrightEnabled() {
+		appendManagedNotice(report, "mcp.playwright is false, so Tailor removes `nix/playwright.nix` but preserves MCP client settings. Disable or remove their Playwright servers to avoid a missing `playwright-mcp` executable")
 	}
 	if len(guidance) != 0 {
 		appendGuidance(report, strings.Join(guidance, "\n")+"\n")

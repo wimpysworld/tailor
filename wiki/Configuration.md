@@ -38,7 +38,7 @@ Add this expression to the existing Nix package list:
 
 The Nix loader adds package lists only. It can use packages from the existing `pkgs` set, but it does not add flake inputs or change outputs. Review and add new `.nix` files to Git, because Nix flakes exclude untracked files. Tailor does not inspect or stage the Git index.
 
-Tailor always reconciles `just/loader.just`, `nix/loader.nix`, and `just/tailor.just`. Go and Pages fragments use their Boolean declarations:
+Tailor always reconciles `just/loader.just`, `nix/loader.nix`, and `just/tailor.just`. Go, Pages, and the Playwright package fragment use their Boolean declarations:
 
 | Declaration | Managed fragment action |
 | --- | --- |
@@ -116,20 +116,35 @@ Set Go to false to remove only the owned managed fragments and stop ordinary Go 
 
 ## MCP support
 
-Use `mcp.playwright` to declare future Playwright MCP support:
+Enable a headless, isolated Playwright MCP browser:
 
 ```yaml
 mcp:
   playwright: true
 ```
 
-Playwright is independent of Pages. You can enable Playwright when `pages` is absent or `pages.enabled` is false.
+Playwright is independent of Pages. You can enable Playwright when `pages` is absent or `pages.enabled` is false. The MCP server launches and owns its browser. The optional `just pages` command only starts a separate Pages preview server.
+
+A true declaration adds `nix/playwright.nix`, which supplies `playwright-mcp` with Chromium from the existing Nix packages. It also creates these client files only when each file is missing:
+
+| Client | Starter file | Playwright entry |
+|---|---|---|
+| Claude | `.mcp.json` | `mcpServers.playwright` |
+| Codex | `.codex/config.toml` | `mcp_servers.playwright` |
+| OpenCode | `opencode.json` | `mcp.playwright` |
+| Pi | `.pi/mcp.json` | `mcpServers.playwright` |
+
+Tailor does not parse or merge an existing client file. It preserves regular files and final symlinks, then gives the entry name for manual adoption. Review the starter before you add it to Git.
+
+All starters run `playwright-mcp` with `--headless --isolated`. They do not use a manual stdio process, CDP endpoint, dynamic port, runtime download, or Playwright Just fragment. Your client applies its normal MCP tool approval controls.
+
+The Pi starter alone passes a non-empty `HTTPS_PROXY` value to `--proxy-server`. An empty or unset value disables this mapping. Do not put proxy credentials in command output or documentation. Tailor does not claim that the Claude, Codex, or OpenCode starters use this proxy setting.
+
+Set `mcp.playwright: false` to remove only an owned `nix/playwright.nix`. Tailor preserves all client files and warns that their server entries can refer to a missing `playwright-mcp` executable. Remove or disable those entries manually. An absent setting does not inspect or change any of the five paths.
 
 Tailor accepts only the `playwright` key and a Boolean value. Null sections, null values, duplicate or unknown keys, strings, numbers, lists, and nested values are errors. An empty `mcp: {}` mapping keeps the section but leaves Playwright undeclared.
 
-New configs set `languages.go`, `pages.enabled`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes.
-
-Playwright provisioning remains deferred. Tailor reserves its future paths internally, but `true`, `false`, and absent declarations do not inspect, create, replace, or remove tooling files. The declaration does not change Pages publishing, Pages source files, or Go swatches.
+New configs set `languages.go`, `pages.enabled`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes. Follow the [activation steps](Commands#activate-playwright-mcp) after you change the setting.
 
 ## Licences
 

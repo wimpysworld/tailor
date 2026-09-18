@@ -81,15 +81,23 @@ func TestManagedReportingAddsConditionalWarningsAndAdoptionGuidance(t *testing.T
 	results := []SwatchResult{
 		{Path: "justfile", Category: Skipped, Reason: SkipManagedRootExists},
 		{Path: "flake.nix", Category: Skipped, Reason: SkipManagedRootExists},
+		{Path: ".mcp.json", Category: Skipped, Reason: SkipManagedSharedExists},
+		{Path: ".codex/config.toml", Category: Skipped, Reason: SkipManagedSharedExists},
+		{Path: "opencode.json", Category: Skipped, Reason: SkipManagedSharedExists},
+		{Path: ".pi/mcp.json", Category: Skipped, Reason: SkipManagedSharedExists},
 		{Path: "nix/loader.nix", Category: WouldCopy},
 	}
 	report := buildReport("baste", "", nil, nil, nil, results, DryRun)
-	appendManagedReporting(&report, results)
+	appendManagedReporting(&report, &config.Config{}, results)
 
 	for _, text := range []string{
 		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`",
 		"If absent, add `import 'just/loader.just'` to the preserved `justfile`.",
 		"If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.",
+		"If absent, add Tailor's `mcpServers.playwright` starter entry to the preserved `.mcp.json`.",
+		"If absent, add Tailor's `[mcp_servers.playwright]` starter table to the preserved `.codex/config.toml`.",
+		"If absent, add Tailor's `mcp.playwright` starter entry to the preserved `opencode.json`.",
+		"If absent, add Tailor's `mcpServers.playwright` starter entry to the preserved `.pi/mcp.json`.",
 	} {
 		if !strings.Contains(report.Plain, text) {
 			t.Errorf("plain report lacks %q: %s", text, report.Plain)
@@ -104,11 +112,60 @@ func TestManagedReportingAddsConditionalWarningsAndAdoptionGuidance(t *testing.T
 	for _, text := range []string{
 		"If absent, add `import 'just/loader.just'` to the preserved `justfile`.",
 		"If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.",
+		"If absent, add Tailor's `mcpServers.playwright` starter entry to the preserved `.mcp.json`.",
+		"If absent, add Tailor's `[mcp_servers.playwright]` starter table to the preserved `.codex/config.toml`.",
+		"If absent, add Tailor's `mcp.playwright` starter entry to the preserved `opencode.json`.",
+		"If absent, add Tailor's `mcpServers.playwright` starter entry to the preserved `.pi/mcp.json`.",
 	} {
 		if !containsGuidance(report.Document.Guidance, text) {
 			t.Fatalf("structured guidance lacks %q: %#v", text, report.Document.Guidance)
 		}
 	}
+}
+
+func TestManagedReportingWarnsWhenPlaywrightIsExplicitlyDisabled(t *testing.T) {
+	for _, mode := range []ApplyMode{DryRun, Apply} {
+		t.Run(managedModeName(mode), func(t *testing.T) {
+			disabled := false
+			cfg := &config.Config{MCP: &config.MCPSettings{Playwright: &disabled}}
+			results := []SwatchResult{{Path: "nix/playwright.nix", Category: NoChange}}
+			report := buildReport("alter", "", nil, nil, nil, results, mode)
+			appendManagedReporting(&report, cfg, results)
+
+			want := "warning: mcp.playwright is false, so Tailor removes `nix/playwright.nix` but preserves MCP client settings. Disable or remove their Playwright servers to avoid a missing `playwright-mcp` executable"
+			if !strings.Contains(report.Plain, want) {
+				t.Fatalf("report lacks retained-settings warning: %s", report.Plain)
+			}
+			if len(report.Document.Notices) != 1 || report.Document.Notices[0].Text != strings.TrimPrefix(want, "warning: ") {
+				t.Fatalf("structured notices = %#v", report.Document.Notices)
+			}
+		})
+	}
+
+	for _, cfg := range []*config.Config{{}, {MCP: &config.MCPSettings{Playwright: new(true)}}} {
+		report := buildReport("baste", "", nil, nil, nil, nil, DryRun)
+		appendManagedReporting(&report, cfg, nil)
+		if strings.Contains(report.Plain, "missing `playwright-mcp` executable") {
+			t.Fatalf("report warns without explicit false: %s", report.Plain)
+		}
+	}
+}
+
+func TestManagedExclusionsProtectGenericAlwaysEntries(t *testing.T) {
+	dir := t.TempDir()
+	const path = ".mcp.json"
+	content := []byte("custom settings\n")
+	writeManagedTestFile(t, dir, path, content)
+	cfg := &config.Config{Swatches: []config.SwatchEntry{{Path: path, Alteration: swatch.Always}}}
+
+	results, err := processSwatches(cfg, dir, Apply, &TokenContext{}, managedExcludedPaths())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("ordinary swatch results = %#v, want none", results)
+	}
+	assertManagedBytes(t, filepath.Join(dir, path), content)
 }
 
 func TestManagedExecutionReportsUnselectedExistingRootsWithoutBootstrappingAbsentRoots(t *testing.T) {

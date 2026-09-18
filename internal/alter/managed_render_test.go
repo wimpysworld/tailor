@@ -21,26 +21,22 @@ import (
 
 func TestAvailableManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 	available := make(map[string]bool)
-	reserved := make(map[string]bool)
 	for _, entry := range fixedManagedRegistry() {
-		if entry.Available {
-			available[entry.Path] = true
-			content, err := swatch.Content(entry.Path)
-			if err != nil {
-				t.Fatalf("available template %q: %v", entry.Path, err)
-			}
-			if entry.Policy.marked() && !hasManagedMarker(content, entry.Path) {
-				t.Errorf("available template %q lacks its ownership marker", entry.Path)
-			}
-		} else {
-			reserved[entry.Path] = true
-			if _, err := swatch.Content(entry.Path); err == nil {
-				t.Errorf("reserved template %q is embedded", entry.Path)
-			}
+		if !entry.Available {
+			t.Errorf("managed template %q is unavailable", entry.Path)
+			continue
+		}
+		available[entry.Path] = true
+		content, err := swatch.Content(entry.Path)
+		if err != nil {
+			t.Fatalf("available template %q: %v", entry.Path, err)
+		}
+		if entry.Policy.marked() && !hasManagedMarker(content, entry.Path) {
+			t.Errorf("available template %q lacks its ownership marker", entry.Path)
 		}
 	}
-	if len(available) != 9 || len(reserved) != 5 {
-		t.Fatalf("available=%d reserved=%d, want 9 and 5", len(available), len(reserved))
+	if len(available) != 14 {
+		t.Fatalf("available=%d, want 14", len(available))
 	}
 
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(name string, entry fs.DirEntry, err error) error {
@@ -92,13 +88,13 @@ func TestManagedLoadersUseAvailableRegistryFragments(t *testing.T) {
 		}
 	}
 	nixLoader := string(baseline["nix/loader.nix"])
-	for _, name := range []string{"go.nix", "pages.nix"} {
+	for _, name := range []string{"go.nix", "pages.nix", "playwright.nix"} {
 		if !strings.Contains(nixLoader, "builtins.pathExists ./"+name) || !strings.Contains(nixLoader, "import ./"+name) {
 			t.Errorf("Nix loader lacks relative optional import for %s", name)
 		}
 	}
-	if strings.Contains(justLoader+nixLoader, "playwright") || strings.Contains(justLoader+nixLoader, managedImportsPlaceholder) {
-		t.Fatal("loaders include a reserved template or unresolved placeholder")
+	if strings.Contains(justLoader+nixLoader, managedImportsPlaceholder) {
+		t.Fatal("loaders contain an unresolved placeholder")
 	}
 }
 
@@ -214,11 +210,14 @@ func TestManagedPagesPreviewPathsAndGuidance(t *testing.T) {
 	}
 }
 
-func TestManagedRendererRejectsReservedTemplates(t *testing.T) {
-	selection := managedSelection{Entry: fixedManagedRegistry()[9], Enabled: true}
-	_, err := renderManagedFiles(&config.Config{}, []managedSelection{selection})
-	if err == nil || !strings.Contains(err.Error(), "is reserved") {
-		t.Fatalf("renderManagedFiles() error = %v, want reserved template error", err)
+func TestManagedRendererRendersPlaywrightTemplates(t *testing.T) {
+	enabled := true
+	cfg := &config.Config{MCP: &config.MCPSettings{Playwright: &enabled}}
+	rendered := renderSelectedManagedFiles(t, cfg)
+	for _, path := range []string{"nix/playwright.nix", ".mcp.json", ".codex/config.toml", "opencode.json", ".pi/mcp.json"} {
+		if len(rendered[path]) == 0 {
+			t.Errorf("rendered Playwright template %q is empty", path)
+		}
 	}
 }
 
@@ -255,6 +254,7 @@ func writeManagedRenderFixture(t *testing.T, root, name string, content []byte) 
 	if err := os.MkdirAll(filepath.Dir(destination), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// #nosec G703 -- Test paths are controlled and stay in the temporary fixture.
 	if err := os.WriteFile(destination, content, 0o600); err != nil {
 		t.Fatal(err)
 	}
