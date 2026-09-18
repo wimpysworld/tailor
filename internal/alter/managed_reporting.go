@@ -267,7 +267,10 @@ func appendManagedReporting(report *Report, cfg *config.Config, results []Swatch
 		sort.Strings(newNix)
 		appendManagedNotice(report, "review and add new Nix files to Git because Nix flakes exclude untracked files: "+managedPathList(newNix))
 	}
-	if cfg.PlaywrightDeclared() && !cfg.PlaywrightEnabled() {
+	playwrightRemovalReported := slices.ContainsFunc(results, func(result SwatchResult) bool {
+		return result.Path == "nix/playwright.nix" && (result.Category == NoChange || result.Category == WouldRemove)
+	})
+	if cfg.PlaywrightDeclared() && !cfg.PlaywrightEnabled() && playwrightRemovalReported {
 		appendManagedNotice(report, "mcp.playwright is false, so Tailor removes `nix/playwright.nix` but preserves MCP client settings. Disable or remove their Playwright servers to avoid a missing `playwright-mcp` executable")
 	}
 	if len(guidance) != 0 {
