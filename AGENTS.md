@@ -60,6 +60,14 @@ tailor/
 - `measure` emits `warning` results for three local health diagnostics: missing `README.md` (not managed by tailor), `LICENSE` files containing unresolved placeholder tokens (e.g. `[year]`, `[fullname]`), and `LICENSE` files that exist but were not inspected (over 1 MiB or unreadable)
 - `README.md` is checked by exact path at the project root; it is a local diagnostic, not a swatch or config-diff item
 
+### Browser validation
+
+- Use the Nix dev shell, which provides `playwright-mcp` with Chromium.
+- Start `just pages`, or reuse its existing server at `http://127.0.0.1:18473`.
+- Use the configured Playwright MCP, which launches its own headless, isolated browser. Do not start a separate CDP endpoint or a manual stdio process.
+- Under Fence, Pi's `.pi/mcp.json` launcher forwards `HTTPS_PROXY` to `--proxy-server` when set. Do not assume that other providers use this proxy configuration.
+- Confirm that the actual CSS, fonts, and icons load before drawing visual conclusions. Report failed loads separately from site defects. Do not quietly mirror assets to make validation pass.
+
 ## Key implementation details
 
 - Swatches are embedded at build time via `//go:embed swatches/*`
