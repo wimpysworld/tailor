@@ -43,8 +43,12 @@
     function updateControls() {
       const current = currentTheme();
       select.value = preference;
-      document.getElementById("theme-sun").toggleAttribute("hidden", current !== "light");
-      document.getElementById("theme-moon").toggleAttribute("hidden", current !== "dark");
+      document
+        .getElementById("theme-sun")
+        .toggleAttribute("hidden", current !== "light");
+      document
+        .getElementById("theme-moon")
+        .toggleAttribute("hidden", current !== "dark");
     }
 
     function chooseTheme(choice) {
