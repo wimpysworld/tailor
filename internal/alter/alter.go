@@ -49,10 +49,14 @@ func (o Options) stageError(err error) {
 }
 
 // Execute retains typed results, including partial results when a later stage fails.
+func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options) (Report, error) {
+	return execute(cfg, dir, mode, client, stderr, options, nil)
+}
+
 // The sequence is deliberately linear because operation order is part of the safety contract.
 //
 //nolint:gocyclo
-func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options) (Report, error) {
+func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options, renderer managedRenderer) (Report, error) {
 	if stderr == nil {
 		stderr = io.Discard
 	}
@@ -65,11 +69,19 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	var variableResults []VariableResult
 	var retiredResults []SwatchResult
 	var swatchResults []SwatchResult
+	var managedResults []SwatchResult
+	var managed *managedExecution
+	var managedExclusions map[string]struct{}
 	context := ""
 	wikiGuidance := ""
 	partial := func(err error) (Report, error) {
 		allSwatches := append(append([]SwatchResult{}, swatchResults...), retiredResults...)
 		report := buildReport(command, context, repoResults, labelResults, variableResults, allSwatches, mode)
+		var retained []string
+		if managed != nil {
+			retained = managed.retainedPlaywrightSettings
+		}
+		appendManagedReporting(&report, managedResults, retained)
 		appendGuidance(&report, wikiGuidance)
 		options.stageError(err)
 		return report, err
@@ -87,6 +99,17 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	prepared, err := preparePagesSource(cfg, dir, mode)
 	if err != nil {
 		return partial(err)
+	}
+	if renderer != nil {
+		managed, err = prepareManagedExecution(cfg, dir, renderer)
+		if err != nil {
+			if conflict, ok := managedConflictResult(err); ok {
+				managedResults = append(managedResults, conflict)
+				swatchResults = append(swatchResults, conflict)
+			}
+			return partial(err)
+		}
+		managedExclusions = managedExcludedPaths()
 	}
 	repo, hasRepo, err := gh.RepoContextAt(dir)
 	if err != nil {
@@ -120,7 +143,7 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	}
 	tokens := TokenContext{GitHubUsername: username, Owner: repo.Owner, Name: repo.Name, rendered: goContents}
 	options.stage("wiki-preflight", stageLabel(mode, "Checking wiki readiness", "Updating wiki readiness"), "start")
-	if err := preflightWikiWrites(cfg, dir, wikiDeclared, &tokens); err != nil {
+	if err := preflightWikiWrites(cfg, dir, wikiDeclared, &tokens, managedExclusions); err != nil {
 		return partial(err)
 	}
 	wiki, err := preflightWiki(cfg, dir, mode, target, wikiDeclared)
@@ -193,7 +216,28 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	}
 	options.stage("licence", stageLabel(mode, "Licence planned", "Licence written"), "complete")
 	options.stage("swatches", stageLabel(mode, "Planning swatches", "Writing swatches"), "start")
-	processedSwatches, err := ProcessSwatches(cfg, dir, mode, &tokens)
+	if managed != nil {
+		var managedErr error
+		if mode.ShouldWrite() {
+			confirmed, applyErr := applyManagedFiles(dir, managed.plan)
+			managedResults, err = managedConfirmedResults(managed.planned, confirmed)
+			if err != nil {
+				return partial(err)
+			}
+			managedErr = applyErr
+		} else {
+			managedResults = append([]SwatchResult{}, managed.planned...)
+		}
+		swatchResults = append(swatchResults, managedResults...)
+		if managedErr != nil {
+			if conflict, ok := managedConflictResult(managedErr); ok {
+				managedResults = append(managedResults, conflict)
+				swatchResults = append(swatchResults, conflict)
+			}
+			return partial(managedErr)
+		}
+	}
+	processedSwatches, err := processSwatches(cfg, dir, mode, &tokens, managedExclusions)
 	swatchResults = append(swatchResults, processedSwatches...)
 	if err != nil {
 		return partial(err)
@@ -213,6 +257,11 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	}
 	swatchResults = append(swatchResults, retiredResults...)
 	report := buildReport(command, context, repoResults, labelResults, variableResults, swatchResults, mode)
+	var retained []string
+	if managed != nil {
+		retained = managed.retainedPlaywrightSettings
+	}
+	appendManagedReporting(&report, managedResults, retained)
 	if wiki != nil {
 		appendGuidance(&report, wiki.nextSteps)
 	}
@@ -230,14 +279,14 @@ func Run(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient,
 	return err
 }
 
-func preflightWikiWrites(cfg *config.Config, dir string, declared bool, tokens *TokenContext) error {
+func preflightWikiWrites(cfg *config.Config, dir string, declared bool, tokens *TokenContext, excluded map[string]struct{}) error {
 	if !declared || !*cfg.Repository.HasWiki {
 		return nil
 	}
 	if _, err := ProcessRetiredWorkflows(dir, DryRun); err != nil {
 		return err
 	}
-	_, err := ProcessSwatches(cfg, dir, DryRun, tokens)
+	_, err := processSwatches(cfg, dir, DryRun, tokens, excluded)
 	return err
 }
 

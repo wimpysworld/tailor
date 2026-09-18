@@ -32,9 +32,13 @@ func TestMCPDeclarationsAreInertAcrossAlterModes(t *testing.T) {
 	providers := map[string]string{
 		".mcp.json":             `{"mcpServers":{"existing":{"command":"keep-root"}}}`,
 		".claude/settings.json": `{"mcpServers":{"existing":{"command":"keep-claude"}}}`,
+		".codex/config.toml":    "[mcp_servers.existing]\ncommand = \"keep-codex\"\n",
 		".cursor/mcp.json":      `{"mcpServers":{"existing":{"command":"keep-cursor"}}}`,
 		".gemini/settings.json": `{"mcpServers":{"existing":{"command":"keep-gemini"}}}`,
 		".pi/mcp.json":          `{"mcpServers":{"existing":{"command":"keep-pi"}}}`,
+		"flake.nix":             "# keep flake root\n",
+		"justfile":              "# keep just root\n",
+		"opencode.json":         `{"mcp":{"existing":{"command":"keep-opencode"}}}`,
 	}
 
 	for _, mode := range modes {

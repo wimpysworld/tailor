@@ -98,6 +98,8 @@ func buildReport(command, context string, repo []RepoSettingResult, labels []Lab
 			action = strings.TrimPrefix(string(r.Category), "would ")
 		case Skipped:
 			outcome, action = output.Preserved, "preserve"
+		case ManagedConflict:
+			outcome, action = output.Attention, "resolve"
 		}
 		doc.Items = append(doc.Items, output.Item{Domain: "Files", Outcome: outcome, Action: action, Name: r.Path, Reason: string(r.Reason), Provenance: r.Path})
 	}

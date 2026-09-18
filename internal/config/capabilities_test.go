@@ -199,31 +199,34 @@ func writeCapabilityState(output *strings.Builder, section, key string, value *b
 
 func assertCapabilityStates(t *testing.T, cfg *Config, goValue, pagesValue, playwrightValue *bool) {
 	t.Helper()
-	if goValue == nil {
+	switch {
+	case goValue == nil:
 		if cfg.Languages != nil {
 			t.Errorf("languages section = %+v, want absent", cfg.Languages)
 		}
-	} else if cfg.Languages == nil {
+	case cfg.Languages == nil:
 		t.Error("languages section is absent")
-	} else {
+	default:
 		testutil.AssertPtrEqual(t, cfg.Languages.Go, goValue, "languages.go")
 	}
-	if pagesValue == nil {
+	switch {
+	case pagesValue == nil:
 		if cfg.Pages != nil {
 			t.Errorf("pages section = %+v, want absent", cfg.Pages)
 		}
-	} else if cfg.Pages == nil {
+	case cfg.Pages == nil:
 		t.Error("pages section is absent")
-	} else {
+	default:
 		testutil.AssertPtrEqual(t, cfg.Pages.Enabled, pagesValue, "pages.enabled")
 	}
-	if playwrightValue == nil {
+	switch {
+	case playwrightValue == nil:
 		if cfg.MCP != nil {
 			t.Errorf("mcp section = %+v, want absent", cfg.MCP)
 		}
-	} else if cfg.MCP == nil {
+	case cfg.MCP == nil:
 		t.Error("mcp section is absent")
-	} else {
+	default:
 		testutil.AssertPtrEqual(t, cfg.MCP.Playwright, playwrightValue, "mcp.playwright")
 	}
 

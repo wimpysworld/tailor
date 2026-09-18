@@ -275,15 +275,41 @@ New configurations contain false declarations for `languages.go`, `pages.enabled
 
 The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. This release stores configuration only. It does not register paths, create or remove files, or provision an MCP server.
 
-A later managed-fragment feature will use these declaration states:
+#### Planned managed development files
 
-| `mcp.playwright` state | Future action for the owned fragment |
+> [!NOTE]
+> This section records the agreed internal contract. The feature stays inactive until WW-282, so the current CLI does not create, replace, or remove these files.
+
+The feature will use a fixed internal registry. It will not use ordinary swatch discovery or add configuration keys, flags, environment controls, or public registry overrides.
+
+| Policy | Fixed destinations |
 | --- | --- |
-| `true` | Create or replace the fragment |
-| `false` | Remove the fragment |
-| Absent | Preserve the fragment |
+| Protected roots | `justfile`, `flake.nix` |
+| Loaders and core | `just/loader.just`, `nix/loader.nix`, `just/tailor.just` |
+| Go fragments | `just/go.just`, `nix/go.nix` |
+| Pages fragments | `just/pages.just`, `nix/pages.nix` |
+| Playwright fragment | `nix/playwright.nix` |
+| Protected shared starters | `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.pi/mcp.json` |
 
-These future actions apply only to the owned fragment. They do not change Pages publishing, Pages source files, or ordinary Go swatches.
+Loaders and `just/tailor.just` will reconcile on every active run. Explicit `true` will create a missing capability fragment or replace an owned regular file or final symlink. Explicit `false` will remove only an owned regular file or final symlink. A missing destination is a no-op. An absent declaration will cause no destination inspection, ownership conflict, mutation, or result for that capability.
+
+Tailor will identify an owned loader, core file, or fragment by its exact first line: `# Managed by Tailor: <registered path>`. The marker must end with LF or CRLF. A partial, misplaced, or wrong-path marker will not grant ownership. An unmarked regular file will cause an ownership conflict, including before deletion. A final symlink at one of these marked destinations will be adopted without reading its target: enablement replaces it, and disablement removes it. Registration will grant no ownership of sibling files or the containing directory.
+
+Roots and shared starters will have no ownership marker. Tailor will preserve an existing regular file or final symlink, including a dangling symlink, without reading the link target. Tailor will create a missing root only when its effective swatch entry permits creation. A missing entry or `never` will prohibit creation. Tailor will create missing shared starters only for explicit `mcp.playwright: true`. False and absent declarations will never edit or delete shared starters.
+
+When Tailor preserves an existing root, it will not parse or rewrite the root to add a loader. The report will tell the user to connect the preserved root to the loader manually. When explicit Playwright disablement retains shared settings that can invoke an unavailable executable, the report will warn about that condition.
+
+Before any local or remote mutation, Tailor will inspect every active destination and build the complete managed-file plan. This preflight will run after configuration, Go, and Pages render preparation, but before repository context, authentication, and Pages readiness. It will reject a linked parent, directory, or special file at an active destination. Protected final symlinks are the exception described above. A conflict at any active destination will stop the run before any mutation.
+
+Tailor will apply the plan after the licence stage and immediately before ordinary swatches. Plan and apply order will be loaders first, protected roots and shared starters second, core and enabled fragments third, and disabled fragments last. Paths within each group will use lexical order.
+
+Each write will use an exclusive sibling temporary file, file sync, close, atomic rename, and directory sync within the project root. Tailor will recheck the parent and destination before each mutation. The guarantee applies to one file, not the complete plan. If a later operation fails, successful earlier operations will remain and the report will include their confirmed results. A retry will reconcile the remaining differences.
+
+When `baste` plans a new Nix file, or `alter` confirms its creation, the report will tell the user to review and add the file to Git because Nix flakes exclude untracked files. This warning will not inspect the Git index.
+
+Synthetic rendered bytes, malformed or duplicate registries, and injected failures will enter through package-private test seams. Production options, configuration, flags, and environment variables will not expose these seams, and tests will not mutate a global registry.
+
+These planned actions will not change Pages publishing, Pages source files, ordinary Go swatches, or the current order and prerequisites of CLI operations.
 
 ### Go ecosystem support
 
