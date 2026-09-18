@@ -284,13 +284,21 @@ func TestPagesAcceptanceDisabledLeavesPagesUnmanaged(t *testing.T) {
 				writeOnDisk(t, dir, swatch.PagesDestination, []byte("name: user-owned\n"))
 				writeOnDisk(t, dir, ".gitignore", []byte("keep/\n"))
 				before := pagesAcceptanceSnapshot(t, dir)
-				output := captureAlterRun(t, loadTestConfig(t, dir), dir, mode, client)
+				report, err := alter.Execute(loadTestConfig(t, dir), dir, mode, client, io.Discard, alter.Options{})
+				if err != nil {
+					t.Fatal(err)
+				}
 				if len(s.writes) != 0 || !reflect.DeepEqual(s.reads, []string{"/user"}) {
 					t.Fatalf("disabled Pages made API calls: reads=%v writes=%v", s.reads, s.writes)
 				}
 				after := pagesAcceptanceSnapshot(t, dir)
-				if !reflect.DeepEqual(pagesAcceptanceWithoutManagedPaths(before, managedCoreAcceptancePaths...), pagesAcceptanceWithoutManagedPaths(after, managedCoreAcceptancePaths...)) || strings.Contains(output, "repository.pages") {
-					t.Fatalf("disabled Pages changed non-managed files or remote Pages settings: %s", output)
+				if !reflect.DeepEqual(pagesAcceptanceWithoutManagedPaths(before, managedCoreAcceptancePaths...), pagesAcceptanceWithoutManagedPaths(after, managedCoreAcceptancePaths...)) {
+					t.Fatal("disabled Pages changed non-managed files")
+				}
+				for _, item := range report.Document.Items {
+					if item.Domain == "Pages" {
+						t.Fatalf("disabled Pages reported a remote result: %+v", item)
+					}
 				}
 			})
 		}
