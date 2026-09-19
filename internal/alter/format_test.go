@@ -76,6 +76,16 @@ func TestFormatOutputSkippedSwatchesAllModes(t *testing.T) {
 	}
 }
 
+func TestFormatOutputProtectedIgnorePreservation(t *testing.T) {
+	result := []SwatchResult{{Path: ".gitignore", Category: NoChange, Reason: SkipManagedRootExists}}
+	const want = "no change:                           .gitignore (existing root preserved)\n"
+	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
+		if got := FormatOutput(nil, nil, nil, result, mode); got != want {
+			t.Errorf("mode %d output = %q, want %q", mode, got, want)
+		}
+	}
+}
+
 func TestFormatOutputRepoSettingsOnly(t *testing.T) {
 	repos := []RepoSettingResult{
 		{Field: "has_wiki", Category: WouldSet, Value: "false"},

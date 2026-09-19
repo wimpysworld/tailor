@@ -120,7 +120,9 @@ The job grants only `contents: read`, which permits checkout without write acces
 
 ### Local usage
 
-`actionlint` is available in the dev shell via `flake.nix`. The `just lint` recipe runs it alongside `golangci-lint`, so contributors get the same workflow validation locally before pushing.
+`actionlint` and `golangci-lint` are available in the dev shell via `flake.nix`. Run `just lint` to execute `lint-actions` first, then `lint-go` because this repository enables Go. `lint-actions` runs only `actionlint`, and `lint-go` runs only `golangci-lint run`. Missing tools fail visibly, and Just stops at the first failure.
+
+`just lint-all` is this repository's compatibility alias for `just lint`; Tailor does not generate `lint-all` in other projects. The generated dispatch is consistent with the selected capabilities. Tool versions and local configuration can still produce diagnostics that differ from CI.
 
 ## Source Configs
 

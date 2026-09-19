@@ -273,7 +273,7 @@ mcp:
 
 New configurations contain false declarations for `languages.go`, `pages.enabled`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
 
-The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. A true declaration provisions the Playwright package fragment and four MCP client starters. Pages publishing and the optional `just pages` preview remain separate.
+The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. A true declaration provisions the Playwright package fragment and renders four MCP client starters from `fixedManagedMCPRegistry`. Pages publishing and the optional `just pages` preview remain separate. Playwright is the only production server in that registry.
 
 #### Managed development files
 
@@ -290,7 +290,7 @@ Tailor uses one fixed internal registry for development roots, loaders, and frag
 
 The ordinary default set remains 29 configured swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
 
-Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The Go, Pages, and Playwright package declarations have this exact lifecycle:
+Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Pages, and Playwright package declarations have this exact lifecycle:
 
 | Declaration | Fragment action |
 | --- | --- |
@@ -300,13 +300,21 @@ Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`,
 
 An owned loader, core file, or fragment starts with the exact first line `# Managed by Tailor: <registered path>`. The marker must end with LF or CRLF. A partial, misplaced, or wrong-path marker does not grant ownership. An unmarked regular file causes an ownership conflict, including before removal. Tailor replaces or removes a final symlink without reading its target. Registration grants no ownership of sibling files or the containing directory.
 
-When `mcp.playwright` is true, Tailor creates each missing MCP client starter. Tailor preserves an existing regular file or final symlink and reports the client entry that the user must add manually. Tailor never parses, merges, or replaces these shared files. A false declaration preserves all four client files and removes only an owned `nix/playwright.nix`. Tailor warns in preview and apply that retained client settings can refer to a missing `playwright-mcp` executable. An absent declaration does not inspect or change any of the five Playwright paths.
+For each client, Tailor aggregates all selected server definitions into one destination. It orders servers by lexical server name and materialises each destination once. Each server must define Claude, Codex, OpenCode, and Pi output. Registry validation rejects duplicate names or providers, missing providers, invalid UTF-8, control characters, unresolved `[[TAILOR_` tokens, and unsupported provider fields. Printable strings and the literal Pi proxy command remain unchanged through serialisation.
+
+When `mcp.playwright` is true, Tailor creates each missing MCP client starter. Tailor preserves an existing regular file or final symlink and reports the client entry that the user must add manually. Tailor never parses, merges, or replaces these shared files. A false declaration preserves all four client files and removes only an owned `nix/playwright.nix`, through the existing Nix fragment lifecycle. Tailor warns in preview and apply that retained client settings can refer to a missing `playwright-mcp` executable. An absent declaration does not inspect or change the client destinations or package fragment. Shared-file adoption is not implemented.
+
+A [future MCP entry adoption contract](design/mcp-adoption.md) defines explicit per-entry consent. The proposed `--adopt-mcp` and `--release-mcp` flags are not implemented. Tailor will not infer consent from declarations, file contents, swatch modes, or `--recut`. The future design uses a local ownership ledger bound to the canonical project root. Entry edits preserve all non-target client bytes, and release preserves all client file bytes. Release is blocked while a transaction is pending. Reviewed recovery comes first. Client-version acceptance and adoption implementation remain separate follow-on work.
 
 The protected roots have no ownership marker. Tailor preserves an existing regular file or final symlink, including a dangling symlink, for `always`, `first-fit`, `never`, `--recut`, and an omitted swatch entry. It reports the existing root as preserved and gives loader adoption guidance in each case. Tailor creates a missing root only when its swatch entry is `always` or `first-fit`. A missing root with an omitted entry or `never` produces no root result or adoption guidance.
 
 Tailor does not parse or rewrite a preserved root. If the line is absent, add `import 'just/loader.just'` to `justfile`. If the expression is absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in `flake.nix`.
 
-The generated `justfile` requires Just 1.23.0 or later and owns the sole `default` recipe. `just/tailor.just` owns `alter`, `measure`, `release`, and `lint`. `just/go.just` owns `build`, `test`, and `lint-go`. `just/pages.just` owns `pages`. Generated files cannot contain duplicate recipe names.
+The generated `justfile` requires Just 1.23.0 or later and owns the sole `default` recipe. The generated files are tested with Just 1.23.0 and 1.58.0. `just/tailor.just` owns `alter`, `measure`, `release`, `lint-actions`, and `lint`. `lint-actions` runs only `actionlint`. `just/go.just` owns `build`, `test`, and `lint-go`, which runs only `golangci-lint run`. `just/pages.just` owns `pages`. Generated files cannot contain duplicate recipe names.
+
+The `lint` recipe first depends on `lint-actions`, then on each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. Explicit false and absent capabilities are excluded. If an absent capability leaves a previously managed fragment on disk, its standalone recipe remains callable but `lint` excludes it. The last successful reconciliation determines these dependencies until Tailor reconciles the files again. Missing selected tools fail visibly, and Just stops at the first failed dependency.
+
+Swatch modes for protected roots and ordinary linter configuration do not disable selected lint dispatch. In particular, `never` for `justfile` or `.golangci.yml` does not remove `lint-go` from an aggregate selected by `languages.go: true`. Users must keep custom checks under distinct wrapper names because managed recipe names cannot be overridden. Tailor's repository-only `lint-all` is a compatibility alias for `lint`; Tailor does not generate it for other projects.
 
 The Nix loader returns only a package list. It passes the existing `pkgs` set to each fragment and does not add inputs, change outputs, or update the lock file. This packages-only guarantee covers packages available through the existing flake inputs. The Playwright fragment supplies `playwright-mcp` with Chromium only. It excludes Firefox, WebKit, and the Chromium headless shell.
 
@@ -316,11 +324,13 @@ Before any local or remote mutation, Tailor inspects every active destination an
 
 Tailor applies the plan after the licence stage and immediately before ordinary swatches. Plan and apply order is loaders, protected roots, core and enabled fragments, then disabled fragments. Paths within each group use lexical order.
 
-Each write uses an exclusive sibling temporary file, file sync, close, atomic rename, and directory sync within the project root. Tailor rechecks the parent and destination before each mutation. The guarantee applies to one file, not the complete plan. If a later operation fails, successful earlier operations remain and the report includes their confirmed results. A retry reconciles the remaining differences.
+Each write uses an exclusive sibling temporary file, file sync, close, atomic rename, and directory sync within the project root. Tailor rechecks the parent and destination before each mutation. The guarantee applies to one file, not the complete plan. If a later operation fails, successful earlier operations remain and the report includes their confirmed results. A partial managed-file apply can leave Just imports or dependencies temporarily invalid. Fix the reported error, then retry the Tailor CLI command to reconcile the remaining differences.
 
 When `baste` plans a new Nix file, or `alter` confirms its creation, Tailor tells the user to review and add the file to Git. Nix flakes exclude untracked files. Tailor does not inspect or change the Git index.
 
-Synthetic rendered bytes, malformed or duplicate registries, and injected failures enter through package-private test seams. Production options, configuration, flags, and environment variables do not expose these seams, and tests do not mutate a global registry.
+Synthetic rendered bytes, malformed or duplicate registries, and injected failures enter through package-private test seams. Synthetic tests compose other servers and cover false and absent states. Production options, configuration, flags, and environment variables do not expose these seams, and tests do not mutate a global registry.
+
+The four embedded client starters remain byte-parity references and manual-copy sources. Runtime composition reads the fixed registry, not the embedded starters. The current OpenCode starter format remains unchanged.
 
 The four client starters configure `playwright-mcp --headless --isolated`. The MCP server owns and launches its browser. The configuration contains no manual stdio process, CDP endpoint, dynamic port, runtime package download, or Playwright Just fragment. MCP tool calls remain subject to the client's normal approval controls.
 
@@ -328,7 +338,7 @@ The Pi starter alone maps a non-empty inherited `HTTPS_PROXY` to Playwright's `-
 
 After file creation, the user reviews and adds the files to Git, adopts the loader expressions in preserved roots, and enters the Nix development shell. The user then reloads the MCP configuration or starts a new client instance. Existing client processes do not prove that the new configuration loaded. Browser validation must use the configured MCP server, not a manual stdio or CDP process.
 
-Managed development files do not change Pages publishing, Pages source files, ordinary Go swatches, or CLI prerequisites.
+Managed development files do not change Pages publishing, Pages source files, ordinary Go swatches, or CLI prerequisites. See the [MCP composition extension design](design/mcp-composition.md) for internal extension steps and deferred provider, version, and adoption work.
 
 ### Go ecosystem support
 
@@ -469,7 +479,9 @@ Show only remaining manual work. A subdomain uses CNAME target `<owner>.github.i
 
 Explicit `repository.homepage`, including an empty value, takes precedence. Otherwise replace the live homepage only when it equals this repository's GitHub URL. Use the effective custom-domain URL or GitHub's reported Pages URL. Preserve other values, including an empty live homepage. Track an inferred homepage separately from its value through config merging and round trips. The value-bound inline comment `# tailor: inferred homepage <URL>` marks an inferred value. Removing the comment or changing the URL makes the value explicit. Apply homepage changes only after successful Pages reconciliation, and never restore an inferred repository URL on later runs.
 
-When enabled, append the escaped, anchored generator output rule to `.gitignore`: `/pages/public/` for Hugo or `/pages/_site/` for Jekyll with the default path. Static adds nothing. Preserve text and prior rules, avoid duplicates, and never untrack files. An explicit `.gitignore` mode of `never` skips the addition with a result. Add the rule after ordinary swatches so recut cannot remove it.
+When enabled, append the escaped, anchored generator output rule to `.gitignore`: `/pages/public/` for Hugo or `/pages/_site/` for Jekyll with the default path. Static adds nothing. This Pages step is an additive exception to ordinary `.gitignore` protection. It can replace a final `.gitignore` symlink without following its target, then append to the new regular file. Preserve existing regular-file text and prior rules, avoid duplicate rule lines, and never untrack files. An explicit `.gitignore` mode of `never` skips the addition without inspection or a write. Add the rule after ordinary swatches so recut cannot remove it. Duplicate detection does not move an existing rule, so a later negation can still override that rule. Tailor does not resolve this pattern-order case.
+
+This paragraph describes shipped behaviour. The [future adopted-section contract](#future-adopted-ignore-sections) will preserve an unadopted root and show a snippet instead of appending.
 
 Insert Pages reconciliation after variables and before the licence, preserving other stage order. Return confirmed partial progress after failures. `baste` previews settings, workflow, environment, ignore and homepage changes without writes. `measure` remains local and excludes the development workflow from health checks. Its config comparison includes the registered Pages path, even when Pages is disabled. Authenticated `docket` already verifies the token with `GET /user`. Pages adds no requests to either inspection command. Disabled Pages never deletes sites, workflows or environments. Private Pages, paid features, self-hosted runners and general environment management remain out of scope.
 
@@ -500,6 +512,67 @@ List access failures skip variable management without writes. Individual write a
 - `always`: Tailor compares the embedded swatch content against the on-disk file on every `alter` run and overwrites if they differ. For `.tailor.yml` specifically, `always` means "migrate retired entries and append missing defaults" rather than "overwrite content", because `.tailor.yml` content is user-managed. The config is rewritten only when migration or default merging changes it
 - `first-fit`: Tailor copies this file only if it does not already exist; never overwrites
 - `never`: Tailor skips this swatch entirely. Tailor does not write or compare the destination. Use this mode to keep a swatch visible in the config without managing its destination
+
+### Current `.gitignore` behaviour
+
+`.gitignore` is a protected ordinary root. In ordinary swatch processing, an existing regular file or final symlink remains byte-for-byte unchanged under `always`, `first-fit`, and `--recut`. Tailor checks only the destination type. It does not read or hash a regular file, or follow a final symlink. A missing active destination with `always` or `first-fit` uses the managed writer with atomic no-clobber publication. A destination that appears during publication is preserved if it is a regular file or final symlink. A directory or special file is rejected.
+
+Tailor preflights a configured, active `.gitignore` before repository context and authentication, then checks it again during ordinary swatch dispatch. A directory or special file stops the command before those remote checks or any mutation. `never` is an unconditional veto, so Tailor does not inspect or write `.gitignore`. The later Pages ignore step is the separate additive exception described above.
+
+### Future adopted ignore sections
+
+This section specifies a future contract. The current behaviour above remains authoritative until the parser, planner, one-writer integration, and migration tests ship. The [design document](design/ignore-sections.md) records implementation boundaries, rejected alternatives, recovery steps, and the full acceptance matrix.
+
+Reserve `tailor:ignore:` for exact standalone marker pairs named `base`, `go`, and `pages`:
+
+```gitignore
+# tailor:ignore:base:start
+# tailor:ignore:base:end
+# tailor:ignore:go:start
+# tailor:ignore:go:end
+# tailor:ignore:pages:start
+# tailor:ignore:pages:end
+```
+
+No marker means unadopted. Reject partial, duplicate, reversed, nested, inline, unknown, or whitespace-modified reserved markers before any local or remote mutation. A final end marker can omit its newline. Do not use the whole-file managed marker as section consent.
+
+Tailor owns only bytes between one valid pair. Preserve marker bytes and all external bytes, including comments, blank lines, pattern order, duplicates, mixed line endings, and final-newline state. Render each changed body with the start marker's newline. Limit both input and planned output to 1 MiB (1,048,576 bytes). Reject unreadable or oversized input.
+
+Put sections in `base`, `go`, `pages` order only when creating a root. Project rules follow. Keep adopted sections in their existing positions, warn about earlier project rules, and never move or deduplicate patterns. Missing sections in an existing root require manual adoption, including when another section is adopted.
+
+The effective swatch scope is the value after default merging. Default merging can restore an omitted swatch entry, so `never` is the durable opt-out.
+
+| Effective `.gitignore` scope | Missing root | Existing root | Inspection |
+| --- | --- | --- | --- |
+| `always` | Create `base` and explicitly enabled sections. | Reconcile adopted sections only. | Validate the root. |
+| `first-fit` | Create `base` and explicitly enabled sections. | Reconcile adopted sections only. | Validate the root. |
+| Either active mode with `--recut` | Same action as its normal mode. | Same ownership limits as its normal mode. | Validate the root. |
+| Omitted | Do not create. | Reconcile existing adopted sections only. | Inspect only an existing root. |
+| `never` | Do nothing. | Do nothing. | Do not inspect. |
+
+`always`, `first-fit`, and recut do not grant ownership. Omitted scope prevents missing-root creation but does not revoke consent from existing markers. `never` overrides all declarations.
+
+| Section | Declaration | Adopted body | Missing section in existing root |
+| --- | --- | --- | --- |
+| `base` | Active or omitted scope | Replace with fixed embedded base rules. | Preserve the file and suggest the exact pair. |
+| `base` | `never` | Do not inspect or write. | Do not inspect or write. |
+| `go` | `languages.go: true` | Replace the body with only `*.test`. | Preserve the file and suggest the exact pair. |
+| `go` | `languages.go: false` | Empty the body and retain markers. | Preserve the file. |
+| `go` | `languages.go` absent | Preserve the body. | Preserve the file. |
+| `pages` | Enabled Hugo or Jekyll, and Pages available | Replace with the escaped output rule and preview removed exclusions. | Preserve the file and suggest the exact pair. |
+| `pages` | False, absent, static, unavailable, or skipped | Preserve the body. | Preserve the file. |
+
+The initial Go body contains exactly one rule, `*.test`. It contains no executable-name or coverage-profile patterns.
+
+Never infer language selection. A permitted missing root includes `base` and each explicitly enabled optional section. False or absent optional declarations do not create a section.
+
+Later Git rules can override managed rules. A negation cannot re-include a file while an ancestor directory remains excluded, so users must re-include the ancestor first. Historical rules and duplicates outside markers stay unchanged and can keep a path ignored after managed removal.
+
+The future Pages path replaces the current append writer. An unadopted existing root receives an adoption snippet, not an appended rule. Static, false, absent, unavailable, and skipped Pages make no Pages-section change. The migration does not remove historical appended rules.
+
+Build one rooted snapshot and complete plan before any local or remote mutation. One writer must replace ordinary ignore dispatch and Pages appending. Recheck destination identity, type, and bytes before publication, and report drift as a conflict without silent replanning. Preserve final symlinks and request manual action. Reject linked parents, directories, special files, unreadable files, and oversized files.
+
+Use an exclusive sibling temporary file, file sync, close, rename, and directory sync. Missing-root publication must not clobber a destination that appears. Snapshot checks provide compare-and-swap discipline, not an atomic filesystem compare-and-swap. An unrelated writer can change the destination between the final check and rename. Atomicity covers one file, not remote operations or the complete run.
 
 **Default Alteration Modes**:
 
@@ -1441,7 +1514,7 @@ The retired paths are `.github/workflows/tailor-automerge.yml` and `.github/work
 
 The generated root requires Just 1.23.0 or later and imports `just/loader.just`. Tailor preserves an existing root under every alteration mode and `--recut`. Add the exact import manually when a preserved root does not contain it.
 
-The loader conditionally imports all available fragments. `just/tailor.just` provides `alter`, `measure`, `release`, and `lint`. Explicit `languages.go: true` adds `build`, `test`, and `lint-go`. Explicit `pages.enabled: true` adds `pages`. The root alone provides `default`, and generated recipe names must be unique. See [managed development files](#managed-development-files).
+The loader conditionally imports all available fragments. `just/tailor.just` provides `alter`, `measure`, `release`, `lint-actions`, and `lint`. `lint` runs `lint-actions` and each linter for an explicit true capability. Explicit `languages.go: true` adds `build`, `test`, and `lint-go`, and makes `lint` depend on `lint-go`. Explicit `pages.enabled: true` adds `pages`. The root alone provides `default`, and generated recipe names must be unique. See [managed development files](#managed-development-files).
 
 ## Implementation Notes
 

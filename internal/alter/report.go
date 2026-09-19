@@ -87,20 +87,7 @@ func buildReport(command, context string, repo []RepoSettingResult, labels []Lab
 		doc.Items = append(doc.Items, output.Item{Domain: "Variables", Outcome: outcome, Action: action, Name: name, Before: r.Before, After: after, Reason: r.Annotation, Provenance: qualified("variable", r.Name)})
 	}
 	for _, r := range swatches {
-		outcome, action := output.Unchanged, "match"
-		switch r.Category {
-		case WouldCopy, WouldOverwrite, WouldRemove, WouldUpdateConfig:
-			if mode.ShouldWrite() {
-				outcome = output.Applied
-			} else {
-				outcome = output.Alteration
-			}
-			action = strings.TrimPrefix(string(r.Category), "would ")
-		case Skipped:
-			outcome, action = output.Preserved, "preserve"
-		case ManagedConflict:
-			outcome, action = output.Attention, "resolve"
-		}
+		outcome, action := swatchReportDecision(r, mode)
 		doc.Items = append(doc.Items, output.Item{Domain: "Files", Outcome: outcome, Action: action, Name: r.Path, Reason: string(r.Reason), Provenance: r.Path})
 	}
 	doc.Summary = output.Count(doc.Items)
@@ -115,6 +102,28 @@ func buildReport(command, context string, repo []RepoSettingResult, labels []Lab
 		}
 	}
 	return Report{Document: doc, Plain: FormatOutput(repo, labels, variables, swatches, mode)}
+}
+
+func swatchReportDecision(result SwatchResult, mode ApplyMode) (output.Outcome, string) {
+	outcome, action := output.Unchanged, "match"
+	switch result.Category {
+	case WouldCopy, WouldOverwrite, WouldRemove, WouldUpdateConfig:
+		if mode.ShouldWrite() {
+			outcome = output.Applied
+		} else {
+			outcome = output.Alteration
+		}
+		action = strings.TrimPrefix(string(result.Category), "would ")
+	case Skipped:
+		outcome, action = output.Preserved, "preserve"
+	case NoChange:
+		if result.Path == ignoreRootPath && result.Reason == SkipManagedRootExists {
+			outcome, action = output.Preserved, "preserve"
+		}
+	case ManagedConflict:
+		outcome, action = output.Attention, "resolve"
+	}
+	return outcome, action
 }
 
 func alterationCount(count int) string {

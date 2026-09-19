@@ -37,10 +37,20 @@ Wiki setup has one earlier write: after local safety checks, Tailor enables a de
 
 ```bash
 tailor alter            # Apply changes
-tailor alter --recut    # Overwrite always and first-fit swatches
+tailor alter --recut    # Overwrite eligible always and first-fit swatches
 ```
 
-`--recut` overrides `first-fit` for ordinary swatches, but it still skips `never`. Existing `justfile` and `flake.nix` roots, wiki starter pages, [static Pages starter files](GitHub-Pages#static-pages-starter), and regular `LICENSE` files are exempt. For `.tailor.yml`, see [default merging](Configuration#default-merging).
+`--recut` overrides `first-fit` for ordinary swatches, but it still skips `never`. Existing `justfile`, `flake.nix`, and `.gitignore` roots, wiki starter pages, [static Pages starter files](GitHub-Pages#static-pages-starter), and regular `LICENSE` files are exempt. Ordinary `.gitignore` processing preserves an existing regular file or final symlink byte-for-byte under every mode. It does not read or hash the file, or follow the symlink.
+
+For an active mode other than `never`, Tailor creates a missing `.gitignore` atomically without clobbering a destination that appears during the write. It rejects a directory or special file before repository checks, authentication, or writes. `never` skips that inspection and write. Enabled Hugo or Jekyll Pages is a later additive exception that can replace a final symlink and append its output rule. Review the rule order when an existing matching rule precedes a later negation. For `.tailor.yml`, see [default merging](Configuration#default-merging).
+
+The following workflow is for a future release. Tailor will first build one rooted `.gitignore` snapshot and plan before local or remote mutation. One writer will handle ordinary, Go, and Pages rules. `baste` will show marker snippets for an unadopted existing root, without changing it.
+
+Before publication, Tailor will recheck the file identity, type, and bytes. If they changed, Tailor will report a conflict instead of making a new plan. Run `tailor baste` again, review the new plan, then retry `tailor alter`.
+
+Publication will use an exclusive sibling temporary file, file sync, close, rename, and directory sync. Missing-root publication will not replace a destination that appears. These checks are not an atomic filesystem compare-and-swap because another writer can change the destination between the final check and rename. If that race occurs, recover the project-owned file from Git or backup before retrying with one writer.
+
+Future `.gitignore` atomicity will cover one file only. It will not cover remote operations or the complete `alter` run. Final symlinks, linked parents, directories, special files, unreadable files, and files above 1 MiB will stop future reconciliation. See the [future contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/ignore-sections.md).
 
 If a later step fails, completed local and repository changes remain. Tailor does not roll them back. Fix the reported error, then run `tailor baste` before you retry `tailor alter`.
 
@@ -145,9 +155,12 @@ The generated files require Just 1.23.0 or later. The protected root imports man
 |---|---|---|
 | `just` | Lists recipes | Just 1.23.0 or later |
 | `just alter` | `tailor alter` | Tailor, GitHub authentication, valid `.tailor.yml` |
-| `just lint` | `actionlint` | `actionlint` |
+| `just lint-actions` | `actionlint` | `actionlint` |
+| `just lint` | `lint-actions`, then each registered linter whose capability is explicitly true | Every selected linter tool |
 | `just measure` | `tailor baste`, then `tailor measure` | Tailor, GitHub authentication, valid `.tailor.yml` |
 | `just release x.y.z` | Validates a clean tree, then creates the local `vX.Y.Z` tag | Git |
+
+Tailor records the `just lint` dependencies during the last successful file reconciliation. It always selects `lint-actions`, then each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. False and absent capabilities are excluded. A retained fragment for an absent capability remains callable as a standalone recipe. Missing tools fail, and Just stops at the first failed dependency.
 
 With [Go support](Configuration#go-support) enabled, Tailor adds these recipes:
 
@@ -158,6 +171,17 @@ With [Go support](Configuration#go-support) enabled, Tailor adds these recipes:
 | `just lint-go` | `golangci-lint run` | golangci-lint |
 
 With [Pages](GitHub-Pages) enabled, `just pages` previews the effective site at `http://127.0.0.1:18473`.
+
+Tailor's repository adds these user-owned recipes in `just/project.just`:
+
+| Command | Runs | Purpose |
+| --- | --- | --- |
+| `just build-tailor` | `go build -ldflags "-s -w" -o tailor ./cmd/tailor` | Builds the stripped Tailor binary. |
+| `just lint-all` | `just lint` | Compatibility alias for the aggregate linter recipe. |
+| `just alter-source` | `go run ./cmd/tailor alter` | Runs an alteration from the current source. |
+| `just measure-source` | `go run ./cmd/tailor baste`, then `go run ./cmd/tailor measure` | Runs preview and local checks from the current source. |
+| `just snapshot` | `goreleaser release --snapshot --clean --skip=sign` | Builds local release packages. |
+| `just check` | `goreleaser check`, then `nix flake check` | Checks release and flake configuration. |
 
 ### Activate Playwright MCP
 
@@ -177,9 +201,13 @@ Enter the project shell with `nix develop`, or reload direnv after `direnv allow
 
 The configured MCP server starts its own headless, isolated browser. Do not start a manual stdio server or CDP endpoint. Start `just pages` only when you also want the separate Pages preview server.
 
+A [validated future contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/mcp-adoption.md) defines the proposed `--adopt-mcp` and `--release-mcp` flags. Tailor does not implement these flags and does not infer consent. Future adoption will use a local ownership ledger bound to the project. Entry edits will preserve non-target client bytes, and release will preserve all client file bytes. Release is blocked while a transaction is pending. Reviewed recovery comes first. Client-version acceptance and adoption implementation remain separate follow-on work.
+
 Unlike `tailor measure`, `just measure` needs authentication because its first command is `tailor baste`. If that preview fails, the recipe stops before the local health check.
 
-Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. Before you add the exact Just loader import from [managed development files](Configuration#managed-development-files), remove or rename each user recipe that duplicates a managed recipe. Keep custom behaviour under a distinct recipe name. Tailor does not rewrite user recipes or change production recipe names.
+Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. Before you add the exact Just loader import from [managed development files](Configuration#managed-development-files), remove or rename each user recipe that duplicates a managed recipe. Keep custom checks under distinct wrapper names. Tailor does not rewrite user recipes or change production recipe names.
+
+A partial `tailor alter` can leave the imported Just files temporarily invalid. Fix the reported error, then retry `tailor alter` before you run a recipe. The generated dispatch is consistent, but installed tool versions and configuration can produce different diagnostics. This lint aggregation change adds no tool pin or CI policy change.
 
 ## Retired workflow cleanup
 

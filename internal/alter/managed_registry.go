@@ -33,6 +33,7 @@ type managedRegistryEntry struct {
 	Path       string
 	Policy     managedPolicy
 	Capability managedCapability
+	LintRecipe string
 }
 
 type managedSelection struct {
@@ -47,20 +48,22 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "just/loader.just", Policy: managedPolicyLoader},
 		{Path: "nix/loader.nix", Policy: managedPolicyLoader},
 		{Path: "just/tailor.just", Policy: managedPolicyCore},
-		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
+		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"},
 		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright},
-		{Path: ".mcp.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
-		{Path: ".codex/config.toml", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
-		{Path: "opencode.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
-		{Path: ".pi/mcp.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
+		{Path: ".mcp.json", Policy: managedPolicySharedStarter},
+		{Path: ".codex/config.toml", Policy: managedPolicySharedStarter},
+		{Path: "opencode.json", Policy: managedPolicySharedStarter},
+		{Path: ".pi/mcp.json", Policy: managedPolicySharedStarter},
 	}
 }
 
 func validateManagedRegistry(registry []managedRegistryEntry) error {
 	seen := make(map[string]struct{}, len(registry))
+	lintRecipes := make(map[string]string)
+	lintCapabilities := make(map[managedCapability]string)
 	for _, entry := range registry {
 		if err := validateManagedPath(entry.Path); err != nil {
 			return fmt.Errorf("managed registry: %w", err)
@@ -80,12 +83,30 @@ func validateManagedRegistry(registry []managedRegistryEntry) error {
 				return fmt.Errorf("managed registry fragment %q requires a capability", entry.Path)
 			}
 		case managedPolicySharedStarter:
-			if entry.Capability != managedCapabilityPlaywright {
-				return fmt.Errorf("managed registry shared starter %q requires the playwright capability", entry.Path)
+			if entry.Capability != managedCapabilityNone {
+				return fmt.Errorf("managed registry shared starter %q has an invalid capability", entry.Path)
 			}
 		default:
 			return fmt.Errorf("managed registry destination %q has an invalid policy", entry.Path)
 		}
+
+		if entry.LintRecipe == "" {
+			continue
+		}
+		if entry.Policy != managedPolicyFragment || path.Dir(entry.Path) != "just" || path.Ext(entry.Path) != ".just" {
+			return fmt.Errorf("managed registry lint recipe %q must belong to a Just capability fragment", entry.LintRecipe)
+		}
+		if !validManagedRecipeName(entry.LintRecipe) {
+			return fmt.Errorf("managed registry destination %q has invalid lint recipe %q", entry.Path, entry.LintRecipe)
+		}
+		if previous, exists := lintRecipes[entry.LintRecipe]; exists {
+			return fmt.Errorf("managed registry lint recipe %q is duplicated by %q and %q", entry.LintRecipe, previous, entry.Path)
+		}
+		lintRecipes[entry.LintRecipe] = entry.Path
+		if previous, exists := lintCapabilities[entry.Capability]; exists {
+			return fmt.Errorf("managed capability %q has multiple lint recipes in %q and %q", entry.Capability.canonicalName(), previous, entry.Path)
+		}
+		lintCapabilities[entry.Capability] = entry.Path
 	}
 	return nil
 }
@@ -106,6 +127,19 @@ func (capability managedCapability) validDeclaration() bool {
 	return capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright
 }
 
+func (capability managedCapability) canonicalName() string {
+	switch capability {
+	case managedCapabilityGo:
+		return "go"
+	case managedCapabilityPages:
+		return "pages"
+	case managedCapabilityPlaywright:
+		return "playwright"
+	default:
+		return ""
+	}
+}
+
 func (policy managedPolicy) marked() bool {
 	return policy == managedPolicyLoader || policy == managedPolicyCore || policy == managedPolicyFragment
 }
@@ -115,18 +149,21 @@ func (policy managedPolicy) protected() bool {
 }
 
 func selectManagedFiles(cfg *config.Config) ([]managedSelection, error) {
-	selected, err := selectManagedFilesFromRegistry(cfg, fixedManagedRegistry())
+	selected, err := selectManagedFilesFromRegistries(cfg, fixedManagedRegistry(), fixedManagedMCPRegistry())
 	if err != nil {
 		return nil, fmt.Errorf("selecting managed files: %w", err)
 	}
 	return selected, nil
 }
 
-func selectManagedFilesFromRegistry(cfg *config.Config, registry []managedRegistryEntry) ([]managedSelection, error) {
+func selectManagedFilesFromRegistries(cfg *config.Config, registry []managedRegistryEntry, mcpRegistry []managedMCPServerDefinition) ([]managedSelection, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("managed file selection requires a config")
 	}
 	if err := validateManagedRegistry(registry); err != nil {
+		return nil, err
+	}
+	if err := validateManagedMCPRegistry(mcpRegistry); err != nil {
 		return nil, err
 	}
 
@@ -149,8 +186,7 @@ func selectManagedFilesFromRegistry(cfg *config.Config, registry []managedRegist
 				selected = append(selected, managedSelection{Entry: entry, Enabled: enabled})
 			}
 		case managedPolicySharedStarter:
-			declared, enabled := managedCapabilityState(cfg, entry.Capability)
-			if declared && enabled {
+			if managedMCPDestinationEnabled(cfg, entry.Path, mcpRegistry) {
 				selected = append(selected, managedSelection{Entry: entry, Enabled: true})
 			}
 		}

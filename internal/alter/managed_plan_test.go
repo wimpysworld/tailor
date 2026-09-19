@@ -32,10 +32,50 @@ func TestFixedManagedRegistry(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("fixedManagedRegistry() paths = %v, want %v", got, want)
 	}
+	for _, entry := range registry {
+		wantLintRecipe := ""
+		if entry.Path == "just/go.just" {
+			wantLintRecipe = "lint-go"
+		}
+		if entry.LintRecipe != wantLintRecipe {
+			t.Errorf("fixedManagedRegistry() lint recipe for %q = %q, want %q", entry.Path, entry.LintRecipe, wantLintRecipe)
+		}
+	}
 
 	registry[0].Path = "changed"
 	if fixedManagedRegistry()[0].Path != "justfile" {
 		t.Fatal("fixedManagedRegistry() returned mutable shared state")
+	}
+}
+
+func TestValidateManagedRegistrySharedStarterCapabilities(t *testing.T) {
+	tests := []struct {
+		name       string
+		capability managedCapability
+		want       string
+	}{
+		{name: "core placeholder", capability: managedCapabilityNone},
+		{name: "Playwright", capability: managedCapabilityPlaywright, want: "invalid capability"},
+		{name: "unsupported", capability: managedCapability(99), want: "invalid capability"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateManagedRegistry([]managedRegistryEntry{{
+				Path:       "starter",
+				Policy:     managedPolicySharedStarter,
+				Capability: tt.capability,
+			}})
+			if tt.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("validateManagedRegistry() error = %v, want substring %q", err, tt.want)
+			}
+		})
 	}
 }
 
@@ -74,9 +114,30 @@ func TestValidateManagedRegistryRejectsMalformedMetadata(t *testing.T) {
 			want:     "requires a capability",
 		},
 		{
-			name:     "starter with wrong capability",
-			registry: []managedRegistryEntry{{Path: "starter", Policy: managedPolicySharedStarter, Capability: managedCapabilityPages}},
-			want:     "requires the playwright capability",
+			name:     "invalid lint recipe identifier",
+			registry: []managedRegistryEntry{{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint go"}},
+			want:     "invalid lint recipe",
+		},
+		{
+			name: "duplicate lint recipe",
+			registry: []managedRegistryEntry{
+				{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-ecosystem"},
+				{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, LintRecipe: "lint-ecosystem"},
+			},
+			want: "lint recipe \"lint-ecosystem\" is duplicated",
+		},
+		{
+			name: "multiple lint recipes for capability",
+			registry: []managedRegistryEntry{
+				{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"},
+				{Path: "just/go-extra.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go-extra"},
+			},
+			want: "multiple lint recipes",
+		},
+		{
+			name:     "lint recipe outside Just fragment",
+			registry: []managedRegistryEntry{{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"}},
+			want:     "must belong to a Just capability fragment",
 		},
 		{
 			name:     "unknown policy",
@@ -204,9 +265,6 @@ func TestPlanManagedProtectedFiles(t *testing.T) {
 			name := fmt.Sprintf("policy=%d/%s", policy, tt.name)
 			t.Run(name, func(t *testing.T) {
 				selection := managedSelection{Entry: managedRegistryEntry{Path: "protected", Policy: policy}, Enabled: true}
-				if policy == managedPolicySharedStarter {
-					selection.Entry.Capability = managedCapabilityPlaywright
-				}
 				plan, err := planManagedFiles(
 					[]managedSelection{selection},
 					managedRenderedFiles{"protected": []byte("unmarked content")},

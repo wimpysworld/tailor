@@ -377,10 +377,9 @@ func TestApplyManagedFilesProtectedCreateRaceDoesNotClobber(t *testing.T) {
 		name        string
 		destination string
 		policy      managedPolicy
-		capability  managedCapability
 	}{
 		{name: "root", destination: "justfile", policy: managedPolicyRoot},
-		{name: "shared starter", destination: ".codex/config.toml", policy: managedPolicySharedStarter, capability: managedCapabilityPlaywright},
+		{name: "shared starter", destination: ".codex/config.toml", policy: managedPolicySharedStarter},
 	}
 
 	for _, policy := range policies {
@@ -396,7 +395,7 @@ func TestApplyManagedFilesProtectedCreateRaceDoesNotClobber(t *testing.T) {
 					}
 				}
 				plan := managedPlan{Files: []managedPlanFile{
-					managedTestPlanFile(policy.destination, policy.policy, policy.capability, true, managedOperationWrite, []byte("generated\n")),
+					managedTestPlanFile(policy.destination, policy.policy, managedCapabilityNone, true, managedOperationWrite, []byte("generated\n")),
 				}}
 
 				results, err := applyManagedFilesWithHooks(dir, plan, managedApplyHooks{

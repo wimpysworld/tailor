@@ -132,6 +132,12 @@ ruleset:
             alerts_threshold: errors
             security_alerts_threshold: high_or_higher
 
+languages:
+  go: true
+
+mcp:
+  playwright: true
+
 # Pages is opt-in. Omission or enabled: false leaves Pages unmanaged.
 # generator: static (default) creates a starter in an empty path. Hugo and Jekyll need an existing site.
 # path: project-relative source directory, default pages.
@@ -263,6 +269,18 @@ swatches:
 
   - path: justfile
     alteration: first-fit
+
+  - path: .golangci.yml
+    alteration: first-fit
+
+  - path: .goreleaser.yaml
+    alteration: first-fit
+
+  - path: Dockerfile
+    alteration: first-fit
+
+  - path: .github/workflows/build-go.yml
+    alteration: never
 
   - path: flake.nix
     alteration: first-fit

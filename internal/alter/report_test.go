@@ -194,6 +194,30 @@ func TestBuildReportConvertsEveryResultCategory(t *testing.T) {
 	}
 }
 
+func TestBuildReportClassifiesProtectedIgnoreAsPreserved(t *testing.T) {
+	result := SwatchResult{Path: ignoreRootPath, Category: NoChange, Reason: SkipManagedRootExists}
+	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
+		report := buildReport("alter", "owner/repo", nil, nil, nil, []SwatchResult{result}, mode)
+		if len(report.Document.Items) != 1 {
+			t.Fatalf("mode %d items = %d, want 1", mode, len(report.Document.Items))
+		}
+		item := report.Document.Items[0]
+		if item.Outcome != output.Preserved || item.Action != "preserve" || item.Reason != string(SkipManagedRootExists) {
+			t.Errorf("mode %d item = %#v, want preserved ignore root", mode, item)
+		}
+		if strings.Contains(report.Plain, "overwrite") || strings.Contains(report.Plain, "copy") {
+			t.Errorf("mode %d reports replacement: %q", mode, report.Plain)
+		}
+	}
+
+	unrelated := SwatchResult{Path: "unrelated", Category: NoChange, Reason: SkipManagedRootExists}
+	report := buildReport("alter", "owner/repo", nil, nil, nil, []SwatchResult{unrelated}, Apply)
+	item := report.Document.Items[0]
+	if item.Outcome != output.Unchanged || item.Action != "match" {
+		t.Fatalf("unrelated item = %#v, want unchanged match", item)
+	}
+}
+
 func TestBuildReportConvertsCompletedWritesToApplied(t *testing.T) {
 	report := buildReport("alter", "owner/repo",
 		[]RepoSettingResult{{Field: "has_wiki", Category: WouldSet, Before: "false", Value: "true"}},

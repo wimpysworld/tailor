@@ -9,7 +9,7 @@ lint-actions:
     @actionlint
 
 # Run all enabled linters
-lint: [[TAILOR_MANAGED_LINT_DEPENDENCIES]]
+lint: lint-actions lint-go
 
 # Preview remote and local changes, then inspect local project health
 measure:

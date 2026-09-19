@@ -35,17 +35,29 @@ func TestRenderedJustfileRelease(t *testing.T) {
 				t.Fatal(err)
 			}
 			loader := string(mustSwatchContent(t, "just/loader.just"))
-			const placeholder = "[[TAILOR_MANAGED_IMPORTS]]"
-			if count := strings.Count(loader, placeholder); count != 1 {
+			const importsPlaceholder = "[[TAILOR_MANAGED_IMPORTS]]"
+			if count := strings.Count(loader, importsPlaceholder); count != 1 {
 				t.Fatalf("just/loader.just imports placeholders = %d, want 1", count)
 			}
 			// Keep these fixture imports local. The alter package tests production registry coverage.
 			const fixtureImports = "import? \"tailor.just\"\nimport? \"go.just\"\nimport? \"pages.just\""
-			loader = strings.Replace(loader, placeholder, fixtureImports, 1)
+			loader = strings.Replace(loader, importsPlaceholder, fixtureImports, 1)
+
+			core := string(mustSwatchContent(t, "just/tailor.just"))
+			const lintPlaceholder = "[[TAILOR_MANAGED_LINT_DEPENDENCIES]]"
+			if count := strings.Count(core, lintPlaceholder); count != 1 {
+				t.Fatalf("just/tailor.just lint placeholders = %d, want 1", count)
+			}
+			lintDependencies := "lint-actions"
+			if tt.includeGo {
+				lintDependencies += " lint-go"
+			}
+			core = strings.Replace(core, lintPlaceholder, lintDependencies, 1)
+
 			files := map[string][]byte{
 				"justfile":         mustSwatchContent(t, "justfile"),
 				"just/loader.just": []byte(loader),
-				"just/tailor.just": mustSwatchContent(t, "just/tailor.just"),
+				"just/tailor.just": []byte(core),
 			}
 			if tt.includeGo {
 				files["just/go.just"] = mustSwatchContent(t, "just/go.just")
