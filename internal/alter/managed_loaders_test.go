@@ -256,11 +256,13 @@ func TestManagedPagesRecipeRejectsMissingNonStaticBuild(t *testing.T) {
 func TestManagedLintInvalidJustFixturesFailVisibly(t *testing.T) {
 	just := managedLintExecutable(t)
 	tests := []struct {
-		name  string
-		setup func(*testing.T, string, managedRenderedFiles)
+		name        string
+		wantOutputs []string
+		setup       func(*testing.T, string, managedRenderedFiles)
 	}{
 		{
-			name: "missing selected fragment",
+			name:        "missing selected fragment",
+			wantOutputs: []string{"lint-go"},
 			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
 				if err := os.Remove(filepath.Join(root, "just", "go.just")); err != nil {
 					t.Fatal(err)
@@ -268,19 +270,22 @@ func TestManagedLintInvalidJustFixturesFailVisibly(t *testing.T) {
 			},
 		},
 		{
-			name: "malformed retained import",
+			name:        "malformed retained import",
+			wantOutputs: []string{"expected", "just/go.just:1"},
 			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
 				writeManagedTestFile(t, root, "just/go.just", []byte("not a valid Just recipe\n"))
 			},
 		},
 		{
-			name: "duplicate recipe",
+			name:        "duplicate recipe",
+			wantOutputs: []string{"recipe `lint-actions`", "redefined"},
 			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
 				writeManagedTestFile(t, root, "just/go.just", []byte("lint-actions:\n    @true\n"))
 			},
 		},
 		{
-			name: "duplicate setting",
+			name:        "duplicate setting",
+			wantOutputs: []string{"setting `shell`", "redefined"},
 			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
 				writeManagedTestFile(t, root, "justfile", []byte("set shell := [\"/bin/sh\", \"-cu\"]\nset shell := [\"/bin/sh\", \"-cu\"]\nimport 'just/loader.just'\n"))
 			},
@@ -293,10 +298,19 @@ func TestManagedLintInvalidJustFixturesFailVisibly(t *testing.T) {
 			goOn := test.name == "missing selected fragment" || test.name == "duplicate setting"
 			rendered := renderSelectedManagedFiles(t, managedRenderConfig(goOn, nil))
 			writeManagedLintFixture(t, root, rendered)
+			bin := filepath.Join(root, "bin")
+			writeManagedLintStub(t, bin, "actionlint", "TAILOR_ACTIONLINT_STATUS")
+			writeManagedLintStub(t, bin, "golangci-lint", "TAILOR_GOLANGCI_STATUS")
 			test.setup(t, root, rendered)
-			output, err := runManagedLint(t, just, root, "lint", filepath.Join(root, "bin"), filepath.Join(root, "lint.log"), nil)
-			if err == nil || len(output) == 0 {
-				t.Fatalf("invalid Just fixture output = %q, error = %v, want visible failure", output, err)
+			output, err := runManagedLint(t, just, root, "lint", bin, filepath.Join(root, "lint.log"), nil)
+			if err == nil {
+				t.Fatalf("invalid Just fixture succeeded with output %q", output)
+			}
+			lowerOutput := strings.ToLower(string(output))
+			for _, want := range test.wantOutputs {
+				if !strings.Contains(lowerOutput, want) {
+					t.Fatalf("invalid Just fixture output = %q, error = %v, want diagnostic containing %q", output, err, want)
+				}
 			}
 		})
 	}
