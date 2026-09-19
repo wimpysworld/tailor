@@ -28,23 +28,6 @@
         let
           pkgs = import nixpkgs { inherit system; };
           tailorPkgs = nix-packages.packages.${system} or { };
-          # The stock wrapper and playwright-test capture every browser. Replace
-          # both references so the runtime closure contains Chromium only.
-          playwrightMcpChromium =
-            let
-              browsers = pkgs.playwright-driver.browsers-chromium;
-              playwright-test = pkgs.playwright-test.overrideAttrs (old: {
-                installPhase =
-                  builtins.replaceStrings [ "${pkgs.playwright-driver.browsers}" ] [ "${browsers}" ]
-                    old.installPhase;
-              });
-            in
-            pkgs.playwright-mcp.override {
-              inherit playwright-test;
-              playwright-driver = pkgs.playwright-driver // {
-                inherit browsers;
-              };
-            };
         in
         {
           default = pkgs.mkShell {
@@ -54,14 +37,10 @@
                 actionlint
                 cosign
                 gh
-                go_1_26
-                golangci-lint
-                goreleaser
                 just
-                miniserve
-                playwrightMcpChromium
               ]
-              ++ (if tailorPkgs ? tailor then [ tailorPkgs.tailor ] else [ ]);
+              ++ (if tailorPkgs ? tailor then [ tailorPkgs.tailor ] else [ ])
+              ++ import ./nix/loader.nix { inherit pkgs; };
           };
         }
       );

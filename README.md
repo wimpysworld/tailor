@@ -134,6 +134,10 @@ tailor alter
 > [!IMPORTANT]
 > Swatches with `alteration: always` replace local file edits. Review the preview before each `alter` run.
 
+## Development
+
+Enter the pinned shell with `nix develop`. Run `just build-tailor` to build the stripped CLI, and run `just lint-all` for all linters.
+
 ## Documentation
 
 Read the [wiki](https://github.com/wimpysworld/tailor/wiki) for detailed guides and reference material.
