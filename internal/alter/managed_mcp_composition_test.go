@@ -321,7 +321,13 @@ func TestManagedMCPRenderingPreservesPrintableStrings(t *testing.T) {
 }
 
 func managedMCPDestinations() []string {
-	return []string{".mcp.json", ".codex/config.toml", "opencode.json", ".pi/mcp.json"}
+	var destinations []string
+	for _, entry := range fixedManagedRegistry() {
+		if entry.Policy == managedPolicySharedStarter {
+			destinations = append(destinations, entry.Path)
+		}
+	}
+	return destinations
 }
 
 func managedMCPFileRegistry() []managedRegistryEntry {
