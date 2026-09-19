@@ -85,7 +85,7 @@ func TestValidateManagedRegistryRejectsMalformedMetadata(t *testing.T) {
 		{
 			name:     "starter with wrong capability",
 			registry: []managedRegistryEntry{{Path: "starter", Policy: managedPolicySharedStarter, Capability: managedCapabilityPages}},
-			want:     "requires the playwright capability",
+			want:     "invalid capability",
 		},
 		{
 			name:     "invalid lint recipe identifier",

@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wimpysworld/tailor/internal/swatch"
+	"github.com/wimpysworld/tailor/internal/config"
 )
 
 type managedMCPLaunch struct {
@@ -93,6 +93,9 @@ func TestManagedMCPLaunchArguments(t *testing.T) {
 func loadManagedMCPLaunches(t *testing.T) map[string]managedMCPLaunch {
 	t.Helper()
 
+	enabled := true
+	rendered := renderSelectedManagedFiles(t, &config.Config{MCP: &config.MCPSettings{Playwright: &enabled}})
+
 	var claude struct {
 		MCPServers struct {
 			Playwright struct {
@@ -102,7 +105,7 @@ func loadManagedMCPLaunches(t *testing.T) map[string]managedMCPLaunch {
 			} `json:"playwright"`
 		} `json:"mcpServers"`
 	}
-	decodeManagedJSON(t, ".mcp.json", &claude)
+	decodeManagedJSON(t, ".mcp.json", rendered[".mcp.json"], &claude)
 	if claude.MCPServers.Playwright.Type != "stdio" {
 		t.Errorf("Claude transport = %q, want stdio", claude.MCPServers.Playwright.Type)
 	}
@@ -116,7 +119,7 @@ func loadManagedMCPLaunches(t *testing.T) map[string]managedMCPLaunch {
 			} `json:"playwright"`
 		} `json:"mcp_servers"`
 	}
-	decodeManagedTOML(t, ".codex/config.toml", &codex)
+	decodeManagedTOML(t, ".codex/config.toml", rendered[".codex/config.toml"], &codex)
 	if !codex.MCPServers.Playwright.Enabled {
 		t.Error("Codex Playwright server is disabled")
 	}
@@ -131,7 +134,7 @@ func loadManagedMCPLaunches(t *testing.T) map[string]managedMCPLaunch {
 			} `json:"playwright"`
 		} `json:"mcp"`
 	}
-	decodeManagedJSON(t, "opencode.json", &opencode)
+	decodeManagedJSON(t, "opencode.json", rendered["opencode.json"], &opencode)
 	if opencode.Schema != "https://opencode.ai/config.json" || opencode.MCP.Playwright.Type != "local" || !opencode.MCP.Playwright.Enabled {
 		t.Errorf("OpenCode settings = schema %q, type %q, enabled %t", opencode.Schema, opencode.MCP.Playwright.Type, opencode.MCP.Playwright.Enabled)
 	}
@@ -150,7 +153,7 @@ func loadManagedMCPLaunches(t *testing.T) map[string]managedMCPLaunch {
 			} `json:"playwright"`
 		} `json:"mcpServers"`
 	}
-	decodeManagedJSON(t, ".pi/mcp.json", &pi)
+	decodeManagedJSON(t, ".pi/mcp.json", rendered[".pi/mcp.json"], &pi)
 	piServer := pi.MCPServers.Playwright
 	if piServer.Disabled == nil || *piServer.Disabled || piServer.Lifecycle != "lazy" || piServer.DirectTools == nil || *piServer.DirectTools {
 		t.Errorf("Pi settings = disabled %v, lifecycle %q, directTools %v", piServer.Disabled, piServer.Lifecycle, piServer.DirectTools)
@@ -164,11 +167,10 @@ func loadManagedMCPLaunches(t *testing.T) map[string]managedMCPLaunch {
 	}
 }
 
-func decodeManagedJSON(t *testing.T, name string, target any) {
+func decodeManagedJSON(t *testing.T, name string, content []byte, target any) {
 	t.Helper()
-	content, err := swatch.Content(name)
-	if err != nil {
-		t.Fatal(err)
+	if len(content) == 0 {
+		t.Fatalf("rendered %s content is empty", name)
 	}
 	decoder := json.NewDecoder(bytes.NewReader(content))
 	decoder.DisallowUnknownFields()
@@ -180,13 +182,12 @@ func decodeManagedJSON(t *testing.T, name string, target any) {
 	}
 }
 
-func decodeManagedTOML(t *testing.T, name string, target any) {
+func decodeManagedTOML(t *testing.T, name string, content []byte, target any) {
 	t.Helper()
-	nix := requireManagedExecutable(t, "nix")
-	content, err := swatch.Content(name)
-	if err != nil {
-		t.Fatal(err)
+	if len(content) == 0 {
+		t.Fatalf("rendered %s content is empty", name)
 	}
+	nix := requireManagedExecutable(t, "nix")
 	configPath := filepath.Join(t.TempDir(), "config.toml")
 	if err := os.WriteFile(configPath, content, 0o600); err != nil {
 		t.Fatal(err)

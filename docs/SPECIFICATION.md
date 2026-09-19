@@ -273,7 +273,7 @@ mcp:
 
 New configurations contain false declarations for `languages.go`, `pages.enabled`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
 
-The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. A true declaration provisions the Playwright package fragment and four MCP client starters. Pages publishing and the optional `just pages` preview remain separate.
+The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. A true declaration provisions the Playwright package fragment and renders four MCP client starters from `fixedManagedMCPRegistry`. Pages publishing and the optional `just pages` preview remain separate. Playwright is the only production server in that registry.
 
 #### Managed development files
 
@@ -300,7 +300,9 @@ Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`,
 
 An owned loader, core file, or fragment starts with the exact first line `# Managed by Tailor: <registered path>`. The marker must end with LF or CRLF. A partial, misplaced, or wrong-path marker does not grant ownership. An unmarked regular file causes an ownership conflict, including before removal. Tailor replaces or removes a final symlink without reading its target. Registration grants no ownership of sibling files or the containing directory.
 
-When `mcp.playwright` is true, Tailor creates each missing MCP client starter. Tailor preserves an existing regular file or final symlink and reports the client entry that the user must add manually. Tailor never parses, merges, or replaces these shared files. A false declaration preserves all four client files and removes only an owned `nix/playwright.nix`. Tailor warns in preview and apply that retained client settings can refer to a missing `playwright-mcp` executable. An absent declaration does not inspect or change any of the five Playwright paths.
+For each client, Tailor aggregates all selected server definitions into one destination. It orders servers by lexical server name and materialises each destination once. Each server must define Claude, Codex, OpenCode, and Pi output. Registry validation rejects duplicate names or providers, missing providers, invalid UTF-8, control characters, unresolved `[[TAILOR_` tokens, and unsupported provider fields. Printable strings and the literal Pi proxy command remain unchanged through serialisation.
+
+When `mcp.playwright` is true, Tailor creates each missing MCP client starter. Tailor preserves an existing regular file or final symlink and reports the client entry that the user must add manually. Tailor never parses, merges, or replaces these shared files. A false declaration preserves all four client files and removes only an owned `nix/playwright.nix`, through the existing Nix fragment lifecycle. Tailor warns in preview and apply that retained client settings can refer to a missing `playwright-mcp` executable. An absent declaration does not inspect or change the client destinations or package fragment. Shared-file adoption is not implemented.
 
 The protected roots have no ownership marker. Tailor preserves an existing regular file or final symlink, including a dangling symlink, for `always`, `first-fit`, `never`, `--recut`, and an omitted swatch entry. It reports the existing root as preserved and gives loader adoption guidance in each case. Tailor creates a missing root only when its swatch entry is `always` or `first-fit`. A missing root with an omitted entry or `never` produces no root result or adoption guidance.
 
@@ -324,7 +326,9 @@ Each write uses an exclusive sibling temporary file, file sync, close, atomic re
 
 When `baste` plans a new Nix file, or `alter` confirms its creation, Tailor tells the user to review and add the file to Git. Nix flakes exclude untracked files. Tailor does not inspect or change the Git index.
 
-Synthetic rendered bytes, malformed or duplicate registries, and injected failures enter through package-private test seams. Production options, configuration, flags, and environment variables do not expose these seams, and tests do not mutate a global registry.
+Synthetic rendered bytes, malformed or duplicate registries, and injected failures enter through package-private test seams. Synthetic tests compose other servers and cover false and absent states. Production options, configuration, flags, and environment variables do not expose these seams, and tests do not mutate a global registry.
+
+The four embedded client starters remain byte-parity references and manual-copy sources. Runtime composition reads the fixed registry, not the embedded starters. The current OpenCode starter format remains unchanged.
 
 The four client starters configure `playwright-mcp --headless --isolated`. The MCP server owns and launches its browser. The configuration contains no manual stdio process, CDP endpoint, dynamic port, runtime package download, or Playwright Just fragment. MCP tool calls remain subject to the client's normal approval controls.
 
@@ -332,7 +336,7 @@ The Pi starter alone maps a non-empty inherited `HTTPS_PROXY` to Playwright's `-
 
 After file creation, the user reviews and adds the files to Git, adopts the loader expressions in preserved roots, and enters the Nix development shell. The user then reloads the MCP configuration or starts a new client instance. Existing client processes do not prove that the new configuration loaded. Browser validation must use the configured MCP server, not a manual stdio or CDP process.
 
-Managed development files do not change Pages publishing, Pages source files, ordinary Go swatches, or CLI prerequisites.
+Managed development files do not change Pages publishing, Pages source files, ordinary Go swatches, or CLI prerequisites. See the [MCP composition extension design](design/mcp-composition.md) for internal extension steps and deferred provider, version, and adoption work.
 
 ### Go ecosystem support
 
