@@ -120,7 +120,7 @@ The job grants only `contents: read`, which permits checkout without write acces
 
 ### Local usage
 
-`actionlint` is available in the dev shell via `flake.nix`. The `just lint` recipe runs it alongside `golangci-lint`, so contributors get the same workflow validation locally before pushing.
+`actionlint` is available in the dev shell via `flake.nix`. The `just lint-all` recipe runs `golangci-lint` and `actionlint`, so contributors get the same workflow validation locally before pushing.
 
 ## Source Configs
 

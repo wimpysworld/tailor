@@ -159,6 +159,17 @@ With [Go support](Configuration#go-support) enabled, Tailor adds these recipes:
 
 With [Pages](GitHub-Pages) enabled, `just pages` previews the effective site at `http://127.0.0.1:18473`.
 
+Tailor's repository adds these user-owned recipes in `just/project.just`:
+
+| Command | Runs | Purpose |
+| --- | --- | --- |
+| `just build-tailor` | `go build -ldflags "-s -w" -o tailor ./cmd/tailor` | Builds the stripped Tailor binary. |
+| `just lint-all` | `just lint-go`, then `just lint` | Runs Go and workflow linters. |
+| `just alter-source` | `go run ./cmd/tailor alter` | Runs an alteration from the current source. |
+| `just measure-source` | `go run ./cmd/tailor baste`, then `go run ./cmd/tailor measure` | Runs preview and local checks from the current source. |
+| `just snapshot` | `goreleaser release --snapshot --clean --skip=sign` | Builds local release packages. |
+| `just check` | `goreleaser check`, then `nix flake check` | Checks release and flake configuration. |
+
 ### Activate Playwright MCP
 
 After you set `mcp.playwright: true`, preview and apply the five managed files:
