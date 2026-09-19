@@ -145,9 +145,12 @@ The generated files require Just 1.23.0 or later. The protected root imports man
 |---|---|---|
 | `just` | Lists recipes | Just 1.23.0 or later |
 | `just alter` | `tailor alter` | Tailor, GitHub authentication, valid `.tailor.yml` |
-| `just lint` | `actionlint` | `actionlint` |
+| `just lint-actions` | `actionlint` | `actionlint` |
+| `just lint` | `lint-actions`, then each registered linter whose capability is explicitly true | Every selected linter tool |
 | `just measure` | `tailor baste`, then `tailor measure` | Tailor, GitHub authentication, valid `.tailor.yml` |
 | `just release x.y.z` | Validates a clean tree, then creates the local `vX.Y.Z` tag | Git |
+
+Tailor records the `just lint` dependencies during the last successful file reconciliation. It always selects `lint-actions`, then each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. False and absent capabilities are excluded. A retained fragment for an absent capability remains callable as a standalone recipe. Missing tools fail, and Just stops at the first failed dependency.
 
 With [Go support](Configuration#go-support) enabled, Tailor adds these recipes:
 
@@ -164,7 +167,7 @@ Tailor's repository adds these user-owned recipes in `just/project.just`:
 | Command | Runs | Purpose |
 | --- | --- | --- |
 | `just build-tailor` | `go build -ldflags "-s -w" -o tailor ./cmd/tailor` | Builds the stripped Tailor binary. |
-| `just lint-all` | `just lint-go`, then `just lint` | Runs Go and workflow linters. |
+| `just lint-all` | `just lint` | Compatibility alias for the aggregate linter recipe. |
 | `just alter-source` | `go run ./cmd/tailor alter` | Runs an alteration from the current source. |
 | `just measure-source` | `go run ./cmd/tailor baste`, then `go run ./cmd/tailor measure` | Runs preview and local checks from the current source. |
 | `just snapshot` | `goreleaser release --snapshot --clean --skip=sign` | Builds local release packages. |
@@ -190,7 +193,9 @@ The configured MCP server starts its own headless, isolated browser. Do not star
 
 Unlike `tailor measure`, `just measure` needs authentication because its first command is `tailor baste`. If that preview fails, the recipe stops before the local health check.
 
-Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. Before you add the exact Just loader import from [managed development files](Configuration#managed-development-files), remove or rename each user recipe that duplicates a managed recipe. Keep custom behaviour under a distinct recipe name. Tailor does not rewrite user recipes or change production recipe names.
+Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. Before you add the exact Just loader import from [managed development files](Configuration#managed-development-files), remove or rename each user recipe that duplicates a managed recipe. Keep custom checks under distinct wrapper names. Tailor does not rewrite user recipes or change production recipe names.
+
+A partial `tailor alter` can leave the imported Just files temporarily invalid. Fix the reported error, then retry `tailor alter` before you run a recipe. The generated dispatch is consistent, but installed tool versions and configuration can produce different diagnostics. This lint aggregation change adds no tool pin or CI policy change.
 
 ## Retired workflow cleanup
 

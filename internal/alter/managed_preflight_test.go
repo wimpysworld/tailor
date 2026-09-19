@@ -239,6 +239,24 @@ func TestPreflightManagedFilesRejectsLateConflictBeforeWrites(t *testing.T) {
 	}
 }
 
+func TestManagedLintOwnershipConflictPreventsAllWrites(t *testing.T) {
+	dir := t.TempDir()
+	writeManagedTestFile(t, dir, "just/tailor.just", []byte("user lint recipe\n"))
+	before := snapshotManagedTree(t, dir)
+	cfg := managedLifecycleConfig("true")
+
+	execution, err := prepareManagedExecution(cfg, dir, func(selections []managedSelection) (managedRenderedFiles, error) {
+		return renderManagedFiles(cfg, selections)
+	})
+	var ownershipErr *managedOwnershipError
+	if execution != nil || !errors.As(err, &ownershipErr) || ownershipErr.Path != "just/tailor.just" {
+		t.Fatalf("prepareManagedExecution() execution=%v error=%v, want lint ownership conflict", execution, err)
+	}
+	if after := snapshotManagedTree(t, dir); !reflect.DeepEqual(after, before) {
+		t.Fatalf("ownership preflight changed files: before=%v after=%v", before, after)
+	}
+}
+
 func writeManagedTestFile(t *testing.T, dir, relative string, content []byte) {
 	t.Helper()
 	name := filepath.Join(dir, relative)

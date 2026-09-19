@@ -12,7 +12,11 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-const managedImportsPlaceholder = "[[TAILOR_MANAGED_IMPORTS]]"
+const (
+	managedImportsPlaceholder          = "[[TAILOR_MANAGED_IMPORTS]]"
+	managedLintDependenciesPlaceholder = "[[TAILOR_MANAGED_LINT_DEPENDENCIES]]"
+	managedLintPlaceholderPrefix       = "[[TAILOR_MANAGED_LINT_"
+)
 
 func renderManagedFiles(cfg *config.Config, selections []managedSelection) (managedRenderedFiles, error) {
 	if cfg == nil {
@@ -47,6 +51,8 @@ func renderManagedFiles(cfg *config.Config, selections []managedSelection) (mana
 		switch entry.Path {
 		case "just/loader.just", "nix/loader.nix":
 			content, err = renderManagedLoader(entry.Path, content, registry)
+		case "just/tailor.just":
+			content, err = renderManagedLintAggregate(cfg, content, registry)
 		case "just/pages.just":
 			content, err = renderManagedPages(cfg, content)
 		}
@@ -56,6 +62,45 @@ func renderManagedFiles(cfg *config.Config, selections []managedSelection) (mana
 		files[entry.Path] = content
 	}
 	return files, nil
+}
+
+func renderManagedLintAggregate(cfg *config.Config, content []byte, registry []managedRegistryEntry) ([]byte, error) {
+	if cfg == nil {
+		return nil, fmt.Errorf("managed lint aggregate requires a config")
+	}
+	if err := validateManagedRegistry(registry); err != nil {
+		return nil, fmt.Errorf("validating managed registry: %w", err)
+	}
+
+	placeholder := []byte(managedLintDependenciesPlaceholder)
+	if bytes.Count(content, placeholder) != 1 {
+		return nil, fmt.Errorf("managed core template must contain one lint dependencies placeholder")
+	}
+
+	lintEntries := make([]managedRegistryEntry, 0)
+	for _, entry := range registry {
+		if entry.LintRecipe == "" {
+			continue
+		}
+		declared, enabled := managedCapabilityState(cfg, entry.Capability)
+		if declared && enabled {
+			lintEntries = append(lintEntries, entry)
+		}
+	}
+	slices.SortFunc(lintEntries, func(left, right managedRegistryEntry) int {
+		return strings.Compare(left.Capability.canonicalName(), right.Capability.canonicalName())
+	})
+
+	dependencies := make([]string, 0, len(lintEntries)+1)
+	dependencies = append(dependencies, "lint-actions")
+	for _, entry := range lintEntries {
+		dependencies = append(dependencies, entry.LintRecipe)
+	}
+	content = bytes.Replace(content, placeholder, []byte(strings.Join(dependencies, " ")), 1)
+	if bytes.Contains(content, []byte(managedLintPlaceholderPrefix)) {
+		return nil, fmt.Errorf("managed core template contains an unresolved lint placeholder")
+	}
+	return content, nil
 }
 
 func renderManagedLoader(destination string, content []byte, registry []managedRegistryEntry) ([]byte, error) {

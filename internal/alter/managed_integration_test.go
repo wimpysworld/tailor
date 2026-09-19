@@ -64,6 +64,7 @@ func TestManagedProductionTransitionsAcrossModes(t *testing.T) {
 						continue
 					}
 					assertManagedCoreFiles(t, dir)
+					assertManagedLintAggregate(t, dir, managedProductionConfig(state))
 					assertCapabilityFragments(t, dir, transition.wantCaps[run])
 					assertManagedBytes(t, filepath.Join(dir, "unrelated.txt"), []byte("keep\n"))
 				}
@@ -145,6 +146,60 @@ func TestManagedProductionRootModesAndPreservation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestManagedLintLifecyclePreviewApplyRecutAndNever(t *testing.T) {
+	t.Run("preview apply repeated apply and recut", func(t *testing.T) {
+		dir := t.TempDir()
+		writeManagedTestFile(t, dir, ".golangci.yml", []byte("custom lint configuration\n"))
+		cfg := managedProductionConfig("true")
+		cfg.Swatches = []config.SwatchEntry{
+			{Path: "justfile", Alteration: swatch.FirstFit},
+			{Path: "flake.nix", Alteration: swatch.Never},
+			{Path: ".golangci.yml", Alteration: swatch.Never},
+		}
+		before := snapshotManagedTree(t, dir)
+		if _, err := Execute(cfg, dir, DryRun, managedProductionClient(t), io.Discard, Options{}); err != nil {
+			t.Fatal(err)
+		}
+		if after := snapshotManagedTree(t, dir); !reflect.DeepEqual(after, before) {
+			t.Fatalf("preview changed files: before=%v after=%v", before, after)
+		}
+
+		if _, err := Execute(cfg, dir, Apply, managedProductionClient(t), io.Discard, Options{}); err != nil {
+			t.Fatal(err)
+		}
+		assertManagedLintAggregate(t, dir, cfg)
+		applied := snapshotManagedTree(t, dir)
+		for _, mode := range []ApplyMode{Apply, Recut} {
+			if _, err := Execute(cfg, dir, mode, managedProductionClient(t), io.Discard, Options{}); err != nil {
+				t.Fatal(err)
+			}
+			if after := snapshotManagedTree(t, dir); !reflect.DeepEqual(after, applied) {
+				t.Fatalf("mode %v changed converged files: before=%v after=%v", mode, applied, after)
+			}
+		}
+	})
+
+	t.Run("root never prevents only bootstrap", func(t *testing.T) {
+		dir := t.TempDir()
+		writeManagedTestFile(t, dir, ".golangci.yml", []byte("custom lint configuration\n"))
+		cfg := managedProductionConfig("true")
+		cfg.Swatches = []config.SwatchEntry{
+			{Path: "justfile", Alteration: swatch.Never},
+			{Path: "flake.nix", Alteration: swatch.Never},
+			{Path: ".golangci.yml", Alteration: swatch.Never},
+		}
+		if _, err := Execute(cfg, dir, Apply, managedProductionClient(t), io.Discard, Options{}); err != nil {
+			t.Fatal(err)
+		}
+		assertManagedMissing(t, filepath.Join(dir, "justfile"))
+		assertManagedBytes(t, filepath.Join(dir, ".golangci.yml"), []byte("custom lint configuration\n"))
+		assertManagedLintAggregate(t, dir, cfg)
+		if _, err := os.Stat(filepath.Join(dir, "just", "go.just")); err != nil {
+			t.Fatalf("Go lint fragment is unavailable: %v", err)
+		}
+	})
 }
 
 func TestManagedProductionPreservesRootSymlink(t *testing.T) {
@@ -231,6 +286,12 @@ func assertManagedProductionReport(t *testing.T, report Report, state string) {
 			t.Errorf("report presence for %q = %t, want %t in state %q", destination, exists, want, state)
 		}
 	}
+}
+
+func assertManagedLintAggregate(t *testing.T, dir string, cfg *config.Config) {
+	t.Helper()
+	want := renderSelectedManagedFiles(t, cfg)["just/tailor.just"]
+	assertManagedBytes(t, filepath.Join(dir, "just", "tailor.just"), want)
 }
 
 func assertManagedCoreFiles(t *testing.T, dir string) {

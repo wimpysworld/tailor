@@ -16,7 +16,7 @@ check:
     @nix flake check
 
 # Run all linters
-lint-all: lint-go lint
+lint-all: lint
 
 # Alter Tailor swatches from source
 alter-source:

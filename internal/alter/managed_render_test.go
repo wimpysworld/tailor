@@ -94,6 +94,104 @@ func TestManagedLoadersUseRegistryFragments(t *testing.T) {
 	}
 }
 
+func TestRenderManagedLintAggregateDependencies(t *testing.T) {
+	trueValue, falseValue := true, false
+	tests := []struct {
+		name string
+		cfg  *config.Config
+		want string
+	}{
+		{name: "core only", cfg: &config.Config{}, want: "lint: lint-actions"},
+		{name: "go true", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &trueValue}}, want: "lint: lint-actions lint-go"},
+		{name: "go false", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &falseValue}}, want: "lint: lint-actions"},
+		{name: "go absent", cfg: &config.Config{Languages: &config.LanguageSettings{}}, want: "lint: lint-actions"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content, err := swatch.Content("just/tailor.just")
+			if err != nil {
+				t.Fatal(err)
+			}
+			rendered, err := renderManagedLintAggregate(tt.cfg, content, fixedManagedRegistry())
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got string
+			for line := range strings.SplitSeq(string(rendered), "\n") {
+				if strings.HasPrefix(line, "lint:") {
+					got = line
+					break
+				}
+			}
+			if got != tt.want {
+				t.Fatalf("lint aggregate = %q, want %q", got, tt.want)
+			}
+			if strings.Contains(string(rendered), managedLintPlaceholderPrefix) {
+				t.Fatal("lint aggregate contains an unresolved placeholder")
+			}
+		})
+	}
+}
+
+func TestRenderManagedLintAggregateRejectsMalformedPlaceholders(t *testing.T) {
+	placeholder := managedLintDependenciesPlaceholder
+	for _, tt := range []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{name: "missing", content: "lint: lint-actions\n", want: "one lint dependencies placeholder"},
+		{name: "repeated", content: "lint: " + placeholder + " " + placeholder + "\n", want: "one lint dependencies placeholder"},
+		{name: "unresolved", content: "lint: " + placeholder + "\n# [[TAILOR_MANAGED_LINT_UNKNOWN]]\n", want: "unresolved lint placeholder"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := renderManagedLintAggregate(&config.Config{}, []byte(tt.content), fixedManagedRegistry())
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("renderManagedLintAggregate() error = %v, want substring %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestRenderManagedLintAggregateUsesCanonicalCapabilityOrder(t *testing.T) {
+	registry := []managedRegistryEntry{
+		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, LintRecipe: "lint-pages"},
+		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"},
+		{Path: "just/tailor.just", Policy: managedPolicyCore},
+		{Path: "just/loader.just", Policy: managedPolicyLoader},
+	}
+	cfg := &config.Config{
+		Languages: &config.LanguageSettings{Go: new(true)},
+		Pages:     &model.PagesSettings{Enabled: new(true)},
+	}
+	core, err := renderManagedLintAggregate(cfg, []byte("lint-actions:\n    @echo actions\n\nlint: "+managedLintDependenciesPlaceholder+"\n"), registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(core, []byte("lint: lint-actions lint-go lint-pages\n")) {
+		t.Fatalf("unexpected lint aggregate:\n%s", core)
+	}
+
+	just, err := exec.LookPath("just")
+	if err != nil {
+		return
+	}
+	loader, err := renderManagedLoader("just/loader.just", []byte(managedImportsPlaceholder+"\n"), registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	writeManagedRenderFixture(t, root, "justfile", []byte("import 'just/loader.just'\n"))
+	writeManagedRenderFixture(t, root, "just/loader.just", loader)
+	writeManagedRenderFixture(t, root, "just/tailor.just", core)
+	writeManagedRenderFixture(t, root, "just/go.just", []byte("lint-go:\n    @echo go\n"))
+	writeManagedRenderFixture(t, root, "just/pages.just", []byte("lint-pages:\n    @echo pages\n"))
+	wantRecipes := []string{"lint", "lint-actions", "lint-go", "lint-pages"}
+	if got := managedJustRecipes(t, just, root); !reflect.DeepEqual(got, wantRecipes) {
+		t.Fatalf("synthetic lint recipes = %v, want %v", got, wantRecipes)
+	}
+}
+
 func TestManagedJustCombinationsParseWithUniqueRecipes(t *testing.T) {
 	just, err := exec.LookPath("just")
 	if err != nil {
@@ -105,10 +203,10 @@ func TestManagedJustCombinationsParseWithUniqueRecipes(t *testing.T) {
 		pages *model.PagesSettings
 		want  []string
 	}{
-		{name: "core", want: []string{"alter", "default", "lint", "measure", "release"}},
-		{name: "go", goOn: true, want: []string{"alter", "build", "default", "lint", "lint-go", "measure", "release", "test"}},
-		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "default", "lint", "measure", "pages", "release"}},
-		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "lint-go", "measure", "pages", "release", "test"}},
+		{name: "core", want: []string{"alter", "default", "lint", "lint-actions", "measure", "release"}},
+		{name: "go", goOn: true, want: []string{"alter", "build", "default", "lint", "lint-actions", "lint-go", "measure", "release", "test"}},
+		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "default", "lint", "lint-actions", "measure", "pages", "release"}},
+		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "lint-actions", "lint-go", "measure", "pages", "release", "test"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := managedRenderConfig(tt.goOn, tt.pages)
