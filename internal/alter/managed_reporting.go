@@ -235,6 +235,10 @@ func managedConflictResult(err error) (SwatchResult, bool) {
 }
 
 func appendManagedReporting(report *Report, cfg *config.Config, results []SwatchResult) {
+	appendManagedReportingFromMCPRegistry(report, cfg, results, fixedManagedMCPRegistry())
+}
+
+func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, results []SwatchResult, mcpRegistry []managedMCPServerDefinition) {
 	var newNix []string
 	var guidance []string
 	for _, result := range results {
@@ -253,14 +257,7 @@ func appendManagedReporting(report *Report, cfg *config.Config, results []Swatch
 				guidance = append(guidance, "If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.")
 			}
 		case SkipManagedSharedExists:
-			switch result.Path {
-			case ".mcp.json", ".pi/mcp.json":
-				guidance = append(guidance, "If absent, add Tailor's `mcpServers.playwright` starter entry to the preserved `"+result.Path+"`.")
-			case ".codex/config.toml":
-				guidance = append(guidance, "If absent, add Tailor's `[mcp_servers.playwright]` starter table to the preserved `.codex/config.toml`.")
-			case "opencode.json":
-				guidance = append(guidance, "If absent, add Tailor's `mcp.playwright` starter entry to the preserved `opencode.json`.")
-			}
+			guidance = append(guidance, managedMCPAdoptionGuidance(cfg, result.Path, mcpRegistry)...)
 		}
 	}
 	if len(newNix) != 0 {
@@ -276,6 +273,26 @@ func appendManagedReporting(report *Report, cfg *config.Config, results []Swatch
 	if len(guidance) != 0 {
 		appendGuidance(report, strings.Join(guidance, "\n")+"\n")
 	}
+}
+
+func managedMCPAdoptionGuidance(cfg *config.Config, destination string, registry []managedMCPServerDefinition) []string {
+	provider, supported := managedMCPProviderForDestination(destination)
+	if !supported {
+		return nil
+	}
+	definitions := enabledManagedMCPDefinitions(cfg, provider, registry)
+	guidance := make([]string, 0, len(definitions))
+	for _, definition := range definitions {
+		switch destination {
+		case ".mcp.json", ".pi/mcp.json":
+			guidance = append(guidance, "If absent, add Tailor's `mcpServers."+definition.Name+"` starter entry to the preserved `"+destination+"`.")
+		case ".codex/config.toml":
+			guidance = append(guidance, "If absent, add Tailor's `[mcp_servers."+managedMCPTOMLKey(definition.Name)+"]` starter table to the preserved `.codex/config.toml`.")
+		case "opencode.json":
+			guidance = append(guidance, "If absent, add Tailor's `mcp."+definition.Name+"` starter entry to the preserved `opencode.json`.")
+		}
+	}
+	return guidance
 }
 
 func appendManagedNotice(report *Report, text string) {

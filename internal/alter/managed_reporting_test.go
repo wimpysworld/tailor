@@ -88,7 +88,8 @@ func TestManagedReportingAddsConditionalWarningsAndAdoptionGuidance(t *testing.T
 		{Path: "nix/loader.nix", Category: WouldCopy},
 	}
 	report := buildReport("baste", "", nil, nil, nil, results, DryRun)
-	appendManagedReporting(&report, &config.Config{}, results)
+	enabled := true
+	appendManagedReporting(&report, &config.Config{MCP: &config.MCPSettings{Playwright: &enabled}}, results)
 
 	for _, text := range []string{
 		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`",
@@ -120,6 +121,100 @@ func TestManagedReportingAddsConditionalWarningsAndAdoptionGuidance(t *testing.T
 		if !containsGuidance(report.Document.Guidance, text) {
 			t.Fatalf("structured guidance lacks %q: %#v", text, report.Document.Guidance)
 		}
+	}
+}
+
+func TestManagedReportingDerivesAdoptionGuidanceFromEnabledMCPServers(t *testing.T) {
+	clientResults := []SwatchResult{
+		{Path: ".mcp.json", Category: Skipped, Reason: SkipManagedSharedExists},
+		{Path: ".codex/config.toml", Category: Skipped, Reason: SkipManagedSharedExists},
+		{Path: "opencode.json", Category: Skipped, Reason: SkipManagedSharedExists},
+		{Path: ".pi/mcp.json", Category: Skipped, Reason: SkipManagedSharedExists},
+	}
+
+	t.Run("orders two enabled servers and preserves core guidance", func(t *testing.T) {
+		results := append([]SwatchResult{{Path: "justfile", Category: Skipped, Reason: SkipManagedRootExists}}, clientResults...)
+		registry := []managedMCPServerDefinition{
+			syntheticManagedMCPServer("zulu", true, true),
+			syntheticManagedMCPServer("alpha", true, true),
+			syntheticManagedMCPServer("absent", false, false),
+			syntheticManagedMCPServer("disabled", true, false),
+		}
+		report := buildReport("baste", "", nil, nil, nil, results, DryRun)
+		appendManagedReportingFromMCPRegistry(&report, &config.Config{}, results, registry)
+
+		want := []string{
+			"If absent, add `import 'just/loader.just'` to the preserved `justfile`.",
+			"If absent, add Tailor's `mcpServers.alpha` starter entry to the preserved `.mcp.json`.",
+			"If absent, add Tailor's `mcpServers.zulu` starter entry to the preserved `.mcp.json`.",
+			"If absent, add Tailor's `[mcp_servers.alpha]` starter table to the preserved `.codex/config.toml`.",
+			"If absent, add Tailor's `[mcp_servers.zulu]` starter table to the preserved `.codex/config.toml`.",
+			"If absent, add Tailor's `mcp.alpha` starter entry to the preserved `opencode.json`.",
+			"If absent, add Tailor's `mcp.zulu` starter entry to the preserved `opencode.json`.",
+			"If absent, add Tailor's `mcpServers.alpha` starter entry to the preserved `.pi/mcp.json`.",
+			"If absent, add Tailor's `mcpServers.zulu` starter entry to the preserved `.pi/mcp.json`.",
+		}
+		var got []string
+		for _, guidance := range report.Document.Guidance {
+			if strings.HasPrefix(guidance.Text, "If absent") {
+				got = append(got, guidance.Text)
+			}
+		}
+		if len(got) != len(want) {
+			t.Fatalf("adoption guidance = %#v, want %d entries", got, len(want))
+		}
+		for index, text := range want {
+			if got[index] != text {
+				t.Errorf("guidance %d = %q, want %q", index, got[index], text)
+			}
+		}
+		for _, excluded := range []string{"absent", "disabled", "playwright"} {
+			if strings.Contains(report.Plain, "mcpServers."+excluded) || strings.Contains(report.Plain, "mcp_servers."+excluded) || strings.Contains(report.Plain, "mcp."+excluded) {
+				t.Errorf("guidance includes excluded server %q: %s", excluded, report.Plain)
+			}
+		}
+	})
+
+	disabled := false
+	for _, tt := range []struct {
+		name string
+		cfg  *config.Config
+	}{
+		{name: "Playwright absent", cfg: &config.Config{}},
+		{name: "Playwright false", cfg: &config.Config{MCP: &config.MCPSettings{Playwright: &disabled}}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			registry := append(fixedManagedMCPRegistry(), syntheticManagedMCPServer("synthetic", true, true))
+			report := buildReport("baste", "", nil, nil, nil, clientResults, DryRun)
+			appendManagedReportingFromMCPRegistry(&report, tt.cfg, clientResults, registry)
+
+			for _, text := range []string{
+				"`mcpServers.synthetic` starter entry to the preserved `.mcp.json`",
+				"`[mcp_servers.synthetic]` starter table to the preserved `.codex/config.toml`",
+				"`mcp.synthetic` starter entry to the preserved `opencode.json`",
+				"`mcpServers.synthetic` starter entry to the preserved `.pi/mcp.json`",
+			} {
+				if !strings.Contains(report.Plain, text) {
+					t.Errorf("guidance lacks %q: %s", text, report.Plain)
+				}
+			}
+			if strings.Contains(report.Plain, "playwright") {
+				t.Errorf("guidance includes unselected Playwright server: %s", report.Plain)
+			}
+		})
+	}
+}
+
+func TestManagedReportingQuotesCodexAdoptionKey(t *testing.T) {
+	results := []SwatchResult{{Path: ".codex/config.toml", Category: Skipped, Reason: SkipManagedSharedExists}}
+	report := buildReport("baste", "", nil, nil, nil, results, DryRun)
+	appendManagedReportingFromMCPRegistry(&report, &config.Config{}, results, []managedMCPServerDefinition{
+		syntheticManagedMCPServer("server.name café", true, true),
+	})
+
+	want := "If absent, add Tailor's `[mcp_servers.\"server.name café\"]` starter table to the preserved `.codex/config.toml`."
+	if !strings.Contains(report.Plain, want) {
+		t.Fatalf("Codex guidance lacks quoted key %q: %s", want, report.Plain)
 	}
 }
 
