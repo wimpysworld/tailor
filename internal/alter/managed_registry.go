@@ -53,10 +53,10 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright},
-		{Path: ".mcp.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
-		{Path: ".codex/config.toml", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
-		{Path: "opencode.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
-		{Path: ".pi/mcp.json", Policy: managedPolicySharedStarter, Capability: managedCapabilityPlaywright},
+		{Path: ".mcp.json", Policy: managedPolicySharedStarter},
+		{Path: ".codex/config.toml", Policy: managedPolicySharedStarter},
+		{Path: "opencode.json", Policy: managedPolicySharedStarter},
+		{Path: ".pi/mcp.json", Policy: managedPolicySharedStarter},
 	}
 }
 
@@ -83,8 +83,8 @@ func validateManagedRegistry(registry []managedRegistryEntry) error {
 				return fmt.Errorf("managed registry fragment %q requires a capability", entry.Path)
 			}
 		case managedPolicySharedStarter:
-			if entry.Capability != managedCapabilityPlaywright {
-				return fmt.Errorf("managed registry shared starter %q requires the playwright capability", entry.Path)
+			if entry.Capability != managedCapabilityNone && entry.Capability != managedCapabilityPlaywright {
+				return fmt.Errorf("managed registry shared starter %q has an invalid capability", entry.Path)
 			}
 		default:
 			return fmt.Errorf("managed registry destination %q has an invalid policy", entry.Path)
@@ -149,18 +149,21 @@ func (policy managedPolicy) protected() bool {
 }
 
 func selectManagedFiles(cfg *config.Config) ([]managedSelection, error) {
-	selected, err := selectManagedFilesFromRegistry(cfg, fixedManagedRegistry())
+	selected, err := selectManagedFilesFromRegistries(cfg, fixedManagedRegistry(), fixedManagedMCPRegistry())
 	if err != nil {
 		return nil, fmt.Errorf("selecting managed files: %w", err)
 	}
 	return selected, nil
 }
 
-func selectManagedFilesFromRegistry(cfg *config.Config, registry []managedRegistryEntry) ([]managedSelection, error) {
+func selectManagedFilesFromRegistries(cfg *config.Config, registry []managedRegistryEntry, mcpRegistry []managedMCPServerDefinition) ([]managedSelection, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("managed file selection requires a config")
 	}
 	if err := validateManagedRegistry(registry); err != nil {
+		return nil, err
+	}
+	if err := validateManagedMCPRegistry(mcpRegistry); err != nil {
 		return nil, err
 	}
 
@@ -183,8 +186,7 @@ func selectManagedFilesFromRegistry(cfg *config.Config, registry []managedRegist
 				selected = append(selected, managedSelection{Entry: entry, Enabled: enabled})
 			}
 		case managedPolicySharedStarter:
-			declared, enabled := managedCapabilityState(cfg, entry.Capability)
-			if declared && enabled {
+			if managedMCPDestinationEnabled(cfg, entry.Path, mcpRegistry) {
 				selected = append(selected, managedSelection{Entry: entry, Enabled: true})
 			}
 		}

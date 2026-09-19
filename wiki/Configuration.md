@@ -129,7 +129,7 @@ mcp:
 
 Playwright is independent of Pages. You can enable Playwright when `pages` is absent or `pages.enabled` is false. The MCP server launches and owns its browser. The optional `just pages` command only starts a separate Pages preview server.
 
-A true declaration adds `nix/playwright.nix`, which supplies `playwright-mcp` with Chromium from the existing Nix packages. It also creates these client files only when each file is missing:
+A true declaration adds `nix/playwright.nix`, which supplies `playwright-mcp` with Chromium from the existing Nix packages. Playwright is the only production MCP server. Tailor renders one file per client from its fixed server registry, and creates each file only when it is missing:
 
 | Client | Starter file | Playwright entry |
 |---|---|---|
@@ -138,13 +138,15 @@ A true declaration adds `nix/playwright.nix`, which supplies `playwright-mcp` wi
 | OpenCode | `opencode.json` | `mcp.playwright` |
 | Pi | `.pi/mcp.json` | `mcpServers.playwright` |
 
+Each server has definitions for Claude, Codex, OpenCode, and Pi. Tailor combines selected definitions in lexical server order. The four embedded starters remain byte-parity references and manual-copy sources, not runtime composition sources. The current OpenCode starter format remains unchanged.
+
 Tailor does not parse or merge an existing client file. It preserves regular files and final symlinks, then gives the entry name for manual adoption. Review the starter before you add it to Git.
 
 All starters run `playwright-mcp` with `--headless --isolated`. They do not use a manual stdio process, CDP endpoint, dynamic port, runtime download, or Playwright Just fragment. Your client applies its normal MCP tool approval controls.
 
 The Pi starter alone passes a non-empty `HTTPS_PROXY` value to `--proxy-server`. An empty or unset value disables this mapping. Do not put proxy credentials in command output or documentation. Tailor does not claim that the Claude, Codex, or OpenCode starters use this proxy setting.
 
-Set `mcp.playwright: false` to remove only an owned `nix/playwright.nix`. Tailor preserves all client files and warns that their server entries can refer to a missing `playwright-mcp` executable. Remove or disable those entries manually. An absent setting does not inspect or change any of the five paths.
+Set `mcp.playwright: false` to remove only an owned `nix/playwright.nix`. Package removal uses the existing Nix fragment lifecycle. Tailor preserves all client files and warns that their server entries can refer to a missing `playwright-mcp` executable. Remove or disable those entries manually. An absent setting does not inspect or change any of the five paths. Tailor does not support shared-file adoption.
 
 Tailor accepts only the `playwright` key and a Boolean value. Null sections, null values, duplicate or unknown keys, strings, numbers, lists, and nested values are errors. An empty `mcp: {}` mapping keeps the section but leaves Playwright undeclared.
 

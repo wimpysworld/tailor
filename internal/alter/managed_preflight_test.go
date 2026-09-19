@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/wimpysworld/tailor/internal/config"
 )
@@ -152,32 +153,129 @@ func TestPreflightManagedFilesPreservesProtectedDestinations(t *testing.T) {
 	}
 }
 
-func TestPreflightManagedFilesIgnoresAbsentCapabilities(t *testing.T) {
-	dir := t.TempDir()
-	if err := os.Mkdir(filepath.Join(dir, ".mcp.json"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	writeManagedTestFile(t, dir, "nix/playwright.nix", []byte("unmarked"))
-	before := snapshotManagedTree(t, dir)
+func TestSnapshotManagedDestinationDoesNotReadProtectedRegularFiles(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		policy managedPolicy
+	}{
+		{name: "root", policy: managedPolicyRoot},
+		{name: "shared starter", policy: managedPolicySharedStarter},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			protected := filepath.Join(dir, "protected")
+			writeManagedTestFile(t, dir, "protected", []byte("content that must not enter the snapshot"))
+			oldAccess := time.Unix(946684800, 0)
+			accessBefore, hasAccessTime := time.Time{}, false
+			if err := os.Chtimes(protected, oldAccess, time.Now()); err == nil {
+				accessBefore, hasAccessTime = managedFileAccessTime(t, protected)
+			}
+			root, err := os.OpenRoot(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() {
+				if err := root.Close(); err != nil {
+					t.Errorf("close protected snapshot root: %v", err)
+				}
+			})
 
-	selections, err := selectManagedFiles(&config.Config{})
+			snapshot, err := snapshotManagedDestination(root, managedSelection{
+				Entry:   managedRegistryEntry{Path: "protected", Policy: tt.policy},
+				Enabled: true,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if snapshot.Kind != managedDestinationRegular || snapshot.Content != nil {
+				t.Fatalf("protected snapshot = %#v, want regular metadata without file content", snapshot)
+			}
+			if hasAccessTime {
+				if accessAfter, available := managedFileAccessTime(t, protected); available && !accessAfter.Equal(accessBefore) {
+					t.Fatalf("protected snapshot accessed file content: access time changed from %s to %s", accessBefore, accessAfter)
+				}
+			}
+		})
+	}
+}
+
+func managedFileAccessTime(t *testing.T, name string) (time.Time, bool) {
+	t.Helper()
+	info, err := os.Stat(name)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rendered := make(managedRenderedFiles, len(selections))
-	for _, selection := range selections {
-		rendered[selection.Entry.Path] = managedContent(selection.Entry.Path, "generated")
+	value := reflect.ValueOf(info.Sys())
+	if !value.IsValid() {
+		return time.Time{}, false
 	}
+	if value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return time.Time{}, false
+		}
+		value = value.Elem()
+	}
+	if value.Kind() != reflect.Struct {
+		return time.Time{}, false
+	}
+	for _, fieldName := range []string{"Atim", "Atimespec"} {
+		field := value.FieldByName(fieldName)
+		if !field.IsValid() {
+			continue
+		}
+		seconds := field.FieldByName("Sec")
+		nanoseconds := field.FieldByName("Nsec")
+		if seconds.IsValid() && nanoseconds.IsValid() {
+			return time.Unix(seconds.Int(), nanoseconds.Int()), true
+		}
+	}
+	return time.Time{}, false
+}
 
-	plan, err := preflightManagedFiles(dir, selections, rendered)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(plan.Files) != 3 {
-		t.Fatalf("planned files = %d, want 3 always-reconciled files", len(plan.Files))
-	}
-	if after := snapshotManagedTree(t, dir); !reflect.DeepEqual(after, before) {
-		t.Fatalf("preflight changed unselected destinations: before=%v after=%v", before, after)
+func TestPreflightManagedFilesDoesNotInspectClientsWhenPlaywrightIsFalseOrAbsent(t *testing.T) {
+	falseValue := false
+	for _, tt := range []struct {
+		name          string
+		cfg           *config.Config
+		wantPlanFiles int
+	}{
+		{name: "false", cfg: &config.Config{MCP: &config.MCPSettings{Playwright: &falseValue}}, wantPlanFiles: 4},
+		{name: "absent", cfg: &config.Config{}, wantPlanFiles: 3},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for _, destination := range managedMCPDestinations() {
+				if err := os.MkdirAll(filepath.Join(dir, destination), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			writeManagedTestFile(t, dir, "nix/playwright.nix", managedContent("nix/playwright.nix", "owned"))
+			before := snapshotManagedTree(t, dir)
+
+			selections, err := selectManagedFiles(tt.cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rendered, err := renderManagedFiles(tt.cfg, selections)
+			if err != nil {
+				t.Fatal(err)
+			}
+			plan, err := preflightManagedFiles(dir, selections, rendered)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(plan.Files) != tt.wantPlanFiles {
+				t.Fatalf("planned files = %d, want %d", len(plan.Files), tt.wantPlanFiles)
+			}
+			for _, file := range plan.Files {
+				if _, client := managedMCPProviderForDestination(file.Selection.Entry.Path); client {
+					t.Errorf("plan inspected unselected client destination %q", file.Selection.Entry.Path)
+				}
+			}
+			if after := snapshotManagedTree(t, dir); !reflect.DeepEqual(after, before) {
+				t.Fatalf("preflight changed unselected destinations: before=%v after=%v", before, after)
+			}
+		})
 	}
 }
 

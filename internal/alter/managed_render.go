@@ -19,12 +19,18 @@ const (
 )
 
 func renderManagedFiles(cfg *config.Config, selections []managedSelection) (managedRenderedFiles, error) {
+	return renderManagedFilesFromRegistries(cfg, selections, fixedManagedRegistry(), fixedManagedMCPRegistry())
+}
+
+func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSelection, registry []managedRegistryEntry, mcpRegistry []managedMCPServerDefinition) (managedRenderedFiles, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("managed file rendering requires a config")
 	}
-	registry := fixedManagedRegistry()
 	if err := validateManagedRegistry(registry); err != nil {
 		return nil, fmt.Errorf("validating managed registry: %w", err)
+	}
+	if err := validateManagedMCPRegistry(mcpRegistry); err != nil {
+		return nil, fmt.Errorf("validating managed MCP registry: %w", err)
 	}
 	byPath := make(map[string]managedRegistryEntry, len(registry))
 	for _, entry := range registry {
@@ -42,7 +48,15 @@ func renderManagedFiles(cfg *config.Config, selections []managedSelection) (mana
 		}
 		entry, registered := byPath[selection.Entry.Path]
 		if !registered || entry != selection.Entry {
-			return nil, fmt.Errorf("managed destination %q does not match the fixed registry", selection.Entry.Path)
+			return nil, fmt.Errorf("managed destination %q does not match the managed registry", selection.Entry.Path)
+		}
+		if entry.Policy == managedPolicySharedStarter {
+			content, err := renderManagedMCPDestination(cfg, entry.Path, mcpRegistry)
+			if err != nil {
+				return nil, fmt.Errorf("rendering %q: %w", entry.Path, err)
+			}
+			files[entry.Path] = content
+			continue
 		}
 		content, err := swatch.Content(entry.Path)
 		if err != nil {
