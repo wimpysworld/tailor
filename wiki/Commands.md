@@ -201,6 +201,8 @@ Enter the project shell with `nix develop`, or reload direnv after `direnv allow
 
 The configured MCP server starts its own headless, isolated browser. Do not start a manual stdio server or CDP endpoint. Start `just pages` only when you also want the separate Pages preview server.
 
+A [validated future contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/mcp-adoption.md) defines the proposed `--adopt-mcp` and `--release-mcp` flags. Tailor does not implement these flags and does not infer consent. Future adoption will use a local ownership ledger bound to the project. Entry edits will preserve non-target client bytes, and release will preserve all client file bytes. Release is blocked while a transaction is pending. Reviewed recovery comes first. Client-version acceptance and adoption implementation remain separate follow-on work.
+
 Unlike `tailor measure`, `just measure` needs authentication because its first command is `tailor baste`. If that preview fails, the recipe stops before the local health check.
 
 Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. Before you add the exact Just loader import from [managed development files](Configuration#managed-development-files), remove or rename each user recipe that duplicates a managed recipe. Keep custom checks under distinct wrapper names. Tailor does not rewrite user recipes or change production recipe names.

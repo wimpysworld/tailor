@@ -30,4 +30,4 @@ Do not add a server until all four client definitions and its package lifecycle 
 
 Provider additions need a destination mapping, field validator, renderer, starter reference, and tests. A format-version change, including a successor to OpenCode V1, needs an explicit version policy and migration design.
 
-Shared-file adoption needs a separate ownership and merge design. It must define parsing, conflicts, preservation, removal, and version migration before Tailor can edit existing client files. These changes must not silently expand production support or generate external schemas.
+Shared-file adoption remains future work. See the [MCP entry adoption contract](mcp-adoption.md).

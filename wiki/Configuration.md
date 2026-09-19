@@ -148,6 +148,8 @@ The Pi starter alone passes a non-empty `HTTPS_PROXY` value to `--proxy-server`.
 
 Set `mcp.playwright: false` to remove only an owned `nix/playwright.nix`. Package removal uses the existing Nix fragment lifecycle. Tailor preserves all client files and warns that their server entries can refer to a missing `playwright-mcp` executable. Remove or disable those entries manually. An absent setting does not inspect or change any of the five paths. Tailor does not support shared-file adoption.
 
+A [validated future contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/mcp-adoption.md) defines explicit entry adoption. The proposed adoption and release flags are not implemented, so current create-missing-only behaviour remains unchanged.
+
 Tailor accepts only the `playwright` key and a Boolean value. Null sections, null values, duplicate or unknown keys, strings, numbers, lists, and nested values are errors. An empty `mcp: {}` mapping keeps the section but leaves Playwright undeclared.
 
 New configs set `languages.go`, `pages.enabled`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes. Follow the [activation steps](Commands#activate-playwright-mcp) after you change the setting.
