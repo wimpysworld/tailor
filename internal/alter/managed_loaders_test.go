@@ -253,6 +253,55 @@ func TestManagedPagesRecipeRejectsMissingNonStaticBuild(t *testing.T) {
 	}
 }
 
+func TestManagedLintInvalidJustFixturesFailVisibly(t *testing.T) {
+	just := managedLintExecutable(t)
+	tests := []struct {
+		name  string
+		setup func(*testing.T, string, managedRenderedFiles)
+	}{
+		{
+			name: "missing selected fragment",
+			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
+				if err := os.Remove(filepath.Join(root, "just", "go.just")); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "malformed retained import",
+			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
+				writeManagedTestFile(t, root, "just/go.just", []byte("not a valid Just recipe\n"))
+			},
+		},
+		{
+			name: "duplicate recipe",
+			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
+				writeManagedTestFile(t, root, "just/go.just", []byte("lint-actions:\n    @true\n"))
+			},
+		},
+		{
+			name: "duplicate setting",
+			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
+				writeManagedTestFile(t, root, "justfile", []byte("set shell := [\"/bin/sh\", \"-cu\"]\nset shell := [\"/bin/sh\", \"-cu\"]\nimport 'just/loader.just'\n"))
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			goOn := test.name == "missing selected fragment" || test.name == "duplicate setting"
+			rendered := renderSelectedManagedFiles(t, managedRenderConfig(goOn, nil))
+			writeManagedLintFixture(t, root, rendered)
+			test.setup(t, root, rendered)
+			output, err := runManagedLint(t, just, root, "lint", filepath.Join(root, "bin"), filepath.Join(root, "lint.log"), nil)
+			if err == nil || len(output) == 0 {
+				t.Fatalf("invalid Just fixture output = %q, error = %v, want visible failure", output, err)
+			}
+		})
+	}
+}
+
 func requireManagedExecutable(t *testing.T, name string) string {
 	t.Helper()
 	path, err := exec.LookPath(name)

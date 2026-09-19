@@ -30,9 +30,14 @@ tailor/
 
 ## Build and test commands
 
-- Build: `just build` (or `go build -ldflags "-s -w" -o tailor ./cmd/tailor`)
+- Build Go packages: `just build` (or `go build ./...`)
+- Build the stripped Tailor binary: `just build-tailor` (or `go build -ldflags "-s -w" -o tailor ./cmd/tailor`)
 - Run tests: `just test` (or `go test ./...`)
-- Run linters: `just lint` (or `golangci-lint run && actionlint`)
+- Run all enabled linters: `just lint` (`actionlint` then `golangci-lint run` in this repository)
+- Run workflow linters only: `just lint-actions`
+- Run Go linters only: `just lint-go`
+- Keep `lint-all` as the project alias for `lint` in `just/project.just`.
+- Include `lint-go` in the managed `lint` aggregate only for explicit `languages.go: true`. False or absent excludes Go lint.
 - Enter dev shell: `nix develop` or `direnv allow`
 - Task runner: `just` (lists available recipes)
 - Create release: `just release 0.1.0`

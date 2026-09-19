@@ -32,6 +32,15 @@ func TestFixedManagedRegistry(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("fixedManagedRegistry() paths = %v, want %v", got, want)
 	}
+	for _, entry := range registry {
+		wantLintRecipe := ""
+		if entry.Path == "just/go.just" {
+			wantLintRecipe = "lint-go"
+		}
+		if entry.LintRecipe != wantLintRecipe {
+			t.Errorf("fixedManagedRegistry() lint recipe for %q = %q, want %q", entry.Path, entry.LintRecipe, wantLintRecipe)
+		}
+	}
 
 	registry[0].Path = "changed"
 	if fixedManagedRegistry()[0].Path != "justfile" {
@@ -77,6 +86,32 @@ func TestValidateManagedRegistryRejectsMalformedMetadata(t *testing.T) {
 			name:     "starter with wrong capability",
 			registry: []managedRegistryEntry{{Path: "starter", Policy: managedPolicySharedStarter, Capability: managedCapabilityPages}},
 			want:     "requires the playwright capability",
+		},
+		{
+			name:     "invalid lint recipe identifier",
+			registry: []managedRegistryEntry{{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint go"}},
+			want:     "invalid lint recipe",
+		},
+		{
+			name: "duplicate lint recipe",
+			registry: []managedRegistryEntry{
+				{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-ecosystem"},
+				{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, LintRecipe: "lint-ecosystem"},
+			},
+			want: "lint recipe \"lint-ecosystem\" is duplicated",
+		},
+		{
+			name: "multiple lint recipes for capability",
+			registry: []managedRegistryEntry{
+				{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"},
+				{Path: "just/go-extra.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go-extra"},
+			},
+			want: "multiple lint recipes",
+		},
+		{
+			name:     "lint recipe outside Just fragment",
+			registry: []managedRegistryEntry{{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"}},
+			want:     "must belong to a Just capability fragment",
 		},
 		{
 			name:     "unknown policy",

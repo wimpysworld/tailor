@@ -33,6 +33,7 @@ type managedRegistryEntry struct {
 	Path       string
 	Policy     managedPolicy
 	Capability managedCapability
+	LintRecipe string
 }
 
 type managedSelection struct {
@@ -47,7 +48,7 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "just/loader.just", Policy: managedPolicyLoader},
 		{Path: "nix/loader.nix", Policy: managedPolicyLoader},
 		{Path: "just/tailor.just", Policy: managedPolicyCore},
-		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
+		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"},
 		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
@@ -61,6 +62,8 @@ func fixedManagedRegistry() []managedRegistryEntry {
 
 func validateManagedRegistry(registry []managedRegistryEntry) error {
 	seen := make(map[string]struct{}, len(registry))
+	lintRecipes := make(map[string]string)
+	lintCapabilities := make(map[managedCapability]string)
 	for _, entry := range registry {
 		if err := validateManagedPath(entry.Path); err != nil {
 			return fmt.Errorf("managed registry: %w", err)
@@ -86,6 +89,24 @@ func validateManagedRegistry(registry []managedRegistryEntry) error {
 		default:
 			return fmt.Errorf("managed registry destination %q has an invalid policy", entry.Path)
 		}
+
+		if entry.LintRecipe == "" {
+			continue
+		}
+		if entry.Policy != managedPolicyFragment || path.Dir(entry.Path) != "just" || path.Ext(entry.Path) != ".just" {
+			return fmt.Errorf("managed registry lint recipe %q must belong to a Just capability fragment", entry.LintRecipe)
+		}
+		if !validManagedRecipeName(entry.LintRecipe) {
+			return fmt.Errorf("managed registry destination %q has invalid lint recipe %q", entry.Path, entry.LintRecipe)
+		}
+		if previous, exists := lintRecipes[entry.LintRecipe]; exists {
+			return fmt.Errorf("managed registry lint recipe %q is duplicated by %q and %q", entry.LintRecipe, previous, entry.Path)
+		}
+		lintRecipes[entry.LintRecipe] = entry.Path
+		if previous, exists := lintCapabilities[entry.Capability]; exists {
+			return fmt.Errorf("managed capability %q has multiple lint recipes in %q and %q", entry.Capability.canonicalName(), previous, entry.Path)
+		}
+		lintCapabilities[entry.Capability] = entry.Path
 	}
 	return nil
 }
@@ -104,6 +125,19 @@ func validateManagedPath(name string) error {
 
 func (capability managedCapability) validDeclaration() bool {
 	return capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright
+}
+
+func (capability managedCapability) canonicalName() string {
+	switch capability {
+	case managedCapabilityGo:
+		return "go"
+	case managedCapabilityPages:
+		return "pages"
+	case managedCapabilityPlaywright:
+		return "playwright"
+	default:
+		return ""
+	}
 }
 
 func (policy managedPolicy) marked() bool {

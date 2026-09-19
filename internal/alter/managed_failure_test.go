@@ -143,6 +143,65 @@ func TestManagedRemovalFailureStopsLaterRemovalAndRetryConverges(t *testing.T) {
 	assertManagedMissing(t, filepath.Join(dir, "nix/pages.nix"))
 }
 
+func TestManagedLintPartialFailurePreservesResultsAndRetryConverges(t *testing.T) {
+	dir := t.TempDir()
+	cfg := managedRenderConfig(true, nil)
+	allSelections, err := selectManagedFiles(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	allRendered := renderSelectedManagedFiles(t, cfg)
+	wanted := map[string]bool{"just/loader.just": true, "just/tailor.just": true, "just/go.just": true}
+	var selections []managedSelection
+	rendered := managedRenderedFiles{}
+	for _, selection := range allSelections {
+		if wanted[selection.Entry.Path] {
+			selections = append(selections, selection)
+			rendered[selection.Entry.Path] = allRendered[selection.Entry.Path]
+		}
+	}
+	writeManagedTestFile(t, dir, "justfile", []byte("set shell := [\"/bin/sh\", \"-cu\"]\nimport 'just/loader.just'\n"))
+	plan, err := preflightManagedFiles(dir, selections, rendered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	injected := errors.New("injected Go lint fragment failure")
+	hooks := managedApplyHooks{beforeTempCreate: func(destination string) error {
+		if destination == "just/go.just" {
+			return injected
+		}
+		return nil
+	}}
+
+	results, err := applyManagedFilesWithHooks(dir, plan, hooks)
+	if !errors.Is(err, injected) {
+		t.Fatalf("apply error = %v, want injected failure", err)
+	}
+	if got := managedResultPaths(results); !reflect.DeepEqual(got, []string{"just/loader.just"}) {
+		t.Fatalf("partial result paths = %v", got)
+	}
+	assertManagedMissing(t, filepath.Join(dir, "just", "go.just"))
+	assertManagedMissing(t, filepath.Join(dir, "just", "tailor.just"))
+	just := managedLintExecutable(t)
+	if output, runErr := runManagedLint(t, just, dir, "lint", filepath.Join(dir, "bin"), filepath.Join(dir, "lint.log"), nil); runErr == nil || len(output) == 0 {
+		t.Fatalf("partial fixture output = %q, error = %v, want visible failure", output, runErr)
+	}
+
+	retry, err := applyManagedFiles(dir, plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := managedResultPaths(retry); !reflect.DeepEqual(got, []string{"just/go.just", "just/tailor.just"}) {
+		t.Fatalf("retry result paths = %v, want Go lint fragment and aggregate", got)
+	}
+	bin := filepath.Join(dir, "bin")
+	writeManagedLintStub(t, bin, "actionlint", "TAILOR_ACTIONLINT_STATUS")
+	writeManagedLintStub(t, bin, "golangci-lint", "TAILOR_GOLANGCI_STATUS")
+	if output, runErr := runManagedLint(t, just, dir, "lint", bin, filepath.Join(dir, "lint.log"), nil); runErr != nil {
+		t.Fatalf("just lint after retry: %v\n%s", runErr, output)
+	}
+}
+
 func managedFailureWritePlan() managedPlan {
 	return managedPlan{Files: []managedPlanFile{
 		managedTestPlanFile("just/tailor.just", managedPolicyCore, managedCapabilityNone, true, managedOperationWrite, managedContent("just/tailor.just", "new")),

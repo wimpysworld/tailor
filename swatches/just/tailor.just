@@ -5,8 +5,11 @@ alter:
     @tailor alter
 
 # Run workflow linters
-lint:
+lint-actions:
     @actionlint
+
+# Run all enabled linters
+lint: [[TAILOR_MANAGED_LINT_DEPENDENCIES]]
 
 # Preview remote and local changes, then inspect local project health
 measure:

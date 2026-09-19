@@ -290,7 +290,7 @@ Tailor uses one fixed internal registry for development roots, loaders, and frag
 
 The ordinary default set remains 29 configured swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
 
-Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The Go, Pages, and Playwright package declarations have this exact lifecycle:
+Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Pages, and Playwright package declarations have this exact lifecycle:
 
 | Declaration | Fragment action |
 | --- | --- |
@@ -306,7 +306,11 @@ The protected roots have no ownership marker. Tailor preserves an existing regul
 
 Tailor does not parse or rewrite a preserved root. If the line is absent, add `import 'just/loader.just'` to `justfile`. If the expression is absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in `flake.nix`.
 
-The generated `justfile` requires Just 1.23.0 or later and owns the sole `default` recipe. `just/tailor.just` owns `alter`, `measure`, `release`, and `lint`. `just/go.just` owns `build`, `test`, and `lint-go`. `just/pages.just` owns `pages`. Generated files cannot contain duplicate recipe names.
+The generated `justfile` requires Just 1.23.0 or later and owns the sole `default` recipe. The generated files are tested with Just 1.23.0 and 1.58.0. `just/tailor.just` owns `alter`, `measure`, `release`, `lint-actions`, and `lint`. `lint-actions` runs only `actionlint`. `just/go.just` owns `build`, `test`, and `lint-go`, which runs only `golangci-lint run`. `just/pages.just` owns `pages`. Generated files cannot contain duplicate recipe names.
+
+The `lint` recipe first depends on `lint-actions`, then on each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. Explicit false and absent capabilities are excluded. If an absent capability leaves a previously managed fragment on disk, its standalone recipe remains callable but `lint` excludes it. The last successful reconciliation determines these dependencies until Tailor reconciles the files again. Missing selected tools fail visibly, and Just stops at the first failed dependency.
+
+Swatch modes for protected roots and ordinary linter configuration do not disable selected lint dispatch. In particular, `never` for `justfile` or `.golangci.yml` does not remove `lint-go` from an aggregate selected by `languages.go: true`. Users must keep custom checks under distinct wrapper names because managed recipe names cannot be overridden. Tailor's repository-only `lint-all` is a compatibility alias for `lint`; Tailor does not generate it for other projects.
 
 The Nix loader returns only a package list. It passes the existing `pkgs` set to each fragment and does not add inputs, change outputs, or update the lock file. This packages-only guarantee covers packages available through the existing flake inputs. The Playwright fragment supplies `playwright-mcp` with Chromium only. It excludes Firefox, WebKit, and the Chromium headless shell.
 
@@ -316,7 +320,7 @@ Before any local or remote mutation, Tailor inspects every active destination an
 
 Tailor applies the plan after the licence stage and immediately before ordinary swatches. Plan and apply order is loaders, protected roots, core and enabled fragments, then disabled fragments. Paths within each group use lexical order.
 
-Each write uses an exclusive sibling temporary file, file sync, close, atomic rename, and directory sync within the project root. Tailor rechecks the parent and destination before each mutation. The guarantee applies to one file, not the complete plan. If a later operation fails, successful earlier operations remain and the report includes their confirmed results. A retry reconciles the remaining differences.
+Each write uses an exclusive sibling temporary file, file sync, close, atomic rename, and directory sync within the project root. Tailor rechecks the parent and destination before each mutation. The guarantee applies to one file, not the complete plan. If a later operation fails, successful earlier operations remain and the report includes their confirmed results. A partial managed-file apply can leave Just imports or dependencies temporarily invalid. Fix the reported error, then retry the Tailor CLI command to reconcile the remaining differences.
 
 When `baste` plans a new Nix file, or `alter` confirms its creation, Tailor tells the user to review and add the file to Git. Nix flakes exclude untracked files. Tailor does not inspect or change the Git index.
 
@@ -1441,7 +1445,7 @@ The retired paths are `.github/workflows/tailor-automerge.yml` and `.github/work
 
 The generated root requires Just 1.23.0 or later and imports `just/loader.just`. Tailor preserves an existing root under every alteration mode and `--recut`. Add the exact import manually when a preserved root does not contain it.
 
-The loader conditionally imports all available fragments. `just/tailor.just` provides `alter`, `measure`, `release`, and `lint`. Explicit `languages.go: true` adds `build`, `test`, and `lint-go`. Explicit `pages.enabled: true` adds `pages`. The root alone provides `default`, and generated recipe names must be unique. See [managed development files](#managed-development-files).
+The loader conditionally imports all available fragments. `just/tailor.just` provides `alter`, `measure`, `release`, `lint-actions`, and `lint`. `lint` runs `lint-actions` and each linter for an explicit true capability. Explicit `languages.go: true` adds `build`, `test`, and `lint-go`, and makes `lint` depend on `lint-go`. Explicit `pages.enabled: true` adds `pages`. The root alone provides `default`, and generated recipe names must be unique. See [managed development files](#managed-development-files).
 
 ## Implementation Notes
 

@@ -136,7 +136,7 @@ tailor alter
 
 ## Development
 
-Enter the pinned shell with `nix develop`. Run `just build-tailor` to build the stripped CLI, and run `just lint-all` for all linters.
+Enter the pinned shell with `nix develop`. Run `just build-tailor` to build the stripped CLI. Run `just lint` for all enabled linters. `just lint-all` is a repository compatibility alias for `just lint`.
 
 ## Documentation
 
