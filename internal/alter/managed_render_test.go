@@ -172,24 +172,26 @@ func TestRenderManagedLintAggregateUsesCanonicalCapabilityOrder(t *testing.T) {
 		t.Fatalf("unexpected lint aggregate:\n%s", core)
 	}
 
-	just, err := exec.LookPath("just")
-	if err != nil {
-		return
-	}
-	loader, err := renderManagedLoader("just/loader.just", []byte(managedImportsPlaceholder+"\n"), registry)
-	if err != nil {
-		t.Fatal(err)
-	}
-	root := t.TempDir()
-	writeManagedRenderFixture(t, root, "justfile", []byte("import 'just/loader.just'\n"))
-	writeManagedRenderFixture(t, root, "just/loader.just", loader)
-	writeManagedRenderFixture(t, root, "just/tailor.just", core)
-	writeManagedRenderFixture(t, root, "just/go.just", []byte("lint-go:\n    @echo go\n"))
-	writeManagedRenderFixture(t, root, "just/pages.just", []byte("lint-pages:\n    @echo pages\n"))
-	wantRecipes := []string{"lint", "lint-actions", "lint-go", "lint-pages"}
-	if got := managedJustRecipes(t, just, root); !reflect.DeepEqual(got, wantRecipes) {
-		t.Fatalf("synthetic lint recipes = %v, want %v", got, wantRecipes)
-	}
+	t.Run("Just recipe dump", func(t *testing.T) {
+		just, err := exec.LookPath("just")
+		if err != nil {
+			t.Skip("just is required")
+		}
+		loader, err := renderManagedLoader("just/loader.just", []byte(managedImportsPlaceholder+"\n"), registry)
+		if err != nil {
+			t.Fatal(err)
+		}
+		root := t.TempDir()
+		writeManagedRenderFixture(t, root, "justfile", []byte("import 'just/loader.just'\n"))
+		writeManagedRenderFixture(t, root, "just/loader.just", loader)
+		writeManagedRenderFixture(t, root, "just/tailor.just", core)
+		writeManagedRenderFixture(t, root, "just/go.just", []byte("lint-go:\n    @echo go\n"))
+		writeManagedRenderFixture(t, root, "just/pages.just", []byte("lint-pages:\n    @echo pages\n"))
+		wantRecipes := []string{"lint", "lint-actions", "lint-go", "lint-pages"}
+		if got := managedJustRecipes(t, just, root); !reflect.DeepEqual(got, wantRecipes) {
+			t.Fatalf("synthetic lint recipes = %v, want %v", got, wantRecipes)
+		}
+	})
 }
 
 func TestManagedJustCombinationsParseWithUniqueRecipes(t *testing.T) {
