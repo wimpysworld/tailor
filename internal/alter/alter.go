@@ -88,6 +88,9 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	if err != nil {
 		return partial(err)
 	}
+	if err := preflightIgnoreRoot(cfg, dir); err != nil {
+		return partial(err)
+	}
 	goContents, err := prepareGoSwatches(cfg, dir, mode, "")
 	if err != nil {
 		return partial(err)

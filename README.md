@@ -132,7 +132,7 @@ tailor alter
 ```
 
 > [!IMPORTANT]
-> Swatches with `alteration: always` replace local file edits. Review the preview before each `alter` run.
+> Most swatches with `alteration: always` replace local file edits. Ordinary `.gitignore` processing preserves an existing file or final symlink. Enabled Hugo or Jekyll Pages can append its output rule later. Review the preview before each `alter` run.
 
 ## Development
 

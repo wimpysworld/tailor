@@ -783,7 +783,7 @@ swatches:
 	}
 }
 
-// TestAlterRunDryRunAllFilesPresent checks matching embedded files and first-fit skips.
+// TestAlterRunDryRunAllFilesPresent checks matching embedded files and preserved roots.
 // SECURITY.md still contains its unresolved token, so its resolved content requires an overwrite.
 func TestAlterRunDryRunAllFilesPresent(t *testing.T) {
 	configYAML := `license: mit
@@ -812,8 +812,11 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 
-	// Existing first-fit destinations report the path before the reason.
-	requireContains(t, output, "skipped:                             .gitignore (first-fit, exists)")
+	// Existing .gitignore is a protected root in every ordinary apply mode.
+	const preservedIgnore = "no change:                           .gitignore (existing root preserved)\n"
+	if count := strings.Count(output, preservedIgnore); count != 1 {
+		t.Errorf("preserved .gitignore report count = %d, want 1\noutput:\n%s", count, output)
+	}
 
 	// Non-substituted always CODE_OF_CONDUCT.md with matching content: "no change".
 	requireContains(t, output, "no change:")
@@ -842,7 +845,7 @@ swatches:
 }
 
 // TestAlterRunDryRunMixedFiles verifies output when some files exist and others
-// are absent, producing a mix of "would copy", "skipped", and "no change".
+// are absent, producing a mix of "would copy", preserved, and "no change" results.
 func TestAlterRunDryRunMixedFiles(t *testing.T) {
 	configYAML := `license: mit
 swatches:
@@ -855,7 +858,7 @@ swatches:
 `
 	tc := setupAlterTest(t, configYAML)
 
-	// Existing .gitignore exercises first-fit skip. Matching
+	// Existing .gitignore exercises protected-root preservation. Matching
 	// CODE_OF_CONDUCT.md content exercises always/no-change.
 	writeOnDisk(t, tc.Dir, ".gitignore", mustContent(t, ".gitignore"))
 	writeOnDisk(t, tc.Dir, "CODE_OF_CONDUCT.md", mustContent(t, "CODE_OF_CONDUCT.md"))
@@ -865,8 +868,11 @@ swatches:
 	cfg := loadTestConfig(t, tc.Dir)
 	output := captureAlterRun(t, cfg, tc.Dir, alter.DryRun, tc.Client)
 
-	// Existing first-fit swatches are skipped.
-	requireContains(t, output, "skipped:                             .gitignore (first-fit, exists)")
+	// Existing .gitignore is reported once as a preserved root.
+	const preservedIgnore = "no change:                           .gitignore (existing root preserved)\n"
+	if count := strings.Count(output, preservedIgnore); count != 1 {
+		t.Errorf("preserved .gitignore report count = %d, want 1\noutput:\n%s", count, output)
+	}
 
 	// Existing always swatches with matching content report no change.
 	requireContains(t, output, "no change:")
@@ -1519,8 +1525,8 @@ swatches:
 	}
 }
 
-// TestAlterRunRecutOverwritesFirstFitSwatches verifies that recut
-// overwrites pre-existing first-fit swatch files with embedded content.
+// TestAlterRunRecutOverwritesFirstFitSwatches verifies that recut overwrites
+// an ordinary first-fit swatch while it preserves the protected .gitignore root.
 func TestAlterRunRecutOverwritesFirstFitSwatches(t *testing.T) {
 	configYAML := `license: none
 swatches:
@@ -1532,23 +1538,37 @@ swatches:
 	tc := setupAlterTest(t, configYAML)
 	writeOnDisk(t, tc.Dir, "LICENSE", []byte("existing"))
 
-	// Existing first-fit files are overwritten by recut.
-	writeOnDisk(t, tc.Dir, ".gitignore", []byte("custom gitignore"))
+	originalIgnore := []byte("custom gitignore")
+	writeOnDisk(t, tc.Dir, ".gitignore", originalIgnore)
 	writeOnDisk(t, tc.Dir, "CODE_OF_CONDUCT.md", []byte("custom conduct"))
 
 	cfg := loadTestConfig(t, tc.Dir)
-	_ = captureAlterRun(t, cfg, tc.Dir, alter.Recut, tc.Client)
+	output := captureAlterRun(t, cfg, tc.Dir, alter.Recut, tc.Client)
 
-	// Both files contain embedded swatch content, not custom content.
-	for _, src := range []string{".gitignore", "CODE_OF_CONDUCT.md"} {
-		got, err := os.ReadFile(filepath.Join(tc.Dir, src))
-		if err != nil {
-			t.Fatalf("reading %s: %v", src, err)
-		}
-		want := mustContent(t, src)
-		if !bytes.Equal(got, want) {
-			t.Errorf("%s still contains custom content after recut (got %d bytes, want %d bytes)", src, len(got), len(want))
-		}
+	const preservedIgnore = "no change:                           .gitignore (existing root preserved)\n"
+	if count := strings.Count(output, preservedIgnore); count != 1 {
+		t.Errorf("preserved .gitignore report count = %d, want 1\noutput:\n%s", count, output)
+	}
+	const overwrittenConduct = "overwritten:                         CODE_OF_CONDUCT.md\n"
+	if count := strings.Count(output, overwrittenConduct); count != 1 {
+		t.Errorf("overwritten CODE_OF_CONDUCT.md report count = %d, want 1\noutput:\n%s", count, output)
+	}
+
+	gotIgnore, err := os.ReadFile(filepath.Join(tc.Dir, ".gitignore"))
+	if err != nil {
+		t.Fatalf("reading .gitignore: %v", err)
+	}
+	if !bytes.Equal(gotIgnore, originalIgnore) {
+		t.Errorf(".gitignore = %q, want preserved content %q", gotIgnore, originalIgnore)
+	}
+
+	gotConduct, err := os.ReadFile(filepath.Join(tc.Dir, "CODE_OF_CONDUCT.md"))
+	if err != nil {
+		t.Fatalf("reading CODE_OF_CONDUCT.md: %v", err)
+	}
+	wantConduct := mustContent(t, "CODE_OF_CONDUCT.md")
+	if !bytes.Equal(gotConduct, wantConduct) {
+		t.Errorf("CODE_OF_CONDUCT.md still contains custom content after recut (got %d bytes, want %d bytes)", len(gotConduct), len(wantConduct))
 	}
 }
 

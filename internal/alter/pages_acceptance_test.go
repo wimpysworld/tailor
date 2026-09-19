@@ -484,17 +484,32 @@ func TestPagesAcceptanceRepeatedApplyAndDefaultBranchChange(t *testing.T) {
 }
 
 func TestPagesAcceptanceRecutKeepsGeneratorIgnore(t *testing.T) {
-	s, client := newPagesAcceptanceAPI(t)
-	s.exists = true
-	dir := t.TempDir()
-	writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\npages:\n  enabled: true\n  generator: hugo\nswatches:\n  - path: .gitignore\n    alteration: first-fit\n"))
-	writeOnDisk(t, dir, "pages/hugo.toml", []byte("title = 'Site'\n"))
-	writeOnDisk(t, dir, ".gitignore", []byte("old-rule/\n/pages/public/\n"))
-	for range 2 {
-		captureAlterRun(t, loadTestConfig(t, dir), dir, alter.Recut, client)
-		content := pagesAcceptanceSnapshot(t, dir)[".gitignore"]
-		if strings.Count(content, "/pages/public/\n") != 1 || strings.Contains(content, "old-rule/") {
-			t.Fatalf("recut lost or duplicated the generator rule: %q", content)
-		}
+	tests := []struct {
+		name       string
+		alteration string
+		initial    string
+		want       string
+	}{
+		{name: "existing rule", alteration: "first-fit", initial: "old-rule/\n/pages/public/\n", want: "old-rule/\n/pages/public/\n"},
+		{name: "missing rule", alteration: "first-fit", initial: "old-rule/\n", want: "old-rule/\n/pages/public/\n"},
+		{name: "never", alteration: "never", initial: "old-rule/\n", want: "old-rule/\n"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			s, client := newPagesAcceptanceAPI(t)
+			s.exists = true
+			dir := t.TempDir()
+			configYAML := "license: none\npages:\n  enabled: true\n  generator: hugo\nswatches:\n  - path: .gitignore\n    alteration: " + test.alteration + "\n"
+			writeOnDisk(t, dir, ".tailor.yml", []byte(configYAML))
+			writeOnDisk(t, dir, "pages/hugo.toml", []byte("title = 'Site'\n"))
+			writeOnDisk(t, dir, ".gitignore", []byte(test.initial))
+			for range 2 {
+				captureAlterRun(t, loadTestConfig(t, dir), dir, alter.Recut, client)
+				content := pagesAcceptanceSnapshot(t, dir)[".gitignore"]
+				if content != test.want || strings.Count(content, "/pages/public/\n") > 1 {
+					t.Fatalf("recut ignore content = %q, want %q", content, test.want)
+				}
+			}
+		})
 	}
 }

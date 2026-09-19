@@ -67,8 +67,8 @@ func TestFirstFitSkipWhenExists(t *testing.T) {
 	if len(results) != 1 {
 		t.Fatalf("got %d results, want 1", len(results))
 	}
-	if results[0].Category != alter.Skipped || results[0].Reason != alter.SkipFirstFitExists {
-		t.Errorf("result = %+v, want skipped because first-fit destination exists", results[0])
+	if results[0].Category != alter.NoChange || results[0].Reason != alter.SkipManagedRootExists {
+		t.Errorf("result = %+v, want preserved ignore root", results[0])
 	}
 }
 
@@ -261,9 +261,9 @@ func TestAlwaysSubstitutedSourceOverwritesWhenDifferent(t *testing.T) {
 
 func TestRecutOverwritesExisting(t *testing.T) {
 	dir := t.TempDir()
-	writeOnDisk(t, dir, ".gitignore", []byte("old"))
+	writeOnDisk(t, dir, "CODE_OF_CONDUCT.md", []byte("old"))
 
-	cfg := newConfig(entry(".gitignore", swatch.FirstFit))
+	cfg := newConfig(entry("CODE_OF_CONDUCT.md", swatch.FirstFit))
 	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Recut, &alter.TokenContext{})
 	if err != nil {
 		t.Fatal(err)
@@ -271,11 +271,11 @@ func TestRecutOverwritesExisting(t *testing.T) {
 	if results[0].Category != alter.WouldOverwrite {
 		t.Errorf("category = %q, want %q", results[0].Category, alter.WouldOverwrite)
 	}
-	data, err := os.ReadFile(filepath.Join(dir, ".gitignore"))
+	data, err := os.ReadFile(filepath.Join(dir, "CODE_OF_CONDUCT.md"))
 	if err != nil {
 		t.Fatalf("file not found: %v", err)
 	}
-	want := mustContent(t, ".gitignore")
+	want := mustContent(t, "CODE_OF_CONDUCT.md")
 	if string(data) != string(want) {
 		t.Error("recut did not overwrite file with embedded content")
 	}

@@ -204,7 +204,11 @@ Tailor embeds 29 ordinary default swatches. Managed loaders and fragments are a 
 - **`first-fit`** - Copies a missing file and preserves an existing file, unless `--recut` applies. Use this for files that you customise.
 - **`never`** - Skips the file entirely. Use this to keep a swatch visible in the config without managing its destination.
 
-Config merging differs from ordinary file replacement. Protected `justfile` and `flake.nix` roots, existing wiki pages, and static Pages starter files also have [recut exceptions](Commands#alter).
+`.gitignore` is an exception during ordinary swatch processing. Tailor preserves an existing regular file or final symlink byte-for-byte under `always`, `first-fit`, and `--recut`. It does not read or hash the file, or follow the symlink. If the configured root is missing, `always` and `first-fit` create it atomically without replacing a destination that appears during the write. A directory or special file stops the command before repository checks, authentication, or writes. `never` skips inspection and writing.
+
+Enabled Hugo or Jekyll Pages uses a later additive exception. Tailor can replace a final `.gitignore` symlink without following its target, then appends the generated output rule. Existing regular-file text stays unchanged. If the same rule already exists before a later negation, Tailor does not move it, so review the pattern order manually.
+
+Config merging differs from ordinary file replacement. Protected `justfile`, `flake.nix`, and `.gitignore` roots, existing wiki pages, and static Pages starter files also have [recut exceptions](Commands#alter).
 
 The [Pages workflow](GitHub-Pages#workflow) and [wiki workflow](GitHub-wiki#workflow) have their own compatibility and mode checks.
 
@@ -384,7 +388,7 @@ Every swatch path must be unique, including entries with mode `never`. Tailor re
 
 For malformed YAML or unsupported fields, correct the reported entry in `.tailor.yml`. Keep one entry per registered swatch path, then rerun `tailor baste`.
 
-For ordinary swatches that Tailor manages, parent paths must be real directories, not symlinks. Destinations cannot be directories or other non-regular files. Tailor replaces a destination symlink without following it, even in `first-fit` mode.
+For ordinary swatches that Tailor manages, parent paths must be real directories, not symlinks. Destinations cannot be directories or other non-regular files. Tailor replaces a destination symlink without following it, even in `first-fit` mode. The protected ordinary `.gitignore` root is the exception described above.
 
 If a destination is unsafe, move valuable content aside before you correct the path. Use `never` for a file that Tailor must leave alone. Pages and wiki files have additional checks in their setting references below.
 

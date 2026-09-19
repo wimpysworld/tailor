@@ -37,10 +37,12 @@ Wiki setup has one earlier write: after local safety checks, Tailor enables a de
 
 ```bash
 tailor alter            # Apply changes
-tailor alter --recut    # Overwrite always and first-fit swatches
+tailor alter --recut    # Overwrite eligible always and first-fit swatches
 ```
 
-`--recut` overrides `first-fit` for ordinary swatches, but it still skips `never`. Existing `justfile` and `flake.nix` roots, wiki starter pages, [static Pages starter files](GitHub-Pages#static-pages-starter), and regular `LICENSE` files are exempt. For `.tailor.yml`, see [default merging](Configuration#default-merging).
+`--recut` overrides `first-fit` for ordinary swatches, but it still skips `never`. Existing `justfile`, `flake.nix`, and `.gitignore` roots, wiki starter pages, [static Pages starter files](GitHub-Pages#static-pages-starter), and regular `LICENSE` files are exempt. Ordinary `.gitignore` processing preserves an existing regular file or final symlink byte-for-byte under every mode. It does not read or hash the file, or follow the symlink.
+
+For an active mode other than `never`, Tailor creates a missing `.gitignore` atomically without clobbering a destination that appears during the write. It rejects a directory or special file before repository checks, authentication, or writes. `never` skips that inspection and write. Enabled Hugo or Jekyll Pages is a later additive exception that can replace a final symlink and append its output rule. Review the rule order when an existing matching rule precedes a later negation. For `.tailor.yml`, see [default merging](Configuration#default-merging).
 
 If a later step fails, completed local and repository changes remain. Tailor does not roll them back. Fix the reported error, then run `tailor baste` before you retry `tailor alter`.
 
