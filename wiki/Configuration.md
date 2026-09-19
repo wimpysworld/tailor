@@ -54,6 +54,10 @@ The generated root requires Just 1.23.0 or later. Tailor tests generated files w
 
 A `never` mode for `justfile` or an ordinary linter config does not disable a selected managed recipe. For example, `languages.go: true` keeps `lint-go` in the aggregate when `.golangci.yml` is `never`. A missing selected tool causes the recipe to fail. Use distinct wrapper names for custom checks because user recipes cannot override managed names.
 
+If you manually delete a managed Just fragment, Just can fail while it parses every recipe. Run `tailor baste` directly. Review the full plan. After approval, run `tailor alter`. The alteration can change other declared files and repository settings.
+
+Keep the capability declaration explicitly true so that Tailor recreates the fragment. If the declaration is absent, enable it or restore the deleted fragment from Git. Do not edit generated dependencies manually. Do not use `--recut` for this recovery.
+
 ## Go support
 
 Set `languages.go: true` to add Go development and release files:
