@@ -27,6 +27,8 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      # Verify adoption and current repository state before publication.
+      # A normal push rejects concurrent wiki edits without replacing remote history.
       - name: Publish wiki
         env:
           WIKI_TOKEN: ${{ github.token }}
