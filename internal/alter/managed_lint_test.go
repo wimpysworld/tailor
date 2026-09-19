@@ -24,11 +24,28 @@ func TestManagedLintExecutesSelectedLintersOnceAtProjectRoot(t *testing.T) {
 	if err != nil {
 		t.Fatalf("just lint: %v\n%s", err, output)
 	}
-	want := []string{
+	want := canonicalManagedLintCalls(t, []string{
 		"actionlint|" + root + "|0",
 		"golangci-lint|" + root + "|1",
+	})
+	if got := canonicalManagedLintCalls(t, managedLintLog(t, log)); !reflect.DeepEqual(got, want) {
+		t.Fatalf("lint calls = %v, want %v", got, want)
 	}
-	if got := managedLintLog(t, log); !reflect.DeepEqual(got, want) {
+}
+
+func TestCanonicalManagedLintCallsResolvesDirectoryAliases(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "project")
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	alias := filepath.Join(t.TempDir(), "project-alias")
+	if err := os.Symlink(root, alias); err != nil {
+		t.Fatal(err)
+	}
+
+	got := canonicalManagedLintCalls(t, []string{"actionlint|" + alias + "|0"})
+	want := canonicalManagedLintCalls(t, []string{"actionlint|" + root + "|0"})
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("lint calls = %v, want %v", got, want)
 	}
 }
@@ -167,4 +184,22 @@ func managedLintLog(t *testing.T, name string) []string {
 		t.Fatal(err)
 	}
 	return strings.Split(strings.TrimSpace(string(content)), "\n")
+}
+
+func canonicalManagedLintCalls(t *testing.T, calls []string) []string {
+	t.Helper()
+	canonical := make([]string, len(calls))
+	for index, call := range calls {
+		fields := strings.Split(call, "|")
+		if len(fields) != 3 {
+			t.Fatalf("malformed lint call %q", call)
+		}
+		directory, err := filepath.EvalSymlinks(fields[1])
+		if err != nil {
+			t.Fatalf("resolve lint call working directory %q: %v", fields[1], err)
+		}
+		fields[1] = directory
+		canonical[index] = strings.Join(fields, "|")
+	}
+	return canonical
 }
