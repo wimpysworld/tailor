@@ -83,7 +83,7 @@ func validateManagedRegistry(registry []managedRegistryEntry) error {
 				return fmt.Errorf("managed registry fragment %q requires a capability", entry.Path)
 			}
 		case managedPolicySharedStarter:
-			if entry.Capability != managedCapabilityNone && entry.Capability != managedCapabilityPlaywright {
+			if entry.Capability != managedCapabilityNone {
 				return fmt.Errorf("managed registry shared starter %q has an invalid capability", entry.Path)
 			}
 		default:
