@@ -289,7 +289,7 @@ func TestPreflightManagedFilesRejectsUnsafeParentReadOnly(t *testing.T) {
 		Entry: managedRegistryEntry{
 			Path:       ".codex/config.toml",
 			Policy:     managedPolicySharedStarter,
-			Capability: managedCapabilityPlaywright,
+			Capability: managedCapabilityNone,
 		},
 		Enabled: true,
 	}

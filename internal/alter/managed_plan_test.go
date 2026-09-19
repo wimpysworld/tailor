@@ -48,6 +48,37 @@ func TestFixedManagedRegistry(t *testing.T) {
 	}
 }
 
+func TestValidateManagedRegistrySharedStarterCapabilities(t *testing.T) {
+	tests := []struct {
+		name       string
+		capability managedCapability
+		want       string
+	}{
+		{name: "core placeholder", capability: managedCapabilityNone},
+		{name: "Playwright", capability: managedCapabilityPlaywright, want: "invalid capability"},
+		{name: "unsupported", capability: managedCapability(99), want: "invalid capability"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validateManagedRegistry([]managedRegistryEntry{{
+				Path:       "starter",
+				Policy:     managedPolicySharedStarter,
+				Capability: tt.capability,
+			}})
+			if tt.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("validateManagedRegistry() error = %v, want substring %q", err, tt.want)
+			}
+		})
+	}
+}
+
 func TestValidateManagedRegistryRejectsMalformedMetadata(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -81,11 +112,6 @@ func TestValidateManagedRegistryRejectsMalformedMetadata(t *testing.T) {
 			name:     "fragment without capability",
 			registry: []managedRegistryEntry{{Path: "fragment", Policy: managedPolicyFragment}},
 			want:     "requires a capability",
-		},
-		{
-			name:     "starter with wrong capability",
-			registry: []managedRegistryEntry{{Path: "starter", Policy: managedPolicySharedStarter, Capability: managedCapabilityPages}},
-			want:     "invalid capability",
 		},
 		{
 			name:     "invalid lint recipe identifier",
@@ -239,9 +265,6 @@ func TestPlanManagedProtectedFiles(t *testing.T) {
 			name := fmt.Sprintf("policy=%d/%s", policy, tt.name)
 			t.Run(name, func(t *testing.T) {
 				selection := managedSelection{Entry: managedRegistryEntry{Path: "protected", Policy: policy}, Enabled: true}
-				if policy == managedPolicySharedStarter {
-					selection.Entry.Capability = managedCapabilityPlaywright
-				}
 				plan, err := planManagedFiles(
 					[]managedSelection{selection},
 					managedRenderedFiles{"protected": []byte("unmarked content")},
