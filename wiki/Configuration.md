@@ -208,6 +208,38 @@ Tailor embeds 29 ordinary default swatches. Managed loaders and fragments are a 
 
 Enabled Hugo or Jekyll Pages uses a later additive exception. Tailor can replace a final `.gitignore` symlink without following its target, then appends the generated output rule. Existing regular-file text stays unchanged. If the same rule already exists before a later negation, Tailor does not move it, so review the pattern order manually.
 
+### Future manual adoption
+
+This section describes a future contract, not current Tailor behaviour. Future versions will update only adopted `base`, `go`, and `pages` sections. Existing unmarked roots will remain byte-for-byte unchanged and receive snippets for manual adoption.
+
+Add exact marker pairs where Tailor can own rules:
+
+```gitignore
+# tailor:ignore:base:start
+# Tailor base rules will go here.
+# tailor:ignore:base:end
+
+# Project-owned rules remain editable here.
+!important.log
+logs/
+!logs/
+!logs/keep.log
+```
+
+A later project rule can override an earlier managed rule. To re-include `logs/keep.log`, re-include its excluded `logs/` ancestor first. Tailor will preserve duplicate and historical project rules, so an old rule can keep a path ignored.
+
+| Declaration | Adopted section action |
+| --- | --- |
+| `languages.go: true` | Replace the `go` body with only `*.test`. |
+| `languages.go: false` | Empty the `go` body but keep its markers. |
+| `languages.go` absent | Preserve the `go` body. |
+| Enabled Hugo or Jekyll | Replace an adopted `pages` body. |
+| Pages false, absent, static, unavailable, or skipped | Preserve the `pages` body. |
+
+The `.gitignore` mode `never` will skip all inspection and writes. Active modes and `--recut` will not grant ownership. An omitted swatch entry will prevent missing-root creation but will not revoke existing marker consent. Default merging can restore an omitted entry, so use `never` for a durable opt-out.
+
+Tailor will create sections in `base`, `go`, `pages` order only for a permitted missing root. It will not insert a missing section into an existing root. See the [approved design and recovery guide](https://github.com/wimpysworld/tailor/blob/main/docs/design/ignore-sections.md).
+
 Config merging differs from ordinary file replacement. Protected `justfile`, `flake.nix`, and `.gitignore` roots, existing wiki pages, and static Pages starter files also have [recut exceptions](Commands#alter).
 
 The [Pages workflow](GitHub-Pages#workflow) and [wiki workflow](GitHub-wiki#workflow) have their own compatibility and mode checks.

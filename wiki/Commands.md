@@ -44,6 +44,14 @@ tailor alter --recut    # Overwrite eligible always and first-fit swatches
 
 For an active mode other than `never`, Tailor creates a missing `.gitignore` atomically without clobbering a destination that appears during the write. It rejects a directory or special file before repository checks, authentication, or writes. `never` skips that inspection and write. Enabled Hugo or Jekyll Pages is a later additive exception that can replace a final symlink and append its output rule. Review the rule order when an existing matching rule precedes a later negation. For `.tailor.yml`, see [default merging](Configuration#default-merging).
 
+The following workflow is for a future release. Tailor will first build one rooted `.gitignore` snapshot and plan before local or remote mutation. One writer will handle ordinary, Go, and Pages rules. `baste` will show marker snippets for an unadopted existing root, without changing it.
+
+Before publication, Tailor will recheck the file identity, type, and bytes. If they changed, Tailor will report a conflict instead of making a new plan. Run `tailor baste` again, review the new plan, then retry `tailor alter`.
+
+Publication will use an exclusive sibling temporary file, file sync, close, rename, and directory sync. Missing-root publication will not replace a destination that appears. These checks are not an atomic filesystem compare-and-swap because another writer can change the destination between the final check and rename. If that race occurs, recover the project-owned file from Git or backup before retrying with one writer.
+
+Future `.gitignore` atomicity will cover one file only. It will not cover remote operations or the complete `alter` run. Final symlinks, linked parents, directories, special files, unreadable files, and files above 1 MiB will stop future reconciliation. See the [future contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/ignore-sections.md).
+
 If a later step fails, completed local and repository changes remain. Tailor does not roll them back. Fix the reported error, then run `tailor baste` before you retry `tailor alter`.
 
 `alter` and `alter --recut` report a completed label after each successful change. Labels are `set`, `created`, `updated`, `removed`, `copied`, and `overwritten`.
