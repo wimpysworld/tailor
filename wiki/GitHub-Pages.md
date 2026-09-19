@@ -93,6 +93,17 @@ Tailor updates the homepage only after successful Pages setup.
 
 For Hugo and Jekyll, Tailor appends the output directory to `.gitignore`, unless its swatch mode is `never`. Existing text stays unchanged, and tracked files stay tracked. Static adds no ignore rule.
 
+This append behaviour is current. The future adopted-section contract will make these changes:
+
+| Pages state | Adopted `pages` section | Unadopted existing root |
+| --- | --- | --- |
+| Enabled Hugo | Replace the body with the escaped `<path>/public/` rule. | Preserve every byte and show a marker snippet. |
+| Enabled Jekyll | Replace the body with the escaped `<path>/_site/` rule. | Preserve every byte and show a marker snippet. |
+| Static, false, or absent | No change. | No change. |
+| Unavailable or skipped | No change. | No change. |
+
+A preview will show exclusions that an adopted Pages update removes. The migration will not remove historical appended rules. A final `.gitignore` symlink will remain unchanged and require manual action. See the [future ignore-section design](https://github.com/wimpysworld/tailor/blob/main/docs/design/ignore-sections.md).
+
 Omitting `pages` or setting `enabled: false` stops Pages management without deleting the site, workflow or environment. Default merging and `--recut` never enable Pages.
 
 ## Static Pages links

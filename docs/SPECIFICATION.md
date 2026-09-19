@@ -475,6 +475,8 @@ Explicit `repository.homepage`, including an empty value, takes precedence. Othe
 
 When enabled, append the escaped, anchored generator output rule to `.gitignore`: `/pages/public/` for Hugo or `/pages/_site/` for Jekyll with the default path. Static adds nothing. This Pages step is an additive exception to ordinary `.gitignore` protection. It can replace a final `.gitignore` symlink without following its target, then append to the new regular file. Preserve existing regular-file text and prior rules, avoid duplicate rule lines, and never untrack files. An explicit `.gitignore` mode of `never` skips the addition without inspection or a write. Add the rule after ordinary swatches so recut cannot remove it. Duplicate detection does not move an existing rule, so a later negation can still override that rule. Tailor does not resolve this pattern-order case.
 
+This paragraph describes shipped behaviour. The [future adopted-section contract](#future-adopted-ignore-sections) will preserve an unadopted root and show a snippet instead of appending.
+
 Insert Pages reconciliation after variables and before the licence, preserving other stage order. Return confirmed partial progress after failures. `baste` previews settings, workflow, environment, ignore and homepage changes without writes. `measure` remains local and excludes the development workflow from health checks. Its config comparison includes the registered Pages path, even when Pages is disabled. Authenticated `docket` already verifies the token with `GET /user`. Pages adds no requests to either inspection command. Disabled Pages never deletes sites, workflows or environments. Private Pages, paid features, self-hosted runners and general environment management remain out of scope.
 
 **Repository Actions variables**: The optional top-level `variables` section is a sequence of `name` and `value` entries. These values are non-secret. Tailor creates missing declared variables and updates changed declared values. It leaves undeclared variables unchanged. Tailor never deletes or renames variables.
@@ -505,9 +507,66 @@ List access failures skip variable management without writes. Individual write a
 - `first-fit`: Tailor copies this file only if it does not already exist; never overwrites
 - `never`: Tailor skips this swatch entirely. Tailor does not write or compare the destination. Use this mode to keep a swatch visible in the config without managing its destination
 
+### Current `.gitignore` behaviour
+
 `.gitignore` is a protected ordinary root. In ordinary swatch processing, an existing regular file or final symlink remains byte-for-byte unchanged under `always`, `first-fit`, and `--recut`. Tailor checks only the destination type. It does not read or hash a regular file, or follow a final symlink. A missing active destination with `always` or `first-fit` uses the managed writer with atomic no-clobber publication. A destination that appears during publication is preserved if it is a regular file or final symlink. A directory or special file is rejected.
 
 Tailor preflights a configured, active `.gitignore` before repository context and authentication, then checks it again during ordinary swatch dispatch. A directory or special file stops the command before those remote checks or any mutation. `never` is an unconditional veto, so Tailor does not inspect or write `.gitignore`. The later Pages ignore step is the separate additive exception described above.
+
+### Future adopted ignore sections
+
+This section specifies a future contract. The current behaviour above remains authoritative until the parser, planner, one-writer integration, and migration tests ship. The [design document](design/ignore-sections.md) records implementation boundaries, rejected alternatives, recovery steps, and the full acceptance matrix.
+
+Reserve `tailor:ignore:` for exact standalone marker pairs named `base`, `go`, and `pages`:
+
+```gitignore
+# tailor:ignore:base:start
+# tailor:ignore:base:end
+# tailor:ignore:go:start
+# tailor:ignore:go:end
+# tailor:ignore:pages:start
+# tailor:ignore:pages:end
+```
+
+No marker means unadopted. Reject partial, duplicate, reversed, nested, inline, unknown, or whitespace-modified reserved markers before any local or remote mutation. A final end marker can omit its newline. Do not use the whole-file managed marker as section consent.
+
+Tailor owns only bytes between one valid pair. Preserve marker bytes and all external bytes, including comments, blank lines, pattern order, duplicates, mixed line endings, and final-newline state. Render each changed body with the start marker's newline. Limit both input and planned output to 1 MiB (1,048,576 bytes). Reject unreadable or oversized input.
+
+Put sections in `base`, `go`, `pages` order only when creating a root. Project rules follow. Keep adopted sections in their existing positions, warn about earlier project rules, and never move or deduplicate patterns. Missing sections in an existing root require manual adoption, including when another section is adopted.
+
+The effective swatch scope is the value after default merging. Default merging can restore an omitted swatch entry, so `never` is the durable opt-out.
+
+| Effective `.gitignore` scope | Missing root | Existing root | Inspection |
+| --- | --- | --- | --- |
+| `always` | Create `base` and explicitly enabled sections. | Reconcile adopted sections only. | Validate the root. |
+| `first-fit` | Create `base` and explicitly enabled sections. | Reconcile adopted sections only. | Validate the root. |
+| Either active mode with `--recut` | Same action as its normal mode. | Same ownership limits as its normal mode. | Validate the root. |
+| Omitted | Do not create. | Reconcile existing adopted sections only. | Inspect only an existing root. |
+| `never` | Do nothing. | Do nothing. | Do not inspect. |
+
+`always`, `first-fit`, and recut do not grant ownership. Omitted scope prevents missing-root creation but does not revoke consent from existing markers. `never` overrides all declarations.
+
+| Section | Declaration | Adopted body | Missing section in existing root |
+| --- | --- | --- | --- |
+| `base` | Active or omitted scope | Replace with fixed embedded base rules. | Preserve the file and suggest the exact pair. |
+| `base` | `never` | Do not inspect or write. | Do not inspect or write. |
+| `go` | `languages.go: true` | Replace the body with only `*.test`. | Preserve the file and suggest the exact pair. |
+| `go` | `languages.go: false` | Empty the body and retain markers. | Preserve the file. |
+| `go` | `languages.go` absent | Preserve the body. | Preserve the file. |
+| `pages` | Enabled Hugo or Jekyll, and Pages available | Replace with the escaped output rule and preview removed exclusions. | Preserve the file and suggest the exact pair. |
+| `pages` | False, absent, static, unavailable, or skipped | Preserve the body. | Preserve the file. |
+
+The initial Go body contains exactly one rule, `*.test`. It contains no executable-name or coverage-profile patterns.
+
+Never infer language selection. A permitted missing root includes `base` and each explicitly enabled optional section. False or absent optional declarations do not create a section.
+
+Later Git rules can override managed rules. A negation cannot re-include a file while an ancestor directory remains excluded, so users must re-include the ancestor first. Historical rules and duplicates outside markers stay unchanged and can keep a path ignored after managed removal.
+
+The future Pages path replaces the current append writer. An unadopted existing root receives an adoption snippet, not an appended rule. Static, false, absent, unavailable, and skipped Pages make no Pages-section change. The migration does not remove historical appended rules.
+
+Build one rooted snapshot and complete plan before any local or remote mutation. One writer must replace ordinary ignore dispatch and Pages appending. Recheck destination identity, type, and bytes before publication, and report drift as a conflict without silent replanning. Preserve final symlinks and request manual action. Reject linked parents, directories, special files, unreadable files, and oversized files.
+
+Use an exclusive sibling temporary file, file sync, close, rename, and directory sync. Missing-root publication must not clobber a destination that appears. Snapshot checks provide compare-and-swap discipline, not an atomic filesystem compare-and-swap. An unrelated writer can change the destination between the final check and rename. Atomicity covers one file, not remote operations or the complete run.
 
 **Default Alteration Modes**:
 
