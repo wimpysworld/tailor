@@ -169,6 +169,7 @@ func TestManagedLintLifecyclePreviewApplyRecutAndNever(t *testing.T) {
 		if _, err := Execute(cfg, dir, Apply, managedProductionClient(t), io.Discard, Options{}); err != nil {
 			t.Fatal(err)
 		}
+		assertManagedBytes(t, filepath.Join(dir, ".golangci.yml"), []byte("custom lint configuration\n"))
 		assertManagedLintAggregate(t, dir, cfg)
 		applied := snapshotManagedTree(t, dir)
 		for _, mode := range []ApplyMode{Apply, Recut} {
