@@ -44,6 +44,8 @@ tailor alter --recut    # Overwrite eligible always and first-fit swatches
 
 For an active mode other than `never`, Tailor creates a missing `.gitignore` atomically without clobbering a destination that appears during the write. It rejects a directory or special file before repository checks, authentication, or writes. `never` skips that inspection and write. Enabled Hugo or Jekyll Pages is a later additive exception that can replace a final symlink and append its output rule. Review the rule order when an existing matching rule precedes a later negation. For `.tailor.yml`, see [default merging](Configuration#default-merging).
 
+Dependabot currently follows the ordinary swatch rules. `always` and `--recut` can overwrite an unmarked `.github/dependabot.yml`. An [approved future contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/dependabot-ownership.md) will preserve unmarked files in all active modes, and `--recut` will not bypass ownership. `never` and an omitted entry will skip all Dependabot inspection. Tailor does not implement this contract yet.
+
 The following workflow is for a future release. Tailor will first build one rooted `.gitignore` snapshot and plan before local or remote mutation. One writer will handle ordinary, Go, and Pages rules. `baste` will show marker snippets for an unadopted existing root, without changing it.
 
 Before publication, Tailor will recheck the file identity, type, and bytes. If they changed, Tailor will report a conflict instead of making a new plan. Run `tailor baste` again, review the new plan, then retry `tailor alter`.
@@ -61,6 +63,8 @@ A default merge, retired-entry cleanup, or security prerequisite normalisation i
 ## `baste`
 
 `baste` previews the changes that `alter` will make. It makes no changes.
+
+Under the future Dependabot ownership contract, `baste` will distinguish creation, complete-file replacement, unchanged owned content, preserved unmarked files, skipped entries, and conflicts. This future preview will remain write-free.
 
 ```bash
 tailor baste

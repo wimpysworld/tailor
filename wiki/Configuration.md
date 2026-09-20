@@ -118,6 +118,10 @@ When Go is true, Tailor creates or updates `just/go.just` and `nix/go.nix`. The 
 
 Newly rendered Dependabot configuration includes `gomod` when Go is true and omits it when Go is false. An absent Go setting keeps the legacy `gomod` entry. GitHub Actions and Nix entries remain.
 
+Dependabot still uses ordinary swatch rules. Normal `first-fit` preserves an existing file. `always` and `--recut` can replace it, so unmarked files do not yet have the future protection.
+
+An [approved future whole-file ownership contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/dependabot-ownership.md) will require an exact first-line marker as manual consent. Explicit `true` or `false` will select the complete canonical file. For an owned file, an absent declaration will retain a recognised canonical Go state and reject an unknown customised body. The first reconciliation of custom marked content will require an explicit Boolean and will discard all custom fields. Keep a custom file unmarked if those fields must remain. The contract defines the exact marker, adoption steps, declaration rules, and conflicts.
+
 Existing first-fit ordinary swatches stay unchanged after you enable Go. `tailor alter --recut` replaces all eligible first-fit ordinary swatches, not only Go files. `never` always preserves an ordinary swatch.
 
 Set Go to false to remove only the owned managed fragments and stop ordinary Go swatch processing. Remove the setting to leave managed fragments untouched. In both cases, Tailor preserves existing ordinary Go swatches, even with `--recut`. Existing builder workflows still run on GitHub.
