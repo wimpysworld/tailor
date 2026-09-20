@@ -359,6 +359,8 @@ False or absent Go selection skips the four destinations without deletion or rep
 
 Go selection also controls Dependabot and the managed Go fragments. Explicit true includes `gomod` in a newly rendered `.github/dependabot.yml`. Explicit false omits `gomod`, and an absent selection preserves the legacy entry. GitHub Actions and Nix entries remain.
 
+A [future Dependabot whole-file ownership contract](design/dependabot-ownership.md) will reconcile an owned file under `first-fit`. It will preserve an unmarked file under `always` and `--recut`. These rules apply only after that contract ships. Current Dependabot behaviour remains unchanged.
+
 The `just/go.just` and `nix/go.nix` fragment lifecycle follows the managed-file rules above. The ordinary Go swatches retain their alteration modes. A language change alone never replaces an existing first-fit ordinary swatch.
 
 #### Go release discovery and preflight
