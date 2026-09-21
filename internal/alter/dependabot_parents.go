@@ -62,6 +62,16 @@ func (creation *dependabotParentCreation) publish(root *os.Root, name string, pe
 		return false, nil
 	}
 	if creation.parent != nil {
+		current, err := root.Lstat(creation.path)
+		if errors.Is(err, fs.ErrNotExist) {
+			return false, dependabotConflict("the tracked destination parent disappeared after creation")
+		}
+		if err != nil {
+			return false, dependabotConflict("the tracked destination parent cannot be inspected after creation")
+		}
+		if err := creation.observe(creation.path, current, true); err != nil {
+			return false, err
+		}
 		return true, nil
 	}
 
