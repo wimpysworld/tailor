@@ -451,34 +451,18 @@ func TestGoSwatchPreflightRejectsSymlinkParent(t *testing.T) {
 	}
 }
 
-func TestGoDependabotVariantsAndFirstFit(t *testing.T) {
-	for _, declaration := range []string{"absent", "false", "true"} {
-		dir := t.TempDir()
-		cfg := goConfig(entry(".github/dependabot.yml", swatch.Always))
-		if declaration == "absent" {
-			cfg.Languages = nil
-		} else {
-			*cfg.Languages.Go = declaration == "true"
-		}
-		if _, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, nil); err != nil {
-			t.Fatal(err)
-		}
-		data, err := os.ReadFile(filepath.Join(dir, ".github/dependabot.yml"))
-		if err != nil || bytes.Contains(data, []byte("gomod")) != (declaration != "false") {
-			t.Fatalf("incorrect Dependabot variant for %s: %v", declaration, err)
-		}
-		results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.DryRun, nil)
-		if err != nil || results[0].Category != alter.NoChange {
-			t.Fatalf("resolved-content comparison = %v, %v", results, err)
-		}
-		cfg.Swatches[0].Alteration = swatch.FirstFit
-		cfg.Languages = &config.LanguageSettings{Go: new(bool)}
-		if _, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, nil); err != nil {
-			t.Fatal(err)
-		}
-		after, err := os.ReadFile(filepath.Join(dir, ".github/dependabot.yml"))
-		if err != nil || !bytes.Equal(data, after) {
-			t.Fatal("language change overwrote first-fit Dependabot")
-		}
+func TestGoPreparationAndOrdinaryDispatchExcludeDependabot(t *testing.T) {
+	dir := t.TempDir()
+	cfg := goConfig(entry(".github/dependabot.yml", swatch.Always))
+
+	results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, alter.Apply, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("ordinary Dependabot results = %v, want none", results)
+	}
+	if _, err := os.Lstat(filepath.Join(dir, ".github/dependabot.yml")); !os.IsNotExist(err) {
+		t.Fatalf("ordinary dispatch wrote Dependabot: %v", err)
 	}
 }

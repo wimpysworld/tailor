@@ -116,11 +116,21 @@ Before Tailor creates or replaces the builder workflow, it checks the lint and r
 
 When Go is true, Tailor creates or updates `just/go.just` and `nix/go.nix`. The Just fragment adds `build`, `test`, and `lint-go`. The Nix fragment adds Go, golangci-lint, and GoReleaser from the existing `pkgs` set.
 
-Newly rendered Dependabot configuration includes `gomod` when Go is true and omits it when Go is false. An absent Go setting keeps the legacy `gomod` entry. GitHub Actions and Nix entries remain.
+Every generated Dependabot file contains GitHub Actions and Nix entries. Go true adds `gomod`; Go false omits it. For a missing file, an absent Go setting selects the Go-enabled variant for legacy compatibility.
 
-Dependabot still uses ordinary swatch rules. Normal `first-fit` preserves an existing file. `always` and `--recut` can replace it, so unmarked files do not yet have the future protection.
+Dependabot uses [whole-file ownership](https://github.com/wimpysworld/tailor/blob/main/docs/design/dependabot-ownership.md). The exact first line is:
 
-An [approved future whole-file ownership contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/dependabot-ownership.md) will require an exact first-line marker as manual consent. Explicit `true` or `false` will select the complete canonical file. For an owned file, an absent declaration will retain a recognised canonical Go state and reject an unknown customised body. The first reconciliation of custom marked content will require an explicit Boolean and will discard all custom fields. Keep a custom file unmarked if those fields must remain. The contract defines the exact marker, adoption steps, declaration rules, and conflicts.
+```text
+# Managed by Tailor: .github/dependabot.yml
+```
+
+The marker must end with LF or CRLF. It gives Tailor consent to replace the complete file. Back up a custom file before adding the marker because reconciliation removes custom schedules, groups, registries, comments, commit-message settings, and other custom fields. Keep the file unmarked if any custom field must remain.
+
+Both `first-fit` and `always` reconcile an owned file, including with `--recut`. All active modes preserve an unmarked regular file byte-for-byte. An omitted entry or `never` skips `.github/dependabot.yml` and `.github/dependabot.yaml` without inspection.
+
+For an owned file, explicit true or false selects the complete current variant. With an absent Go setting, Tailor retains a state from its finite set of current and historical canonical bodies. An unknown or customised owned body needs an explicit Boolean or marker removal. Tailor recognises LF and whole-body CRLF canonical content, but always writes LF output.
+
+Active management reports a conflict for `.github/dependabot.yaml`, unsafe parents or destination types, unreadable input, and input or output above 1 MiB. `tailor baste` previews these results without creating files or directories.
 
 Existing first-fit ordinary swatches stay unchanged after you enable Go. `tailor alter --recut` replaces all eligible first-fit ordinary swatches, not only Go files. `never` always preserves an ordinary swatch.
 

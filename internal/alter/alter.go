@@ -2,6 +2,7 @@
 package alter
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -55,10 +56,19 @@ func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	})
 }
 
+type executionHooks struct {
+	dependabotApply       managedApplyHooks
+	dependabotParentClose func(*dependabotParentCreation) error
+}
+
+func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options, renderer managedRenderer) (Report, error) {
+	return executeWithHooks(cfg, dir, mode, client, stderr, options, renderer, executionHooks{})
+}
+
 // The sequence is deliberately linear because operation order is part of the safety contract.
 //
 //nolint:gocyclo
-func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options, renderer managedRenderer) (Report, error) {
+func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options, renderer managedRenderer, hooks executionHooks) (retReport Report, retErr error) {
 	if stderr == nil {
 		stderr = io.Discard
 	}
@@ -72,12 +82,15 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	var retiredResults []SwatchResult
 	var swatchResults []SwatchResult
 	var managedResults []SwatchResult
+	var dependabotResults []SwatchResult
+	var dependabot dependabotPlan
 	context := ""
 	wikiGuidance := ""
 	partial := func(err error) (Report, error) {
 		allSwatches := append(append([]SwatchResult{}, swatchResults...), retiredResults...)
 		report := buildReport(command, context, repoResults, labelResults, variableResults, allSwatches, mode)
 		appendManagedReporting(&report, cfg, managedResults)
+		appendDependabotReporting(&report, dependabot, dependabotResults)
 		appendGuidance(&report, wikiGuidance)
 		options.stageError(err)
 		return report, err
@@ -88,6 +101,19 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	if err != nil {
 		return partial(err)
 	}
+	dependabot, err = prepareDependabotExecution(cfg, dir)
+	if err != nil {
+		if conflict, ok := dependabotConflictResult(err); ok {
+			dependabotResults = append(dependabotResults, conflict)
+			swatchResults = append(swatchResults, conflict)
+		}
+		return partial(err)
+	}
+	dependabotParent := newDependabotParentCreation(dependabot)
+	defer func() {
+		retErr = errors.Join(retErr, closeDependabotParent(dependabotParent, hooks.dependabotParentClose))
+	}()
+	observeDependabotParent := dependabotParent.observer()
 	if err := preflightIgnoreRoot(cfg, dir); err != nil {
 		return partial(err)
 	}
@@ -108,6 +134,7 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 		return partial(err)
 	}
 	managedExclusions := managedExcludedPaths()
+	managedExclusions[dependabotPath] = struct{}{}
 	repo, hasRepo, err := gh.RepoContextAt(dir)
 	if err != nil {
 		return partial(err)
@@ -186,7 +213,7 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	}
 	options.stage("variables", stageLabel(mode, "Variables read", "Variables applied"), "complete")
 	options.stage("pages", stageLabel(mode, "Planning Pages changes", "Applying Pages changes"), "start")
-	pagesResults, pagesWorkflow, err := processPages(cfg, dir, mode, target, pages)
+	pagesResults, pagesWorkflow, err := processPagesWithParentObserver(cfg, dir, mode, target, pages, observeDependabotParent)
 	repoResults = append(repoResults, pagesResults...)
 	if pagesWorkflow != nil {
 		retiredResults = append(retiredResults, *pagesWorkflow)
@@ -196,7 +223,7 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	}
 	options.stage("pages", stageLabel(mode, "Pages changes planned", "Pages changes applied"), "complete")
 	options.stage("wiki", stageLabel(mode, "Planning wiki changes", "Applying wiki changes"), "start")
-	wikiResults, wikiSwatches, err := processWiki(cfg, dir, mode, wiki)
+	wikiResults, wikiSwatches, err := processWikiWithParentObserver(cfg, dir, mode, wiki, observeDependabotParent)
 	repoResults = append(repoResults, wikiResults...)
 	retiredResults = append(retiredResults, wikiSwatches...)
 	if err != nil {
@@ -213,6 +240,27 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	}
 	options.stage("licence", stageLabel(mode, "Licence planned", "Licence written"), "complete")
 	options.stage("swatches", stageLabel(mode, "Planning swatches", "Writing swatches"), "start")
+	if mode.ShouldWrite() {
+		published, applyErr := applyDependabotPlanWithParentAndHooks(dir, dependabot, dependabotParent.confirmedParent(), hooks.dependabotApply)
+		if applyErr == nil || published {
+			result := dependabotResult(dependabot)
+			dependabotResults = append(dependabotResults, result)
+			swatchResults = append(swatchResults, result)
+		}
+		if applyErr != nil {
+			if !published {
+				if conflict, ok := dependabotConflictResult(applyErr); ok {
+					dependabotResults = append(dependabotResults, conflict)
+					swatchResults = append(swatchResults, conflict)
+				}
+			}
+			return partial(applyErr)
+		}
+	} else {
+		result := dependabotResult(dependabot)
+		dependabotResults = append(dependabotResults, result)
+		swatchResults = append(swatchResults, result)
+	}
 	var managedErr error
 	if mode.ShouldWrite() {
 		confirmed, applyErr := applyManagedFiles(dir, managed.plan)
@@ -253,6 +301,7 @@ func execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTCli
 	swatchResults = append(swatchResults, retiredResults...)
 	report := buildReport(command, context, repoResults, labelResults, variableResults, swatchResults, mode)
 	appendManagedReporting(&report, cfg, managedResults)
+	appendDependabotReporting(&report, dependabot, dependabotResults)
 	if wiki != nil {
 		appendGuidance(&report, wiki.nextSteps)
 	}
