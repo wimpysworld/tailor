@@ -637,6 +637,7 @@ swatches:
 				"would copy:                          just/loader.just\n" +
 				"would copy:                          just/tailor.just\n" +
 				"would copy:                          nix/loader.nix\n" +
+				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 		{
@@ -649,6 +650,7 @@ swatches:
 				"copied:                              just/loader.just\n" +
 				"copied:                              just/tailor.just\n" +
 				"copied:                              nix/loader.nix\n" +
+				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 		{
@@ -661,6 +663,7 @@ swatches:
 				"copied:                              just/loader.just\n" +
 				"copied:                              just/tailor.just\n" +
 				"copied:                              nix/loader.nix\n" +
+				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 	}
@@ -2837,6 +2840,7 @@ swatches:
 				"would copy:                          just/loader.just\n" +
 				"would copy:                          just/tailor.just\n" +
 				"would copy:                          nix/loader.nix\n" +
+				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 		{
@@ -2849,6 +2853,7 @@ swatches:
 				"copied:                              just/loader.just\n" +
 				"copied:                              just/tailor.just\n" +
 				"copied:                              nix/loader.nix\n" +
+				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 		{
@@ -2861,6 +2866,7 @@ swatches:
 				"copied:                              just/loader.just\n" +
 				"copied:                              just/tailor.just\n" +
 				"copied:                              nix/loader.nix\n" +
+				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
 		},
 	}
@@ -3024,6 +3030,7 @@ swatches:
 		"copied:                              just/loader.just\n" +
 		"copied:                              just/tailor.just\n" +
 		"copied:                              nix/loader.nix\n" +
+		"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n"
 	if first != wantFirst {
 		t.Errorf("first alter.Run() output =\n%s\nwant:\n%s", first, wantFirst)
@@ -3032,7 +3039,8 @@ swatches:
 	second := captureAlterRun(t, cfg, tc.Dir, alter.Apply, tc.Client)
 	wantSecond := "no change:                           just/loader.just\n" +
 		"no change:                           just/tailor.just\n" +
-		"no change:                           nix/loader.nix\n"
+		"no change:                           nix/loader.nix\n" +
+		"skipped:                             .github/dependabot.yml (not configured or mode never)\n"
 	if second != wantSecond {
 		t.Errorf("retry alter.Run() output = %q, want %q", second, wantSecond)
 	}

@@ -92,6 +92,10 @@ func pagesErrorResults(err error) ([]RepoSettingResult, error) {
 }
 
 func processPages(cfg *config.Config, dir string, mode ApplyMode, target RepoTarget, p *pagesRun) ([]RepoSettingResult, *SwatchResult, error) {
+	return processPagesWithParentObserver(cfg, dir, mode, target, p, nil)
+}
+
+func processPagesWithParentObserver(cfg *config.Config, dir string, mode ApplyMode, target RepoTarget, p *pagesRun, observer *parentCreationObserver) ([]RepoSettingResult, *SwatchResult, error) {
 	if p == nil {
 		return nil, nil, nil
 	}
@@ -145,7 +149,7 @@ func processPages(cfg *config.Config, dir string, mode ApplyMode, target RepoTar
 		}
 		workflow = p.prepared.Result
 		if workflow.Category == WouldCopy || workflow.Category == WouldOverwrite {
-			workflow, err = writeSwatch(root, p.prepared.Entry, p.prepared.Content, workflow.Category, true)
+			workflow, err = writeSwatchWithParentObserver(root, p.prepared.Entry, p.prepared.Content, workflow.Category, true, observer)
 			if err != nil {
 				return results, nil, err
 			}

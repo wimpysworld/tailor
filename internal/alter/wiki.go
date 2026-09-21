@@ -408,6 +408,10 @@ func wikiWorkflow(root *os.Root, p *wikiRun, mode ApplyMode) (*SwatchResult, err
 }
 
 func processWiki(cfg *config.Config, dir string, mode ApplyMode, p *wikiRun) ([]RepoSettingResult, []SwatchResult, error) {
+	return processWikiWithParentObserver(cfg, dir, mode, p, nil)
+}
+
+func processWikiWithParentObserver(cfg *config.Config, dir string, mode ApplyMode, p *wikiRun, observer *parentCreationObserver) ([]RepoSettingResult, []SwatchResult, error) {
 	if p == nil || len(p.skipped) != 0 {
 		if p != nil {
 			return p.skipped, nil, nil
@@ -457,7 +461,7 @@ func processWiki(cfg *config.Config, dir string, mode ApplyMode, p *wikiRun) ([]
 		if mode.ShouldWrite() {
 			switch workflow.Category {
 			case WouldCopy, WouldOverwrite:
-				if err := writeFile(root, swatch.WikiDestination, p.content); err != nil {
+				if err := writeFileWithParentObserver(root, swatch.WikiDestination, p.content, observer); err != nil {
 					return nil, results, err
 				}
 			case WouldRemove:

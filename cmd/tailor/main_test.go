@@ -351,6 +351,7 @@ func TestRunBaste(t *testing.T) {
 		"would copy:                          just/tailor.just\n" +
 		"would copy:                          nix/loader.nix\n" +
 		"skipped:                             .envrc (first-fit, exists)\n" +
+		"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 		"skipped:                             .github/pull_request_template.md (mode never)\n" +
 		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n"
 	if stdout.String() != want {
@@ -377,6 +378,7 @@ func TestRunAlter(t *testing.T) {
 		"copied:                              just/tailor.just\n" +
 		"copied:                              nix/loader.nix\n" +
 		"skipped:                             .envrc (first-fit, exists)\n" +
+		"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 		"skipped:                             .github/pull_request_template.md (mode never)\n" +
 		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n"
 	if stdout.String() != want {
@@ -401,6 +403,7 @@ func TestRunAlterRecut(t *testing.T) {
 		"copied:                              just/tailor.just\n" +
 		"copied:                              nix/loader.nix\n" +
 		"overwritten:                         .envrc\n" +
+		"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 		"skipped:                             .github/pull_request_template.md (mode never)\n" +
 		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n"
 	if stdout.String() != want {

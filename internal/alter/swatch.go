@@ -88,6 +88,9 @@ func processSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 		if _, skip := excluded[entry.Path]; skip {
 			continue
 		}
+		if entry.Path == dependabotPath {
+			continue
+		}
 		if entry.Path == configPath || entry.Path == swatch.PagesDestination || swatch.IsWiki(entry.Path) || swatch.IsPagesStarter(entry.Path) {
 			continue
 		}
@@ -199,8 +202,12 @@ func processIgnoreRoot(root *os.Root, entry config.SwatchEntry, content []byte, 
 // writeSwatch writes content to the entry path when write is true and
 // returns the result with the given category.
 func writeSwatch(root *os.Root, entry config.SwatchEntry, content []byte, category SwatchCategory, write bool) (SwatchResult, error) {
+	return writeSwatchWithParentObserver(root, entry, content, category, write, nil)
+}
+
+func writeSwatchWithParentObserver(root *os.Root, entry config.SwatchEntry, content []byte, category SwatchCategory, write bool, observer *parentCreationObserver) (SwatchResult, error) {
 	if write {
-		if err := writeFile(root, entry.Path, content); err != nil {
+		if err := writeFileWithParentObserver(root, entry.Path, content, observer); err != nil {
 			return SwatchResult{}, err
 		}
 	}
@@ -321,7 +328,11 @@ func processAlways(root *os.Root, entry config.SwatchEntry, content []byte, mode
 
 // writeFile creates parent directories and writes data to a root-relative path.
 func writeFile(root *os.Root, path string, data []byte) error {
-	if err := root.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	return writeFileWithParentObserver(root, path, data, nil)
+}
+
+func writeFileWithParentObserver(root *os.Root, path string, data []byte, observer *parentCreationObserver) error {
+	if err := rootedMkdirAll(root, filepath.Dir(path), 0o755, observer); err != nil {
 		return fmt.Errorf("creating directories for %q: %w", path, err)
 	}
 	if err := root.WriteFile(path, data, 0o644); err != nil {

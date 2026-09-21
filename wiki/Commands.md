@@ -31,7 +31,7 @@ Review `.tailor.yml` and run `tailor baste` before `tailor alter`. The defaults 
 
 ## `alter`
 
-Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, the licence, managed development files, ordinary swatches, then Pages files.
+Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, and the licence. The swatch stage then publishes Dependabot, managed development files, and ordinary swatches. Pages files follow.
 
 Wiki setup has one earlier write: after local safety checks, Tailor enables a declared wiki before its readiness check. If readiness fails, no other changes follow. See [GitHub wiki](GitHub-wiki) for setup steps.
 
@@ -44,7 +44,17 @@ tailor alter --recut    # Overwrite eligible always and first-fit swatches
 
 For an active mode other than `never`, Tailor creates a missing `.gitignore` atomically without clobbering a destination that appears during the write. It rejects a directory or special file before repository checks, authentication, or writes. `never` skips that inspection and write. Enabled Hugo or Jekyll Pages is a later additive exception that can replace a final symlink and append its output rule. Review the rule order when an existing matching rule precedes a later negation. For `.tailor.yml`, see [default merging](Configuration#default-merging).
 
-Dependabot currently follows the ordinary swatch rules. `always` and `--recut` can overwrite an unmarked `.github/dependabot.yml`. An [approved future contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/dependabot-ownership.md) will preserve unmarked files in all active modes, and `--recut` will not bypass ownership. `never` and an omitted entry will skip all Dependabot inspection. Tailor does not implement this contract yet.
+Dependabot uses [whole-file ownership](https://github.com/wimpysworld/tailor/blob/main/docs/design/dependabot-ownership.md). The exact first-line marker is `# Managed by Tailor: .github/dependabot.yml`. Back up a custom file before adding it because the next reconciliation can remove every custom field.
+
+`first-fit` and `always` reconcile owned content, with or without `--recut`. They preserve an unmarked regular file byte-for-byte. An omitted entry or `never` skips both `.yml` and `.yaml` names without inspection.
+
+Active Dependabot preflight runs before repository context, authentication, wiki enablement, or other writes. It rejects alternate `.yaml` entries, unsafe paths, unreadable input, and input or output above 1 MiB. Publication waits until the swatch stage after the licence stage.
+
+Before publication, Tailor rechecks both names, the parent identity, the destination identity and type, the marker, and exact bytes. Creation never replaces a destination that appears after preflight. Replacement uses file sync, close, atomic rename, and directory sync.
+
+When Pages or wiki creates a missing `.github` parent in the same run, Dependabot accepts only the captured private directory identity. Linux and macOS support protected no-replace parent publication. On other platforms, a missing parent returns `errors.ErrUnsupported`; runtime acceptance is not claimed there.
+
+The final check-to-rename race remains, and the complete `alter` run is not a transaction. If publication succeeds before a later sync, cleanup, close, or stage error, Tailor reports the confirmed change and returns the error.
 
 The following workflow is for a future release. Tailor will first build one rooted `.gitignore` snapshot and plan before local or remote mutation. One writer will handle ordinary, Go, and Pages rules. `baste` will show marker snippets for an unadopted existing root, without changing it.
 
@@ -64,7 +74,7 @@ A default merge, retired-entry cleanup, or security prerequisite normalisation i
 
 `baste` previews the changes that `alter` will make. It makes no changes.
 
-Under the future Dependabot ownership contract, `baste` will distinguish creation, complete-file replacement, unchanged owned content, preserved unmarked files, skipped entries, and conflicts. This future preview will remain write-free.
+For Dependabot, `baste` distinguishes creation, complete-file replacement, unchanged owned content, preserved unmarked content, skipped management, and conflicts. It creates no file, directory, temporary file, or ownership record.
 
 ```bash
 tailor baste
