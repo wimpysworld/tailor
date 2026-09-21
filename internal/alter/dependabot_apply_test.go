@@ -100,11 +100,7 @@ func TestPrepareDependabotExecutionChecksOpenedIdentityBeforeReading(t *testing.
 	read := false
 	_, err := prepareDependabotExecutionWithHooks(dependabotTestConfig(swatch.Always, true, true), dir, dependabotInspectionHooks{
 		beforeDestinationOpen: func(string) error {
-			full := filepath.Join(dir, filepath.FromSlash(dependabotPath))
-			if err := os.Remove(full); err != nil {
-				t.Fatal(err)
-			}
-			writeDependabotTestFile(t, dir, dependabotPath, []byte("replacement\n"))
+			replaceDependabotTestFile(t, dir, dependabotPath, []byte("replacement\n"))
 			return nil
 		},
 		readDestination: func(string, io.Reader, int64) ([]byte, error) {
@@ -337,10 +333,7 @@ func TestApplyDependabotPlanRejectsExactSnapshotDrift(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := os.Remove(full); err != nil {
-				t.Fatal(err)
-			}
-			writeDependabotTestFile(t, dir, dependabotPath, content)
+			replaceDependabotTestFile(t, dir, dependabotPath, content)
 		}},
 		{name: "present destination disappears", setup: func(t *testing.T, dir string) {
 			writeDependabotTestFile(t, dir, dependabotPath, ownedDependabot("\n", bodies.Enabled))
@@ -727,6 +720,26 @@ func writeDependabotTestFile(t *testing.T, dir, name string, content []byte) {
 	// #nosec G703 -- Test paths are controlled and stay in the temporary fixture.
 	if err := os.WriteFile(full, content, 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func replaceDependabotTestFile(t *testing.T, dir, name string, content []byte) {
+	t.Helper()
+	full := filepath.Join(dir, filepath.FromSlash(name))
+	original, err := os.Lstat(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(full, full+".retained"); err != nil {
+		t.Fatal(err)
+	}
+	writeDependabotTestFile(t, dir, name, content)
+	replacement, err := os.Lstat(full)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if os.SameFile(original, replacement) {
+		t.Fatal("replacement reused the original file identity")
 	}
 }
 
