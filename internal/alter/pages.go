@@ -12,6 +12,7 @@ import (
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/model"
+	"golang.org/x/net/publicsuffix"
 	"gopkg.in/yaml.v3"
 )
 
@@ -324,7 +325,12 @@ func pagesPendingGuidance(target RepoTarget, cfg *config.Config, site *gh.PagesS
 	case strings.Contains(reason, "verif") || strings.Contains(reason, "ownership"):
 		fmt.Fprintf(target.stderr(), "pages: verify %s with the TXT record shown in account Pages settings (https://github.com/settings/pages) or organisation Pages settings (https://github.com/organizations/%s/settings/pages), then rerun tailor alter\n", domain, target.Owner)
 	case strings.Contains(reason, "resolve") || strings.Contains(reason, "dns"):
-		fmt.Fprintf(target.stderr(), "pages: for a subdomain, point %s by CNAME to %s.github.io. For an apex domain, use https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site\n", domain, target.Owner)
+		registrable, err := publicsuffix.EffectiveTLDPlusOne(domain)
+		if err != nil || strings.EqualFold(domain, registrable) {
+			fmt.Fprintln(target.stderr(), "pages: configure the apex domain with https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site")
+		} else {
+			fmt.Fprintf(target.stderr(), "pages: point %s by CNAME to %s.github.io\n", domain, target.Owner)
+		}
 	default:
 		fmt.Fprintln(target.stderr(), "pages: wait for the HTTPS certificate, then rerun tailor alter")
 	}

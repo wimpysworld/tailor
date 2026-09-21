@@ -353,3 +353,32 @@ func TestPagesActionRestrictions(t *testing.T) {
 		})
 	}
 }
+
+func TestPagesPendingGuidance(t *testing.T) {
+	const apexGuide = "https://docs.github.com/en/pages/configuring-a-custom-domain-for-your-github-pages-site/managing-a-custom-domain-for-your-github-pages-site"
+	for _, tt := range []struct {
+		name, domain, reason, want, reject string
+	}{
+		{name: "subdomain", domain: "docs.example.com", reason: "domain does not resolve", want: "pages: point docs.example.com by CNAME to owner.github.io\n", reject: apexGuide},
+		{name: "apex", domain: "example.com", reason: "domain does not resolve", want: "pages: configure the apex domain with " + apexGuide + "\n", reject: "CNAME"},
+		{name: "public suffix apex", domain: "example.co.uk", reason: "DNS pending", want: "pages: configure the apex domain with " + apexGuide + "\n", reject: "CNAME"},
+		{name: "public suffix subdomain", domain: "docs.example.co.uk", reason: "DNS pending", want: "pages: point docs.example.co.uk by CNAME to owner.github.io\n", reject: apexGuide},
+		{name: "ownership", domain: "docs.example.com", reason: "domain ownership verification pending", want: "pages: verify docs.example.com with the TXT record shown in account Pages settings (https://github.com/settings/pages) or organisation Pages settings (https://github.com/organizations/owner/settings/pages), then rerun tailor alter\n"},
+		{name: "certificate", domain: "docs.example.com", reason: "https certificate pending", want: "pages: wait for the HTTPS certificate, then rerun tailor alter\n"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var stderr bytes.Buffer
+			pagesPendingGuidance(
+				RepoTarget{Owner: "owner", Stderr: &stderr},
+				&config.Config{Pages: &model.PagesSettings{}},
+				&gh.PagesState{CNAME: tt.domain},
+				&gh.ErrPagesPending{Reason: tt.reason},
+			)
+			if got := stderr.String(); got != tt.want {
+				t.Fatalf("guidance = %q, want %q", got, tt.want)
+			} else if tt.reject != "" && strings.Contains(got, tt.reject) {
+				t.Fatalf("guidance %q contains unrelated step %q", got, tt.reject)
+			}
+		})
+	}
+}
