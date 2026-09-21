@@ -2,7 +2,9 @@ package alter
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -34,12 +36,6 @@ func TestDependabotSelectionFromConfig(t *testing.T) {
 
 func TestDependabotBodiesUseRenderedTemplatesAndFixedFixtures(t *testing.T) {
 	bodies := mustDependabotBodies(t)
-	if !bytes.Equal(bodies.Enabled, dependabotEnabledV1) {
-		t.Fatal("enabled compatibility fixture differs from the current rendered template")
-	}
-	if !bytes.Equal(bodies.Disabled, dependabotDisabledV1) {
-		t.Fatal("disabled compatibility fixture differs from the current rendered template")
-	}
 	for name, body := range map[string][]byte{"enabled": bodies.Enabled, "disabled": bodies.Disabled} {
 		if bytes.HasPrefix(body, []byte(managedMarker(dependabotPath))) {
 			t.Errorf("%s body contains the ownership marker", name)
@@ -55,6 +51,28 @@ func TestDependabotBodiesUseRenderedTemplatesAndFixedFixtures(t *testing.T) {
 	}
 	if bytes.Contains(bodies.Disabled, []byte("package-ecosystem: gomod")) {
 		t.Fatal("disabled body contains gomod")
+	}
+
+	for _, fixture := range []struct {
+		name      string
+		content   []byte
+		goEnabled bool
+		sha256    string
+	}{
+		{name: "enabled-v1", content: dependabotEnabledV1, goEnabled: true, sha256: "81a3c94f29746d23a2f3b90e14c736867a5bf7297e75404cc232c34b7791f1c8"},
+		{name: "disabled-v1", content: dependabotDisabledV1, sha256: "a24f58557bb8892a9d3cb3c2139092f01bc35a81cd1328c9aac5e5ffb1ef6182"},
+	} {
+		t.Run(fixture.name, func(t *testing.T) {
+			if got := fmt.Sprintf("%x", sha256.Sum256(fixture.content)); got != fixture.sha256 {
+				t.Fatalf("fixture SHA-256 = %s, want %s", got, fixture.sha256)
+			}
+			for _, compatibility := range bodies.Compatibility {
+				if bytes.Equal(compatibility.Content, fixture.content) && compatibility.GoEnabled == fixture.goEnabled {
+					return
+				}
+			}
+			t.Fatal("fixture is absent from compatibility bodies")
+		})
 	}
 }
 
@@ -184,35 +202,55 @@ func TestPlanDependabotOwnershipMarker(t *testing.T) {
 }
 
 func TestPlanDependabotRecognisesMarkerAndBodyNewlinesIndependently(t *testing.T) {
-	bodies := mustDependabotBodies(t)
-	fixtures := append([]dependabotCanonicalBody{
-		{Content: bodies.Enabled, GoEnabled: true},
-		{Content: bodies.Disabled, GoEnabled: false},
-	}, bodies.Compatibility...)
-	for fixtureIndex, fixture := range fixtures {
-		state := map[bool]string{true: "enabled", false: "disabled"}[fixture.GoEnabled]
-		state += "/fixture=" + string(rune('0'+fixtureIndex))
+	rendered := mustDependabotBodies(t)
+	compatibilityBodies := rendered
+	compatibilityBodies.Enabled = append(bytes.Clone(rendered.Enabled), []byte("# simulated current template\n")...)
+	compatibilityBodies.Disabled = append(bytes.Clone(rendered.Disabled), []byte("# simulated current template\n")...)
+
+	type fixture struct {
+		name          string
+		content       []byte
+		goEnabled     bool
+		bodies        dependabotBodies
+		compatibility bool
+	}
+	fixtures := []fixture{
+		{name: "current/enabled", content: rendered.Enabled, goEnabled: true, bodies: rendered},
+		{name: "current/disabled", content: rendered.Disabled, bodies: rendered},
+	}
+	for index, compatibility := range rendered.Compatibility {
+		state := map[bool]string{true: "enabled", false: "disabled"}[compatibility.GoEnabled]
+		fixtures = append(fixtures, fixture{
+			name:          fmt.Sprintf("compatibility-%d/%s", index, state),
+			content:       compatibility.Content,
+			goEnabled:     compatibility.GoEnabled,
+			bodies:        compatibilityBodies,
+			compatibility: true,
+		})
+	}
+
+	for _, fixture := range fixtures {
 		for _, markerNewline := range []string{"\n", "\r\n"} {
 			for _, bodyCRLF := range []bool{false, true} {
-				name := state + "/marker=" + map[string]string{"\n": "LF", "\r\n": "CRLF"}[markerNewline] + "/body=" + map[bool]string{false: "LF", true: "CRLF"}[bodyCRLF]
+				name := fixture.name + "/marker=" + map[string]string{"\n": "LF", "\r\n": "CRLF"}[markerNewline] + "/body=" + map[bool]string{false: "LF", true: "CRLF"}[bodyCRLF]
 				t.Run(name, func(t *testing.T) {
-					body := fixture.Content
+					body := fixture.content
 					if bodyCRLF {
 						body = dependabotCRLF(body)
 					}
 					plan, err := planDependabot(
 						dependabotSelection{Present: true, Mode: swatch.FirstFit},
 						regularDependabotSnapshot(ownedDependabot(markerNewline, body)),
-						bodies,
+						fixture.bodies,
 					)
 					if err != nil {
 						t.Fatal(err)
 					}
-					if !plan.GoKnown || plan.GoEnabled != fixture.GoEnabled {
+					if !plan.GoKnown || plan.GoEnabled != fixture.goEnabled {
 						t.Fatalf("selected Go = %v, known = %v", plan.GoEnabled, plan.GoKnown)
 					}
 					want := dependabotOutcomeReplace
-					if markerNewline == "\n" && !bodyCRLF {
+					if !fixture.compatibility && markerNewline == "\n" && !bodyCRLF {
 						want = dependabotOutcomeUnchanged
 					}
 					if plan.Outcome != want {
@@ -224,9 +262,9 @@ func TestPlanDependabotRecognisesMarkerAndBodyNewlinesIndependently(t *testing.T
 					repeat, err := planDependabot(
 						dependabotSelection{Present: true, Mode: swatch.FirstFit},
 						regularDependabotSnapshot(plan.Output),
-						bodies,
+						fixture.bodies,
 					)
-					if err != nil || repeat.Outcome != dependabotOutcomeUnchanged || repeat.GoEnabled != fixture.GoEnabled {
+					if err != nil || repeat.Outcome != dependabotOutcomeUnchanged || repeat.GoEnabled != fixture.goEnabled {
 						t.Fatalf("repeat plan = %#v, %v", repeat, err)
 					}
 				})
