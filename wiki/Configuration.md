@@ -126,7 +126,7 @@ Dependabot uses [whole-file ownership](https://github.com/wimpysworld/tailor/blo
 
 The marker must end with LF or CRLF. It gives Tailor consent to replace the complete file. Back up a custom file before adding the marker because reconciliation removes custom schedules, groups, registries, comments, commit-message settings, and other custom fields. Keep the file unmarked if any custom field must remain.
 
-Both `first-fit` and `always` reconcile an owned file, including with `--recut`. All active modes preserve an unmarked regular file byte-for-byte. An omitted entry or `never` skips `.github/dependabot.yml` and `.github/dependabot.yaml` without inspection.
+Both `first-fit` and `always` reconcile an owned file, including with `--recut`. All active modes preserve an unmarked regular file byte-for-byte. A Dependabot entry that is absent from the effective config, or set to `never`, skips `.github/dependabot.yml` and `.github/dependabot.yaml` without inspection. Default merging can restore an omitted Dependabot entry as `first-fit` when the `.tailor.yml` entry uses `always`, or uses `first-fit` with `--recut`. Set the Dependabot entry to `never` for a durable opt-out.
 
 For an owned file, explicit true or false selects the complete current variant. With an absent Go setting, Tailor retains a state from its finite set of current and historical canonical bodies. An unknown or customised owned body needs an explicit Boolean or marker removal. Tailor recognises LF and whole-body CRLF canonical content, but always writes LF output.
 
