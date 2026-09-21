@@ -313,9 +313,10 @@ func TestTailorCustomDependabotFileIsPreservedInEveryActiveMode(t *testing.T) {
 func TestApplyDependabotPlanRejectsExactSnapshotDrift(t *testing.T) {
 	bodies := mustDependabotBodies(t)
 	for _, tt := range []struct {
-		name   string
-		setup  func(*testing.T, string)
-		mutate func(*testing.T, string)
+		name       string
+		setup      func(*testing.T, string)
+		mutate     func(*testing.T, string)
+		wantReason string
 	}{
 		{name: "bytes", setup: func(t *testing.T, dir string) {
 			writeDependabotTestFile(t, dir, dependabotPath, ownedDependabot("\n", bodies.Enabled))
@@ -352,10 +353,20 @@ func TestApplyDependabotPlanRejectsExactSnapshotDrift(t *testing.T) {
 				t.Fatal(err)
 			}
 		}},
-		{name: "alternate", setup: func(*testing.T, string) {}, mutate: func(t *testing.T, dir string) {
+		{name: "alternate", setup: func(t *testing.T, dir string) {
+			if err := os.Mkdir(filepath.Join(dir, ".github"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}, mutate: func(t *testing.T, dir string) {
 			writeDependabotTestFile(t, dir, dependabotAlternatePath, []byte("race"))
-		}},
-		{name: "missing destination appears", setup: func(*testing.T, string) {}, mutate: func(t *testing.T, dir string) { writeDependabotTestFile(t, dir, dependabotPath, []byte("user")) }},
+		}, wantReason: "the alternate .github/dependabot.yaml entry changed after inspection"},
+		{name: "missing destination appears", setup: func(t *testing.T, dir string) {
+			if err := os.Mkdir(filepath.Join(dir, ".github"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+		}, mutate: func(t *testing.T, dir string) {
+			writeDependabotTestFile(t, dir, dependabotPath, []byte("user"))
+		}, wantReason: "the Dependabot destination type changed after inspection"},
 		{name: "parent identity", setup: func(t *testing.T, dir string) {
 			if err := os.Mkdir(filepath.Join(dir, ".github"), 0o755); err != nil {
 				t.Fatal(err)
@@ -389,6 +400,12 @@ func TestApplyDependabotPlanRejectsExactSnapshotDrift(t *testing.T) {
 				t.Fatal("drift was published")
 			}
 			assertDependabotConflict(t, err)
+			if tt.wantReason != "" {
+				var conflict *dependabotConflictError
+				if !errors.As(err, &conflict) || conflict.Reason != tt.wantReason {
+					t.Fatalf("conflict reason = %q, want %q", conflict.Reason, tt.wantReason)
+				}
+			}
 			assertNoDependabotTemps(t, dir)
 		})
 	}
