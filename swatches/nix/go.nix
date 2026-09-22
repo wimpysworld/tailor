@@ -4,5 +4,6 @@ with pkgs;
 [
   go
   golangci-lint
+  govulncheck
   goreleaser
 ]

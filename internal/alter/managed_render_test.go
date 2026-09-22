@@ -255,9 +255,9 @@ func TestManagedNixFragmentsReturnPackageLists(t *testing.T) {
 		wantValues []string
 	}{
 		{name: "core", wantValues: []string{}},
-		{name: "go", goOn: true, wantValues: []string{"go", "golangci-lint", "goreleaser"}},
+		{name: "go", goOn: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser"}},
 		{name: "pages", pages: &model.PagesSettings{Enabled: new(true)}, wantValues: []string{"miniserve"}},
-		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, wantValues: []string{"go", "golangci-lint", "goreleaser", "miniserve"}},
+		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "miniserve"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			rendered := renderSelectedManagedFiles(t, managedRenderConfig(tt.goOn, tt.pages))
@@ -268,7 +268,7 @@ func TestManagedNixFragmentsReturnPackageLists(t *testing.T) {
 				}
 			}
 			loader := filepath.Join(dir, "nix", "loader.nix")
-			expression := `let pkgs = { go = "go"; golangci-lint = "golangci-lint"; goreleaser = "goreleaser"; miniserve = "miniserve"; }; in import ` + strconv.Quote(loader) + ` { inherit pkgs; }`
+			expression := `let pkgs = { go = "go"; golangci-lint = "golangci-lint"; govulncheck = "govulncheck"; goreleaser = "goreleaser"; miniserve = "miniserve"; }; in import ` + strconv.Quote(loader) + ` { inherit pkgs; }`
 			output, err := exec.CommandContext(t.Context(), nix, "eval", "--impure", "--json", "--expr", expression).CombinedOutput()
 			if err != nil {
 				t.Fatalf("nix eval: %v\n%s", err, output)

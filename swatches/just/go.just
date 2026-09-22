@@ -7,6 +7,7 @@ build:
 # Run Go linters
 lint-go:
     @golangci-lint run
+    @govulncheck ./...
 
 # Run Go tests
 test:

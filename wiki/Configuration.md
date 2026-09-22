@@ -50,7 +50,7 @@ Owned files start with `# Managed by Tailor: <registered path>`. Tailor stops on
 
 The generated root requires Just 1.23.0 or later. Tailor tests generated files with Just 1.23.0 and 1.58.0. Recipe names are unique: core owns `alter`, `measure`, `release`, `lint-actions`, and `lint`; Go owns `build`, `test`, and `lint-go`; Pages owns `pages`.
 
-`lint-actions` runs only `actionlint`. `lint-go` runs only `golangci-lint run`. The `lint` aggregate runs `lint-actions` first, then each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. False and absent declarations are excluded. A fragment retained by an absent declaration keeps its standalone recipe, but the aggregate excludes it.
+`lint-actions` runs only `actionlint`. `lint-go` runs `golangci-lint run` and then `govulncheck ./...`. The `lint` aggregate runs `lint-actions` first, then each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. False and absent declarations are excluded. A fragment retained by an absent declaration keeps its standalone recipe, but the aggregate excludes it. `govulncheck` can access the network to download missing modules and retrieve current Go vulnerability data.
 
 A `never` mode for `justfile` or an ordinary linter config does not disable a selected managed recipe. For example, `languages.go: true` keeps `lint-go` in the aggregate when `.golangci.yml` is `never`. A missing selected tool causes the recipe to fail. Use distinct wrapper names for custom checks because user recipes cannot override managed names.
 
@@ -114,7 +114,7 @@ Before Tailor creates or replaces the release configuration, `Dockerfile` must b
 
 Before Tailor creates or replaces the builder workflow, it checks the lint and release configurations. Both must already be regular files, or Tailor must plan to create them. Tailor does not check the contents of customised configurations.
 
-When Go is true, Tailor creates or updates `just/go.just` and `nix/go.nix`. The Just fragment adds `build`, `test`, and `lint-go`. The Nix fragment adds Go, golangci-lint, and GoReleaser from the existing `pkgs` set.
+When Go is true, Tailor creates or updates `just/go.just` and `nix/go.nix`. The Just fragment adds `build`, `test`, and `lint-go`. The Nix fragment adds Go, golangci-lint, govulncheck, and GoReleaser from the existing `pkgs` set.
 
 Every generated Dependabot file contains GitHub Actions and Nix entries. Go true adds `gomod`; Go false omits it. For a missing file, an absent Go setting selects the Go-enabled variant for legacy compatibility.
 

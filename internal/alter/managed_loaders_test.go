@@ -70,9 +70,9 @@ func TestManagedNixLoaderEvaluatesRelativePackageLists(t *testing.T) {
 		wantValues []string
 	}{
 		{name: "core"},
-		{name: "go", goOn: true, wantValues: []string{"go", "golangci-lint", "goreleaser"}},
+		{name: "go", goOn: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser"}},
 		{name: "pages", pages: true, wantValues: []string{"miniserve"}},
-		{name: "all", goOn: true, pages: true, wantValues: []string{"go", "golangci-lint", "goreleaser", "miniserve"}},
+		{name: "all", goOn: true, pages: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "miniserve"}},
 	}
 
 	for _, tc := range cases {
@@ -89,7 +89,7 @@ func TestManagedNixLoaderEvaluatesRelativePackageLists(t *testing.T) {
 				}
 			}
 			loader := filepath.Join(root, "nix", "loader.nix")
-			expression := `let pkgs = { go = "go"; golangci-lint = "golangci-lint"; goreleaser = "goreleaser"; miniserve = "miniserve"; }; in import ` + strconv.Quote(loader) + ` { inherit pkgs; }`
+			expression := `let pkgs = { go = "go"; golangci-lint = "golangci-lint"; govulncheck = "govulncheck"; goreleaser = "goreleaser"; miniserve = "miniserve"; }; in import ` + strconv.Quote(loader) + ` { inherit pkgs; }`
 			command := exec.CommandContext(t.Context(), nix, "eval", "--impure", "--json", "--expr", expression) // #nosec G204 -- The executable and fixture are controlled by the test.
 			command.Dir = t.TempDir()
 			output, err := command.CombinedOutput()
@@ -120,6 +120,7 @@ func TestManagedNixGitVisibilityUsesIsolatedRepository(t *testing.T) {
       pkgs = {
         go = "go";
         golangci-lint = "golangci-lint";
+        govulncheck = "govulncheck";
         goreleaser = "goreleaser";
         miniserve = "miniserve";
       };
@@ -141,7 +142,7 @@ func TestManagedNixGitVisibilityUsesIsolatedRepository(t *testing.T) {
 
 	managedGit(t, git, root, "add", "nix/go.nix")
 	managedGit(t, git, root, "commit", "-m", "track Go fragment")
-	want := []string{"go", "golangci-lint", "goreleaser"}
+	want := []string{"go", "golangci-lint", "govulncheck", "goreleaser"}
 	if got := managedNixFlakeList(t, nix, root, flakeURL); !reflect.DeepEqual(got, want) {
 		t.Fatalf("packages with tracked fragment = %v, want %v", got, want)
 	}

@@ -197,6 +197,7 @@ func TestManagedLintPartialFailurePreservesResultsAndRetryConverges(t *testing.T
 	bin := filepath.Join(dir, "bin")
 	writeManagedLintStub(t, bin, "actionlint", "TAILOR_ACTIONLINT_STATUS")
 	writeManagedLintStub(t, bin, "golangci-lint", "TAILOR_GOLANGCI_STATUS")
+	writeManagedLintStub(t, bin, "govulncheck", "TAILOR_GOVULNCHECK_STATUS")
 	if output, runErr := runManagedLint(t, just, dir, "lint", bin, filepath.Join(dir, "lint.log"), nil); runErr != nil {
 		t.Fatalf("just lint after retry: %v\n%s", runErr, output)
 	}

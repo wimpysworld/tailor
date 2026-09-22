@@ -19,14 +19,16 @@ func TestManagedLintExecutesSelectedLintersOnceAtProjectRoot(t *testing.T) {
 	bin := filepath.Join(root, "bin")
 	writeManagedLintStub(t, bin, "actionlint", "TAILOR_ACTIONLINT_STATUS")
 	writeManagedLintStub(t, bin, "golangci-lint", "TAILOR_GOLANGCI_STATUS")
+	writeManagedLintStub(t, bin, "govulncheck", "TAILOR_GOVULNCHECK_STATUS")
 
 	output, err := runManagedLint(t, just, root, "lint", bin, log, nil)
 	if err != nil {
 		t.Fatalf("just lint: %v\n%s", err, output)
 	}
 	want := canonicalManagedLintCalls(t, []string{
-		"actionlint|" + root + "|0",
-		"golangci-lint|" + root + "|1",
+		"actionlint|" + root + "|0|",
+		"golangci-lint|" + root + "|1|run",
+		"govulncheck|" + root + "|1|./...",
 	})
 	if got := canonicalManagedLintCalls(t, managedLintLog(t, log)); !reflect.DeepEqual(got, want) {
 		t.Fatalf("lint calls = %v, want %v", got, want)
@@ -43,8 +45,8 @@ func TestCanonicalManagedLintCallsResolvesDirectoryAliases(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := canonicalManagedLintCalls(t, []string{"actionlint|" + alias + "|0"})
-	want := canonicalManagedLintCalls(t, []string{"actionlint|" + root + "|0"})
+	got := canonicalManagedLintCalls(t, []string{"actionlint|" + alias + "|0|"})
+	want := canonicalManagedLintCalls(t, []string{"actionlint|" + root + "|0|"})
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("lint calls = %v, want %v", got, want)
 	}
@@ -59,6 +61,7 @@ func TestManagedLintStopsAtFirstFailure(t *testing.T) {
 	}{
 		{name: "actionlint", statusEnv: "TAILOR_ACTIONLINT_STATUS=17", wantCalls: []string{"actionlint"}},
 		{name: "golangci-lint", statusEnv: "TAILOR_GOLANGCI_STATUS=19", wantCalls: []string{"actionlint", "golangci-lint"}},
+		{name: "govulncheck", statusEnv: "TAILOR_GOVULNCHECK_STATUS=23", wantCalls: []string{"actionlint", "golangci-lint", "govulncheck"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -67,6 +70,7 @@ func TestManagedLintStopsAtFirstFailure(t *testing.T) {
 			bin := filepath.Join(root, "bin")
 			writeManagedLintStub(t, bin, "actionlint", "TAILOR_ACTIONLINT_STATUS")
 			writeManagedLintStub(t, bin, "golangci-lint", "TAILOR_GOLANGCI_STATUS")
+			writeManagedLintStub(t, bin, "govulncheck", "TAILOR_GOVULNCHECK_STATUS")
 
 			output, err := runManagedLint(t, just, root, "lint", bin, log, []string{test.statusEnv})
 			if err == nil {
@@ -93,6 +97,7 @@ func TestManagedLintMissingExecutablesFailVisibly(t *testing.T) {
 	}{
 		{name: "actionlint", wantTool: "actionlint"},
 		{name: "golangci-lint", available: []string{"actionlint"}, wantTool: "golangci-lint"},
+		{name: "govulncheck", available: []string{"actionlint", "golangci-lint"}, wantTool: "govulncheck"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -125,6 +130,7 @@ func TestManagedLintAbsentGoRemainsCallableButLeavesAggregate(t *testing.T) {
 	bin := filepath.Join(root, "bin")
 	writeManagedLintStub(t, bin, "actionlint", "TAILOR_ACTIONLINT_STATUS")
 	writeManagedLintStub(t, bin, "golangci-lint", "TAILOR_GOLANGCI_STATUS")
+	writeManagedLintStub(t, bin, "govulncheck", "TAILOR_GOVULNCHECK_STATUS")
 
 	if output, err := runManagedLint(t, just, root, "lint", bin, log, nil); err != nil {
 		t.Fatalf("just lint: %v\n%s", err, output)
@@ -135,8 +141,8 @@ func TestManagedLintAbsentGoRemainsCallableButLeavesAggregate(t *testing.T) {
 	if output, err := runManagedLint(t, just, root, "lint-go", bin, log, nil); err != nil {
 		t.Fatalf("just lint-go: %v\n%s", err, output)
 	}
-	if got := managedLintLog(t, log); len(got) != 2 || !strings.HasPrefix(got[1], "golangci-lint|") {
-		t.Fatalf("standalone calls = %v, want retained lint-go", got)
+	if got := managedLintLog(t, log); len(got) != 3 || !strings.HasPrefix(got[1], "golangci-lint|") || !strings.HasPrefix(got[2], "govulncheck|") {
+		t.Fatalf("standalone calls = %v, want retained lint-go checks", got)
 	}
 }
 
@@ -157,7 +163,7 @@ func writeManagedLintFixture(t *testing.T, root string, rendered managedRendered
 
 func writeManagedLintStub(t *testing.T, bin, name, statusVariable string) {
 	t.Helper()
-	content := fmt.Sprintf("#!/bin/sh\nprintf '%%s|%%s|%%s\\n' %s \"$PWD\" \"$#\" >> \"$TAILOR_LINT_LOG\"\nexit \"${%s:-0}\"\n", name, statusVariable)
+	content := fmt.Sprintf("#!/bin/sh\nprintf '%%s|%%s|%%s|%%s\\n' %s \"$PWD\" \"$#\" \"$*\" >> \"$TAILOR_LINT_LOG\"\nexit \"${%s:-0}\"\n", name, statusVariable)
 	writeManagedExecutable(t, filepath.Join(bin, name), content)
 }
 
@@ -169,7 +175,7 @@ func runManagedLint(t *testing.T, just, root, recipe, bin, log string, extraEnvi
 	}
 	command := exec.CommandContext(t.Context(), just, "--justfile", filepath.Join(root, "justfile"), recipe) // #nosec G204 -- The executable and fixture are controlled by the test.
 	command.Dir = nested
-	command.Env = append(managedEnvironmentWithout("PATH", "TAILOR_LINT_LOG", "TAILOR_ACTIONLINT_STATUS", "TAILOR_GOLANGCI_STATUS", "TAILOR_UNUSED_STATUS"), "PATH="+bin, "TAILOR_LINT_LOG="+log)
+	command.Env = append(managedEnvironmentWithout("PATH", "TAILOR_LINT_LOG", "TAILOR_ACTIONLINT_STATUS", "TAILOR_GOLANGCI_STATUS", "TAILOR_GOVULNCHECK_STATUS", "TAILOR_UNUSED_STATUS"), "PATH="+bin, "TAILOR_LINT_LOG="+log)
 	command.Env = append(command.Env, extraEnvironment...)
 	return command.CombinedOutput()
 }
@@ -191,7 +197,7 @@ func canonicalManagedLintCalls(t *testing.T, calls []string) []string {
 	canonical := make([]string, len(calls))
 	for index, call := range calls {
 		fields := strings.Split(call, "|")
-		if len(fields) != 3 {
+		if len(fields) != 4 {
 			t.Fatalf("malformed lint call %q", call)
 		}
 		directory, err := filepath.EvalSymlinks(fields[1])

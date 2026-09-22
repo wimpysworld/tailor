@@ -14,7 +14,7 @@ Keep the introduction and installation instructions in `README.md`. Put detailed
 - **CLI parser**: [Kong](https://github.com/alecthomas/kong)
 - **GitHub auth**: `GH_TOKEN`/`GITHUB_TOKEN` env var, or `gh` (GitHub CLI) for keyring-based token access
 - **Swatch embedding**: Go `embed` directive (`swatches/` directory)
-- **Dev environment**: Nix flake with `gh`, `go`, `golangci-lint`, `just`
+- **Dev environment**: Nix flake with `gh`, `go`, `golangci-lint`, `govulncheck`, `just`
 
 ## Project structure
 
@@ -33,9 +33,9 @@ tailor/
 - Build Go packages: `just build` (or `go build ./...`)
 - Build the stripped Tailor binary: `just build-tailor` (or `go build -ldflags "-s -w" -o tailor ./cmd/tailor`)
 - Run tests: `just test` (or `go test ./...`)
-- Run all enabled linters: `just lint` (`actionlint` then `golangci-lint run` in this repository)
+- Run all enabled linters: `just lint` (`actionlint`, `golangci-lint run`, then `govulncheck ./...` in this repository)
 - Run workflow linters only: `just lint-actions`
-- Run Go linters only: `just lint-go`
+- Run Go linters only: `just lint-go`. This recipe can use the network for module and vulnerability data.
 - Keep `lint-all` as the project alias for `lint` in `just/project.just`.
 - Include `lint-go` in the managed `lint` aggregate only for explicit `languages.go: true`. False or absent excludes Go lint.
 - Enter dev shell: `nix develop` or `direnv allow`
@@ -59,6 +59,7 @@ tailor/
 - Table-driven tests following Go conventions
 - Test files sit alongside the code they test (`*_test.go`)
 - Test swatch embedding and config parsing without network access
+- Stub `govulncheck` in managed recipe tests. Normal tests must not run the live scanner.
 - Commands that call `gh` should have their external calls abstracted behind interfaces for testability
 - Test authentication through local `GH_TOKEN`, `GITHUB_TOKEN`, and `gh` credential paths only
 - `measure` is purely local and needs no mocking
