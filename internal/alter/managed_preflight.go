@@ -1,6 +1,7 @@
 package alter
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -12,11 +13,19 @@ func preflightManagedFiles(dir string, selections []managedSelection, rendered m
 		return managedPlan{}, err
 	}
 
+	if err := validateEnabledManagedRecipes(ordered, rendered); err != nil {
+		return managedPlan{}, err
+	}
+
 	root, err := os.OpenRoot(dir)
 	if err != nil {
 		return managedPlan{}, fmt.Errorf("opening managed project root %q: %w", dir, err)
 	}
 	defer root.Close()
+
+	if err := preflightLegacyGoRecipes(root, ordered); err != nil {
+		return managedPlan{}, err
+	}
 
 	snapshots := make([]managedDestinationSnapshot, 0, len(ordered))
 	for _, selection := range ordered {
@@ -28,6 +37,63 @@ func preflightManagedFiles(dir string, selections []managedSelection, rendered m
 	}
 
 	return planManagedFiles(ordered, rendered, snapshots)
+}
+
+func validateEnabledManagedRecipes(selections []managedSelection, rendered managedRenderedFiles) error {
+	for _, selection := range selections {
+		if !selection.Enabled {
+			continue
+		}
+		content, exists := rendered[selection.Entry.Path]
+		for _, operation := range managedOperations() {
+			recipe := operation.recipe(selection.Entry)
+			if recipe != "" && (!exists || !hasManagedRecipe(content, recipe)) {
+				return fmt.Errorf("enabled managed %s recipe %q is missing from %q", operation, recipe, selection.Entry.Path)
+			}
+		}
+	}
+	return nil
+}
+
+func preflightLegacyGoRecipes(root *os.Root, selections []managedSelection) error {
+	for _, selection := range selections {
+		if selection.Entry.Path == "just/go.just" {
+			return nil
+		}
+	}
+	const destination = "just/go.just"
+	if err := checkParents(root, destination, "legacy Go fragment parent"); err != nil {
+		return err
+	}
+	info, err := root.Lstat(destination)
+	if errors.Is(err, os.ErrNotExist) || err == nil && !info.Mode().IsRegular() {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("checking retained Go fragment %q: %w", destination, err)
+	}
+	content, err := root.ReadFile(destination)
+	if err != nil {
+		return fmt.Errorf("reading retained Go fragment %q: %w", destination, err)
+	}
+	if hasManagedMarker(content, destination) {
+		for _, recipe := range []string{"build", "test"} {
+			if hasManagedRecipe(content, recipe) {
+				return fmt.Errorf("retained managed fragment %q still defines the legacy %s recipe; set languages.go to true to migrate it, or remove or rename that recipe before retrying", destination, recipe)
+			}
+		}
+	}
+	return nil
+}
+
+func hasManagedRecipe(content []byte, recipe string) bool {
+	declaration := []byte(recipe + ":")
+	for line := range bytes.SplitSeq(content, []byte("\n")) {
+		if bytes.Equal(bytes.TrimSuffix(line, []byte("\r")), declaration) {
+			return true
+		}
+	}
+	return false
 }
 
 func snapshotManagedDestination(root *os.Root, selection managedSelection) (managedDestinationSnapshot, error) {

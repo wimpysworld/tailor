@@ -13,9 +13,12 @@ import (
 )
 
 const (
-	managedImportsPlaceholder          = "[[TAILOR_MANAGED_IMPORTS]]"
-	managedLintDependenciesPlaceholder = "[[TAILOR_MANAGED_LINT_DEPENDENCIES]]"
-	managedLintPlaceholderPrefix       = "[[TAILOR_MANAGED_LINT_"
+	managedImportsPlaceholder           = "[[TAILOR_MANAGED_IMPORTS]]"
+	managedBuildDependenciesPlaceholder = "[[TAILOR_MANAGED_BUILD_DEPENDENCIES]]"
+	managedBuildCommandPlaceholder      = "[[TAILOR_MANAGED_BUILD_COMMAND]]"
+	managedBuildPlaceholderPrefix       = "[[TAILOR_MANAGED_BUILD_"
+	managedLintDependenciesPlaceholder  = "[[TAILOR_MANAGED_LINT_DEPENDENCIES]]"
+	managedLintPlaceholderPrefix        = "[[TAILOR_MANAGED_LINT_"
 )
 
 func renderManagedFiles(cfg *config.Config, selections []managedSelection) (managedRenderedFiles, error) {
@@ -66,7 +69,12 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 		case "just/loader.just", "nix/loader.nix":
 			content, err = renderManagedLoader(entry.Path, content, registry)
 		case "just/tailor.just":
-			content, err = renderManagedLintAggregate(cfg, content, registry)
+			for _, operation := range managedOperations() {
+				content, err = renderManagedAggregate(cfg, content, registry, operation)
+				if err != nil {
+					break
+				}
+			}
 		case "just/pages.just":
 			content, err = renderManagedPages(cfg, content)
 		}
@@ -78,41 +86,67 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 	return files, nil
 }
 
+func renderManagedBuildAggregate(cfg *config.Config, content []byte, registry []managedRegistryEntry) ([]byte, error) {
+	return renderManagedAggregate(cfg, content, registry, managedBuild)
+}
+
 func renderManagedLintAggregate(cfg *config.Config, content []byte, registry []managedRegistryEntry) ([]byte, error) {
+	return renderManagedAggregate(cfg, content, registry, managedLint)
+}
+
+func renderManagedAggregate(cfg *config.Config, content []byte, registry []managedRegistryEntry, operation managedRecipeOperation) ([]byte, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("managed lint aggregate requires a config")
+		return nil, fmt.Errorf("managed %s aggregate requires a config", operation)
 	}
 	if err := validateManagedRegistry(registry); err != nil {
 		return nil, fmt.Errorf("validating managed registry: %w", err)
 	}
 
-	placeholder := []byte(managedLintDependenciesPlaceholder)
-	if bytes.Count(content, placeholder) != 1 {
-		return nil, fmt.Errorf("managed core template must contain one lint dependencies placeholder")
+	prefix := "[[TAILOR_MANAGED_" + strings.ToUpper(string(operation)) + "_"
+	dependenciesPlaceholder := []byte(prefix + "DEPENDENCIES]]")
+	commandPlaceholder := []byte(prefix + "COMMAND]]")
+	if bytes.Count(content, dependenciesPlaceholder) != 1 {
+		return nil, fmt.Errorf("managed core template must contain one %s dependencies placeholder", operation)
+	}
+	if operation != managedLint && bytes.Count(content, commandPlaceholder) != 1 {
+		return nil, fmt.Errorf("managed core template must contain one %s command placeholder", operation)
 	}
 
-	lintEntries := make([]managedRegistryEntry, 0)
+	entries := make([]managedRegistryEntry, 0)
 	for _, entry := range registry {
-		if entry.LintRecipe == "" {
+		if operation.recipe(entry) == "" {
 			continue
 		}
 		declared, enabled := managedCapabilityState(cfg, entry.Capability)
 		if declared && enabled {
-			lintEntries = append(lintEntries, entry)
+			entries = append(entries, entry)
 		}
 	}
-	slices.SortFunc(lintEntries, func(left, right managedRegistryEntry) int {
+	slices.SortFunc(entries, func(left, right managedRegistryEntry) int {
 		return strings.Compare(left.Capability.canonicalName(), right.Capability.canonicalName())
 	})
 
-	dependencies := make([]string, 0, len(lintEntries)+1)
-	dependencies = append(dependencies, "lint-actions")
-	for _, entry := range lintEntries {
-		dependencies = append(dependencies, entry.LintRecipe)
+	dependencies := make([]string, 0, len(entries)+1)
+	if operation == managedLint {
+		dependencies = append(dependencies, "lint-actions")
 	}
-	content = bytes.Replace(content, placeholder, []byte(strings.Join(dependencies, " ")), 1)
-	if bytes.Contains(content, []byte(managedLintPlaceholderPrefix)) {
-		return nil, fmt.Errorf("managed core template contains an unresolved lint placeholder")
+	for _, entry := range entries {
+		dependencies = append(dependencies, operation.recipe(entry))
+	}
+	command := "@:"
+	if len(dependencies) == 0 {
+		command = fmt.Sprintf(`@echo "No %s recipes are enabled."`, operation)
+	}
+	if len(dependencies) == 0 {
+		content = bytes.Replace(content, append([]byte(" "), dependenciesPlaceholder...), nil, 1)
+	} else {
+		content = bytes.Replace(content, dependenciesPlaceholder, []byte(strings.Join(dependencies, " ")), 1)
+	}
+	if operation != managedLint {
+		content = bytes.Replace(content, commandPlaceholder, []byte(command), 1)
+	}
+	if bytes.Contains(content, []byte(prefix)) {
+		return nil, fmt.Errorf("managed core template contains an unresolved %s placeholder", operation)
 	}
 	return content, nil
 }

@@ -94,6 +94,58 @@ func TestManagedLoadersUseRegistryFragments(t *testing.T) {
 	}
 }
 
+func TestRenderManagedBuildAggregateDependencies(t *testing.T) {
+	trueValue, falseValue := true, false
+	tests := []struct {
+		name        string
+		cfg         *config.Config
+		wantRecipe  string
+		wantCommand string
+	}{
+		{name: "core only", cfg: &config.Config{}, wantRecipe: "build:", wantCommand: `@echo "No build recipes are enabled."`},
+		{name: "go true", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &trueValue}}, wantRecipe: "build: build-go", wantCommand: "@:"},
+		{name: "go false", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &falseValue}}, wantRecipe: "build:", wantCommand: `@echo "No build recipes are enabled."`},
+		{name: "go absent", cfg: &config.Config{Languages: &config.LanguageSettings{}}, wantRecipe: "build:", wantCommand: `@echo "No build recipes are enabled."`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content, err := swatch.Content("just/tailor.just")
+			if err != nil {
+				t.Fatal(err)
+			}
+			rendered, err := renderManagedBuildAggregate(tt.cfg, content, fixedManagedRegistry())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !bytes.Contains(rendered, []byte(tt.wantRecipe+"\n")) || !bytes.Contains(rendered, []byte("    "+tt.wantCommand+"\n")) {
+				t.Fatalf("unexpected build aggregate:\n%s", rendered)
+			}
+			if bytes.Contains(rendered, []byte(managedBuildPlaceholderPrefix)) {
+				t.Fatal("build aggregate contains an unresolved placeholder")
+			}
+		})
+	}
+}
+
+func TestRenderManagedBuildAggregateUsesCanonicalCapabilityOrder(t *testing.T) {
+	registry := []managedRegistryEntry{
+		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, BuildRecipe: "build-pages"},
+		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildRecipe: "build-go"},
+	}
+	cfg := &config.Config{
+		Languages: &config.LanguageSettings{Go: new(true)},
+		Pages:     &model.PagesSettings{Enabled: new(true)},
+	}
+	content := []byte("build: " + managedBuildDependenciesPlaceholder + "\n    " + managedBuildCommandPlaceholder + "\n")
+	rendered, err := renderManagedBuildAggregate(cfg, content, registry)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(rendered, []byte("build: build-go build-pages\n")) {
+		t.Fatalf("unexpected build aggregate:\n%s", rendered)
+	}
+}
+
 func TestRenderManagedLintAggregateDependencies(t *testing.T) {
 	trueValue, falseValue := true, false
 	tests := []struct {
@@ -205,10 +257,10 @@ func TestManagedJustCombinationsParseWithUniqueRecipes(t *testing.T) {
 		pages *model.PagesSettings
 		want  []string
 	}{
-		{name: "core", want: []string{"alter", "default", "lint", "lint-actions", "measure", "release"}},
-		{name: "go", goOn: true, want: []string{"alter", "build", "default", "lint", "lint-actions", "lint-go", "measure", "release", "test"}},
-		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "default", "lint", "lint-actions", "measure", "pages", "release"}},
-		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "lint-actions", "lint-go", "measure", "pages", "release", "test"}},
+		{name: "core", want: []string{"alter", "build", "default", "lint", "lint-actions", "measure", "release", "test"}},
+		{name: "go", goOn: true, want: []string{"alter", "build", "build-go", "default", "lint", "lint-actions", "lint-go", "measure", "release", "test", "test-go"}},
+		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "lint-actions", "measure", "pages", "release", "test"}},
+		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "build-go", "default", "lint", "lint-actions", "lint-go", "measure", "pages", "release", "test", "test-go"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := managedRenderConfig(tt.goOn, tt.pages)

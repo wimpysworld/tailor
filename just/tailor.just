@@ -4,6 +4,14 @@
 alter:
     @tailor alter
 
+# Run all enabled builders
+build: build-go
+    @:
+
+# Run all enabled tests
+test: test-go
+    @:
+
 # Run workflow linters
 lint-actions:
     @actionlint

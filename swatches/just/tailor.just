@@ -4,6 +4,14 @@
 alter:
     @tailor alter
 
+# Run all enabled builders
+build: [[TAILOR_MANAGED_BUILD_DEPENDENCIES]]
+    [[TAILOR_MANAGED_BUILD_COMMAND]]
+
+# Run all enabled tests
+test: [[TAILOR_MANAGED_TEST_DEPENDENCIES]]
+    [[TAILOR_MANAGED_TEST_COMMAND]]
+
 # Run workflow linters
 lint-actions:
     @actionlint

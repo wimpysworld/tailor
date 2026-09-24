@@ -577,7 +577,13 @@ func managedTestRenderer(selections []managedSelection) (managedRenderedFiles, e
 			continue
 		}
 		if selection.Entry.Policy.marked() {
-			files[selection.Entry.Path] = managedContent(selection.Entry.Path, "synthetic")
+			body := "synthetic"
+			for _, operation := range managedOperations() {
+				if recipe := operation.recipe(selection.Entry); recipe != "" {
+					body += "\n" + recipe + ":\n    @:"
+				}
+			}
+			files[selection.Entry.Path] = managedContent(selection.Entry.Path, body)
 		} else {
 			files[selection.Entry.Path] = []byte("synthetic\n")
 		}

@@ -30,10 +30,37 @@ const (
 )
 
 type managedRegistryEntry struct {
-	Path       string
-	Policy     managedPolicy
-	Capability managedCapability
-	LintRecipe string
+	Path        string
+	Policy      managedPolicy
+	Capability  managedCapability
+	BuildRecipe string
+	LintRecipe  string
+	TestRecipe  string
+}
+
+type managedRecipeOperation string
+
+const (
+	managedBuild managedRecipeOperation = "build"
+	managedTest  managedRecipeOperation = "test"
+	managedLint  managedRecipeOperation = "lint"
+)
+
+func managedOperations() []managedRecipeOperation {
+	return []managedRecipeOperation{managedBuild, managedTest, managedLint}
+}
+
+func (operation managedRecipeOperation) recipe(entry managedRegistryEntry) string {
+	switch operation {
+	case managedBuild:
+		return entry.BuildRecipe
+	case managedTest:
+		return entry.TestRecipe
+	case managedLint:
+		return entry.LintRecipe
+	default:
+		return ""
+	}
 }
 
 type managedSelection struct {
@@ -48,7 +75,7 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "just/loader.just", Policy: managedPolicyLoader},
 		{Path: "nix/loader.nix", Policy: managedPolicyLoader},
 		{Path: "just/tailor.just", Policy: managedPolicyCore},
-		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"},
+		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildRecipe: "build-go", TestRecipe: "test-go", LintRecipe: "lint-go"},
 		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
@@ -62,8 +89,11 @@ func fixedManagedRegistry() []managedRegistryEntry {
 
 func validateManagedRegistry(registry []managedRegistryEntry) error {
 	seen := make(map[string]struct{}, len(registry))
-	lintRecipes := make(map[string]string)
-	lintCapabilities := make(map[managedCapability]string)
+	recipes := make(map[string]string)
+	capabilities := make(map[managedRecipeOperation]map[managedCapability]string)
+	for _, operation := range managedOperations() {
+		capabilities[operation] = make(map[managedCapability]string)
+	}
 	for _, entry := range registry {
 		if err := validateManagedPath(entry.Path); err != nil {
 			return fmt.Errorf("managed registry: %w", err)
@@ -90,24 +120,33 @@ func validateManagedRegistry(registry []managedRegistryEntry) error {
 			return fmt.Errorf("managed registry destination %q has an invalid policy", entry.Path)
 		}
 
-		if entry.LintRecipe == "" {
-			continue
+		for _, operation := range managedOperations() {
+			if err := validateManagedRecipeMetadata(entry, string(operation), operation.recipe(entry), recipes, capabilities[operation]); err != nil {
+				return err
+			}
 		}
-		if entry.Policy != managedPolicyFragment || path.Dir(entry.Path) != "just" || path.Ext(entry.Path) != ".just" {
-			return fmt.Errorf("managed registry lint recipe %q must belong to a Just capability fragment", entry.LintRecipe)
-		}
-		if !validManagedRecipeName(entry.LintRecipe) {
-			return fmt.Errorf("managed registry destination %q has invalid lint recipe %q", entry.Path, entry.LintRecipe)
-		}
-		if previous, exists := lintRecipes[entry.LintRecipe]; exists {
-			return fmt.Errorf("managed registry lint recipe %q is duplicated by %q and %q", entry.LintRecipe, previous, entry.Path)
-		}
-		lintRecipes[entry.LintRecipe] = entry.Path
-		if previous, exists := lintCapabilities[entry.Capability]; exists {
-			return fmt.Errorf("managed capability %q has multiple lint recipes in %q and %q", entry.Capability.canonicalName(), previous, entry.Path)
-		}
-		lintCapabilities[entry.Capability] = entry.Path
 	}
+	return nil
+}
+
+func validateManagedRecipeMetadata(entry managedRegistryEntry, kind, recipe string, recipes map[string]string, capabilities map[managedCapability]string) error {
+	if recipe == "" {
+		return nil
+	}
+	if entry.Policy != managedPolicyFragment || path.Dir(entry.Path) != "just" || path.Ext(entry.Path) != ".just" {
+		return fmt.Errorf("managed registry %s recipe %q must belong to a Just capability fragment", kind, recipe)
+	}
+	if !validManagedRecipeName(recipe) {
+		return fmt.Errorf("managed registry destination %q has invalid %s recipe %q", entry.Path, kind, recipe)
+	}
+	if previous, exists := recipes[recipe]; exists {
+		return fmt.Errorf("managed registry %s recipe %q is duplicated by %q and %q", kind, recipe, previous, entry.Path)
+	}
+	recipes[recipe] = entry.Path
+	if previous, exists := capabilities[entry.Capability]; exists {
+		return fmt.Errorf("managed capability %q has multiple %s recipes in %q and %q", entry.Capability.canonicalName(), kind, previous, entry.Path)
+	}
+	capabilities[entry.Capability] = entry.Path
 	return nil
 }
 

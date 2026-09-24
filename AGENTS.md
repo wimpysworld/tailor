@@ -30,14 +30,19 @@ tailor/
 
 ## Build and test commands
 
-- Build Go packages: `just build` (or `go build ./...`)
+- Build all enabled ecosystems: `just build`
+- Build Go packages and write executables to `bin/`: `just build-go`
 - Build the stripped Tailor binary: `just build-tailor` (or `go build -ldflags "-s -w" -o tailor ./cmd/tailor`)
-- Run tests: `just test` (or `go test ./...`)
+- Run all enabled tests: `just test`. Run Go tests only: `just test-go` (or `go test ./...`).
 - Run all enabled linters: `just lint` (`actionlint`, `golangci-lint run`, then `govulncheck ./...` in this repository)
 - Run workflow linters only: `just lint-actions`
 - Run Go linters only: `just lint-go`. This recipe can use the network for module and vulnerability data.
 - Keep `lint-all` as the project alias for `lint` in `just/project.just`.
+- Include `build-go` in the managed `build` aggregate only for explicit `languages.go: true`. False or absent excludes Go builds.
 - Include `lint-go` in the managed `lint` aggregate only for explicit `languages.go: true`. False or absent excludes Go lint.
+- Include `test-go` in the managed `test` aggregate only for explicit `languages.go: true`.
+- Use the shared operation renderer for build, test, and lint. Keep recipes argument-free and dependencies sequential.
+- Keep `release` in the core by default, independent of language declarations. Never include it in an aggregate.
 - Enter dev shell: `nix develop` or `direnv allow`
 - Task runner: `just` (lists available recipes)
 - Create release: `just release 0.1.0`

@@ -38,7 +38,7 @@ Add this expression to the existing Nix package list:
 
 The Nix loader adds package lists only. It can use packages from the existing `pkgs` set, but it does not add flake inputs or change outputs. Review and add new `.nix` files to Git, because Nix flakes exclude untracked files. Tailor does not inspect or stage the Git index.
 
-Tailor always reconciles `just/loader.just`, `nix/loader.nix`, and `just/tailor.just`. The fixed loader does not read `.tailor.yml` when Just runs. The generated `lint` dependencies come from the last successful Tailor reconciliation. Go, Pages, and the Playwright package fragment use their Boolean declarations:
+Tailor always reconciles `just/loader.just`, `nix/loader.nix`, and `just/tailor.just`. The fixed loader does not read `.tailor.yml` when Just runs. The generated `build`, `test`, and `lint` dependencies come from the last successful Tailor reconciliation. Go, Pages, and the Playwright package fragment use their Boolean declarations:
 
 | Declaration | Managed fragment action |
 | --- | --- |
@@ -48,15 +48,17 @@ Tailor always reconciles `just/loader.just`, `nix/loader.nix`, and `just/tailor.
 
 Owned files start with `# Managed by Tailor: <registered path>`. Tailor stops on an unmarked file at a managed destination. A disabled fragment with a missing destination causes no change.
 
-The generated root requires Just 1.23.0 or later. Tailor tests generated files with Just 1.23.0 and 1.58.0. Recipe names are unique: core owns `alter`, `measure`, `release`, `lint-actions`, and `lint`; Go owns `build`, `test`, and `lint-go`; Pages owns `pages`.
+The generated root requires Just 1.23.0 or later. Tailor tests generated files with Just 1.23.0 and 1.58.0. Recipe names are unique: core owns `build`, `test`, `alter`, `measure`, `release`, `lint-actions`, and `lint`; Go owns `build-go`, `test-go`, and `lint-go`; Pages owns `pages`.
+
+The argument-free `build` and `test` aggregates select explicitly enabled capabilities in lexical order and stop at the first failure. Empty aggregates succeed with a clear message. The shared operation renderer handles build, test, and lint. The core keeps `release` by default, independent of language declarations and outside all aggregates. Release retains the existing local tag flow.
 
 `lint-actions` runs only `actionlint`. `lint-go` runs `golangci-lint run` and then `govulncheck ./...`. The `lint` aggregate runs `lint-actions` first, then each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. False and absent declarations are excluded. A fragment retained by an absent declaration keeps its standalone recipe, but the aggregate excludes it. `govulncheck` can access the network to download missing modules and retrieve current Go vulnerability data.
 
-A `never` mode for `justfile` or an ordinary linter config does not disable a selected managed recipe. For example, `languages.go: true` keeps `lint-go` in the aggregate when `.golangci.yml` is `never`. A missing selected tool causes the recipe to fail. Use distinct wrapper names for custom checks because user recipes cannot override managed names.
+A `never` mode for `justfile` or an ordinary Go config does not disable a selected managed recipe. For example, `languages.go: true` keeps `build-go`, `test-go`, and `lint-go` in their aggregates when `.golangci.yml` is `never`. A missing selected recipe or tool causes the aggregate to fail. Use distinct wrapper names for custom checks because user recipes cannot override managed names. Before adding the loader import to a preserved root, remove or rename user-owned `build` and `test` recipes.
 
 If you manually delete a managed Just fragment, Just can fail while it parses every recipe. Run `tailor baste` directly. Review the full plan. After approval, run `tailor alter`. The alteration can change other declared files and repository settings.
 
-Keep the capability declaration explicitly true so that Tailor recreates the fragment. If the declaration is absent, enable it or restore the deleted fragment from Git. Do not edit generated dependencies manually. Do not use `--recut` for this recovery.
+Keep the capability declaration explicitly true so that Tailor recreates the fragment. If the declaration is absent, enable it or restore the deleted fragment from Git. An older retained `just/go.just` can still define `build` or `test`, which conflicts with the new core aggregate. Tailor stops before writes. Set `languages.go: true` to migrate the fragment, or remove or rename its legacy `build` or `test` recipe. Do not edit generated dependencies manually. Do not use `--recut` for this recovery.
 
 ## Go support
 
@@ -114,7 +116,7 @@ Before Tailor creates or replaces the release configuration, `Dockerfile` must b
 
 Before Tailor creates or replaces the builder workflow, it checks the lint and release configurations. Both must already be regular files, or Tailor must plan to create them. Tailor does not check the contents of customised configurations.
 
-When Go is true, Tailor creates or updates `just/go.just` and `nix/go.nix`. The Just fragment adds `build`, `test`, and `lint-go`. The Nix fragment adds Go, golangci-lint, govulncheck, and GoReleaser from the existing `pkgs` set.
+When Go is true, Tailor creates or updates `just/go.just` and `nix/go.nix`. The Just fragment adds `build-go`, `test-go`, and `lint-go`. `test-go` runs `go test ./...`. `build-go` validates all packages before it writes discovered executable packages to `bin/`. Library-only modules succeed without `bin/`. The build rejects duplicate output names, a symlinked `bin`, and non-regular output destinations. A repeated build replaces regular executable files in `bin/`, but it never writes an executable in the project root. The Nix fragment adds Go, golangci-lint, govulncheck, and GoReleaser from the existing `pkgs` set.
 
 Every generated Dependabot file contains GitHub Actions and Nix entries. Go true adds `gomod`; Go false omits it. For a missing file, an absent Go setting selects the Go-enabled variant for legacy compatibility.
 

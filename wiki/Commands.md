@@ -169,19 +169,23 @@ The generated files require Just 1.23.0 or later. The protected root imports man
 |---|---|---|
 | `just` | Lists recipes | Just 1.23.0 or later |
 | `just alter` | `tailor alter` | Tailor, GitHub authentication, valid `.tailor.yml` |
+| `just build` | Each registered builder whose capability is explicitly true | Every selected build tool |
+| `just test` | Each registered test recipe whose capability is explicitly true | Every selected test tool |
 | `just lint-actions` | `actionlint` | `actionlint` |
 | `just lint` | `lint-actions`, then each registered linter whose capability is explicitly true | Every selected linter tool |
 | `just measure` | `tailor baste`, then `tailor measure` | Tailor, GitHub authentication, valid `.tailor.yml` |
 | `just release x.y.z` | Validates a clean tree, then creates the local `vX.Y.Z` tag | Git |
 
-Tailor records the `just lint` dependencies during the last successful file reconciliation. It always selects `lint-actions`, then each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. False and absent capabilities are excluded. A retained fragment for an absent capability remains callable as a standalone recipe. Missing tools fail, and Just stops at the first failed dependency.
+Tailor records the `just build`, `just test`, and `just lint` dependencies during the last successful file reconciliation. Each argument-free aggregate selects registered recipes whose capability is explicitly true, in lexical capability order. The current registry adds `build-go`, `test-go`, and `lint-go` for Go. Pages and Playwright register none. False and absent capabilities are excluded. With no selected recipes, `just build` and `just test` print successful guidance messages. Missing selected recipes or tools fail. Just runs dependencies sequentially and stops at the first failure. Lint always runs `lint-actions` first.
+
+The core provides `just release x.y.z` by default, independent of language declarations. Release stays outside all aggregates and retains the existing local tag flow.
 
 With [Go support](Configuration#go-support) enabled, Tailor adds these recipes:
 
 | Command | Runs | Requirements |
 |---|---|---|
-| `just build` | `go build ./...` | Go |
-| `just test` | `go test ./...` | Go |
+| `just build-go` | Validates all packages, then writes each executable package to `bin/` | Go |
+| `just test-go` | `go test ./...` | Go |
 | `just lint-go` | `golangci-lint run` | golangci-lint |
 
 With [Pages](GitHub-Pages) enabled, `just pages` previews the effective site at `http://127.0.0.1:18473`.
@@ -219,7 +223,7 @@ A [validated future contract](https://github.com/wimpysworld/tailor/blob/main/do
 
 Unlike `tailor measure`, `just measure` needs authentication because its first command is `tailor baste`. If that preview fails, the recipe stops before the local health check.
 
-Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. Before you add the exact Just loader import from [managed development files](Configuration#managed-development-files), remove or rename each user recipe that duplicates a managed recipe. Keep custom checks under distinct wrapper names. Tailor does not rewrite user recipes or change production recipe names.
+Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. Before you add the exact Just loader import from [managed development files](Configuration#managed-development-files), remove or rename each user recipe that duplicates a managed recipe, including `build` and `test`. Keep custom checks under distinct wrapper names. Tailor does not rewrite user recipes or change production recipe names.
 
 A partial `tailor alter` can leave the imported Just files temporarily invalid. Fix the reported error, then retry `tailor alter` before you run a recipe. The generated dispatch is consistent, but installed tool versions and configuration can produce different diagnostics. This lint aggregation change adds no tool pin or CI policy change.
 

@@ -263,7 +263,7 @@ func TestManagedLintInvalidJustFixturesFailVisibly(t *testing.T) {
 	}{
 		{
 			name:        "missing selected fragment",
-			wantOutputs: []string{"lint-go"},
+			wantOutputs: []string{"build-go"},
 			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
 				if err := os.Remove(filepath.Join(root, "just", "go.just")); err != nil {
 					t.Fatal(err)

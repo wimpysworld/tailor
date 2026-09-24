@@ -44,15 +44,32 @@ func TestRenderedJustfileRelease(t *testing.T) {
 			loader = strings.Replace(loader, importsPlaceholder, fixtureImports, 1)
 
 			core := string(mustSwatchContent(t, "just/tailor.just"))
-			const lintPlaceholder = "[[TAILOR_MANAGED_LINT_DEPENDENCIES]]"
-			if count := strings.Count(core, lintPlaceholder); count != 1 {
-				t.Fatalf("just/tailor.just lint placeholders = %d, want 1", count)
+			for placeholder, replacement := range map[string]string{
+				"[[TAILOR_MANAGED_BUILD_DEPENDENCIES]]": "",
+				"[[TAILOR_MANAGED_BUILD_COMMAND]]":      `@echo "No build recipes are enabled."`,
+				"[[TAILOR_MANAGED_LINT_DEPENDENCIES]]":  "lint-actions",
+				"[[TAILOR_MANAGED_TEST_DEPENDENCIES]]":  "",
+				"[[TAILOR_MANAGED_TEST_COMMAND]]":       `@echo "No test recipes are enabled."`,
+			} {
+				if count := strings.Count(core, placeholder); count != 1 {
+					t.Fatalf("just/tailor.just %s placeholders = %d, want 1", placeholder, count)
+				}
+				if tt.includeGo {
+					switch placeholder {
+					case "[[TAILOR_MANAGED_BUILD_DEPENDENCIES]]":
+						replacement = "build-go"
+					case "[[TAILOR_MANAGED_BUILD_COMMAND]]":
+						replacement = "@:"
+					case "[[TAILOR_MANAGED_TEST_DEPENDENCIES]]":
+						replacement = "test-go"
+					case "[[TAILOR_MANAGED_TEST_COMMAND]]":
+						replacement = "@:"
+					case "[[TAILOR_MANAGED_LINT_DEPENDENCIES]]":
+						replacement = "lint-actions lint-go"
+					}
+				}
+				core = strings.Replace(core, placeholder, replacement, 1)
 			}
-			lintDependencies := "lint-actions"
-			if tt.includeGo {
-				lintDependencies += " lint-go"
-			}
-			core = strings.Replace(core, lintPlaceholder, lintDependencies, 1)
 
 			files := map[string][]byte{
 				"justfile":         mustSwatchContent(t, "justfile"),

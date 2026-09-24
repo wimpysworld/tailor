@@ -355,6 +355,47 @@ func TestManagedLintOwnershipConflictPreventsAllWrites(t *testing.T) {
 	}
 }
 
+func TestPreflightManagedFilesRejectsRetainedLegacyGoBuildRecipe(t *testing.T) {
+	dir := t.TempDir()
+	legacy := managedContent("just/go.just", "\n# Build Go packages\nbuild:\n    @go build ./...")
+	writeManagedTestFile(t, dir, "just/go.just", legacy)
+	before := snapshotManagedTree(t, dir)
+	cfg := &config.Config{}
+	selections, err := selectManagedFiles(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rendered, err := renderManagedFiles(cfg, selections)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = preflightManagedFiles(dir, selections, rendered)
+	if err == nil || !strings.Contains(err.Error(), "set languages.go to true to migrate it") {
+		t.Fatalf("preflightManagedFiles() error = %v, want migration guidance", err)
+	}
+	if after := snapshotManagedTree(t, dir); !reflect.DeepEqual(after, before) {
+		t.Fatalf("migration preflight changed files: before=%v after=%v", before, after)
+	}
+}
+
+func TestPreflightManagedFilesRejectsMissingEnabledBuildRecipe(t *testing.T) {
+	selection := managedSelection{
+		Entry: managedRegistryEntry{
+			Path:        "just/go.just",
+			Policy:      managedPolicyFragment,
+			Capability:  managedCapabilityGo,
+			BuildRecipe: "build-go",
+		},
+		Enabled: true,
+	}
+	_, err := preflightManagedFiles(t.TempDir(), []managedSelection{selection}, managedRenderedFiles{
+		"just/go.just": managedContent("just/go.just", "lint-go:\n    @true"),
+	})
+	if err == nil || !strings.Contains(err.Error(), `enabled managed build recipe "build-go" is missing`) {
+		t.Fatalf("preflightManagedFiles() error = %v, want missing recipe conflict", err)
+	}
+}
+
 func writeManagedTestFile(t *testing.T, dir, relative string, content []byte) {
 	t.Helper()
 	name := filepath.Join(dir, relative)

@@ -33,9 +33,15 @@ func TestFixedManagedRegistry(t *testing.T) {
 		t.Fatalf("fixedManagedRegistry() paths = %v, want %v", got, want)
 	}
 	for _, entry := range registry {
-		wantLintRecipe := ""
+		wantBuildRecipe, wantLintRecipe, wantTestRecipe := "", "", ""
 		if entry.Path == "just/go.just" {
-			wantLintRecipe = "lint-go"
+			wantBuildRecipe, wantLintRecipe, wantTestRecipe = "build-go", "lint-go", "test-go"
+		}
+		if entry.BuildRecipe != wantBuildRecipe {
+			t.Errorf("fixedManagedRegistry() build recipe for %q = %q, want %q", entry.Path, entry.BuildRecipe, wantBuildRecipe)
+		}
+		if entry.TestRecipe != wantTestRecipe {
+			t.Errorf("fixedManagedRegistry() test recipe for %q = %q, want %q", entry.Path, entry.TestRecipe, wantTestRecipe)
 		}
 		if entry.LintRecipe != wantLintRecipe {
 			t.Errorf("fixedManagedRegistry() lint recipe for %q = %q, want %q", entry.Path, entry.LintRecipe, wantLintRecipe)
