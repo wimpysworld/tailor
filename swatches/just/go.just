@@ -83,11 +83,45 @@ build-go:
         mv "${work}/executables/${output}" "bin/${output}"
     done
 
-# Run Go linters
-lint-go:
-    @golangci-lint run
+# Run Go policy, vulnerability checks, and full standalone vet
+lint-go: _lint-go && vet-go
+
+[private]
+_lint-go:
+    @golangci-lint run --config .golangci.yml
     @govulncheck ./...
+
+# Run vet without the shared linter exclusions
+vet-go:
+    @go vet ./...
+
+# Format Go source with the canonical policy
+fmt-go:
+    @golangci-lint fmt --config .golangci.yml
+
+# Check formatting without changing source files
+fmt-check-go:
+    @golangci-lint fmt --config .golangci.yml --diff
+
+# Update Go module files
+tidy-go:
+    @go mod tidy
+
+# Check module files without changing them
+tidy-check-go:
+    @go mod tidy -diff
 
 # Run Go tests
 test-go:
     @go test ./...
+
+# Write test coverage to the generated coverage.out file
+coverage-go:
+    @go test -coverprofile=coverage.out ./...
+
+# Report the twenty most complex functions, excluding tests
+complexity-go:
+    @gocyclo -top 20 -avg -ignore '_test\.go$' .
+
+# Run sequential policy checks without changing source or module files
+check-go: fmt-check-go tidy-check-go lint-go test-go

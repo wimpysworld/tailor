@@ -89,7 +89,8 @@ func preflightLegacyGoRecipes(root *os.Root, selections []managedSelection) erro
 func hasManagedRecipe(content []byte, recipe string) bool {
 	declaration := []byte(recipe + ":")
 	for line := range bytes.SplitSeq(content, []byte("\n")) {
-		if bytes.Equal(bytes.TrimSuffix(line, []byte("\r")), declaration) {
+		line = bytes.TrimSuffix(line, []byte("\r"))
+		if bytes.Equal(line, declaration) || bytes.HasPrefix(line, append(bytes.Clone(declaration), ' ')) {
 			return true
 		}
 	}

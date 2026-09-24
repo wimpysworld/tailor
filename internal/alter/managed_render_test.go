@@ -258,9 +258,9 @@ func TestManagedJustCombinationsParseWithUniqueRecipes(t *testing.T) {
 		want  []string
 	}{
 		{name: "core", want: []string{"alter", "build", "default", "lint", "lint-actions", "measure", "release", "test"}},
-		{name: "go", goOn: true, want: []string{"alter", "build", "build-go", "default", "lint", "lint-actions", "lint-go", "measure", "release", "test", "test-go"}},
+		{name: "go", goOn: true, want: []string{"_lint-go", "alter", "build", "build-go", "check-go", "complexity-go", "coverage-go", "default", "fmt-check-go", "fmt-go", "lint", "lint-actions", "lint-go", "measure", "release", "test", "test-go", "tidy-check-go", "tidy-go", "vet-go"}},
 		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "lint-actions", "measure", "pages", "release", "test"}},
-		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "build-go", "default", "lint", "lint-actions", "lint-go", "measure", "pages", "release", "test", "test-go"}},
+		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"_lint-go", "alter", "build", "build-go", "check-go", "complexity-go", "coverage-go", "default", "fmt-check-go", "fmt-go", "lint", "lint-actions", "lint-go", "measure", "pages", "release", "test", "test-go", "tidy-check-go", "tidy-go", "vet-go"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := managedRenderConfig(tt.goOn, tt.pages)
@@ -307,9 +307,9 @@ func TestManagedNixFragmentsReturnPackageLists(t *testing.T) {
 		wantValues []string
 	}{
 		{name: "core", wantValues: []string{}},
-		{name: "go", goOn: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser"}},
+		{name: "go", goOn: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf"}},
 		{name: "pages", pages: &model.PagesSettings{Enabled: new(true)}, wantValues: []string{"miniserve"}},
-		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "miniserve"}},
+		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf", "miniserve"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			rendered := renderSelectedManagedFiles(t, managedRenderConfig(tt.goOn, tt.pages))
@@ -320,7 +320,7 @@ func TestManagedNixFragmentsReturnPackageLists(t *testing.T) {
 				}
 			}
 			loader := filepath.Join(dir, "nix", "loader.nix")
-			expression := `let pkgs = { go = "go"; golangci-lint = "golangci-lint"; govulncheck = "govulncheck"; goreleaser = "goreleaser"; miniserve = "miniserve"; }; in import ` + strconv.Quote(loader) + ` { inherit pkgs; }`
+			expression := `let pkgs = { go = "go"; golangci-lint = "golangci-lint"; govulncheck = "govulncheck"; goreleaser = "goreleaser"; gocyclo = "gocyclo"; goperf = "goperf"; miniserve = "miniserve"; }; in import ` + strconv.Quote(loader) + ` { inherit pkgs; }`
 			output, err := exec.CommandContext(t.Context(), nix, "eval", "--impure", "--json", "--expr", expression).CombinedOutput()
 			if err != nil {
 				t.Fatalf("nix eval: %v\n%s", err, output)

@@ -52,7 +52,7 @@ The generated root requires Just 1.23.0 or later. Tailor tests generated files w
 
 The argument-free `build` and `test` aggregates select explicitly enabled capabilities in lexical order and stop at the first failure. Empty aggregates succeed with a clear message. The shared operation renderer handles build, test, and lint. The core keeps `release` by default, independent of language declarations and outside all aggregates. Release retains the existing local tag flow.
 
-`lint-actions` runs only `actionlint`. `lint-go` runs `golangci-lint run` and then `govulncheck ./...`. The `lint` aggregate runs `lint-actions` first, then each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. False and absent declarations are excluded. A fragment retained by an absent declaration keeps its standalone recipe, but the aggregate excludes it. `govulncheck` can access the network to download missing modules and retrieve current Go vulnerability data.
+`lint-actions` runs only `actionlint`. `lint-go` runs `golangci-lint run --config .golangci.yml`, then `govulncheck ./...`, then `go vet ./...`. The `lint` aggregate runs `lint-actions` first, then each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. False and absent declarations are excluded. A fragment retained by an absent declaration keeps its standalone recipe, but the aggregate excludes it. `govulncheck` can access the network to download missing modules and retrieve current Go vulnerability data.
 
 A `never` mode for `justfile` or an ordinary Go config does not disable a selected managed recipe. For example, `languages.go: true` keeps `build-go`, `test-go`, and `lint-go` in their aggregates when `.golangci.yml` is `never`. A missing selected recipe or tool causes the aggregate to fail. Use distinct wrapper names for custom checks because user recipes cannot override managed names. Before adding the loader import to a preserved root, remove or rename user-owned `build` and `test` recipes.
 
@@ -116,7 +116,28 @@ Before Tailor creates or replaces the release configuration, `Dockerfile` must b
 
 Before Tailor creates or replaces the builder workflow, it checks the lint and release configurations. Both must already be regular files, or Tailor must plan to create them. Tailor does not check the contents of customised configurations.
 
-When Go is true, Tailor creates or updates `just/go.just` and `nix/go.nix`. The Just fragment adds `build-go`, `test-go`, and `lint-go`. `test-go` runs `go test ./...`. `build-go` validates all packages before it writes discovered executable packages to `bin/`. Library-only modules succeed without `bin/`. The build rejects duplicate output names, a symlinked `bin`, and non-regular output destinations. A repeated build replaces regular executable files in `bin/`, but it never writes an executable in the project root. The Nix fragment adds Go, golangci-lint, govulncheck, and GoReleaser from the existing `pkgs` set.
+When Go is true, Tailor creates or updates `just/go.just` and `nix/go.nix`. The Just fragment adds `build-go`, `test-go`, `lint-go`, and the policy recipes below. `test-go` runs `go test ./...`. `build-go` validates all packages before it writes discovered executable packages to `bin/`. Library-only modules succeed without `bin/`. The build rejects duplicate output names, a symlinked `bin`, and non-regular output destinations. A repeated build replaces regular executable files in `bin/`, but it never writes an executable in the project root. The Nix fragment adds Go, golangci-lint, govulncheck, GoReleaser, gocyclo, and goperf from the existing `pkgs` set.
+
+### Shared Go policy
+
+With Go enabled, a missing `.golangci.yml` receives the shared default as an ordinary first-fit swatch. Customise `.golangci.yml` directly. Normal alterations preserve an existing first-fit file. `always` and `--recut` replace eligible files with the shared default. `never` preserves the file. No ownership marker or `.tailor.yml` lint section is required.
+
+All shared lint and format commands select `.golangci.yml` explicitly. Tailor does not migrate an alternate `.golangci.yaml` automatically. Back up any custom policy, then review and move it to `.golangci.yml` manually before using the commands.
+
+The initial default uses Nyala's reviewed policy. It retains `G306` and three scoped gosec exclusions with their reason comments. It also retains the reviewed linter and formatter path exclusions. These security exceptions are shared default policy, not generated per-project decisions. Review their scope for your project.
+
+| Recipe | Effect |
+|---|---|
+| `fmt-go` | Format source with the canonical policy |
+| `fmt-check-go` | Show formatting differences and fail without changing source |
+| `tidy-go` | Update `go.mod` and `go.sum` |
+| `tidy-check-go` | Use `go mod tidy -diff` to check module files without changes |
+| `vet-go` | Run full standalone `go vet ./...`, without lint exclusions |
+| `coverage-go` | Write or replace the generated `coverage.out` file |
+| `complexity-go` | Report the top twenty functions and average complexity, excluding tests |
+| `check-go` | Run format check, tidy check, lint, and tests sequentially, stopping on failure |
+
+The shared lint policy includes `intrange`, explicit `govet` and `ineffassign`, and the `gofumpt` formatter. It does not enable `modernize` or enforce `gocyclo`. Standalone vet retains full coverage outside lint exclusions. `check-go` does not change source or module files. Run `build-go` separately when executable output is required. Coverage and build output are not part of `check-go`. These commands do not release or install tools. Go commands can download modules and write caches. Vulnerability checks can use the network. Benchmark and profile commands remain future work.
 
 Every generated Dependabot file contains GitHub Actions and Nix entries. Go true adds `gomod`; Go false omits it. For a missing file, an absent Go setting selects the Go-enabled variant for legacy compatibility.
 

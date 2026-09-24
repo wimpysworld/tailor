@@ -6,10 +6,11 @@ linters:
     - dupword
     - errorlint
     - gocritic
-    - gocyclo
     - gosec
+    - govet
+    - ineffassign
+    - intrange
     - misspell
-    - modernize
     - noctx
     - revive
     - staticcheck
@@ -18,8 +19,6 @@ linters:
     - usestdlibvars
     - wastedassign
   settings:
-    gocyclo:
-      min-complexity: 30
     gosec:
       excludes:
         - G306
@@ -56,11 +55,35 @@ linters:
       - legacy
       - std-error-handling
     rules:
-      - path: '(.+)_test\.go'
+      # Test fixtures use credentialed proxy URLs to exercise credential
+      # stripping; they are not real secrets.
+      - path: _test\.go
+        text: "G101"
         linters:
-          - gocyclo
+          - gosec
+      # The rasterise and placement-score dev tools open an operator-supplied path
+      # by design: the operator names the model, text-map, or frame directory.
+      - path: tools/(rasterise|placement-score)/main\.go
+        text: "G703"
+        linters:
+          - gosec
+      # audioSinkPresent stats fixed well-known sound-server socket names
+      # (pulse/native, pipewire-0) under the user's own XDG_RUNTIME_DIR. The joined
+      # leaf names are constants, not attacker-controlled path traversal.
+      - path: internal/engine/audio_linux\.go
+        text: "G703"
+        linters:
+          - gosec
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
 formatters:
   enable:
     - gofumpt
   exclusions:
     generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

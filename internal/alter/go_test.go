@@ -246,6 +246,52 @@ func TestGoInactivePreservesDestinations(t *testing.T) {
 	}
 }
 
+func TestGoLintOrdinaryModes(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		alteration  swatch.AlterationMode
+		mode        alter.ApplyMode
+		existing    bool
+		wantDefault bool
+	}{
+		{name: "missing first-fit", alteration: swatch.FirstFit, mode: alter.Apply, wantDefault: true},
+		{name: "custom first-fit", alteration: swatch.FirstFit, mode: alter.Apply, existing: true},
+		{name: "custom always", alteration: swatch.Always, mode: alter.Apply, existing: true, wantDefault: true},
+		{name: "custom recut", alteration: swatch.FirstFit, mode: alter.Recut, existing: true, wantDefault: true},
+		{name: "never recut", alteration: swatch.Never, mode: alter.Recut, existing: true},
+		{name: "preview", alteration: swatch.Always, mode: alter.DryRun, existing: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			tc := setupAlterTest(t, "languages:\n  go: true\nswatches: []\n", WithNoRepo())
+			custom := []byte("custom lint policy\n")
+			if tt.existing {
+				writeOnDisk(t, tc.Dir, ".golangci.yml", custom)
+			}
+			writeOnDisk(t, tc.Dir, ".golangci.yaml", []byte("alternate policy\n"))
+			cfg := goConfig(entry(".golangci.yml", tt.alteration))
+			if _, err := alter.Execute(cfg, tc.Dir, tt.mode, tc.Client, nil, alter.Options{}); err != nil {
+				t.Fatal(err)
+			}
+			want := custom
+			if tt.wantDefault {
+				var err error
+				want, err = swatch.Render(swatch.GoLintDestination, swatch.Options{})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			got, err := os.ReadFile(filepath.Join(tc.Dir, ".golangci.yml"))
+			if err != nil || !bytes.Equal(got, want) {
+				t.Fatalf("lint policy = %q, want %q: %v", got, want, err)
+			}
+			alternate, err := os.ReadFile(filepath.Join(tc.Dir, ".golangci.yaml"))
+			if err != nil || string(alternate) != "alternate policy\n" {
+				t.Fatalf("alternate policy changed: %q, %v", alternate, err)
+			}
+		})
+	}
+}
+
 func TestGoProtectedFilesDoNotNeedDiscovery(t *testing.T) {
 	for _, mode := range []swatch.AlterationMode{swatch.FirstFit, swatch.Never} {
 		dir := t.TempDir()

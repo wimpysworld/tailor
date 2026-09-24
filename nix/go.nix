@@ -6,4 +6,6 @@ with pkgs;
   golangci-lint
   govulncheck
   goreleaser
+  gocyclo
+  goperf
 ]

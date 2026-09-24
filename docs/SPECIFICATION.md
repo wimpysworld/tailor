@@ -310,7 +310,7 @@ The protected roots have no ownership marker. Tailor preserves an existing regul
 
 Tailor does not parse or rewrite a preserved root. If the line is absent, add `import 'just/loader.just'` to `justfile`. If the expression is absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in `flake.nix`.
 
-The generated `justfile` requires Just 1.23.0 or later and owns the sole `default` recipe. The generated files are tested with Just 1.23.0 and 1.58.0. `just/tailor.just` owns `build`, `test`, `alter`, `measure`, `release`, `lint-actions`, and `lint`. `lint-actions` runs `actionlint` once at the project root when `.github/workflows` contains a `.yml` or `.yaml` file. With no workflow files, including an absent directory, it prints a successful skip message. Workflow lint failures and missing `actionlint` remain errors when workflow files exist. A workflow skip does not skip other enabled linters. `just/go.just` owns `build-go`, `test-go`, and `lint-go`, which runs `golangci-lint run` and then `govulncheck ./...`. `just/pages.just` owns `pages`. Generated files cannot contain duplicate recipe names.
+The generated `justfile` requires Just 1.23.0 or later and owns the sole `default` recipe. The generated files are tested with Just 1.23.0 and 1.58.0. `just/tailor.just` owns `build`, `test`, `alter`, `measure`, `release`, `lint-actions`, and `lint`. `lint-actions` runs `actionlint` once at the project root when `.github/workflows` contains a `.yml` or `.yaml` file. With no workflow files, including an absent directory, it prints a successful skip message. Workflow lint failures and missing `actionlint` remain errors when workflow files exist. A workflow skip does not skip other enabled linters. `just/go.just` owns the Go recipes below. `lint-go` runs `golangci-lint run --config .golangci.yml`, then `govulncheck ./...`, then `vet-go`. `just/pages.just` owns `pages`. Generated files cannot contain duplicate recipe names.
 
 A shared typed operation table and renderer compose the argument-free build, test, and lint aggregates from static registry metadata. Each recipe name must be unique, with one owner per capability and operation. Preflight verifies that each selected recipe exists in its rendered fragment. The `test` aggregate follows the build selection and ordering rules, adds only `test-go` for explicit Go enablement, and succeeds with guidance when empty. `test-go` runs `go test ./...`. The core provides `release` by default, independent of language declarations. Release remains outside all aggregates and retains the existing local tag flow.
 
@@ -318,7 +318,7 @@ The `build` recipe depends on each registered builder whose capability is explic
 
 Swatch modes for protected roots and ordinary Go configuration do not disable selected build, test, or lint dispatch. In particular, `never` for `justfile` or `.golangci.yml` does not remove Go recipes from aggregates selected by `languages.go: true`. Users must keep custom checks under distinct wrapper names because managed recipe names cannot be overridden. Before adding the loader import to a preserved root, remove or rename user-owned `build` and `test` recipes. Tailor's repository-only `lint-all` is a compatibility alias for `lint`; Tailor does not generate it for other projects.
 
-The Nix loader returns only a package list. It passes the existing `pkgs` set to each fragment and does not add inputs, change outputs, or update the lock file. This packages-only guarantee covers packages available through the existing flake inputs. The Go fragment supplies Go, golangci-lint, govulncheck, and GoReleaser. The Playwright fragment supplies `playwright-mcp` with Chromium only. It excludes Firefox, WebKit, and the Chromium headless shell.
+The Nix loader returns only a package list. It passes the existing `pkgs` set to each fragment and does not add inputs, change outputs, or update the lock file. This packages-only guarantee covers packages available through the existing flake inputs. The Go fragment supplies Go, golangci-lint, govulncheck, GoReleaser, gocyclo, and goperf. The Playwright fragment supplies `playwright-mcp` with Chromium only. It excludes Firefox, WebKit, and the Chromium headless shell.
 
 `build-go` uses `go list` and both `go build` commands under the same `GOOS`, `GOARCH`, `GOFLAGS`, and build-tag environment. It validates all packages without writing an executable in the project root. A library-only module succeeds without creating `bin/`. For executable packages, it rejects duplicate Go output names, a symlinked `bin`, and symlink, directory, or special-file output destinations before compilation. It builds and validates every package in a temporary directory before it publishes any executable. Publication replaces existing regular `bin/<name>` executables and rechecks the destinations first. Output names follow Go directory builds, including `.exe` for Windows and the parent name for semantic `/v2` or later import paths.
 
@@ -378,6 +378,27 @@ When this run creates a missing `.github` parent for Pages or wiki, Dependabot a
 Replacement uses a sibling temporary file, file sync, close, atomic rename, and directory sync. The final check-to-rename race remains, and the wider run is not transactional. Close and post-publication errors are returned. Reports retain a confirmed Dependabot result when publication succeeded before a later error.
 
 The `just/go.just` and `nix/go.nix` fragment lifecycle follows the managed-file rules above. During migration, an absent Go declaration can retain an older owned `just/go.just` that defines `build` or `test`. Tailor detects that collision before writes and directs the user to enable Go for migration, or remove or rename the legacy recipe. The ordinary Go swatches retain their alteration modes. A language change alone never replaces an existing first-fit ordinary swatch.
+
+#### Shared Go policy and commands
+
+The canonical lint path is `.golangci.yml`, an ordinary first-fit swatch without an ownership marker. With Go enabled, Tailor deploys the shared default to a missing destination. Customise that file directly. Normal first-fit alterations preserve existing content. `always` and `--recut` replace eligible files with the shared default, while `never` preserves them.
+
+Lint and format commands select `.golangci.yml` explicitly. Tailor does not migrate or merge an alternate `.golangci.yaml`. Review and move any required custom policy to the canonical path manually before using these commands.
+
+The initial default uses Nyala's reviewed policy, including `intrange`, explicit `govet` and `ineffassign`, and `gofumpt`. It does not enable `modernize` or enforce `gocyclo`. The default retains `G306`, three scoped gosec exclusions with reason comments, and the reviewed path exclusions. These exceptions are shared default policy, not generated per-project decisions. Review their security scope before reuse. Standalone `go vet ./...` retains full vet coverage outside lint exclusions.
+
+| Recipe | Command or behaviour |
+|---|---|
+| `vet-go` | `go vet ./...` without shared lint exclusions |
+| `fmt-go` | `golangci-lint fmt --config .golangci.yml`, changes source |
+| `fmt-check-go` | Same formatter with `--diff`, returns non-zero for changes without writing source |
+| `tidy-go` | `go mod tidy`, changes module files |
+| `tidy-check-go` | `go mod tidy -diff`, returns non-zero for changes without writing module files |
+| `coverage-go` | `go test -coverprofile=coverage.out ./...`, replaces generated `coverage.out` |
+| `complexity-go` | `gocyclo -top 20 -avg -ignore '_test\.go$' .`, diagnostic only |
+| `check-go` | Sequential `fmt-check-go`, `tidy-check-go`, `lint-go`, `test-go`, stops on failure |
+
+`check-go` does not change source or module files. It excludes build, coverage, release, and installation. `build-go` remains a separate gate because it writes executables. Go commands can populate caches or fetch modules, and govulncheck can fetch vulnerability data. Tests stub external policy commands and never run live scans. Benchmark and profile recipes remain future work. No generic format aggregate is added.
 
 #### Go release discovery and preflight
 

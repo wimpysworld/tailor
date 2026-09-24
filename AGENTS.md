@@ -34,7 +34,13 @@ tailor/
 - Build Go packages and write executables to `bin/`: `just build-go`
 - Build the stripped Tailor binary: `just build-tailor` (or `go build -ldflags "-s -w" -o tailor ./cmd/tailor`)
 - Run all enabled tests: `just test`. Run Go tests only: `just test-go` (or `go test ./...`).
-- Run all enabled linters: `just lint` (`actionlint`, `golangci-lint run`, then `govulncheck ./...` in this repository)
+- Run all enabled linters: `just lint` (`actionlint`, `golangci-lint run --config .golangci.yml`, `govulncheck ./...`, then `go vet ./...`).
+- Run sequential source-preserving checks with `just check-go`. Keep builds, coverage, releases, and installation outside this gate.
+- Use `just fmt-go` and `just tidy-go` only to apply changes. Use `just fmt-check-go` and `just tidy-check-go` for checks.
+- Use `just coverage-go` for generated `coverage.out`, and `just complexity-go` for a diagnostic report.
+- Keep `.golangci.yml` as an ordinary first-fit swatch. Customise that file directly, not `.tailor.yml`.
+- Preserve existing first-fit lint files during normal alterations. `always` and `--recut` replace them with the shared default.
+- Keep the shared security exceptions scoped. They are default policy, not generated project exceptions. See `wiki/Configuration.md`.
 - Run workflow linters only: `just lint-actions`
 - Run Go linters only: `just lint-go`. This recipe can use the network for module and vulnerability data.
 - Keep `lint-all` as the project alias for `lint` in `just/project.just`.
@@ -64,7 +70,8 @@ tailor/
 - Table-driven tests following Go conventions
 - Test files sit alongside the code they test (`*_test.go`)
 - Test swatch embedding and config parsing without network access
-- Stub `govulncheck` in managed recipe tests. Normal tests must not run the live scanner.
+- Stub external policy commands in managed recipe tests. Normal tests must not run live vulnerability scans.
+- Keep benchmark and profile recipes as future work.
 - Commands that call `gh` should have their external calls abstracted behind interfaces for testability
 - Test authentication through local `GH_TOKEN`, `GITHUB_TOKEN`, and `gh` credential paths only
 - `measure` is purely local and needs no mocking

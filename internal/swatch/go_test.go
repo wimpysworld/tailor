@@ -435,6 +435,18 @@ func TestGoWorkflowIsolationAndVulnerabilityChecks(t *testing.T) {
 			if workflow.Name == "Builder 👷" || workflow.Concurrency.Group != "tailor-build-go-${{ github.event.pull_request.number || github.ref }}" {
 				t.Fatal("Go workflow can share the existing builder concurrency group")
 			}
+			lintSteps := 0
+			for _, step := range workflow.Jobs["lint-code"].Steps {
+				if strings.HasPrefix(step.Uses, "golangci/golangci-lint-action@") {
+					lintSteps++
+					if step.With["args"] != "--config .golangci.yml" {
+						t.Fatal("lint action must select the canonical configuration")
+					}
+				}
+			}
+			if lintSteps != 1 {
+				t.Fatalf("lint actions = %d, want 1", lintSteps)
+			}
 			steps := workflow.Jobs["security"].Steps
 			scanIndex, checkIndex, reportIndex, uploadIndex := -1, -1, -1, -1
 			scans := 0
