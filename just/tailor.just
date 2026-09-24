@@ -14,7 +14,12 @@ test: test-go
 
 # Run workflow linters
 lint-actions:
-    @actionlint
+    @for workflow in .github/workflows/* .github/workflows/.*; do \
+        case "$workflow" in *.yml|*.yaml) \
+            if [ -f "$workflow" ]; then exec actionlint; fi ;; \
+        esac; \
+    done; \
+    echo "No GitHub Actions workflows found. Skipping actionlint."
 
 # Run all enabled linters
 lint: lint-actions lint-go

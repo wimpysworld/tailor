@@ -35,6 +35,86 @@ func TestManagedLintExecutesSelectedLintersOnceAtProjectRoot(t *testing.T) {
 	}
 }
 
+func TestManagedLintWorkflowDiscovery(t *testing.T) {
+	just := managedLintExecutable(t)
+	for _, test := range []struct {
+		name        string
+		files       []string
+		directories []string
+		wantRun     bool
+	}{
+		{name: "missing directory"},
+		{name: "empty directory", directories: []string{""}},
+		{name: "non YAML files", files: []string{"README.md", "ci.yml.disabled"}},
+		{name: "YAML directory", directories: []string{"directory.yml"}},
+		{name: "yml", files: []string{"ci.yml"}, wantRun: true},
+		{name: "yaml", files: []string{"ci.yaml"}, wantRun: true},
+		{name: "hidden yml", files: []string{".ci.yml"}, wantRun: true},
+		{name: "hidden yaml", files: []string{".ci.yaml"}, wantRun: true},
+		{name: "multiple files with spaces", files: []string{"first workflow.yml", "second workflow.yaml"}, wantRun: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := filepath.Join(t.TempDir(), "project with spaces")
+			writeManagedJustFixture(t, root, renderSelectedManagedFiles(t, managedRenderConfig(true, nil)))
+			writeManagedTestFile(t, root, "justfile", []byte("set shell := [\"/bin/sh\", \"-cu\"]\nimport 'just/loader.just'\n"))
+			for _, name := range test.directories {
+				if err := os.MkdirAll(filepath.Join(root, ".github", "workflows", name), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, name := range test.files {
+				writeManagedTestFile(t, root, ".github/workflows/"+name, []byte("invalid: [\n"))
+			}
+			log := filepath.Join(root, "lint.log")
+			bin := filepath.Join(root, "bin")
+			if test.wantRun {
+				writeManagedLintStub(t, bin, "actionlint", "TAILOR_ACTIONLINT_STATUS")
+			}
+			writeManagedLintStub(t, bin, "golangci-lint", "TAILOR_GOLANGCI_STATUS")
+			writeManagedLintStub(t, bin, "govulncheck", "TAILOR_GOVULNCHECK_STATUS")
+			output, err := runManagedLint(t, just, root, "lint", bin, log, nil)
+			if err != nil {
+				t.Fatalf("just lint: %v\n%s", err, output)
+			}
+			want := []string{"golangci-lint|" + root + "|1|run", "govulncheck|" + root + "|1|./..."}
+			if test.wantRun {
+				want = append([]string{"actionlint|" + root + "|0|"}, want...)
+			}
+			if got := canonicalManagedLintCalls(t, managedLintLog(t, log)); !reflect.DeepEqual(got, canonicalManagedLintCalls(t, want)) {
+				t.Fatalf("lint calls = %v, want %v", got, want)
+			}
+			if skipped := strings.Contains(string(output), "No GitHub Actions workflows found. Skipping actionlint."); skipped == test.wantRun {
+				t.Fatalf("unexpected skip message: %s", output)
+			}
+		})
+	}
+}
+
+func TestManagedLintInvalidWorkflowFails(t *testing.T) {
+	actionlint, err := exec.LookPath("actionlint")
+	if err != nil {
+		t.Skip("actionlint is unavailable")
+	}
+	root := t.TempDir()
+	writeManagedLintFixture(t, root, renderSelectedManagedFiles(t, managedRenderConfig(false, nil)))
+	writeManagedTestFile(t, root, ".github/workflows/ci.yml", []byte("invalid: [\n"))
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(actionlint, filepath.Join(bin, "actionlint")); err != nil {
+		t.Fatal(err)
+	}
+	command := exec.CommandContext(t.Context(), "git", "init", root)
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("git init: %v\n%s", err, output)
+	}
+	output, err := runManagedLint(t, managedLintExecutable(t), root, "lint-actions", bin, filepath.Join(root, "lint.log"), nil)
+	if err == nil || !strings.Contains(string(output), "syntax-check") {
+		t.Fatalf("invalid workflow output = %q, error = %v, want YAML syntax failure", output, err)
+	}
+}
+
 func TestCanonicalManagedLintCallsResolvesDirectoryAliases(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "project")
 	if err := os.MkdirAll(root, 0o755); err != nil {
@@ -158,6 +238,7 @@ func managedLintExecutable(t *testing.T) string {
 func writeManagedLintFixture(t *testing.T, root string, rendered managedRenderedFiles) {
 	t.Helper()
 	writeManagedJustFixture(t, root, rendered)
+	writeManagedTestFile(t, root, ".github/workflows/ci.yml", []byte("on: push\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: true\n"))
 	writeManagedTestFile(t, root, "justfile", []byte("set shell := [\"/bin/sh\", \"-cu\"]\nimport 'just/loader.just'\n"))
 }
 
