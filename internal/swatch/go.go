@@ -25,6 +25,8 @@ type Options struct {
 	GoDeclared bool
 	// GoEnabled selects Go variants of shared development swatches.
 	GoEnabled bool
+	// GoCGO applies only to Go check jobs, not release jobs.
+	GoCGO *bool
 	// DefaultBranch selects the workflow branch. Empty uses a runtime job guard.
 	DefaultBranch string
 	// Builds lists the executables required to render the release configuration.
@@ -43,6 +45,16 @@ func Render(path string, options Options) ([]byte, error) {
 	}
 	switch path {
 	case GoWorkflowDestination:
+		if options.GoCGO != nil {
+			value := "0"
+			if *options.GoCGO {
+				value = "1"
+			}
+			for _, job := range []string{"lint-code", "coverage", "test", "security"} {
+				header := "  " + job + ":\n"
+				data = bytes.Replace(data, []byte(header), []byte(header+"    env:\n      CGO_ENABLED: \""+value+"\"\n"), 1)
+			}
+		}
 		branch, guard := "**", ""
 		if options.DefaultBranch == "" {
 			// Without repository metadata, resolve the default branch when the workflow runs.

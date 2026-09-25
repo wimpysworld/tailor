@@ -103,6 +103,18 @@ func listLines(key string, v reflect.Value) (string, error) {
 var templateFuncs = template.FuncMap{
 	"yamlVal":    yamlVal,
 	"yamlQuoted": yamlQuoted,
+	"languageLines": func(languages *LanguageSettings) []string {
+		w := &rulesetWriter{}
+		if languages.GoOptions == nil {
+			w.boolean(2, "go", languages.Go)
+		} else {
+			w.line(2, "go:")
+			w.boolean(4, "enabled", languages.Go)
+			w.boolean(4, "cgo", languages.GoOptions.CGO)
+			w.boolean(4, "ffmpeg-statigo", languages.GoOptions.FFmpegStatigo)
+		}
+		return w.lines
+	},
 	"repositoryLines": func(cfg *Config) ([]string, error) {
 		lines, err := settingLines(model.RepositorySettingFields(cfg.Repository))
 		if cfg.InferredHomepage != "" && !cfg.HomepageDeclared() {
@@ -405,7 +417,9 @@ license: {{ yamlVal .License }}
 {{- if .GoDeclared }}
 
 languages:
-  go: {{ .Languages.Go }}
+{{- range languageLines .Languages }}
+{{ . }}
+{{- end }}
 {{- else }}
 
 languages: {}

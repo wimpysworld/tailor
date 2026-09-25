@@ -116,7 +116,13 @@ tailor/
 
 ## Key implementation details
 
-- Swatches are embedded at build time via `//go:embed swatches/*`
+- Swatches are embedded recursively at build time via `//go:embed all:swatches`, including private nested hook templates.
+- Accept Boolean `languages.go` or a mapping with required `enabled` and optional Boolean `cgo` and `ffmpeg-statigo`.
+- Use `EffectiveGoCGO()` for development policy. Keep release generation and source discovery at `CGO_ENABLED=0`.
+- Keep `nix/loader.nix` list-valued and hook strings in typed `nix/hooks.nix` imports. Run helpers first and the core host prepend last.
+- Preserve existing target roots. Document manual hook composition with custom hooks last and the same overridden `pkgs` for both loaders.
+- Limit graphics hooks to runtime `ID=nixos`, unless `TAILOR_NIXOS_DRIVERS=0`. Preserve explicit scalar values, including empty values.
+- Never auto-run component setup. Explicit `just setup` can change Git config and submodules, remove archives, stage changes, and use the network.
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
 - After wiki readiness passes, write config updates, remove retired workflows, apply repository settings, then immutable releases. Continue with Actions policy, code scanning, Code Quality, ruleset, labels, variables, Pages, wiki, licence, then swatches.

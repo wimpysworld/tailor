@@ -28,7 +28,7 @@ func TestLanguagesStrictParsing(t *testing.T) {
 		{name: "number", input: "languages: {go: 1}\n", wantErr: "languages.go must be a bool"},
 		{name: "legacy boolean", input: "languages: {go: yes}\n", wantErr: "languages.go must be a bool"},
 		{name: "list", input: "languages: {go: []}\n", wantErr: "languages.go must be a bool"},
-		{name: "map", input: "languages: {go: {}}\n", wantErr: "languages.go must be a bool"},
+		{name: "map", input: "languages: {go: {}}\n", wantErr: "languages.go.enabled is required"},
 		{name: "duplicate", input: "languages: {go: true, go: false}\n", wantErr: `mapping key "go" already defined`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

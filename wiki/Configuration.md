@@ -60,9 +60,43 @@ If you manually delete a managed Just fragment, Just can fail while it parses ev
 
 Keep the capability declaration explicitly true so that Tailor recreates the fragment. If the declaration is absent, enable it or restore the deleted fragment from Git. An older retained `just/go.just` can still define `build` or `test`, which conflicts with the new core aggregate. Tailor stops before writes. Set `languages.go: true` to migrate the fragment, or remove or rename its legacy `build` or `test` recipe. Do not edit generated dependencies manually. Do not use `--recut` for this recovery.
 
+### Nix shell hooks
+
+`nix/loader.nix` still returns a package list. The separate `nix/hooks.nix` returns a shell string from registered hooks only. Missing optional fragments are safe during partial upgrades. Tailor always owns `nix/hooks.nix` and `nix/hooks/core.nix`. Go selects `nix/hooks/go.nix`. The FFmpeg component selects `nix/hooks/go-ffmpeg-statigo.nix`.
+
+New flake starters import both loaders. For a preserved root, manually compose the hook without replacing custom content:
+
+```nix
+shellHook = (import ./nix/hooks.nix { inherit pkgs; }) + "\n" + existingHook;
+```
+
+Replace `existingHook` with your existing hook expression, or omit the concatenation when no hook exists. Pass the same `pkgs` set, including any Go override, to both loaders. Tailor never rewrites existing target roots.
+
+The helper functions run first, component hooks run next, and the core host hook runs last. On NixOS, `LD_LIBRARY_PATH` puts `/run/opengl-driver/lib` first, component libraries next, and existing entries last. The path helper removes duplicate and empty entries and tolerates repeated shell entry and unset variables.
+
+Graphics hooks run only when runtime `/etc/os-release` contains `ID=nixos`. Tailor parses this file without sourcing it. Set `TAILOR_NIXOS_DRIVERS=0` to disable all graphics changes. Pure Nix evaluation cannot identify the host distribution, so package selection uses Linux rather than NixOS. Other Linux hosts receive the packages but no graphics environment changes. Darwin receives neither.
+
+The FFmpeg component adds `vulkan-loader`, `intel-media-driver`, and `vpl-gpu-rt` on Linux. Its library order is oneVPL, Intel media, then Vulkan. It defaults `ONEVPL_SEARCH_PATH` to the oneVPL library directory. It defaults `LIBVA_DRIVERS_PATH` to system DRI when present, otherwise Intel DRI. It defaults `VK_DRIVER_FILES` to sorted, readable system ICD manifests, including files under linked driver directories. These defaults apply only to unset variables. Explicit empty values and user choices remain unchanged. Tailor neither detects GPU vendors nor forces `LIBVA_DRIVER_NAME`.
+
 ## Go support
 
-Set `languages.go: true` to add Go development and release files:
+Set `languages.go: true` to add Go development and release files. The Boolean form remains supported. The mapping form requires `enabled`:
+
+```yaml
+languages:
+  go:
+    enabled: true
+    cgo: true
+    ffmpeg-statigo: true
+```
+
+Both optional keys accept only Booleans. Unknown keys, null values, and a mapping without `enabled` are invalid. The component requires enabled Go and rejects explicit `cgo: false`. With the component enabled, omitted `cgo` resolves to true without changing authored YAML. Otherwise omitted `cgo` leaves the caller environment unchanged. Explicit CGO policy applies to development recipes, the Go shell hook, and the rendered builder workflow. The Go hook works independently of the graphics guard and opt-out.
+
+Component true creates owned Just, Nix package, and Nix hook fragments. Component false removes only owned fragments. An absent component preserves them, unless Go is explicitly false. Go false removes owned Go and component fragments. Go absent preserves all of them. Default merging preserves the authored Boolean or mapping form and does not insert optional keys.
+
+The component is for consumer repositories with `third_party/ffmpeg-statigo`, not the ffmpeg-statigo source root. It never runs setup automatically. See [explicit setup effects](Commands#ffmpeg-statigo-setup). Release generation and source discovery still use `CGO_ENABLED=0`. This component does not provide cross-platform FFmpeg releases.
+
+Minimal Boolean form:
 
 ```yaml
 languages:

@@ -24,8 +24,9 @@ func TestFixedManagedRegistry(t *testing.T) {
 	}
 	want := []string{
 		"justfile", "flake.nix",
-		"just/loader.just", "nix/loader.nix", "just/tailor.just",
+		"just/loader.just", "nix/loader.nix", "nix/hooks.nix", "nix/hooks/core.nix", "nix/hooks/go.nix", "nix/hooks/go-ffmpeg-statigo.nix", "just/tailor.just",
 		"just/go.just", "nix/go.nix",
+		"just/go-ffmpeg-statigo.just", "nix/go-ffmpeg-statigo.nix",
 		"just/pages.just", "nix/pages.nix", "nix/playwright.nix",
 		".mcp.json", ".codex/config.toml", "opencode.json", ".pi/mcp.json",
 	}
@@ -197,14 +198,16 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 				MCP:       &config.MCPSettings{Playwright: &falseValue},
 			},
 			want: map[string]bool{
-				"just/loader.just":   true,
-				"nix/loader.nix":     true,
-				"just/tailor.just":   true,
-				"just/go.just":       false,
-				"nix/go.nix":         false,
-				"just/pages.just":    false,
-				"nix/pages.nix":      false,
-				"nix/playwright.nix": false,
+				"just/loader.just":            true,
+				"nix/loader.nix":              true,
+				"just/tailor.just":            true,
+				"just/go.just":                false,
+				"just/go-ffmpeg-statigo.just": false,
+				"nix/go-ffmpeg-statigo.nix":   false,
+				"nix/go.nix":                  false,
+				"just/pages.just":             false,
+				"nix/pages.nix":               false,
+				"nix/playwright.nix":          false,
 			},
 		},
 		{
@@ -238,6 +241,14 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 			got := make(map[string]bool, len(selected))
 			for _, selection := range selected {
 				got[selection.Entry.Path] = selection.Enabled
+			}
+			tt.want["nix/hooks.nix"] = true
+			tt.want["nix/hooks/core.nix"] = true
+			if tt.cfg.GoDeclared() {
+				tt.want["nix/hooks/go.nix"] = tt.cfg.GoEnabled()
+			}
+			if tt.cfg.GoDeclared() && !tt.cfg.GoEnabled() {
+				tt.want["nix/hooks/go-ffmpeg-statigo.nix"] = false
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("selectManagedFiles() = %v, want %v", got, tt.want)

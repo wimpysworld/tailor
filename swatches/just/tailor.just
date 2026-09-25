@@ -4,6 +4,10 @@
 alter:
     @tailor alter
 
+# Run explicitly requested setup for enabled components
+setup: [[TAILOR_MANAGED_SETUP_DEPENDENCIES]]
+    [[TAILOR_MANAGED_SETUP_COMMAND]]
+
 # Run all enabled builders
 build: [[TAILOR_MANAGED_BUILD_DEPENDENCIES]]
     [[TAILOR_MANAGED_BUILD_COMMAND]]

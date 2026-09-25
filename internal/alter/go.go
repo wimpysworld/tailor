@@ -52,7 +52,7 @@ func prepareGoSwatches(cfg *config.Config, dir string, mode ApplyMode, branch st
 			}
 		}
 	}
-	options := swatch.Options{GoDeclared: cfg.GoDeclared(), GoEnabled: cfg.GoEnabled(), DefaultBranch: branch}
+	options := swatch.Options{GoDeclared: cfg.GoDeclared(), GoEnabled: cfg.GoEnabled(), GoCGO: cfg.EffectiveGoCGO(), DefaultBranch: branch}
 	if planned[".goreleaser.yaml"] {
 		options.Builds, err = goproject.Discover(dir)
 		if err != nil {
@@ -105,7 +105,7 @@ func resolveGoBuilder(contents map[string][]byte, cfg *config.Config, target Rep
 		return fmt.Errorf("go builder repository response is missing default_branch")
 	}
 	branch := repository.DefaultBranch
-	content, err := swatch.Render(goBuilderPath, swatch.Options{GoDeclared: cfg.GoDeclared(), GoEnabled: cfg.GoEnabled(), DefaultBranch: branch})
+	content, err := swatch.Render(goBuilderPath, swatch.Options{GoDeclared: cfg.GoDeclared(), GoEnabled: cfg.GoEnabled(), GoCGO: cfg.EffectiveGoCGO(), DefaultBranch: branch})
 	if err != nil {
 		return fmt.Errorf("rendering Go builder: %w", err)
 	}

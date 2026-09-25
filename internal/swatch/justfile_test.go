@@ -45,6 +45,8 @@ func TestRenderedJustfileRelease(t *testing.T) {
 
 			core := string(mustSwatchContent(t, "just/tailor.just"))
 			for placeholder, replacement := range map[string]string{
+				"[[TAILOR_MANAGED_SETUP_DEPENDENCIES]]": "",
+				"[[TAILOR_MANAGED_SETUP_COMMAND]]":      `@echo "No setup recipes are enabled."`,
 				"[[TAILOR_MANAGED_BUILD_DEPENDENCIES]]": "",
 				"[[TAILOR_MANAGED_BUILD_COMMAND]]":      `@echo "No build recipes are enabled."`,
 				"[[TAILOR_MANAGED_LINT_DEPENDENCIES]]":  "lint-actions",

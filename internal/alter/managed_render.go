@@ -66,7 +66,7 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 			return nil, fmt.Errorf("reading managed template %q: %w", entry.Path, err)
 		}
 		switch entry.Path {
-		case "just/loader.just", "nix/loader.nix":
+		case "just/loader.just", "nix/loader.nix", "nix/hooks.nix":
 			content, err = renderManagedLoader(entry.Path, content, registry)
 		case "just/tailor.just":
 			for _, operation := range managedOperations() {
@@ -75,6 +75,17 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 					break
 				}
 			}
+		case "nix/hooks/go.nix":
+			command := ""
+			if policy := cfg.EffectiveGoCGO(); policy != nil {
+				command = "  export CGO_ENABLED=0"
+				if *policy {
+					command = "  export CGO_ENABLED=1"
+				}
+			}
+			content = bytes.ReplaceAll(content, []byte("  # TAILOR_GO_CGO"), []byte(command))
+		case "just/go.just":
+			content = renderManagedGoCGO(cfg, content)
 		case "just/pages.just":
 			content, err = renderManagedPages(cfg, content)
 		}
@@ -84,6 +95,22 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 		files[entry.Path] = content
 	}
 	return files, nil
+}
+
+func renderManagedGoCGO(cfg *config.Config, content []byte) []byte {
+	policy := cfg.EffectiveGoCGO()
+	if policy == nil {
+		return content
+	}
+	value := "0"
+	if *policy {
+		value = "1"
+	}
+	content = bytes.ReplaceAll(content, []byte("    set -euo pipefail\n"), []byte("    set -euo pipefail\n    export CGO_ENABLED="+value+"\n"))
+	for _, command := range []string{"go", "golangci-lint", "govulncheck"} {
+		content = bytes.ReplaceAll(content, []byte("    @"+command+" "), []byte("    @env CGO_ENABLED="+value+" "+command+" "))
+	}
+	return content
 }
 
 func renderManagedBuildAggregate(cfg *config.Config, content []byte, registry []managedRegistryEntry) ([]byte, error) {
@@ -155,6 +182,13 @@ func renderManagedLoader(destination string, content []byte, registry []managedR
 	var imports []string
 	directory := path.Dir(destination)
 	for _, entry := range registry {
+		if destination == "nix/hooks.nix" {
+			if entry.NixKind == managedNixHook {
+				name := strings.TrimPrefix(entry.Path, "nix/")
+				imports = append(imports, renderManagedNixImport(name, `""`, "  "))
+			}
+			continue
+		}
 		if path.Dir(entry.Path) != directory || entry.Path == destination {
 			continue
 		}
@@ -164,9 +198,9 @@ func renderManagedLoader(destination string, content []byte, registry []managedR
 				imports = append(imports, "import? "+strconv.Quote(path.Base(entry.Path)))
 			}
 		case "nix/loader.nix":
-			if entry.Policy == managedPolicyFragment {
+			if entry.Policy == managedPolicyFragment && entry.NixKind == managedNixList {
 				name := path.Base(entry.Path)
-				imports = append(imports, "    (if builtins.pathExists ./"+name+" then import ./"+name+" { inherit pkgs; } else [ ])")
+				imports = append(imports, renderManagedNixImport(name, "[ ]", "    "))
 			}
 		default:
 			return nil, fmt.Errorf("unsupported managed loader %q", destination)
@@ -177,13 +211,32 @@ func renderManagedLoader(destination string, content []byte, registry []managedR
 	}
 
 	placeholder := []byte(managedImportsPlaceholder)
+	if destination == "nix/hooks.nix" {
+		slices.SortStableFunc(imports, func(left, right string) int {
+			return strings.Compare(strconv.FormatBool(strings.Contains(left, "./hooks/core.nix")), strconv.FormatBool(strings.Contains(right, "./hooks/core.nix")))
+		})
+	}
 	if destination == "nix/loader.nix" {
 		placeholder = []byte("    # TAILOR_MANAGED_IMPORTS")
+	}
+	if destination == "nix/hooks.nix" {
+		placeholder = []byte("  # TAILOR_MANAGED_IMPORTS")
 	}
 	if bytes.Count(content, placeholder) != 1 {
 		return nil, fmt.Errorf("managed loader %q must contain one imports placeholder", destination)
 	}
 	return bytes.Replace(content, placeholder, []byte(strings.Join(imports, "\n")), 1), nil
+}
+
+func renderManagedNixImport(name, fallback, indent string) string {
+	inline := indent + "(if builtins.pathExists ./" + name + " then import ./" + name + " { inherit pkgs; } else " + fallback + ")"
+	// nixfmt permits the closing parenthesis beyond its 100-column width.
+	if len(inline)-1 <= 100 {
+		return inline
+	}
+	return indent + "(\n" + indent + "  if builtins.pathExists ./" + name + " then\n" +
+		indent + "    import ./" + name + " { inherit pkgs; }\n" + indent + "  else\n" +
+		indent + "    " + fallback + "\n" + indent + ")"
 }
 
 func renderManagedPages(cfg *config.Config, content []byte) ([]byte, error) {

@@ -17,6 +17,7 @@ const (
 	managedCapabilityGo
 	managedCapabilityPages
 	managedCapabilityPlaywright
+	managedCapabilityGoFFmpegStatigo
 )
 
 type managedPolicy uint8
@@ -29,13 +30,22 @@ const (
 	managedPolicySharedStarter
 )
 
+type managedNixKind uint8
+
+const (
+	managedNixList managedNixKind = iota
+	managedNixHook
+)
+
 type managedRegistryEntry struct {
+	NixKind     managedNixKind
 	Path        string
 	Policy      managedPolicy
 	Capability  managedCapability
 	BuildRecipe string
 	LintRecipe  string
 	TestRecipe  string
+	SetupRecipe string
 }
 
 type managedRecipeOperation string
@@ -44,10 +54,11 @@ const (
 	managedBuild managedRecipeOperation = "build"
 	managedTest  managedRecipeOperation = "test"
 	managedLint  managedRecipeOperation = "lint"
+	managedSetup managedRecipeOperation = "setup"
 )
 
 func managedOperations() []managedRecipeOperation {
-	return []managedRecipeOperation{managedBuild, managedTest, managedLint}
+	return []managedRecipeOperation{managedBuild, managedTest, managedLint, managedSetup}
 }
 
 func (operation managedRecipeOperation) recipe(entry managedRegistryEntry) string {
@@ -58,6 +69,8 @@ func (operation managedRecipeOperation) recipe(entry managedRegistryEntry) strin
 		return entry.TestRecipe
 	case managedLint:
 		return entry.LintRecipe
+	case managedSetup:
+		return entry.SetupRecipe
 	default:
 		return ""
 	}
@@ -74,9 +87,15 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "flake.nix", Policy: managedPolicyRoot},
 		{Path: "just/loader.just", Policy: managedPolicyLoader},
 		{Path: "nix/loader.nix", Policy: managedPolicyLoader},
+		{Path: "nix/hooks.nix", Policy: managedPolicyLoader},
+		{Path: "nix/hooks/core.nix", Policy: managedPolicyCore, NixKind: managedNixHook},
+		{Path: "nix/hooks/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo, NixKind: managedNixHook},
+		{Path: "nix/hooks/go-ffmpeg-statigo.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, NixKind: managedNixHook},
 		{Path: "just/tailor.just", Policy: managedPolicyCore},
 		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildRecipe: "build-go", TestRecipe: "test-go", LintRecipe: "lint-go"},
 		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
+		{Path: "just/go-ffmpeg-statigo.just", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, SetupRecipe: "setup-go-ffmpeg-statigo"},
+		{Path: "nix/go-ffmpeg-statigo.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo},
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright},
@@ -102,6 +121,9 @@ func validateManagedRegistry(registry []managedRegistryEntry) error {
 			return fmt.Errorf("managed registry contains duplicate destination %q", entry.Path)
 		}
 		seen[entry.Path] = struct{}{}
+		if entry.NixKind > managedNixHook || entry.NixKind == managedNixHook && (path.Ext(entry.Path) != ".nix" || (entry.Policy != managedPolicyCore && entry.Policy != managedPolicyFragment)) {
+			return fmt.Errorf("managed registry destination %q has an invalid Nix kind", entry.Path)
+		}
 
 		switch entry.Policy {
 		case managedPolicyRoot, managedPolicyLoader, managedPolicyCore:
@@ -163,13 +185,15 @@ func validateManagedPath(name string) error {
 }
 
 func (capability managedCapability) validDeclaration() bool {
-	return capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright
+	return capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
 }
 
 func (capability managedCapability) canonicalName() string {
 	switch capability {
 	case managedCapabilityGo:
 		return "go"
+	case managedCapabilityGoFFmpegStatigo:
+		return "go-ffmpeg-statigo"
 	case managedCapabilityPages:
 		return "pages"
 	case managedCapabilityPlaywright:
@@ -260,6 +284,8 @@ func managedCapabilityState(cfg *config.Config, capability managedCapability) (d
 	switch capability {
 	case managedCapabilityGo:
 		return cfg.GoDeclared(), cfg.GoEnabled()
+	case managedCapabilityGoFFmpegStatigo:
+		return cfg.FFmpegStatigoDeclared() || cfg.GoDeclared() && !cfg.GoEnabled(), cfg.FFmpegStatigoEnabled()
 	case managedCapabilityPages:
 		return cfg.PagesDeclared(), cfg.PagesEnabled()
 	case managedCapabilityPlaywright:

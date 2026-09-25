@@ -610,6 +610,13 @@ swatches: []
 	}
 }
 
+func expectedManagedHooks(output string) string {
+	for _, prefix := range []string{"would copy:                          ", "copied:                              ", "no change:                           "} {
+		output = strings.ReplaceAll(output, prefix+"nix/loader.nix\n", prefix+"nix/hooks.nix\n"+prefix+"nix/hooks/core.nix\n"+prefix+"nix/loader.nix\n")
+	}
+	return strings.ReplaceAll(output, "files: `nix/loader.nix`", "files: `nix/hooks.nix`, `nix/hooks/core.nix`, `nix/loader.nix`")
+}
+
 func TestAlterRunOutputByMode(t *testing.T) {
 	configYAML := `license: mit
 repository:
@@ -675,6 +682,7 @@ swatches:
 			)
 			cfg := loadTestConfig(t, tc.Dir)
 			got := captureAlterRun(t, cfg, tc.Dir, tt.mode, tc.Client)
+			tt.want = expectedManagedHooks(tt.want)
 			if got != tt.want {
 				t.Errorf("alter.Run() output =\n%s\nwant:\n%s", got, tt.want)
 			}
@@ -2885,6 +2893,7 @@ swatches:
 
 			cfg := loadTestConfig(t, tc.Dir)
 			got := captureAlterRun(t, cfg, tc.Dir, tt.mode, tc.Client)
+			tt.wantOutput = expectedManagedHooks(tt.wantOutput)
 			if got != tt.wantOutput {
 				t.Errorf("alter.Run() output =\n%s\nwant:\n%s", got, tt.wantOutput)
 			}
@@ -3032,6 +3041,7 @@ swatches:
 		"copied:                              nix/loader.nix\n" +
 		"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n"
+	wantFirst = expectedManagedHooks(wantFirst)
 	if first != wantFirst {
 		t.Errorf("first alter.Run() output =\n%s\nwant:\n%s", first, wantFirst)
 	}
@@ -3041,6 +3051,7 @@ swatches:
 		"no change:                           just/tailor.just\n" +
 		"no change:                           nix/loader.nix\n" +
 		"skipped:                             .github/dependabot.yml (not configured or mode never)\n"
+	wantSecond = expectedManagedHooks(wantSecond)
 	if second != wantSecond {
 		t.Errorf("retry alter.Run() output = %q, want %q", second, wantSecond)
 	}

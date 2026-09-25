@@ -4,6 +4,10 @@
 alter:
     @tailor alter
 
+# Run explicitly requested setup for enabled components
+setup:
+    @echo "No setup recipes are enabled."
+
 # Run all enabled builders
 build: build-go
     @:

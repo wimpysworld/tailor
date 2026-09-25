@@ -142,12 +142,14 @@ func pagesAcceptanceSnapshot(t *testing.T, dir string) map[string]string {
 }
 
 var managedCoreAcceptancePaths = []string{
+	"nix/hooks.nix", "nix/hooks/core.nix",
 	"just/loader.just",
 	"just/tailor.just",
 	"nix/loader.nix",
 }
 
 var managedCoreAndPagesAcceptancePaths = []string{
+	"nix/hooks.nix", "nix/hooks/core.nix",
 	"just/loader.just",
 	"just/tailor.just",
 	"nix/loader.nix",

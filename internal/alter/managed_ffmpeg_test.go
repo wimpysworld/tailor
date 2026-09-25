@@ -1,0 +1,270 @@
+package alter
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/swatch"
+)
+
+func ffmpegConfig() *config.Config {
+	return &config.Config{Languages: &config.LanguageSettings{Go: new(true), GoOptions: &config.GoOptions{FFmpegStatigo: new(true)}}}
+}
+
+func TestManagedFFmpegLifecycle(t *testing.T) {
+	for _, tc := range []struct {
+		name              string
+		cfg               *config.Config
+		selected, enabled bool
+	}{
+		{"enabled", ffmpegConfig(), true, true},
+		{"disabled", &config.Config{Languages: &config.LanguageSettings{Go: new(true), GoOptions: &config.GoOptions{FFmpegStatigo: new(false)}}}, true, false},
+		{"go disabled", &config.Config{Languages: &config.LanguageSettings{Go: new(false)}}, true, false},
+		{"option absent", &config.Config{Languages: &config.LanguageSettings{Go: new(true)}}, false, false},
+		{"go absent", &config.Config{}, false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			selections, err := selectManagedFiles(tc.cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rendered := renderSelectedManagedFiles(t, tc.cfg)
+			for _, path := range []string{"just/go-ffmpeg-statigo.just", "nix/go-ffmpeg-statigo.nix", "nix/hooks/go-ffmpeg-statigo.nix"} {
+				found := false
+				for _, selection := range selections {
+					if selection.Entry.Path == path {
+						found = true
+						if selection.Enabled != tc.enabled {
+							t.Fatal(selection)
+						}
+					}
+				}
+				if found != tc.selected {
+					t.Fatalf("selection %s = %v", path, found)
+				}
+				if !found {
+					continue
+				}
+				for _, present := range []bool{false, true} {
+					snapshots := []managedDestinationSnapshot{}
+					for _, selection := range selections {
+						snapshot := managedDestinationSnapshot{Path: selection.Entry.Path}
+						if present && selection.Entry.Path == path {
+							snapshot.Kind = managedDestinationRegular
+							snapshot.Content = managedContent(path, "old")
+						}
+						snapshots = append(snapshots, snapshot)
+					}
+					plan, err := planManagedFiles(selections, rendered, snapshots)
+					if err != nil {
+						t.Fatal(err)
+					}
+					for _, file := range plan.Files {
+						if file.Selection.Entry.Path == path {
+							want := managedOperationNoop
+							if tc.enabled {
+								want = managedOperationWrite
+							} else if present {
+								want = managedOperationRemove
+							}
+							if file.Operation != want {
+								t.Fatalf("%s operation %v != %v", path, file.Operation, want)
+							}
+						}
+					}
+				}
+			}
+			if got := bytes.Contains(rendered["just/tailor.just"], []byte("setup: setup-go-ffmpeg-statigo")); got != tc.enabled {
+				t.Fatal("incorrect setup aggregate")
+			}
+			for _, line := range strings.Split(string(rendered["just/tailor.just"]), "\n") {
+				if strings.Contains(line, "setup-go-ffmpeg-statigo") && !strings.HasPrefix(line, "setup:") {
+					t.Fatalf("automatic setup: %s", line)
+				}
+			}
+		})
+	}
+}
+
+func TestManagedCGOCommands(t *testing.T) {
+	for _, policy := range []*bool{nil, new(false), new(true)} {
+		t.Run(fmt.Sprint(policy), func(t *testing.T) {
+			cfg := &config.Config{Languages: &config.LanguageSettings{Go: new(true), GoOptions: &config.GoOptions{CGO: policy}}}
+			rendered := renderSelectedManagedFiles(t, cfg)
+			if policy == nil {
+				original, err := swatch.Content("just/go.just")
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !bytes.Equal(original, rendered["just/go.just"]) {
+					t.Fatal("absent CGO changed base Go")
+				}
+			}
+			root := t.TempDir()
+			writeManagedJustFixture(t, root, rendered)
+			writeManagedTestFile(t, root, "justfile", []byte("import 'just/loader.just'\nother:\n    @go unrelated\n"))
+			bin := filepath.Join(root, "stubs")
+			log := filepath.Join(root, "calls")
+			for _, tool := range []string{"go", "golangci-lint", "govulncheck"} {
+				writeManagedTestFile(t, root, "stubs/"+tool, []byte("#!/bin/sh\nprintf '%s|%s|%s\\n' \"$(basename \"$0\")\" \"$CGO_ENABLED\" \"$*\" >> \"$CALLS\"\n"))
+				if err := os.Chmod(filepath.Join(bin, tool), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, recipe := range []string{"check-go", "build-go", "fmt-go", "tidy-go", "coverage-go", "other"} {
+				// #nosec G204 -- The executable and recipe are fixed test tools in an isolated fixture.
+				cmd := exec.CommandContext(t.Context(), managedLintExecutable(t), "--justfile", filepath.Join(root, "justfile"), recipe)
+				cmd.Dir = root
+				cmd.Env = append(managedEnvironmentWithout("BASH_ENV", "ENV", "PATH", "CGO_ENABLED", "CALLS"), "PATH="+bin+":"+os.Getenv("PATH"), "CGO_ENABLED=inherited", "CALLS="+log)
+				if output, err := cmd.CombinedOutput(); err != nil {
+					t.Fatalf("%s: %v %s", recipe, err, output)
+				}
+			}
+			data, err := os.ReadFile(log)
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := "inherited"
+			if policy != nil {
+				want = "0"
+				if *policy {
+					want = "1"
+				}
+			}
+			for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+				expected := want
+				if strings.HasSuffix(line, "|unrelated") {
+					expected = "inherited"
+				}
+				if !strings.Contains(line, "|"+expected+"|") {
+					t.Fatalf("wrong environment: %s", line)
+				}
+			}
+		})
+	}
+}
+
+func TestManagedFFmpegSetupStubbed(t *testing.T) {
+	for _, scenario := range []string{"update", "current", "init", "no-tag", "fetch-failure", "download-failure", "source", "fallback"} {
+		t.Run(scenario, func(t *testing.T) {
+			root := t.TempDir()
+			bin := filepath.Join(root, "stubs")
+			log := filepath.Join(root, "calls")
+			rendered := renderSelectedManagedFiles(t, ffmpegConfig())
+			writeManagedJustFixture(t, root, rendered)
+			writeManagedTestFile(t, root, "justfile", []byte("import 'just/loader.just'\n"))
+			module := "module example.com/consumer\n"
+			if scenario == "source" {
+				module = "module github.com/linuxmatters/ffmpeg-statigo\n"
+			}
+			writeManagedTestFile(t, root, "go.mod", []byte(module))
+			if scenario != "init" {
+				writeManagedTestFile(t, root, "third_party/ffmpeg-statigo/go.mod", []byte("module github.com/linuxmatters/ffmpeg-statigo\n"))
+			}
+			writeManagedTestFile(t, root, "third_party/ffmpeg-statigo/lib/linux_amd64/libffmpeg.a", []byte("fixture"))
+			scripts := map[string]string{
+				"git": `case "$*" in
+"submodule update --init --recursive") printf 'module github.com/linuxmatters/ffmpeg-statigo\n' > third_party/ffmpeg-statigo/go.mod ;;
+"describe --tags --exact-match") if [ "$SCENARIO" = current ]; then echo v1.2.3; else echo v1.0.0; fi ;;
+"fetch --no-tags origin refs/tags/v1.2.3:refs/tags/v1.2.3") [ "$SCENARIO" != fetch-failure ] || exit 4 ;;
+"diff --cached --quiet third_party/ffmpeg-statigo") [ "$SCENARIO" = current ] ;;
+esac`,
+				"curl": `printf '[\n{\n"tag_name": "v1.2.3",\n"prerelease": false\n}\n]\n'`,
+				"jq":   `cat >/dev/null; if [ "$SCENARIO" = no-tag ]; then echo null; else echo v1.2.3; fi`,
+				"go":   `[ "$SCENARIO" != download-failure ] || exit 5`,
+				"rm":   `:`,
+			}
+			for tool, body := range scripts {
+				if tool == "jq" && scenario == "fallback" {
+					continue
+				}
+				writeManagedTestFile(t, root, "stubs/"+tool, []byte("#!/bin/sh\nprintf '%s|%s|%s|%s\\n' \"$(basename \"$0\")\" \"$PWD\" \"${CGO_ENABLED:-}\" \"$*\" >> \"$CALLS\"\n"+body+"\n"))
+				if err := os.Chmod(filepath.Join(bin, tool), 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// An isolated PATH ensures that setup cannot use real mutating tools.
+			for _, tool := range []string{"bash", "sh", "env", "grep", "head", "cut", "cat", "basename", "just"} {
+				source, err := exec.LookPath(tool)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(source, filepath.Join(bin, tool)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			// #nosec G204 -- The executable is a test tool and setup uses only isolated stubs.
+			cmd := exec.CommandContext(t.Context(), managedLintExecutable(t), "--justfile", filepath.Join(root, "justfile"), "setup")
+			cmd.Dir = root
+			cmd.Env = []string{"PATH=" + bin, "CALLS=" + log, "SCENARIO=" + scenario, "CGO_ENABLED=0", "HOME=" + root}
+			output, err := cmd.CombinedOutput()
+			failure := scenario == "no-tag" || scenario == "fetch-failure" || scenario == "download-failure" || scenario == "source"
+			if (err != nil) != failure {
+				t.Fatalf("error=%v output=%s", err, output)
+			}
+			data, _ := os.ReadFile(log)
+			calls := string(data)
+			if scenario == "source" {
+				if calls != "" || !strings.Contains(string(output), "consumer repositories only") {
+					t.Fatalf("source guard: %s %s", calls, output)
+				}
+				return
+			}
+			for _, args := range []string{"config pull.ff only", "config submodule.recurse true", "-s https://api.github.com/repos/linuxmatters/ffmpeg-statigo/releases"} {
+				if !strings.Contains(calls, "|"+args+"\n") {
+					t.Fatalf("missing %s: %s", args, calls)
+				}
+			}
+			if scenario == "no-tag" {
+				if strings.Contains(calls, "|fetch ") {
+					t.Fatal(calls)
+				}
+				return
+			}
+			if !strings.Contains(calls, "git|"+root+"/third_party/ffmpeg-statigo|0|fetch --no-tags origin refs/tags/v1.2.3:refs/tags/v1.2.3\n") {
+				t.Fatal(calls)
+			}
+			if scenario == "fetch-failure" {
+				if strings.Contains(calls, "checkout") {
+					t.Fatal(calls)
+				}
+				return
+			}
+			if scenario == "init" && !strings.Contains(calls, "|submodule update --init --recursive\n") {
+				t.Fatal(calls)
+			}
+			if scenario == "current" {
+				if strings.Contains(calls, "|checkout") || strings.Contains(calls, "rm|") || strings.Contains(calls, "|add ") {
+					t.Fatal(calls)
+				}
+			} else {
+				for _, args := range []string{"checkout v1.2.3", "-f third_party/ffmpeg-statigo/lib/linux_amd64/libffmpeg.a", "add third_party/ffmpeg-statigo"} {
+					if !strings.Contains(calls, "|"+args+"\n") {
+						t.Fatalf("missing %s: %s", args, calls)
+					}
+				}
+			}
+			if !strings.Contains(calls, "go|"+root+"/third_party/ffmpeg-statigo|1|run ./cmd/download-lib\n") {
+				t.Fatal(calls)
+			}
+			if scenario == "download-failure" {
+				if strings.Contains(calls, "|diff ") {
+					t.Fatal(calls)
+				}
+				return
+			}
+			if !strings.Contains(calls, "|diff --cached --quiet third_party/ffmpeg-statigo\n") {
+				t.Fatal(calls)
+			}
+			if scenario != "current" && !strings.Contains(string(output), "Don't forget to commit:") {
+				t.Fatal(string(output))
+			}
+		})
+	}
+}

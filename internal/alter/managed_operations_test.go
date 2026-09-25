@@ -109,16 +109,20 @@ func TestManagedLegacyTestPreflightAndMigration(t *testing.T) {
 func TestManagedOperationPreflightRequiresRecipes(t *testing.T) {
 	for _, operation := range managedOperations() {
 		for _, missing := range []bool{false, true} {
-			cfg := &config.Config{Languages: &config.LanguageSettings{Go: new(true)}}
+			cfg := &config.Config{Languages: &config.LanguageSettings{Go: new(true), GoOptions: &config.GoOptions{FFmpegStatigo: new(true)}}}
+			destination, recipe := "just/go.just", string(operation)+"-go:"
+			if operation == managedSetup {
+				destination, recipe = "just/go-ffmpeg-statigo.just", "setup-go-ffmpeg-statigo:"
+			}
 			selections, err := selectManagedFiles(cfg)
 			if err != nil {
 				t.Fatal(err)
 			}
 			rendered := renderSelectedManagedFiles(t, cfg)
 			if missing {
-				delete(rendered, "just/go.just")
+				delete(rendered, destination)
 			} else {
-				rendered["just/go.just"] = bytes.ReplaceAll(rendered["just/go.just"], []byte(string(operation)+"-go:"), []byte("missing:"))
+				rendered[destination] = bytes.ReplaceAll(rendered[destination], []byte(recipe), []byte("missing:"))
 			}
 			if _, err := preflightManagedFiles(t.TempDir(), selections, rendered); err == nil {
 				t.Fatalf("accepted missing %s recipe, fragment=%v", operation, missing)

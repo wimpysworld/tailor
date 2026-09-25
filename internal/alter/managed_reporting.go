@@ -255,6 +255,7 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 				guidance = append(guidance, "If absent, add `import 'just/loader.just'` to the preserved `justfile`.")
 			case "flake.nix":
 				guidance = append(guidance, "If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.")
+				guidance = append(guidance, "Manually compose `shellHook = (import ./nix/hooks.nix { inherit pkgs; }) + \"\\n\" + existingHook;` in the preserved `flake.nix`, with your existing hook last. Pass the same `pkgs` and Go override to both loaders. Tailor does not overwrite existing roots.")
 			}
 		case SkipManagedSharedExists:
 			guidance = append(guidance, managedMCPAdoptionGuidance(cfg, result.Path, mcpRegistry)...)

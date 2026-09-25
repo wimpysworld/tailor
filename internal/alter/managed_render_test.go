@@ -31,8 +31,8 @@ func TestManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 			t.Errorf("managed template %q lacks its ownership marker", entry.Path)
 		}
 	}
-	if len(managed) != 14 {
-		t.Fatalf("managed=%d, want 14", len(managed))
+	if len(managed) != 20 {
+		t.Fatalf("managed=%d, want 20", len(managed))
 	}
 
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(name string, entry fs.DirEntry, err error) error {
@@ -47,6 +47,33 @@ func TestManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestManagedNixCanonicalFormatting(t *testing.T) {
+	nixfmt, err := exec.LookPath("nixfmt")
+	if err != nil {
+		t.Skip("nixfmt is required")
+	}
+	configs := []*config.Config{{}, ffmpegConfig()}
+	for _, policy := range []*bool{nil, new(false), new(true)} {
+		configs = append(configs, &config.Config{Languages: &config.LanguageSettings{
+			Go: new(true), GoOptions: &config.GoOptions{CGO: policy},
+		}})
+	}
+	for index, cfg := range configs {
+		t.Run(strconv.Itoa(index), func(t *testing.T) {
+			for name, content := range renderSelectedManagedFiles(t, cfg) {
+				if !strings.HasSuffix(name, ".nix") {
+					continue
+				}
+				cmd := exec.CommandContext(t.Context(), nixfmt, "--check", "-")
+				cmd.Stdin = bytes.NewReader(content)
+				if output, err := cmd.CombinedOutput(); err != nil {
+					t.Errorf("%s is not canonically formatted: %v\n%s", name, err, output)
+				}
+			}
+		})
 	}
 }
 
@@ -257,10 +284,10 @@ func TestManagedJustCombinationsParseWithUniqueRecipes(t *testing.T) {
 		pages *model.PagesSettings
 		want  []string
 	}{
-		{name: "core", want: []string{"alter", "build", "default", "lint", "lint-actions", "measure", "release", "test"}},
-		{name: "go", goOn: true, want: []string{"_lint-go", "alter", "build", "build-go", "check-go", "complexity-go", "coverage-go", "default", "fmt-check-go", "fmt-go", "lint", "lint-actions", "lint-go", "measure", "release", "test", "test-go", "tidy-check-go", "tidy-go", "vet-go"}},
-		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "lint-actions", "measure", "pages", "release", "test"}},
-		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"_lint-go", "alter", "build", "build-go", "check-go", "complexity-go", "coverage-go", "default", "fmt-check-go", "fmt-go", "lint", "lint-actions", "lint-go", "measure", "pages", "release", "test", "test-go", "tidy-check-go", "tidy-go", "vet-go"}},
+		{name: "core", want: []string{"alter", "build", "default", "lint", "lint-actions", "measure", "release", "setup", "test"}},
+		{name: "go", goOn: true, want: []string{"_lint-go", "alter", "build", "build-go", "check-go", "complexity-go", "coverage-go", "default", "fmt-check-go", "fmt-go", "lint", "lint-actions", "lint-go", "measure", "release", "setup", "test", "test-go", "tidy-check-go", "tidy-go", "vet-go"}},
+		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "lint-actions", "measure", "pages", "release", "setup", "test"}},
+		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"_lint-go", "alter", "build", "build-go", "check-go", "complexity-go", "coverage-go", "default", "fmt-check-go", "fmt-go", "lint", "lint-actions", "lint-go", "measure", "pages", "release", "setup", "test", "test-go", "tidy-check-go", "tidy-go", "vet-go"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := managedRenderConfig(tt.goOn, tt.pages)

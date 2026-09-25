@@ -2,6 +2,16 @@
 
 Run Tailor from your project directory. Use `baste` to preview changes before `alter`.
 
+## FFmpeg-statigo setup
+
+`just setup` runs only setup recipes for explicitly enabled components. With no component enabled, it succeeds with guidance. `just setup-go-ffmpeg-statigo` runs the consumer component directly.
+
+Run setup only after review. It sets local `git config pull.ff only` and `git config submodule.recurse true`. It can initialise recursive submodules, fetch and check out the latest stable release, remove old `third_party/ffmpeg-statigo/lib/*/libffmpeg.a` archives, stage the submodule change, and download libraries. It requires network access. It rejects the ffmpeg-statigo source root. Tailor commands, shell entry, build, test, and lint never invoke setup automatically.
+
+The optional development CGO policy does not change the default `CGO_ENABLED=0` release pipeline. Configure FFmpeg release builds separately.
+
+For a preserved flake, adopt both the package loader and the [hook companion](Configuration#nix-shell-hooks) manually. Keep your existing hook last for overrides. Use `TAILOR_NIXOS_DRIVERS=0` to disable graphics environment changes without disabling CGO policy.
+
 ## Repository selection
 
 Tailor selects a GitHub fetch remote in this order: `origin`, `github`, `upstream`, then another remote. A default set through `gh repo set-default` overrides this order.

@@ -239,8 +239,8 @@ func TestPreflightManagedFilesDoesNotInspectClientsWhenPlaywrightIsFalseOrAbsent
 		cfg           *config.Config
 		wantPlanFiles int
 	}{
-		{name: "false", cfg: &config.Config{MCP: &config.MCPSettings{Playwright: &falseValue}}, wantPlanFiles: 4},
-		{name: "absent", cfg: &config.Config{}, wantPlanFiles: 3},
+		{name: "false", cfg: &config.Config{MCP: &config.MCPSettings{Playwright: &falseValue}}, wantPlanFiles: 6},
+		{name: "absent", cfg: &config.Config{}, wantPlanFiles: 5},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
