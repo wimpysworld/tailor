@@ -58,6 +58,25 @@ If you manually delete a managed Just fragment, Just can fail while it parses ev
 
 Keep the capability declaration explicitly true so that Tailor recreates the fragment. If the declaration is absent, enable it or restore the deleted fragment from Git. An older retained `just/go.just` can still define `build` or `test`, which conflicts with the new core aggregate. Tailor stops before writes. Set `languages.go: true` to migrate the fragment, or remove or rename its legacy `build` or `test` recipe. Do not edit generated dependencies manually. Do not use `--recut` for this recovery.
 
+### Nix shell cache
+
+New `.envrc` starters watch `nix`, `nix/hooks`, and their `.nix` files before `use flake`. File watches detect edits. Directory watches detect added or removed fragments, including hook fragments. Missing directories are watched too, so their creation triggers a reload. Watches stay within these two directories, not the whole repository.
+
+Existing `.envrc` files use `first-fit`, so normal alterations preserve them. Manually add this block before your existing `use flake` line:
+
+```bash
+watch_file nix nix/hooks
+for file in nix/*.nix nix/hooks/*.nix; do
+  if [ -e "$file" ]; then
+    watch_file "$file"
+  fi
+done
+```
+
+Keep `nix_direnv_manual_reload` if you want manual rebuilds. Review the `.envrc` change, then run `direnv allow` when direnv requests approval. Run `nix-direnv-reload` to rebuild the cache, then return to the shell prompt. Manual mode can retain the old environment until that rebuild. A reload alone cannot repair missing watches in nix-direnv 3.1.2. Tailor does not grant approval or rebuild the cache automatically.
+
+Custom imports outside these directories need their own watches before `use flake`. Review and add new Nix files to Git separately, because watches do not change flake source inclusion.
+
 ### Nix shell hooks
 
 `nix/loader.nix` still returns a package list. The separate `nix/hooks.nix` returns a shell string from registered hooks only. Missing optional fragments are safe during partial upgrades. Tailor always owns `nix/hooks.nix` and `nix/hooks/core.nix`. Go selects `nix/hooks/go.nix`. The FFmpeg component selects `nix/hooks/go-ffmpeg-statigo.nix`.
