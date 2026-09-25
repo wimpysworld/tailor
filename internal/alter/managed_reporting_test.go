@@ -578,9 +578,6 @@ func managedTestRenderer(selections []managedSelection) (managedRenderedFiles, e
 		}
 		if selection.Entry.Policy.marked() {
 			body := "synthetic"
-			if recipe := selection.Entry.SetupRecipe; recipe != "" {
-				body += "\n" + recipe + ":\n    @:"
-			}
 			files[selection.Entry.Path] = managedContent(selection.Entry.Path, body)
 		} else {
 			files[selection.Entry.Path] = []byte("synthetic\n")
@@ -592,7 +589,7 @@ func managedTestRenderer(selections []managedSelection) (managedRenderedFiles, e
 		}
 		for _, operation := range managedOperations() {
 			if name := operation.body(selection.Entry); name != "" {
-				body, err := managedQualityBody(string(name))
+				body, err := operation.contribution(string(name))
 				if err != nil {
 					return nil, err
 				}

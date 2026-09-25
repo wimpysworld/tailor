@@ -121,60 +121,7 @@ func renderManagedLintAggregate(cfg *config.Config, content []byte, registry []m
 }
 
 func renderManagedAggregate(cfg *config.Config, content []byte, registry []managedRegistryEntry, operation managedRecipeOperation) ([]byte, error) {
-	if operation != managedSetup {
-		return renderManagedQuality(cfg, content, registry, operation)
-	}
-	if cfg == nil {
-		return nil, fmt.Errorf("managed %s aggregate requires a config", operation)
-	}
-	if err := validateManagedRegistry(registry); err != nil {
-		return nil, fmt.Errorf("validating managed registry: %w", err)
-	}
-
-	prefix := "[[TAILOR_MANAGED_" + strings.ToUpper(string(operation)) + "_"
-	dependenciesPlaceholder := []byte(prefix + "DEPENDENCIES]]")
-	commandPlaceholder := []byte(prefix + "COMMAND]]")
-	if bytes.Count(content, dependenciesPlaceholder) != 1 {
-		return nil, fmt.Errorf("managed core template must contain one %s dependencies placeholder", operation)
-	}
-	if operation != managedLint && bytes.Count(content, commandPlaceholder) != 1 {
-		return nil, fmt.Errorf("managed core template must contain one %s command placeholder", operation)
-	}
-
-	entries := make([]managedRegistryEntry, 0)
-	for _, entry := range registry {
-		if entry.SetupRecipe == "" {
-			continue
-		}
-		declared, enabled := managedCapabilityState(cfg, entry.Capability)
-		if declared && enabled {
-			entries = append(entries, entry)
-		}
-	}
-	slices.SortFunc(entries, func(left, right managedRegistryEntry) int {
-		return strings.Compare(left.Capability.canonicalName(), right.Capability.canonicalName())
-	})
-
-	dependencies := make([]string, 0, len(entries)+1)
-	for _, entry := range entries {
-		dependencies = append(dependencies, entry.SetupRecipe)
-	}
-	command := "@:"
-	if len(dependencies) == 0 {
-		command = fmt.Sprintf(`@echo "No %s recipes are enabled."`, operation)
-	}
-	if len(dependencies) == 0 {
-		content = bytes.Replace(content, append([]byte(" "), dependenciesPlaceholder...), nil, 1)
-	} else {
-		content = bytes.Replace(content, dependenciesPlaceholder, []byte(strings.Join(dependencies, " ")), 1)
-	}
-	if operation != managedLint {
-		content = bytes.Replace(content, commandPlaceholder, []byte(command), 1)
-	}
-	if bytes.Contains(content, []byte(prefix)) {
-		return nil, fmt.Errorf("managed core template contains an unresolved %s placeholder", operation)
-	}
-	return content, nil
+	return renderManagedQuality(cfg, content, registry, operation)
 }
 
 func renderManagedLoader(destination string, content []byte, registry []managedRegistryEntry) ([]byte, error) {

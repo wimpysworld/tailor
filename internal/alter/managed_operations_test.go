@@ -94,7 +94,7 @@ func TestManagedOperationPreflightRequiresRecipes(t *testing.T) {
 			cfg := &config.Config{Languages: &config.LanguageSettings{Go: new(true), GoOptions: &config.GoOptions{FFmpegStatigo: new(true)}}}
 			destination, recipe := "just/tailor.just", map[managedRecipeOperation]string{managedBuild: "goexe=", managedTest: "go vet ./...", managedLint: "go mod tidy -diff"}[operation]
 			if operation == managedSetup {
-				destination, recipe = "just/go-ffmpeg-statigo.just", "setup-go-ffmpeg-statigo:"
+				recipe = "git config pull.ff only"
 			}
 			selections, err := selectManagedFiles(cfg)
 			if err != nil {

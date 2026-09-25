@@ -44,11 +44,11 @@ func validateEnabledManagedRecipes(selections []managedSelection, rendered manag
 		if !selection.Enabled {
 			continue
 		}
-		content, exists := rendered[selection.Entry.Path]
+		_, exists := rendered[selection.Entry.Path]
 		for _, operation := range managedOperations() {
 			name := operation.body(selection.Entry)
 			if name != "" {
-				body, err := managedQualityBody(string(name))
+				body, err := operation.contribution(string(name))
 				if err != nil {
 					return err
 				}
@@ -57,10 +57,6 @@ func validateEnabledManagedRecipes(selections []managedSelection, rendered manag
 					return fmt.Errorf("enabled managed %s contribution %q is missing from core", operation, name)
 				}
 				continue
-			}
-			recipe := selection.Entry.SetupRecipe
-			if operation == managedSetup && recipe != "" && (!exists || !hasManagedRecipe(content, recipe)) {
-				return fmt.Errorf("enabled managed %s recipe %q is missing from %q", operation, recipe, selection.Entry.Path)
 			}
 		}
 	}

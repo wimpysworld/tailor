@@ -11,7 +11,15 @@ import (
 )
 
 func managedQualityBody(name string) ([]byte, error) {
-	body, err := swatch.Content("quality/" + name + ".sh")
+	return managedBuild.contribution(name)
+}
+
+func (operation managedRecipeOperation) contribution(name string) ([]byte, error) {
+	directory := "quality"
+	if operation == managedSetup {
+		directory = "setup"
+	}
+	body, err := swatch.Content(directory + "/" + name + ".sh")
 	if err != nil || len(bytes.TrimSpace(body)) == 0 {
 		return nil, fmt.Errorf("missing managed quality contribution %q", name)
 	}
@@ -27,6 +35,9 @@ func renderManagedQuality(cfg *config.Config, content []byte, registry []managed
 	}
 	prefix := "[[TAILOR_MANAGED_" + strings.ToUpper(string(operation)) + "_"
 	placeholder := []byte(prefix + "BODY]]")
+	if operation == managedSetup {
+		placeholder = []byte(prefix + "COMMAND]]")
+	}
 	if bytes.Count(content, placeholder) != 1 {
 		return nil, fmt.Errorf("managed core template must contain one %s body placeholder", operation)
 	}
@@ -41,6 +52,9 @@ func renderManagedQuality(cfg *config.Config, content []byte, registry []managed
 		return strings.Compare(a.Capability.canonicalName(), b.Capability.canonicalName())
 	})
 	var body strings.Builder
+	if operation == managedSetup && len(entries) > 0 {
+		body.WriteString("#!/usr/bin/env bash\nset -e\n")
+	}
 	if operation == managedLint {
 		workflows, err := managedQualityBody("workflows")
 		if err != nil {
@@ -50,7 +64,7 @@ func renderManagedQuality(cfg *config.Config, content []byte, registry []managed
 		body.WriteString("check_workflows\n")
 	}
 	for _, entry := range entries {
-		contribution, err := managedQualityBody(string(operation.body(entry)))
+		contribution, err := operation.contribution(string(operation.body(entry)))
 		if err != nil {
 			return nil, err
 		}
@@ -59,19 +73,24 @@ func renderManagedQuality(cfg *config.Config, content []byte, registry []managed
 		body.WriteString(")\n")
 	}
 	if len(entries) == 0 && operation != managedLint {
+		if operation == managedSetup {
+			body.WriteString("@")
+		}
 		body.WriteString("echo \"No " + string(operation) + " recipes are enabled.\"\n")
 	}
-	project, err := managedQualityBody("project")
-	if err != nil {
-		return nil, err
+	if operation != managedSetup {
+		project, err := managedQualityBody("project")
+		if err != nil {
+			return nil, err
+		}
+		arguments := ""
+		if operation == managedLint {
+			arguments = ` "${mode}"`
+		}
+		project = bytes.ReplaceAll(project, []byte("[[TAILOR_OPERATION]]"), []byte(operation))
+		project = bytes.ReplaceAll(project, []byte(" [[TAILOR_ARGUMENTS]]"), []byte(arguments))
+		body.Write(project)
 	}
-	arguments := ""
-	if operation == managedLint {
-		arguments = ` "${mode}"`
-	}
-	project = bytes.ReplaceAll(project, []byte("[[TAILOR_OPERATION]]"), []byte(operation))
-	project = bytes.ReplaceAll(project, []byte(" [[TAILOR_ARGUMENTS]]"), []byte(arguments))
-	body.Write(project)
 	rendered := indentManagedQualityBody([]byte(body.String()))
 	content = bytes.Replace(content, placeholder, rendered, 1)
 	if bytes.Contains(content, []byte(prefix)) {

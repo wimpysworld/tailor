@@ -80,12 +80,12 @@ func TestManagedFFmpegLifecycle(t *testing.T) {
 					}
 				}
 			}
-			if got := bytes.Contains(rendered["just/tailor.just"], []byte("setup: setup-go-ffmpeg-statigo")); got != tc.enabled {
+			if got := bytes.Contains(rendered["just/tailor.just"], []byte("git config pull.ff only")); got != tc.enabled {
 				t.Fatal("incorrect setup aggregate")
 			}
-			for _, line := range strings.Split(string(rendered["just/tailor.just"]), "\n") {
-				if strings.Contains(line, "setup-go-ffmpeg-statigo") && !strings.HasPrefix(line, "setup:") {
-					t.Fatalf("automatic setup: %s", line)
+			for name, content := range rendered {
+				if bytes.Contains(content, []byte("setup-go-ffmpeg-statigo")) {
+					t.Fatalf("legacy setup recipe in %s", name)
 				}
 			}
 		})
@@ -147,7 +147,7 @@ func TestManagedCGOCommands(t *testing.T) {
 }
 
 func TestManagedFFmpegSetupStubbed(t *testing.T) {
-	for _, scenario := range []string{"update", "current", "init", "no-tag", "fetch-failure", "download-failure", "source", "fallback"} {
+	for _, scenario := range []string{"update", "current", "init", "no-tag", "fetch-failure", "download-failure", "source", "fallback", "checkout-failure", "config-failure", "untagged"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := t.TempDir()
 			bin := filepath.Join(root, "stubs")
@@ -167,7 +167,9 @@ func TestManagedFFmpegSetupStubbed(t *testing.T) {
 			scripts := map[string]string{
 				"git": `case "$*" in
 "submodule update --init --recursive") printf 'module github.com/linuxmatters/ffmpeg-statigo\n' > third_party/ffmpeg-statigo/go.mod ;;
-"describe --tags --exact-match") if [ "$SCENARIO" = current ]; then echo v1.2.3; else echo v1.0.0; fi ;;
+"describe --tags --exact-match") if [ "$SCENARIO" = current ]; then echo v1.2.3; elif [ "$SCENARIO" = untagged ]; then exit 1; else echo v1.0.0; fi ;;
+"config pull.ff only") [ "$SCENARIO" != config-failure ] || exit 6 ;;
+"checkout v1.2.3") [ "$SCENARIO" != checkout-failure ] || exit 7 ;;
 "fetch --no-tags origin refs/tags/v1.2.3:refs/tags/v1.2.3") [ "$SCENARIO" != fetch-failure ] || exit 4 ;;
 "diff --cached --quiet third_party/ffmpeg-statigo") [ "$SCENARIO" = current ] ;;
 esac`,
@@ -200,7 +202,7 @@ esac`,
 			cmd.Dir = root
 			cmd.Env = []string{"PATH=" + bin, "CALLS=" + log, "SCENARIO=" + scenario, "CGO_ENABLED=0", "HOME=" + root}
 			output, err := cmd.CombinedOutput()
-			failure := scenario == "no-tag" || scenario == "fetch-failure" || scenario == "download-failure" || scenario == "source"
+			failure := scenario == "no-tag" || scenario == "fetch-failure" || scenario == "download-failure" || scenario == "source" || scenario == "config-failure" || scenario == "checkout-failure"
 			if (err != nil) != failure {
 				t.Fatalf("error=%v output=%s", err, output)
 			}
@@ -209,6 +211,12 @@ esac`,
 			if scenario == "source" {
 				if calls != "" || !strings.Contains(string(output), "consumer repositories only") {
 					t.Fatalf("source guard: %s %s", calls, output)
+				}
+				return
+			}
+			if scenario == "config-failure" {
+				if strings.Contains(calls, "curl|") || strings.Contains(calls, "submodule.recurse") {
+					t.Fatal(calls)
 				}
 				return
 			}
@@ -234,6 +242,12 @@ esac`,
 			}
 			if scenario == "init" && !strings.Contains(calls, "|submodule update --init --recursive\n") {
 				t.Fatal(calls)
+			}
+			if scenario == "checkout-failure" {
+				if strings.Contains(calls, "rm|") || strings.Contains(calls, "|add ") || strings.Contains(calls, "\ngo|") {
+					t.Fatal(calls)
+				}
+				return
 			}
 			if scenario == "current" {
 				if strings.Contains(calls, "|checkout") || strings.Contains(calls, "rm|") || strings.Contains(calls, "|add ") {

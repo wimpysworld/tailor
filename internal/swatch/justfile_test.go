@@ -45,12 +45,11 @@ func TestRenderedJustfileRelease(t *testing.T) {
 
 			core := string(mustSwatchContent(t, "just/tailor.just"))
 			for placeholder, replacement := range map[string]string{
-				"[[TAILOR_MANAGED_CGO]]":                "",
-				"[[TAILOR_MANAGED_SETUP_DEPENDENCIES]]": "",
-				"[[TAILOR_MANAGED_SETUP_COMMAND]]":      `@echo "No setup recipes are enabled."`,
-				"[[TAILOR_MANAGED_BUILD_BODY]]":         `echo "No build recipes are enabled."`,
-				"[[TAILOR_MANAGED_LINT_BODY]]":          ":",
-				"[[TAILOR_MANAGED_TEST_BODY]]":          `echo "No test recipes are enabled."`,
+				"[[TAILOR_MANAGED_CGO]]":           "",
+				"[[TAILOR_MANAGED_SETUP_COMMAND]]": `@echo "No setup recipes are enabled."`,
+				"[[TAILOR_MANAGED_BUILD_BODY]]":    `echo "No build recipes are enabled."`,
+				"[[TAILOR_MANAGED_LINT_BODY]]":     ":",
+				"[[TAILOR_MANAGED_TEST_BODY]]":     `echo "No test recipes are enabled."`,
 			} {
 				if count := strings.Count(core, placeholder); count != 1 {
 					t.Fatalf("just/tailor.just %s placeholders = %d, want 1", placeholder, count)

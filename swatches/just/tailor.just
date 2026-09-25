@@ -2,7 +2,7 @@
 [[TAILOR_MANAGED_CGO]]
 
 # Run explicitly requested setup for enabled components
-setup: [[TAILOR_MANAGED_SETUP_DEPENDENCIES]]
+setup:
     [[TAILOR_MANAGED_SETUP_COMMAND]]
 
 # Build all enabled ecosystems

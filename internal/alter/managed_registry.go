@@ -38,14 +38,14 @@ const (
 )
 
 type managedRegistryEntry struct {
-	NixKind     managedNixKind
-	Path        string
-	Policy      managedPolicy
-	Capability  managedCapability
-	BuildBody   managedQualityBodyName
-	LintBody    managedQualityBodyName
-	TestBody    managedQualityBodyName
-	SetupRecipe string
+	NixKind    managedNixKind
+	Path       string
+	Policy     managedPolicy
+	Capability managedCapability
+	BuildBody  managedQualityBodyName
+	LintBody   managedQualityBodyName
+	TestBody   managedQualityBodyName
+	SetupBody  managedQualityBodyName
 }
 
 type managedRecipeOperation string
@@ -71,6 +71,8 @@ func (operation managedRecipeOperation) body(entry managedRegistryEntry) managed
 		return entry.TestBody
 	case managedLint:
 		return entry.LintBody
+	case managedSetup:
+		return entry.SetupBody
 	default:
 		return ""
 	}
@@ -94,7 +96,7 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "just/tailor.just", Policy: managedPolicyCore},
 		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildBody: "build-go", TestBody: "test-go", LintBody: "lint-go"},
 		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
-		{Path: "just/go-ffmpeg-statigo.just", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, SetupRecipe: "setup-go-ffmpeg-statigo"},
+		{Path: "just/go-ffmpeg-statigo.just", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, SetupBody: "go-ffmpeg-statigo"},
 		{Path: "nix/go-ffmpeg-statigo.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo},
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
@@ -144,14 +146,11 @@ func validateManagedRegistry(registry []managedRegistryEntry) error {
 
 		for _, operation := range managedOperations() {
 			name, kind := string(operation.body(entry)), string(operation)+" body"
-			if operation == managedSetup {
-				name, kind = entry.SetupRecipe, "setup recipe"
-			}
 			if err := validateManagedRecipeMetadata(entry, kind, name, recipes, capabilities[operation]); err != nil {
 				return err
 			}
-			if operation != managedSetup && name != "" {
-				if _, err := managedQualityBody(name); err != nil {
+			if name != "" {
+				if _, err := operation.contribution(name); err != nil {
 					return err
 				}
 			}
