@@ -8,6 +8,8 @@ Run Tailor from your project directory. Use `baste` to preview changes before `a
 
 Run setup only after review. It sets local `git config pull.ff only` and `git config submodule.recurse true`. It can initialise recursive submodules, fetch and check out the latest stable release, remove old `third_party/ffmpeg-statigo/lib/*/libffmpeg.a` archives, stage the submodule change, and download libraries. It requires network access. It rejects the ffmpeg-statigo source root. Tailor commands, shell entry, build, test, and lint never invoke setup automatically.
 
+The effective CGO policy generates one shared export in `just/tailor.just`. Explicit false sets `CGO_ENABLED=0`, and explicit true or enabled ffmpeg-statigo sets `CGO_ENABLED=1`. All managed, imported, and root recipes and project scripts inherit this value instead of the caller value, even outside the development shell. Disabled Go or an unspecified policy generates no export and preserves the caller environment. After a policy change, regenerate managed files. Reload the development shell for direct shell commands, which use the Go hook. Just reads the export on each invocation without a shell reload.
+
 The optional development CGO policy does not change the default `CGO_ENABLED=0` release pipeline. Configure FFmpeg release builds separately.
 
 For a preserved flake, adopt both the package loader and the [hook companion](Configuration#nix-shell-hooks) manually. Keep your existing hook last for overrides. Use `TAILOR_NIXOS_DRIVERS=0` to disable graphics environment changes without disabling CGO policy.
@@ -175,41 +177,31 @@ Other bracketed licence text and complete Markdown inline links do not cause a w
 
 The generated files require Just 1.23.0 or later. The protected root imports managed fragments and owns the sole `default` recipe.
 
-| Command | Runs | Requirements |
-|---|---|---|
-| `just` | Lists recipes | Just 1.23.0 or later |
-| `just alter` | `tailor alter` | Tailor, GitHub authentication, valid `.tailor.yml` |
-| `just build` | Each registered builder whose capability is explicitly true | Every selected build tool |
-| `just test` | Each registered test recipe whose capability is explicitly true | Every selected test tool |
-| `just lint-actions` | `actionlint` | `actionlint` |
-| `just lint` | `lint-actions`, then each registered linter whose capability is explicitly true | Every selected linter tool |
-| `just measure` | `tailor baste`, then `tailor measure` | Tailor, GitHub authentication, valid `.tailor.yml` |
-| `just release x.y.z` | Validates a clean tree, then creates the local `vX.Y.Z` tag | Git |
+| Command | Behaviour |
+|---|---|
+| `just build` | Validate Go packages and publish executable packages to `bin/` |
+| `just test` | Run full `go vet ./...` once, then `go test -cover -covermode=atomic ./...` with console coverage |
+| `just lint` | Read-only checks, identical to `just lint check` |
+| `just lint correct` | Run `go mod tidy` and the configured formatter, then repeat all checks |
 
-Tailor records the `just build`, `just test`, and `just lint` dependencies during the last successful file reconciliation. Each argument-free aggregate selects registered recipes whose capability is explicitly true, in lexical capability order. The current registry adds `build-go`, `test-go`, and `lint-go` for Go. Pages and Playwright register none. False and absent capabilities are excluded. With no selected recipes, `just build` and `just test` print successful guidance messages. Missing selected recipes or tools fail. Just runs dependencies sequentially and stops at the first failure. Lint always runs `lint-actions` first.
+For Go, lint checks run sequentially: `go mod tidy -diff`, `golangci-lint fmt --config .golangci.yml --diff`, workflow lint, `golangci-lint run --config .golangci.yml`, `govulncheck ./...`, then diagnostic `gocyclo`. Each failure stops later commands. Lint does not run vet or tests. Test coverage stays in the console and creates no `coverage.out`. Lint rejects modes other than `check` and `correct` before any work.
 
-The core provides `just release x.y.z` by default, independent of language declarations. Release stays outside all aggregates and retains the existing local tag flow.
+Optional project-owned scripts at `just/project/build.sh`, `just/project/test.sh`, and `just/project/lint.sh` run with Bash after their managed commands succeed. Scripts run from the project root. The lint script receives `check` or `correct` as its first argument. Keep its check mode read-only. Missing scripts are skipped. Symlinks and non-regular scripts, or linked or non-directory parents, fail visibly. Tailor does not generate or overwrite these scripts. Do not expose alternative quality recipes through wrappers.
 
-With [Go support](Configuration#go-support) enabled, Tailor adds these recipes:
+Go commands can download modules and write caches. Vulnerability checks can use the network. Setup and release remain separate operational commands. Benchmark and profile commands remain future work.
 
-| Command | Runs | Requirements |
-|---|---|---|
-| `just build-go` | Validates all packages, then writes each executable package to `bin/` | Go |
-| `just test-go` | `go test ./...` | Go |
-| `just lint-go` | `golangci-lint run` | golangci-lint |
+Operational commands remain separate:
 
-With [Pages](GitHub-Pages) enabled, `just pages` previews the effective site at `http://127.0.0.1:18473`.
+| Command | Behaviour |
+|---|---|
+| `just` | List recipes |
+| `just alter` | Apply Tailor changes with authentication |
+| `just measure` | Preview changes, then inspect health |
+| `just setup` | Run explicitly enabled component setup |
+| `just release x.y.z` | Validate the clean tree and create a local version tag |
+| `just pages` | Preview enabled Pages at `http://127.0.0.1:18473` |
 
-Tailor's repository adds these user-owned recipes in `just/project.just`:
-
-| Command | Runs | Purpose |
-| --- | --- | --- |
-| `just build-tailor` | `go build -ldflags "-s -w" -o tailor ./cmd/tailor` | Builds the stripped Tailor binary. |
-| `just lint-all` | `just lint` | Compatibility alias for the aggregate linter recipe. |
-| `just alter-source` | `go run ./cmd/tailor alter` | Runs an alteration from the current source. |
-| `just measure-source` | `go run ./cmd/tailor baste`, then `go run ./cmd/tailor measure` | Runs preview and local checks from the current source. |
-| `just snapshot` | `goreleaser release --snapshot --clean --skip=sign` | Builds local release packages. |
-| `just check` | `goreleaser check`, then `nix flake check` | Checks release and flake configuration. |
+Tailor's project fragment retains `alter-source`, `measure-source`, and `snapshot`. Snapshot runs `goreleaser release --snapshot --clean --skip=sign`. Tailor's project build script adds `go build -ldflags "-s -w" -o tailor ./cmd/tailor` after the managed build. No quality aliases remain.
 
 ### Activate Playwright MCP
 

@@ -13,12 +13,9 @@ import (
 )
 
 const (
-	managedImportsPlaceholder           = "[[TAILOR_MANAGED_IMPORTS]]"
-	managedBuildDependenciesPlaceholder = "[[TAILOR_MANAGED_BUILD_DEPENDENCIES]]"
-	managedBuildCommandPlaceholder      = "[[TAILOR_MANAGED_BUILD_COMMAND]]"
-	managedBuildPlaceholderPrefix       = "[[TAILOR_MANAGED_BUILD_"
-	managedLintDependenciesPlaceholder  = "[[TAILOR_MANAGED_LINT_DEPENDENCIES]]"
-	managedLintPlaceholderPrefix        = "[[TAILOR_MANAGED_LINT_"
+	managedImportsPlaceholder     = "[[TAILOR_MANAGED_IMPORTS]]"
+	managedBuildPlaceholderPrefix = "[[TAILOR_MANAGED_BUILD_"
+	managedLintPlaceholderPrefix  = "[[TAILOR_MANAGED_LINT_"
 )
 
 func renderManagedFiles(cfg *config.Config, selections []managedSelection) (managedRenderedFiles, error) {
@@ -69,6 +66,10 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 		case "just/loader.just", "nix/loader.nix", "nix/hooks.nix":
 			content, err = renderManagedLoader(entry.Path, content, registry)
 		case "just/tailor.just":
+			content, err = renderManagedCGO(cfg, content)
+			if err != nil {
+				break
+			}
 			for _, operation := range managedOperations() {
 				content, err = renderManagedAggregate(cfg, content, registry, operation)
 				if err != nil {
@@ -84,8 +85,6 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 				}
 			}
 			content = bytes.ReplaceAll(content, []byte("  # TAILOR_GO_CGO"), []byte(command))
-		case "just/go.just":
-			content = renderManagedGoCGO(cfg, content)
 		case "just/pages.just":
 			content, err = renderManagedPages(cfg, content)
 		}
@@ -97,20 +96,20 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 	return files, nil
 }
 
-func renderManagedGoCGO(cfg *config.Config, content []byte) []byte {
-	policy := cfg.EffectiveGoCGO()
-	if policy == nil {
-		return content
+func renderManagedCGO(cfg *config.Config, content []byte) ([]byte, error) {
+	placeholder := []byte("[[TAILOR_MANAGED_CGO]]")
+	if bytes.Count(content, placeholder) != 1 {
+		return nil, fmt.Errorf("managed core template must contain one CGO placeholder")
 	}
-	value := "0"
-	if *policy {
-		value = "1"
+	command := ""
+	if policy := cfg.EffectiveGoCGO(); policy != nil {
+		value := "0"
+		if *policy {
+			value = "1"
+		}
+		command = "export CGO_ENABLED := " + strconv.Quote(value)
 	}
-	content = bytes.ReplaceAll(content, []byte("    set -euo pipefail\n"), []byte("    set -euo pipefail\n    export CGO_ENABLED="+value+"\n"))
-	for _, command := range []string{"go", "golangci-lint", "govulncheck"} {
-		content = bytes.ReplaceAll(content, []byte("    @"+command+" "), []byte("    @env CGO_ENABLED="+value+" "+command+" "))
-	}
-	return content
+	return bytes.Replace(content, placeholder, []byte(command), 1), nil
 }
 
 func renderManagedBuildAggregate(cfg *config.Config, content []byte, registry []managedRegistryEntry) ([]byte, error) {
@@ -122,6 +121,9 @@ func renderManagedLintAggregate(cfg *config.Config, content []byte, registry []m
 }
 
 func renderManagedAggregate(cfg *config.Config, content []byte, registry []managedRegistryEntry, operation managedRecipeOperation) ([]byte, error) {
+	if operation != managedSetup {
+		return renderManagedQuality(cfg, content, registry, operation)
+	}
 	if cfg == nil {
 		return nil, fmt.Errorf("managed %s aggregate requires a config", operation)
 	}
@@ -141,7 +143,7 @@ func renderManagedAggregate(cfg *config.Config, content []byte, registry []manag
 
 	entries := make([]managedRegistryEntry, 0)
 	for _, entry := range registry {
-		if operation.recipe(entry) == "" {
+		if entry.SetupRecipe == "" {
 			continue
 		}
 		declared, enabled := managedCapabilityState(cfg, entry.Capability)
@@ -154,11 +156,8 @@ func renderManagedAggregate(cfg *config.Config, content []byte, registry []manag
 	})
 
 	dependencies := make([]string, 0, len(entries)+1)
-	if operation == managedLint {
-		dependencies = append(dependencies, "lint-actions")
-	}
 	for _, entry := range entries {
-		dependencies = append(dependencies, operation.recipe(entry))
+		dependencies = append(dependencies, entry.SetupRecipe)
 	}
 	command := "@:"
 	if len(dependencies) == 0 {

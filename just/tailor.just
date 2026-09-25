@@ -1,4 +1,5 @@
 # Managed by Tailor: just/tailor.just
+export CGO_ENABLED := "0"
 
 # Alter Tailor swatches
 alter:
@@ -8,25 +9,172 @@ alter:
 setup:
     @echo "No setup recipes are enabled."
 
-# Run all enabled builders
-build: build-go
-    @:
+# Build all enabled ecosystems
+build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    (
+    list_output="$(go list -f '{{ "{{" }}if eq .Name "main"{{ "}}" }}{{ "{{" }}.ImportPath{{ "}}" }}{{ "{{" }}end{{ "}}" }}' ./...)"
+    main_packages=()
+    while IFS= read -r package; do
+        if [[ -n "${package}" ]]; then
+            main_packages+=("${package}")
+        fi
+    done <<< "${list_output}"
 
-# Run all enabled tests
-test: test-go
-    @:
+    goexe="$(go env GOEXE)"
+    outputs=()
+    owners=()
 
-# Run workflow linters
-lint-actions:
-    @for workflow in .github/workflows/* .github/workflows/.*; do \
-        case "$workflow" in *.yml|*.yaml) \
-            if [ -f "$workflow" ]; then exec actionlint; fi ;; \
-        esac; \
-    done; \
-    echo "No GitHub Actions workflows found. Skipping actionlint."
+    check_bin_directory() {
+        if [[ -L bin ]]; then
+            echo "Error: refusing to use symlink bin" >&2
+            exit 1
+        fi
+        if [[ -e bin && ! -d bin ]]; then
+            echo "Error: bin exists and is not a directory" >&2
+            exit 1
+        fi
+    }
 
-# Run all enabled linters
-lint: lint-actions lint-go
+    check_output_destination() {
+        destination="bin/$1"
+        if [[ -L "${destination}" ]]; then
+            echo "Error: refusing to replace symlink ${destination}" >&2
+            exit 1
+        fi
+        if [[ -e "${destination}" && ! -f "${destination}" ]]; then
+            echo "Error: refusing to replace non-regular ${destination}" >&2
+            exit 1
+        fi
+    }
+
+    check_bin_directory
+    for package in "${main_packages[@]}"; do
+        output="${package##*/}"
+        if [[ "${output}" =~ ^v([2-9]|[1-9][0-9]+)$ ]]; then
+            parent="${package%/*}"
+            output="${parent##*/}"
+        fi
+        output="${output}${goexe}"
+        for index in "${!outputs[@]}"; do
+            if [[ "${outputs[${index}]}" == "${output}" ]]; then
+                echo "Error: Go executable packages ${owners[${index}]} and ${package} both produce bin/${output}" >&2
+                exit 1
+            fi
+        done
+        check_output_destination "${output}"
+        owners+=("${package}")
+        outputs+=("${output}")
+    done
+
+    if (( ${#main_packages[@]} == 0 )); then
+        go build ./...
+        echo "Go packages built successfully. No executable packages were found."
+        exit 0
+    fi
+
+    work="$(mktemp -d "${TMPDIR:-/tmp}/tailor-go-build.XXXXXX")"
+    trap 'rm -rf "${work}"' EXIT
+    mkdir "${work}/validate" "${work}/executables"
+    go build -o "${work}/validate/" ./...
+    go build -o "${work}/executables/" "${main_packages[@]}"
+
+    check_bin_directory
+    mkdir -p bin
+    check_bin_directory
+    for output in "${outputs[@]}"; do
+        check_output_destination "${output}"
+    done
+    for output in "${outputs[@]}"; do
+        check_bin_directory
+        check_output_destination "${output}"
+        mv "${work}/executables/${output}" "bin/${output}"
+    done
+    )
+    project_script='just/project/build.sh'
+    for parent in just just/project; do
+        if [[ -L "${parent}" || ( -e "${parent}" && ! -d "${parent}" ) ]]; then
+            echo "Error: project script parent ${parent} must be a directory, not a symlink" >&2
+            exit 1
+        fi
+    done
+    if [[ -L "${project_script}" || ( -e "${project_script}" && ! -f "${project_script}" ) ]]; then
+        echo "Error: project script ${project_script} must be a regular file, not a symlink" >&2
+        exit 1
+    fi
+    if [[ -f "${project_script}" ]]; then
+        bash "${project_script}"
+    fi
+
+# Run full vet and tests with console coverage
+test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    (
+    go vet ./...
+    go test -cover -covermode=atomic ./...
+    )
+    project_script='just/project/test.sh'
+    for parent in just just/project; do
+        if [[ -L "${parent}" || ( -e "${parent}" && ! -d "${parent}" ) ]]; then
+            echo "Error: project script parent ${parent} must be a directory, not a symlink" >&2
+            exit 1
+        fi
+    done
+    if [[ -L "${project_script}" || ( -e "${project_script}" && ! -f "${project_script}" ) ]]; then
+        echo "Error: project script ${project_script} must be a regular file, not a symlink" >&2
+        exit 1
+    fi
+    if [[ -f "${project_script}" ]]; then
+        bash "${project_script}"
+    fi
+
+# Check source without changes, or tidy and format with correct
+lint $mode="check":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "${mode}" in
+        check|correct) ;;
+        *) echo "Error: lint mode must be check or correct" >&2; exit 1 ;;
+    esac
+    check_workflows() {
+        for workflow in .github/workflows/* .github/workflows/.*; do
+            case "${workflow}" in *.yml|*.yaml)
+                if [[ -f "${workflow}" ]]; then
+                    actionlint
+                    return
+                fi ;;
+            esac
+        done
+        echo "No GitHub Actions workflows found. Skipping actionlint."
+    }
+    check_workflows
+    (
+    if [[ "${mode}" == correct ]]; then
+        go mod tidy
+        golangci-lint fmt --config .golangci.yml
+    fi
+    go mod tidy -diff
+    golangci-lint fmt --config .golangci.yml --diff
+    golangci-lint run --config .golangci.yml
+    govulncheck ./...
+    gocyclo -top 20 -avg -ignore '_test\.go$' .
+    )
+    project_script='just/project/lint.sh'
+    for parent in just just/project; do
+        if [[ -L "${parent}" || ( -e "${parent}" && ! -d "${parent}" ) ]]; then
+            echo "Error: project script parent ${parent} must be a directory, not a symlink" >&2
+            exit 1
+        fi
+    done
+    if [[ -L "${project_script}" || ( -e "${project_script}" && ! -f "${project_script}" ) ]]; then
+        echo "Error: project script ${project_script} must be a regular file, not a symlink" >&2
+        exit 1
+    fi
+    if [[ -f "${project_script}" ]]; then
+        bash "${project_script}" "${mode}"
+    fi
 
 # Preview remote and local changes, then inspect local project health
 measure:

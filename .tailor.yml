@@ -133,7 +133,9 @@ ruleset:
             security_alerts_threshold: high_or_higher
 
 languages:
-  go: true
+  go:
+    enabled: true
+    cgo: false
 
 mcp:
   playwright: true

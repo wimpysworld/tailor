@@ -111,13 +111,13 @@ func TestManagedCGOCommands(t *testing.T) {
 			writeManagedTestFile(t, root, "justfile", []byte("import 'just/loader.just'\nother:\n    @go unrelated\n"))
 			bin := filepath.Join(root, "stubs")
 			log := filepath.Join(root, "calls")
-			for _, tool := range []string{"go", "golangci-lint", "govulncheck"} {
+			for _, tool := range []string{"go", "golangci-lint", "govulncheck", "gocyclo"} {
 				writeManagedTestFile(t, root, "stubs/"+tool, []byte("#!/bin/sh\nprintf '%s|%s|%s\\n' \"$(basename \"$0\")\" \"$CGO_ENABLED\" \"$*\" >> \"$CALLS\"\n"))
 				if err := os.Chmod(filepath.Join(bin, tool), 0o755); err != nil {
 					t.Fatal(err)
 				}
 			}
-			for _, recipe := range []string{"check-go", "build-go", "fmt-go", "tidy-go", "coverage-go", "other"} {
+			for _, recipe := range []string{"lint", "build", "test", "other"} {
 				// #nosec G204 -- The executable and recipe are fixed test tools in an isolated fixture.
 				cmd := exec.CommandContext(t.Context(), managedLintExecutable(t), "--justfile", filepath.Join(root, "justfile"), recipe)
 				cmd.Dir = root
@@ -138,11 +138,7 @@ func TestManagedCGOCommands(t *testing.T) {
 				}
 			}
 			for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
-				expected := want
-				if strings.HasSuffix(line, "|unrelated") {
-					expected = "inherited"
-				}
-				if !strings.Contains(line, "|"+expected+"|") {
+				if !strings.Contains(line, "|"+want+"|") {
 					t.Fatalf("wrong environment: %s", line)
 				}
 			}
@@ -227,7 +223,7 @@ esac`,
 				}
 				return
 			}
-			if !strings.Contains(calls, "git|"+root+"/third_party/ffmpeg-statigo|0|fetch --no-tags origin refs/tags/v1.2.3:refs/tags/v1.2.3\n") {
+			if !strings.Contains(calls, "git|"+root+"/third_party/ffmpeg-statigo|1|fetch --no-tags origin refs/tags/v1.2.3:refs/tags/v1.2.3\n") {
 				t.Fatal(calls)
 			}
 			if scenario == "fetch-failure" {

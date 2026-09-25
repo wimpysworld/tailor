@@ -264,10 +264,10 @@ func TestManagedLintInvalidJustFixturesFailVisibly(t *testing.T) {
 		setup       func(*testing.T, string, managedRenderedFiles)
 	}{
 		{
-			name:        "missing selected fragment",
-			wantOutputs: []string{"build-go"},
+			name:        "missing selected core",
+			wantOutputs: []string{"does not contain recipe"},
 			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
-				if err := os.Remove(filepath.Join(root, "just", "go.just")); err != nil {
+				if err := os.Remove(filepath.Join(root, "just", "tailor.just")); err != nil {
 					t.Fatal(err)
 				}
 			},
@@ -281,9 +281,9 @@ func TestManagedLintInvalidJustFixturesFailVisibly(t *testing.T) {
 		},
 		{
 			name:        "duplicate recipe",
-			wantOutputs: []string{"recipe `lint-actions`", "redefined"},
+			wantOutputs: []string{"recipe `lint`", "redefined"},
 			setup: func(t *testing.T, root string, _ managedRenderedFiles) {
-				writeManagedTestFile(t, root, "just/go.just", []byte("lint-actions:\n    @true\n"))
+				writeManagedTestFile(t, root, "just/go.just", []byte("lint:\n    @true\n"))
 			},
 		},
 		{
@@ -298,7 +298,7 @@ func TestManagedLintInvalidJustFixturesFailVisibly(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			root := t.TempDir()
-			goOn := test.name == "missing selected fragment" || test.name == "duplicate setting"
+			goOn := test.name == "missing selected core" || test.name == "duplicate setting"
 			rendered := renderSelectedManagedFiles(t, managedRenderConfig(goOn, nil))
 			writeManagedLintFixture(t, root, rendered)
 			bin := filepath.Join(root, "bin")

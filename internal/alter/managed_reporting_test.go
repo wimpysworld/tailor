@@ -578,14 +578,26 @@ func managedTestRenderer(selections []managedSelection) (managedRenderedFiles, e
 		}
 		if selection.Entry.Policy.marked() {
 			body := "synthetic"
-			for _, operation := range managedOperations() {
-				if recipe := operation.recipe(selection.Entry); recipe != "" {
-					body += "\n" + recipe + ":\n    @:"
-				}
+			if recipe := selection.Entry.SetupRecipe; recipe != "" {
+				body += "\n" + recipe + ":\n    @:"
 			}
 			files[selection.Entry.Path] = managedContent(selection.Entry.Path, body)
 		} else {
 			files[selection.Entry.Path] = []byte("synthetic\n")
+		}
+	}
+	for _, selection := range selections {
+		if !selection.Enabled {
+			continue
+		}
+		for _, operation := range managedOperations() {
+			if name := operation.body(selection.Entry); name != "" {
+				body, err := managedQualityBody(string(name))
+				if err != nil {
+					return nil, err
+				}
+				files["just/tailor.just"] = append(files["just/tailor.just"], []byte("\n    "+string(indentManagedQualityBody(body)))...)
+			}
 		}
 	}
 	return files, nil

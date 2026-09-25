@@ -45,32 +45,27 @@ func TestRenderedJustfileRelease(t *testing.T) {
 
 			core := string(mustSwatchContent(t, "just/tailor.just"))
 			for placeholder, replacement := range map[string]string{
+				"[[TAILOR_MANAGED_CGO]]":                "",
 				"[[TAILOR_MANAGED_SETUP_DEPENDENCIES]]": "",
 				"[[TAILOR_MANAGED_SETUP_COMMAND]]":      `@echo "No setup recipes are enabled."`,
-				"[[TAILOR_MANAGED_BUILD_DEPENDENCIES]]": "",
-				"[[TAILOR_MANAGED_BUILD_COMMAND]]":      `@echo "No build recipes are enabled."`,
-				"[[TAILOR_MANAGED_LINT_DEPENDENCIES]]":  "lint-actions",
-				"[[TAILOR_MANAGED_TEST_DEPENDENCIES]]":  "",
-				"[[TAILOR_MANAGED_TEST_COMMAND]]":       `@echo "No test recipes are enabled."`,
+				"[[TAILOR_MANAGED_BUILD_BODY]]":         `echo "No build recipes are enabled."`,
+				"[[TAILOR_MANAGED_LINT_BODY]]":          ":",
+				"[[TAILOR_MANAGED_TEST_BODY]]":          `echo "No test recipes are enabled."`,
 			} {
 				if count := strings.Count(core, placeholder); count != 1 {
 					t.Fatalf("just/tailor.just %s placeholders = %d, want 1", placeholder, count)
 				}
 				if tt.includeGo {
 					switch placeholder {
-					case "[[TAILOR_MANAGED_BUILD_DEPENDENCIES]]":
-						replacement = "build-go"
-					case "[[TAILOR_MANAGED_BUILD_COMMAND]]":
-						replacement = "@:"
-					case "[[TAILOR_MANAGED_TEST_DEPENDENCIES]]":
-						replacement = "test-go"
-					case "[[TAILOR_MANAGED_TEST_COMMAND]]":
-						replacement = "@:"
-					case "[[TAILOR_MANAGED_LINT_DEPENDENCIES]]":
-						replacement = "lint-actions lint-go"
+					case "[[TAILOR_MANAGED_BUILD_BODY]]":
+						replacement = string(mustSwatchContent(t, "quality/build-go.sh"))
+					case "[[TAILOR_MANAGED_TEST_BODY]]":
+						replacement = string(mustSwatchContent(t, "quality/test-go.sh"))
+					case "[[TAILOR_MANAGED_LINT_BODY]]":
+						replacement = string(mustSwatchContent(t, "quality/workflows.sh")) + string(mustSwatchContent(t, "quality/lint-go.sh"))
 					}
 				}
-				core = strings.Replace(core, placeholder, replacement, 1)
+				core = strings.Replace(core, placeholder, strings.ReplaceAll(strings.TrimSuffix(replacement, "\n"), "\n", "\n    "), 1)
 			}
 
 			files := map[string][]byte{

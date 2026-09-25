@@ -1,4 +1,5 @@
 # Managed by Tailor: just/tailor.just
+[[TAILOR_MANAGED_CGO]]
 
 # Alter Tailor swatches
 alter:
@@ -8,25 +9,27 @@ alter:
 setup: [[TAILOR_MANAGED_SETUP_DEPENDENCIES]]
     [[TAILOR_MANAGED_SETUP_COMMAND]]
 
-# Run all enabled builders
-build: [[TAILOR_MANAGED_BUILD_DEPENDENCIES]]
-    [[TAILOR_MANAGED_BUILD_COMMAND]]
+# Build all enabled ecosystems
+build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[TAILOR_MANAGED_BUILD_BODY]]
 
-# Run all enabled tests
-test: [[TAILOR_MANAGED_TEST_DEPENDENCIES]]
-    [[TAILOR_MANAGED_TEST_COMMAND]]
+# Run full vet and tests with console coverage
+test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    [[TAILOR_MANAGED_TEST_BODY]]
 
-# Run workflow linters
-lint-actions:
-    @for workflow in .github/workflows/* .github/workflows/.*; do \
-        case "$workflow" in *.yml|*.yaml) \
-            if [ -f "$workflow" ]; then exec actionlint; fi ;; \
-        esac; \
-    done; \
-    echo "No GitHub Actions workflows found. Skipping actionlint."
-
-# Run all enabled linters
-lint: [[TAILOR_MANAGED_LINT_DEPENDENCIES]]
+# Check source without changes, or tidy and format with correct
+lint $mode="check":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    case "${mode}" in
+        check|correct) ;;
+        *) echo "Error: lint mode must be check or correct" >&2; exit 1 ;;
+    esac
+    [[TAILOR_MANAGED_LINT_BODY]]
 
 # Preview remote and local changes, then inspect local project health
 measure:

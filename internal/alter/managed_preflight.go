@@ -46,8 +46,20 @@ func validateEnabledManagedRecipes(selections []managedSelection, rendered manag
 		}
 		content, exists := rendered[selection.Entry.Path]
 		for _, operation := range managedOperations() {
-			recipe := operation.recipe(selection.Entry)
-			if recipe != "" && (!exists || !hasManagedRecipe(content, recipe)) {
+			name := operation.body(selection.Entry)
+			if name != "" {
+				body, err := managedQualityBody(string(name))
+				if err != nil {
+					return err
+				}
+				indented := indentManagedQualityBody(body)
+				if !exists || !bytes.Contains(rendered["just/tailor.just"], indented) {
+					return fmt.Errorf("enabled managed %s contribution %q is missing from core", operation, name)
+				}
+				continue
+			}
+			recipe := selection.Entry.SetupRecipe
+			if operation == managedSetup && recipe != "" && (!exists || !hasManagedRecipe(content, recipe)) {
 				return fmt.Errorf("enabled managed %s recipe %q is missing from %q", operation, recipe, selection.Entry.Path)
 			}
 		}
@@ -77,7 +89,7 @@ func preflightLegacyGoRecipes(root *os.Root, selections []managedSelection) erro
 		return fmt.Errorf("reading retained Go fragment %q: %w", destination, err)
 	}
 	if hasManagedMarker(content, destination) {
-		for _, recipe := range []string{"build", "test"} {
+		for _, recipe := range []string{"build", "test", "lint", "build-go", "test-go", "lint-go", "_lint-go", "check-go", "vet-go", "fmt-go", "fmt-check-go", "tidy-go", "tidy-check-go", "coverage-go", "complexity-go"} {
 			if hasManagedRecipe(content, recipe) {
 				return fmt.Errorf("retained managed fragment %q still defines the legacy %s recipe; set languages.go to true to migrate it, or remove or rename that recipe before retrying", destination, recipe)
 			}

@@ -129,10 +129,10 @@ func TestRenderManagedBuildAggregateDependencies(t *testing.T) {
 		wantRecipe  string
 		wantCommand string
 	}{
-		{name: "core only", cfg: &config.Config{}, wantRecipe: "build:", wantCommand: `@echo "No build recipes are enabled."`},
-		{name: "go true", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &trueValue}}, wantRecipe: "build: build-go", wantCommand: "@:"},
-		{name: "go false", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &falseValue}}, wantRecipe: "build:", wantCommand: `@echo "No build recipes are enabled."`},
-		{name: "go absent", cfg: &config.Config{Languages: &config.LanguageSettings{}}, wantRecipe: "build:", wantCommand: `@echo "No build recipes are enabled."`},
+		{name: "core only", cfg: &config.Config{}, wantRecipe: "build:", wantCommand: `echo "No build recipes are enabled."`},
+		{name: "go true", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &trueValue}}, wantRecipe: "build:", wantCommand: "    go build ./..."},
+		{name: "go false", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &falseValue}}, wantRecipe: "build:", wantCommand: `echo "No build recipes are enabled."`},
+		{name: "go absent", cfg: &config.Config{Languages: &config.LanguageSettings{}}, wantRecipe: "build:", wantCommand: `echo "No build recipes are enabled."`},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -156,19 +156,19 @@ func TestRenderManagedBuildAggregateDependencies(t *testing.T) {
 
 func TestRenderManagedBuildAggregateUsesCanonicalCapabilityOrder(t *testing.T) {
 	registry := []managedRegistryEntry{
-		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, BuildRecipe: "build-pages"},
-		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildRecipe: "build-go"},
+		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, BuildBody: "test-go"},
+		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildBody: "build-go"},
 	}
 	cfg := &config.Config{
 		Languages: &config.LanguageSettings{Go: new(true)},
 		Pages:     &model.PagesSettings{Enabled: new(true)},
 	}
-	content := []byte("build: " + managedBuildDependenciesPlaceholder + "\n    " + managedBuildCommandPlaceholder + "\n")
+	content := []byte("build:\n    [[TAILOR_MANAGED_BUILD_BODY]]\n")
 	rendered, err := renderManagedBuildAggregate(cfg, content, registry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(rendered, []byte("build: build-go build-pages\n")) {
+	if bytes.Index(rendered, []byte("goexe=")) >= bytes.Index(rendered, []byte("go vet ./...")) {
 		t.Fatalf("unexpected build aggregate:\n%s", rendered)
 	}
 }
@@ -180,10 +180,10 @@ func TestRenderManagedLintAggregateDependencies(t *testing.T) {
 		cfg  *config.Config
 		want string
 	}{
-		{name: "core only", cfg: &config.Config{}, want: "lint: lint-actions"},
-		{name: "go true", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &trueValue}}, want: "lint: lint-actions lint-go"},
-		{name: "go false", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &falseValue}}, want: "lint: lint-actions"},
-		{name: "go absent", cfg: &config.Config{Languages: &config.LanguageSettings{}}, want: "lint: lint-actions"},
+		{name: "core only", cfg: &config.Config{}, want: "lint $mode=\"check\":"},
+		{name: "go true", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &trueValue}}, want: "lint $mode=\"check\":"},
+		{name: "go false", cfg: &config.Config{Languages: &config.LanguageSettings{Go: &falseValue}}, want: "lint $mode=\"check\":"},
+		{name: "go absent", cfg: &config.Config{Languages: &config.LanguageSettings{}}, want: "lint $mode=\"check\":"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -197,7 +197,7 @@ func TestRenderManagedLintAggregateDependencies(t *testing.T) {
 			}
 			var got string
 			for line := range strings.SplitSeq(string(rendered), "\n") {
-				if strings.HasPrefix(line, "lint:") {
+				if strings.HasPrefix(line, "lint $mode") {
 					got = line
 					break
 				}
@@ -213,14 +213,14 @@ func TestRenderManagedLintAggregateDependencies(t *testing.T) {
 }
 
 func TestRenderManagedLintAggregateRejectsMalformedPlaceholders(t *testing.T) {
-	placeholder := managedLintDependenciesPlaceholder
+	placeholder := "[[TAILOR_MANAGED_LINT_BODY]]"
 	for _, tt := range []struct {
 		name    string
 		content string
 		want    string
 	}{
-		{name: "missing", content: "lint: lint-actions\n", want: "one lint dependencies placeholder"},
-		{name: "repeated", content: "lint: " + placeholder + " " + placeholder + "\n", want: "one lint dependencies placeholder"},
+		{name: "missing", content: "lint: lint-actions\n", want: "one lint body placeholder"},
+		{name: "repeated", content: "lint: " + placeholder + " " + placeholder + "\n", want: "one lint body placeholder"},
 		{name: "unresolved", content: "lint: " + placeholder + "\n# [[TAILOR_MANAGED_LINT_UNKNOWN]]\n", want: "unresolved lint placeholder"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -234,8 +234,8 @@ func TestRenderManagedLintAggregateRejectsMalformedPlaceholders(t *testing.T) {
 
 func TestRenderManagedLintAggregateUsesCanonicalCapabilityOrder(t *testing.T) {
 	registry := []managedRegistryEntry{
-		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, LintRecipe: "lint-pages"},
-		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"},
+		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, LintBody: "test-go"},
+		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintBody: "lint-go"},
 		{Path: "just/tailor.just", Policy: managedPolicyCore},
 		{Path: "just/loader.just", Policy: managedPolicyLoader},
 	}
@@ -243,11 +243,11 @@ func TestRenderManagedLintAggregateUsesCanonicalCapabilityOrder(t *testing.T) {
 		Languages: &config.LanguageSettings{Go: new(true)},
 		Pages:     &model.PagesSettings{Enabled: new(true)},
 	}
-	core, err := renderManagedLintAggregate(cfg, []byte("lint-actions:\n    @echo actions\n\nlint: "+managedLintDependenciesPlaceholder+"\n"), registry)
+	core, err := renderManagedLintAggregate(cfg, []byte("lint $mode=\"check\":\n    #!/usr/bin/env bash\n    set -euo pipefail\n    [[TAILOR_MANAGED_LINT_BODY]]\n"), registry)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(core, []byte("lint: lint-actions lint-go lint-pages\n")) {
+	if bytes.Index(core, []byte("go mod tidy -diff")) >= bytes.Index(core, []byte("go vet ./...")) {
 		t.Fatalf("unexpected lint aggregate:\n%s", core)
 	}
 
@@ -264,9 +264,9 @@ func TestRenderManagedLintAggregateUsesCanonicalCapabilityOrder(t *testing.T) {
 		writeManagedRenderFixture(t, root, "justfile", []byte("import 'just/loader.just'\n"))
 		writeManagedRenderFixture(t, root, "just/loader.just", loader)
 		writeManagedRenderFixture(t, root, "just/tailor.just", core)
-		writeManagedRenderFixture(t, root, "just/go.just", []byte("lint-go:\n    @echo go\n"))
-		writeManagedRenderFixture(t, root, "just/pages.just", []byte("lint-pages:\n    @echo pages\n"))
-		wantRecipes := []string{"lint", "lint-actions", "lint-go", "lint-pages"}
+		writeManagedRenderFixture(t, root, "just/go.just", []byte("# compatibility\n"))
+		writeManagedRenderFixture(t, root, "just/pages.just", []byte("# synthetic compatibility\n"))
+		wantRecipes := []string{"lint"}
 		if got := managedJustRecipes(t, just, root); !reflect.DeepEqual(got, wantRecipes) {
 			t.Fatalf("synthetic lint recipes = %v, want %v", got, wantRecipes)
 		}
@@ -284,10 +284,10 @@ func TestManagedJustCombinationsParseWithUniqueRecipes(t *testing.T) {
 		pages *model.PagesSettings
 		want  []string
 	}{
-		{name: "core", want: []string{"alter", "build", "default", "lint", "lint-actions", "measure", "release", "setup", "test"}},
-		{name: "go", goOn: true, want: []string{"_lint-go", "alter", "build", "build-go", "check-go", "complexity-go", "coverage-go", "default", "fmt-check-go", "fmt-go", "lint", "lint-actions", "lint-go", "measure", "release", "setup", "test", "test-go", "tidy-check-go", "tidy-go", "vet-go"}},
-		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "lint-actions", "measure", "pages", "release", "setup", "test"}},
-		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"_lint-go", "alter", "build", "build-go", "check-go", "complexity-go", "coverage-go", "default", "fmt-check-go", "fmt-go", "lint", "lint-actions", "lint-go", "measure", "pages", "release", "setup", "test", "test-go", "tidy-check-go", "tidy-go", "vet-go"}},
+		{name: "core", want: []string{"alter", "build", "default", "lint", "measure", "release", "setup", "test"}},
+		{name: "go", goOn: true, want: []string{"alter", "build", "default", "lint", "measure", "release", "setup", "test"}},
+		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "measure", "pages", "release", "setup", "test"}},
+		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "measure", "pages", "release", "setup", "test"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := managedRenderConfig(tt.goOn, tt.pages)

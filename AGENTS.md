@@ -30,25 +30,17 @@ tailor/
 
 ## Build and test commands
 
-- Build all enabled ecosystems: `just build`
-- Build Go packages and write executables to `bin/`: `just build-go`
-- Build the stripped Tailor binary: `just build-tailor` (or `go build -ldflags "-s -w" -o tailor ./cmd/tailor`)
-- Run all enabled tests: `just test`. Run Go tests only: `just test-go` (or `go test ./...`).
-- Run all enabled linters: `just lint` (`actionlint`, `golangci-lint run --config .golangci.yml`, `govulncheck ./...`, then `go vet ./...`).
-- Run sequential source-preserving checks with `just check-go`. Keep builds, coverage, releases, and installation outside this gate.
-- Use `just fmt-go` and `just tidy-go` only to apply changes. Use `just fmt-check-go` and `just tidy-check-go` for checks.
-- Use `just coverage-go` for generated `coverage.out`, and `just complexity-go` for a diagnostic report.
+- Use only `just build`, `just test`, and `just lint` for quality work.
+- Use `just lint` or `just lint check` for read-only checks. Use `just lint correct` explicitly to tidy modules and format source.
+- Run full vet once in `just test`, then tests with console coverage. Do not create `coverage.out`.
+- Keep Go bodies inline in the core, selected only by explicit Go enablement. Keep `just/go.just` as an empty compatibility import.
+- Put project quality work in optional `just/project/build.sh`, `test.sh`, or `lint.sh` scripts. The lint script receives `check` or `correct`.
+- Keep script check mode read-only. Reject symlinks and non-regular scripts or parents.
+- Build Tailor's stripped root binary through `just/project/build.sh`, after the managed build succeeds.
 - Keep `.golangci.yml` as an ordinary first-fit swatch. Customise that file directly, not `.tailor.yml`.
-- Preserve existing first-fit lint files during normal alterations. `always` and `--recut` replace them with the shared default.
-- Keep the shared security exceptions scoped. They are default policy, not generated project exceptions. See `wiki/Configuration.md`.
-- Run workflow linters only: `just lint-actions`
-- Run Go linters only: `just lint-go`. This recipe can use the network for module and vulnerability data.
-- Keep `lint-all` as the project alias for `lint` in `just/project.just`.
-- Include `build-go` in the managed `build` aggregate only for explicit `languages.go: true`. False or absent excludes Go builds.
-- Include `lint-go` in the managed `lint` aggregate only for explicit `languages.go: true`. False or absent excludes Go lint.
-- Include `test-go` in the managed `test` aggregate only for explicit `languages.go: true`.
-- Use the shared operation renderer for build, test, and lint. Keep recipes argument-free and dependencies sequential.
-- Keep `release` in the core by default, independent of language declarations. Never include it in an aggregate.
+- Preserve first-fit lint files during normal alterations. `always` and `--recut` replace them with the shared default.
+- Keep shared security exceptions scoped. See `wiki/Configuration.md`.
+- Keep setup and release operational and outside quality commands. Never run them implicitly.
 - Enter dev shell: `nix develop` or `direnv allow`
 - Task runner: `just` (lists available recipes)
 - Create release: `just release 0.1.0`

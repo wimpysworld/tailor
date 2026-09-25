@@ -48,13 +48,11 @@ Tailor always reconciles `just/loader.just`, `nix/loader.nix`, and `just/tailor.
 
 Owned files start with `# Managed by Tailor: <registered path>`. Tailor stops on an unmarked file at a managed destination. A disabled fragment with a missing destination causes no change.
 
-The generated root requires Just 1.23.0 or later. Tailor tests generated files with Just 1.23.0 and 1.58.0. Recipe names are unique: core owns `build`, `test`, `alter`, `measure`, `release`, `lint-actions`, and `lint`; Go owns `build-go`, `test-go`, and `lint-go`; Pages owns `pages`.
+The generated root requires Just 1.23.0 or later and owns the sole `default` recipe. The core provides exactly three quality commands: `build`, `test`, and `lint`. It also keeps the operational `alter`, `measure`, `setup`, and `release` commands. Pages owns `pages`. `just/go.just` is an empty compatibility import with no recipes.
 
-The argument-free `build` and `test` aggregates select explicitly enabled capabilities in lexical order and stop at the first failure. Empty aggregates succeed with a clear message. The shared operation renderer handles build, test, and lint. The core keeps `release` by default, independent of language declarations and outside all aggregates. Release retains the existing local tag flow.
+Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go is the only supported quality ecosystem. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
 
-`lint-actions` runs only `actionlint`. `lint-go` runs `golangci-lint run --config .golangci.yml`, then `govulncheck ./...`, then `go vet ./...`. The `lint` aggregate runs `lint-actions` first, then each registered linter whose capability is explicitly true, in lexical capability order. The current registry adds only `lint-go` for Go; Pages and Playwright register no linter. False and absent declarations are excluded. A fragment retained by an absent declaration keeps its standalone recipe, but the aggregate excludes it. `govulncheck` can access the network to download missing modules and retrieve current Go vulnerability data.
-
-A `never` mode for `justfile` or an ordinary Go config does not disable a selected managed recipe. For example, `languages.go: true` keeps `build-go`, `test-go`, and `lint-go` in their aggregates when `.golangci.yml` is `never`. A missing selected recipe or tool causes the aggregate to fail. Use distinct wrapper names for custom checks because user recipes cannot override managed names. Before adding the loader import to a preserved root, remove or rename user-owned `build` and `test` recipes.
+A `never` mode for `justfile` or `.golangci.yml` does not disable Go bodies selected by `languages.go: true`. Remove old quality recipes and aliases from preserved roots and project fragments before loader adoption. Move project-specific quality work into the optional scripts below. Retained marked Go fragments with legacy quality recipes require explicit Go enablement for migration, or manual removal of those recipes. Do not rename legacy helpers into another quality API. Release remains independent of language declarations and keeps its existing local tag flow.
 
 If you manually delete a managed Just fragment, Just can fail while it parses every recipe. Run `tailor baste` directly. Review the full plan. After approval, run `tailor alter`. The alteration can change other declared files and repository settings.
 
@@ -90,7 +88,7 @@ languages:
     ffmpeg-statigo: true
 ```
 
-Both optional keys accept only Booleans. Unknown keys, null values, and a mapping without `enabled` are invalid. The component requires enabled Go and rejects explicit `cgo: false`. With the component enabled, omitted `cgo` resolves to true without changing authored YAML. Otherwise omitted `cgo` leaves the caller environment unchanged. Explicit CGO policy applies to development recipes, the Go shell hook, and the rendered builder workflow. The Go hook works independently of the graphics guard and opt-out.
+Both optional keys accept only Booleans. Unknown keys, null values, and a mapping without `enabled` are invalid. The component requires enabled Go and rejects explicit `cgo: false`. With the component enabled, omitted `cgo` resolves to true without changing authored YAML. Otherwise omitted `cgo` leaves the caller environment unchanged. The always-managed `just/tailor.just` exports the effective `CGO_ENABLED` value once: `"0"` for false or `"1"` for true. This export overrides the caller environment for all managed, imported, and root recipes and project scripts, including setup and source commands. No per-ecosystem export is needed. Disabled Go or absent policy emits no export. The Go shell hook applies the same policy to direct shell commands, independently of the graphics guard and opt-out. The rendered builder workflow also receives the policy. Regenerate managed files after a policy change. Reload the development shell for direct shell commands. Just needs no shell reload.
 
 Component true creates owned Just, Nix package, and Nix hook fragments. Component false removes only owned fragments. An absent component preserves them, unless Go is explicitly false. Go false removes owned Go and component fragments. Go absent preserves all of them. Default merging preserves the authored Boolean or mapping form and does not insert optional keys.
 
@@ -150,7 +148,7 @@ Before Tailor creates or replaces the release configuration, `Dockerfile` must b
 
 Before Tailor creates or replaces the builder workflow, it checks the lint and release configurations. Both must already be regular files, or Tailor must plan to create them. Tailor does not check the contents of customised configurations.
 
-When Go is true, Tailor creates or updates `just/go.just` and `nix/go.nix`. The Just fragment adds `build-go`, `test-go`, `lint-go`, and the policy recipes below. `test-go` runs `go test ./...`. `build-go` validates all packages before it writes discovered executable packages to `bin/`. Library-only modules succeed without `bin/`. The build rejects duplicate output names, a symlinked `bin`, and non-regular output destinations. A repeated build replaces regular executable files in `bin/`, but it never writes an executable in the project root. The Nix fragment adds Go, golangci-lint, govulncheck, GoReleaser, gocyclo, and goperf from the existing `pkgs` set.
+When Go is true, Tailor places Go bodies in `just/tailor.just` and updates the empty `just/go.just` compatibility import. The managed build validates all packages before publication to `bin/`. Library-only modules succeed without `bin/`. Duplicate names, symlinked `bin`, and non-regular outputs fail. Existing regular executables can be replaced. The managed body writes no root binary, but a project script can add one. The Nix fragment retains the existing Go development tools.
 
 ### Shared Go policy
 
@@ -160,18 +158,18 @@ All shared lint and format commands select `.golangci.yml` explicitly. Tailor do
 
 The initial default uses Nyala's reviewed policy. It retains `G306` and three scoped gosec exclusions with their reason comments. It also retains the reviewed linter and formatter path exclusions. These security exceptions are shared default policy, not generated per-project decisions. Review their scope for your project.
 
-| Recipe | Effect |
+| Command | Behaviour |
 |---|---|
-| `fmt-go` | Format source with the canonical policy |
-| `fmt-check-go` | Show formatting differences and fail without changing source |
-| `tidy-go` | Update `go.mod` and `go.sum` |
-| `tidy-check-go` | Use `go mod tidy -diff` to check module files without changes |
-| `vet-go` | Run full standalone `go vet ./...`, without lint exclusions |
-| `coverage-go` | Write or replace the generated `coverage.out` file |
-| `complexity-go` | Report the top twenty functions and average complexity, excluding tests |
-| `check-go` | Run format check, tidy check, lint, and tests sequentially, stopping on failure |
+| `just build` | Validate Go packages and publish executable packages to `bin/` |
+| `just test` | Run full `go vet ./...` once, then `go test -cover -covermode=atomic ./...` with console coverage |
+| `just lint` | Read-only checks, identical to `just lint check` |
+| `just lint correct` | Run `go mod tidy` and the configured formatter, then repeat all checks |
 
-The shared lint policy includes `intrange`, explicit `govet` and `ineffassign`, and the `gofumpt` formatter. It does not enable `modernize` or enforce `gocyclo`. Standalone vet retains full coverage outside lint exclusions. `check-go` does not change source or module files. Run `build-go` separately when executable output is required. Coverage and build output are not part of `check-go`. These commands do not release or install tools. Go commands can download modules and write caches. Vulnerability checks can use the network. Benchmark and profile commands remain future work.
+For Go, lint checks run sequentially: `go mod tidy -diff`, `golangci-lint fmt --config .golangci.yml --diff`, workflow lint, `golangci-lint run --config .golangci.yml`, `govulncheck ./...`, then diagnostic `gocyclo`. Each failure stops later commands. Lint does not run vet or tests. Test coverage stays in the console and creates no `coverage.out`. Lint rejects modes other than `check` and `correct` before any work.
+
+Optional project-owned scripts at `just/project/build.sh`, `just/project/test.sh`, and `just/project/lint.sh` run with Bash after their managed commands succeed. Scripts run from the project root. The lint script receives `check` or `correct` as its first argument. Keep its check mode read-only. Missing scripts are skipped. Symlinks and non-regular scripts, or linked or non-directory parents, fail visibly. Tailor does not generate or overwrite these scripts. Do not expose alternative quality recipes through wrappers.
+
+Go commands can download modules and write caches. Vulnerability checks can use the network. Setup and release remain separate operational commands. Benchmark and profile commands remain future work.
 
 Every generated Dependabot file contains GitHub Actions and Nix entries. Go true adds `gomod`; Go false omits it. For a missing file, an absent Go setting selects the Go-enabled variant for legacy compatibility.
 

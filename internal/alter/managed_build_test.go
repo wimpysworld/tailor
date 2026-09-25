@@ -186,7 +186,7 @@ func TestManagedBuildRejectsUnsafeDestinations(t *testing.T) {
 }
 
 func TestManagedBuildUsesBashThreeCompatibleArrays(t *testing.T) {
-	content := string(renderSelectedManagedFiles(t, managedRenderConfig(true, nil))["just/go.just"])
+	content := string(renderSelectedManagedFiles(t, managedRenderConfig(true, nil))["just/tailor.just"])
 	if strings.Contains(content, "declare -A") {
 		t.Fatal("managed Go build uses Bash 4 associative arrays")
 	}

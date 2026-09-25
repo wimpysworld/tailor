@@ -9,50 +9,30 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/config"
-	"github.com/wimpysworld/tailor/internal/model"
 )
 
 func TestManagedTestAggregateExecution(t *testing.T) {
-	just := managedLintExecutable(t)
 	for _, state := range []string{"true", "false", "absent", "failure"} {
 		t.Run(state, func(t *testing.T) {
-			root := t.TempDir()
-			cfg := &config.Config{Pages: &model.PagesSettings{Enabled: new(true)}}
-			if state != "absent" {
-				cfg.Languages = &config.LanguageSettings{Go: new(state != "false")}
-			}
-			registry := []managedRegistryEntry{
-				{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, TestRecipe: "test-pages"},
-				{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, TestRecipe: "test-go"},
-			}
-			core, err := renderManagedAggregate(cfg, []byte("test: [[TAILOR_MANAGED_TEST_DEPENDENCIES]]\n    [[TAILOR_MANAGED_TEST_COMMAND]]\n"), registry, managedTest)
-			if err != nil {
-				t.Fatal(err)
-			}
-			writeManagedTestFile(t, root, "justfile", []byte("import 'just/tailor.just'\nimport 'just/go.just'\nimport 'just/pages.just'\n"))
-			writeManagedTestFile(t, root, "just/tailor.just", core)
-			goBody := "test-go:\n    @pwd\n    @echo go\n"
+			root, bin, log := qualityFixture(t, state == "true" || state == "failure")
+			writeManagedTestFile(t, root, "just/project/test.sh", []byte("printf 'project %s\n' \"$PWD\" >> \"$CALLS\"\n"))
+			fail := ""
 			if state == "failure" {
-				goBody += "    @false\n"
+				fail = "go vet ./..."
 			}
-			writeManagedTestFile(t, root, "just/go.just", []byte(goBody))
-			writeManagedTestFile(t, root, "just/pages.just", []byte("test-pages:\n    @echo pages\n"))
-			// #nosec G204 -- The executable and temporary fixture are controlled by the test.
-			cmd := exec.CommandContext(t.Context(), just, "--justfile", filepath.Join(root, "justfile"), "test")
-			cmd.Dir = filepath.Join(root, "just")
-			output, err := cmd.CombinedOutput()
+			output, err := qualityRun(t, root, bin, log, fail, "test")
+			if (err != nil) != (state == "failure") {
+				t.Fatalf("test: %v %s", err, output)
+			}
+			want := []string{"project " + root}
+			if state == "true" {
+				want = append([]string{"go vet ./...", "go test -cover -covermode=atomic ./..."}, want...)
+			}
 			if state == "failure" {
-				if err == nil || strings.Contains(string(output), "pages") {
-					t.Fatalf("failure output=%q error=%v", output, err)
-				}
-			} else {
-				want := "pages\n"
-				if state == "true" {
-					want = root + "\ngo\npages\n"
-				}
-				if err != nil || string(output) != want {
-					t.Fatalf("output=%q error=%v, want %q", output, err, want)
-				}
+				want = []string{"go vet ./..."}
+			}
+			if got := managedLintLog(t, log); !reflect.DeepEqual(got, want) {
+				t.Fatalf("calls %q, want %q", got, want)
 			}
 		})
 	}
@@ -68,7 +48,9 @@ func TestManagedTestEmptyAndReleaseDefault(t *testing.T) {
 			t.Fatal("core lacks default release")
 		}
 		// #nosec G204 -- The executable and temporary fixture are controlled by the test.
-		output, err := exec.CommandContext(t.Context(), managedLintExecutable(t), "--justfile", filepath.Join(root, "justfile"), "test").CombinedOutput()
+		command := exec.CommandContext(t.Context(), managedLintExecutable(t), "--justfile", filepath.Join(root, "justfile"), "test")
+		command.Env = managedEnvironmentWithout("BASH_ENV", "ENV")
+		output, err := command.CombinedOutput()
 		if err != nil || string(output) != "No test recipes are enabled.\n" {
 			t.Fatalf("output=%q error=%v", output, err)
 		}
@@ -101,7 +83,7 @@ func TestManagedLegacyTestPreflightAndMigration(t *testing.T) {
 	if _, err := preflightManagedFiles(root, selections, rendered); err != nil {
 		t.Fatal(err)
 	}
-	if !hasManagedRecipe(rendered["just/go.just"], "test-go") || hasManagedRecipe(rendered["just/go.just"], "test") {
+	if !bytes.Contains(rendered["just/tailor.just"], []byte("go test -cover -covermode=atomic ./...")) || hasManagedRecipe(rendered["just/go.just"], "test-go") {
 		t.Fatal("Go migration did not rename test")
 	}
 }
@@ -110,7 +92,7 @@ func TestManagedOperationPreflightRequiresRecipes(t *testing.T) {
 	for _, operation := range managedOperations() {
 		for _, missing := range []bool{false, true} {
 			cfg := &config.Config{Languages: &config.LanguageSettings{Go: new(true), GoOptions: &config.GoOptions{FFmpegStatigo: new(true)}}}
-			destination, recipe := "just/go.just", string(operation)+"-go:"
+			destination, recipe := "just/tailor.just", map[managedRecipeOperation]string{managedBuild: "goexe=", managedTest: "go vet ./...", managedLint: "go mod tidy -diff"}[operation]
 			if operation == managedSetup {
 				destination, recipe = "just/go-ffmpeg-statigo.just", "setup-go-ffmpeg-statigo:"
 			}
@@ -146,9 +128,9 @@ func TestManagedTestAggregateRejectsMalformedPlaceholders(t *testing.T) {
 
 func TestManagedOperationMetadataValidation(t *testing.T) {
 	for _, entries := range [][]managedRegistryEntry{
-		{{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, TestRecipe: "test go"}},
-		{{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, TestRecipe: "test-go"}, {Path: "just/extra.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, TestRecipe: "test-extra"}},
-		{{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, TestRecipe: "same", BuildRecipe: "same"}},
+		{{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, TestBody: "test go"}},
+		{{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, TestBody: "test-go"}, {Path: "just/extra.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, TestBody: "test-extra"}},
+		{{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, TestBody: "same", BuildBody: "same"}},
 	} {
 		if err := validateManagedRegistry(entries); err == nil {
 			t.Fatalf("accepted invalid metadata: %#v", entries)

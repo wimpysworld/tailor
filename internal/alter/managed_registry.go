@@ -42,9 +42,9 @@ type managedRegistryEntry struct {
 	Path        string
 	Policy      managedPolicy
 	Capability  managedCapability
-	BuildRecipe string
-	LintRecipe  string
-	TestRecipe  string
+	BuildBody   managedQualityBodyName
+	LintBody    managedQualityBodyName
+	TestBody    managedQualityBodyName
 	SetupRecipe string
 }
 
@@ -61,16 +61,16 @@ func managedOperations() []managedRecipeOperation {
 	return []managedRecipeOperation{managedBuild, managedTest, managedLint, managedSetup}
 }
 
-func (operation managedRecipeOperation) recipe(entry managedRegistryEntry) string {
+type managedQualityBodyName string
+
+func (operation managedRecipeOperation) body(entry managedRegistryEntry) managedQualityBodyName {
 	switch operation {
 	case managedBuild:
-		return entry.BuildRecipe
+		return entry.BuildBody
 	case managedTest:
-		return entry.TestRecipe
+		return entry.TestBody
 	case managedLint:
-		return entry.LintRecipe
-	case managedSetup:
-		return entry.SetupRecipe
+		return entry.LintBody
 	default:
 		return ""
 	}
@@ -92,7 +92,7 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "nix/hooks/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo, NixKind: managedNixHook},
 		{Path: "nix/hooks/go-ffmpeg-statigo.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, NixKind: managedNixHook},
 		{Path: "just/tailor.just", Policy: managedPolicyCore},
-		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildRecipe: "build-go", TestRecipe: "test-go", LintRecipe: "lint-go"},
+		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildBody: "build-go", TestBody: "test-go", LintBody: "lint-go"},
 		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
 		{Path: "just/go-ffmpeg-statigo.just", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, SetupRecipe: "setup-go-ffmpeg-statigo"},
 		{Path: "nix/go-ffmpeg-statigo.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo},
@@ -143,8 +143,17 @@ func validateManagedRegistry(registry []managedRegistryEntry) error {
 		}
 
 		for _, operation := range managedOperations() {
-			if err := validateManagedRecipeMetadata(entry, string(operation), operation.recipe(entry), recipes, capabilities[operation]); err != nil {
+			name, kind := string(operation.body(entry)), string(operation)+" body"
+			if operation == managedSetup {
+				name, kind = entry.SetupRecipe, "setup recipe"
+			}
+			if err := validateManagedRecipeMetadata(entry, kind, name, recipes, capabilities[operation]); err != nil {
 				return err
+			}
+			if operation != managedSetup && name != "" {
+				if _, err := managedQualityBody(name); err != nil {
+					return err
+				}
 			}
 		}
 	}
@@ -156,17 +165,17 @@ func validateManagedRecipeMetadata(entry managedRegistryEntry, kind, recipe stri
 		return nil
 	}
 	if entry.Policy != managedPolicyFragment || path.Dir(entry.Path) != "just" || path.Ext(entry.Path) != ".just" {
-		return fmt.Errorf("managed registry %s recipe %q must belong to a Just capability fragment", kind, recipe)
+		return fmt.Errorf("managed registry %s %q must belong to a Just capability fragment", kind, recipe)
 	}
 	if !validManagedRecipeName(recipe) {
-		return fmt.Errorf("managed registry destination %q has invalid %s recipe %q", entry.Path, kind, recipe)
+		return fmt.Errorf("managed registry destination %q has invalid %s %q", entry.Path, kind, recipe)
 	}
 	if previous, exists := recipes[recipe]; exists {
-		return fmt.Errorf("managed registry %s recipe %q is duplicated by %q and %q", kind, recipe, previous, entry.Path)
+		return fmt.Errorf("managed registry %s %q is duplicated by %q and %q", kind, recipe, previous, entry.Path)
 	}
 	recipes[recipe] = entry.Path
 	if previous, exists := capabilities[entry.Capability]; exists {
-		return fmt.Errorf("managed capability %q has multiple %s recipes in %q and %q", entry.Capability.canonicalName(), kind, previous, entry.Path)
+		return fmt.Errorf("managed capability %q has multiple %s contributions in %q and %q", entry.Capability.canonicalName(), kind, previous, entry.Path)
 	}
 	capabilities[entry.Capability] = entry.Path
 	return nil

@@ -136,7 +136,7 @@ tailor alter
 
 ## Development
 
-Enter the pinned shell with `nix develop`. Run `just build-tailor` to build the stripped CLI. Run `just check-go` for sequential format, module, lint, and test checks without source changes. Run `just fmt-go` or `just tidy-go` to apply fixes. `just lint` runs all enabled linters, and `just lint-all` is its compatibility alias. Go checks can download modules and vulnerability data. See the [Go configuration guide](https://github.com/wimpysworld/tailor/wiki/Configuration#shared-go-policy) for first-fit customisation, shared policy, and generated coverage output.
+Enter the pinned shell with `nix develop`. Use `just build` to build executables, including Tailor's stripped root binary. Use `just test` for full vet and tests with console coverage. Use `just lint` for read-only checks. Use `just lint correct` explicitly to tidy modules and format source before the checks. Go checks can download modules and vulnerability data. See the [Go configuration guide](https://github.com/wimpysworld/tailor/wiki/Configuration#shared-go-policy) for policy and project scripts.
 
 ## Documentation
 

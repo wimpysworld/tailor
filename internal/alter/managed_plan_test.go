@@ -34,18 +34,18 @@ func TestFixedManagedRegistry(t *testing.T) {
 		t.Fatalf("fixedManagedRegistry() paths = %v, want %v", got, want)
 	}
 	for _, entry := range registry {
-		wantBuildRecipe, wantLintRecipe, wantTestRecipe := "", "", ""
+		var wantBuildBody, wantLintBody, wantTestBody managedQualityBodyName
 		if entry.Path == "just/go.just" {
-			wantBuildRecipe, wantLintRecipe, wantTestRecipe = "build-go", "lint-go", "test-go"
+			wantBuildBody, wantLintBody, wantTestBody = "build-go", "lint-go", "test-go"
 		}
-		if entry.BuildRecipe != wantBuildRecipe {
-			t.Errorf("fixedManagedRegistry() build recipe for %q = %q, want %q", entry.Path, entry.BuildRecipe, wantBuildRecipe)
+		if entry.BuildBody != wantBuildBody {
+			t.Errorf("fixedManagedRegistry() build recipe for %q = %q, want %q", entry.Path, entry.BuildBody, wantBuildBody)
 		}
-		if entry.TestRecipe != wantTestRecipe {
-			t.Errorf("fixedManagedRegistry() test recipe for %q = %q, want %q", entry.Path, entry.TestRecipe, wantTestRecipe)
+		if entry.TestBody != wantTestBody {
+			t.Errorf("fixedManagedRegistry() test recipe for %q = %q, want %q", entry.Path, entry.TestBody, wantTestBody)
 		}
-		if entry.LintRecipe != wantLintRecipe {
-			t.Errorf("fixedManagedRegistry() lint recipe for %q = %q, want %q", entry.Path, entry.LintRecipe, wantLintRecipe)
+		if entry.LintBody != wantLintBody {
+			t.Errorf("fixedManagedRegistry() lint recipe for %q = %q, want %q", entry.Path, entry.LintBody, wantLintBody)
 		}
 	}
 
@@ -121,29 +121,29 @@ func TestValidateManagedRegistryRejectsMalformedMetadata(t *testing.T) {
 			want:     "requires a capability",
 		},
 		{
-			name:     "invalid lint recipe identifier",
-			registry: []managedRegistryEntry{{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint go"}},
-			want:     "invalid lint recipe",
+			name:     "invalid lint body identifier",
+			registry: []managedRegistryEntry{{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintBody: "lint go"}},
+			want:     "invalid lint body",
 		},
 		{
 			name: "duplicate lint recipe",
 			registry: []managedRegistryEntry{
-				{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-ecosystem"},
-				{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, LintRecipe: "lint-ecosystem"},
+				{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintBody: "lint-go"},
+				{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages, LintBody: "lint-go"},
 			},
-			want: "lint recipe \"lint-ecosystem\" is duplicated",
+			want: "lint body \"lint-go\" is duplicated",
 		},
 		{
-			name: "multiple lint recipes for capability",
+			name: "multiple lint body contributions for capability",
 			registry: []managedRegistryEntry{
-				{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"},
-				{Path: "just/go-extra.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go-extra"},
+				{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintBody: "lint-go"},
+				{Path: "just/go-extra.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintBody: "test-go"},
 			},
-			want: "multiple lint recipes",
+			want: "multiple lint body contributions",
 		},
 		{
 			name:     "lint recipe outside Just fragment",
-			registry: []managedRegistryEntry{{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintRecipe: "lint-go"}},
+			registry: []managedRegistryEntry{{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo, LintBody: "lint-go"}},
 			want:     "must belong to a Just capability fragment",
 		},
 		{

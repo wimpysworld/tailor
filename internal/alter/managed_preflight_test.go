@@ -355,7 +355,7 @@ func TestManagedLintOwnershipConflictPreventsAllWrites(t *testing.T) {
 	}
 }
 
-func TestPreflightManagedFilesRejectsRetainedLegacyGoBuildRecipe(t *testing.T) {
+func TestPreflightManagedFilesRejectsRetainedLegacyGoBuildBody(t *testing.T) {
 	dir := t.TempDir()
 	legacy := managedContent("just/go.just", "\n# Build Go packages\nbuild:\n    @go build ./...")
 	writeManagedTestFile(t, dir, "just/go.just", legacy)
@@ -378,20 +378,20 @@ func TestPreflightManagedFilesRejectsRetainedLegacyGoBuildRecipe(t *testing.T) {
 	}
 }
 
-func TestPreflightManagedFilesRejectsMissingEnabledBuildRecipe(t *testing.T) {
+func TestPreflightManagedFilesRejectsMissingEnabledBuildBody(t *testing.T) {
 	selection := managedSelection{
 		Entry: managedRegistryEntry{
-			Path:        "just/go.just",
-			Policy:      managedPolicyFragment,
-			Capability:  managedCapabilityGo,
-			BuildRecipe: "build-go",
+			Path:       "just/go.just",
+			Policy:     managedPolicyFragment,
+			Capability: managedCapabilityGo,
+			BuildBody:  "build-go",
 		},
 		Enabled: true,
 	}
 	_, err := preflightManagedFiles(t.TempDir(), []managedSelection{selection}, managedRenderedFiles{
 		"just/go.just": managedContent("just/go.just", "lint-go:\n    @true"),
 	})
-	if err == nil || !strings.Contains(err.Error(), `enabled managed build recipe "build-go" is missing`) {
+	if err == nil || !strings.Contains(err.Error(), `enabled managed build contribution "build-go" is missing`) {
 		t.Fatalf("preflightManagedFiles() error = %v, want missing recipe conflict", err)
 	}
 }
@@ -402,6 +402,7 @@ func writeManagedTestFile(t *testing.T, dir, relative string, content []byte) {
 	if err := os.MkdirAll(filepath.Dir(name), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	// #nosec G703 -- Test paths are controlled and stay in the temporary fixture.
 	if err := os.WriteFile(name, content, 0o644); err != nil {
 		t.Fatal(err)
 	}
