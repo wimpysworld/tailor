@@ -154,7 +154,7 @@ lint $mode="check":
     go mod tidy -diff
     golangci-lint fmt --config .golangci.yml --diff
     golangci-lint run --config .golangci.yml
-    govulncheck ./...
+    govulncheck -show verbose ./...
     gocyclo -top 20 -avg -ignore '_test\.go$' .
     )
     project_script='just/project/lint.sh'

@@ -55,7 +55,7 @@ func TestRepositoryJustRecipes(t *testing.T) {
 }
 
 func TestQualityCommands(t *testing.T) {
-	lint := []string{"actionlint", "go mod tidy -diff", "golangci-lint fmt --config .golangci.yml --diff", "golangci-lint run --config .golangci.yml", "govulncheck ./...", "gocyclo -top 20 -avg -ignore _test\\.go$ ."}
+	lint := []string{"actionlint", "go mod tidy -diff", "golangci-lint fmt --config .golangci.yml --diff", "golangci-lint run --config .golangci.yml", "govulncheck -show verbose ./...", "gocyclo -top 20 -avg -ignore _test\\.go$ ."}
 	for _, mode := range []string{"check", "correct", "invalid", "$(touch injected)"} {
 		t.Run(mode, func(t *testing.T) {
 			root, bin, log := qualityFixture(t, true)
@@ -126,7 +126,7 @@ func TestQualityWorkflowLintIndependentOfContributions(t *testing.T) {
 	}{
 		{name: "zero", want: []string{"actionlint"}},
 		{name: "one without Go", pages: true, want: []string{"actionlint", "go vet ./...", "go test -cover -covermode=atomic ./..."}},
-		{name: "multiple", goOn: true, pages: true, want: []string{"actionlint", "go mod tidy -diff", "golangci-lint fmt --config .golangci.yml --diff", "golangci-lint run --config .golangci.yml", "govulncheck ./...", "gocyclo -top 20 -avg -ignore _test\\.go$ .", "go vet ./...", "go test -cover -covermode=atomic ./..."}},
+		{name: "multiple", goOn: true, pages: true, want: []string{"actionlint", "go mod tidy -diff", "golangci-lint fmt --config .golangci.yml --diff", "golangci-lint run --config .golangci.yml", "govulncheck -show verbose ./...", "gocyclo -top 20 -avg -ignore _test\\.go$ .", "go vet ./...", "go test -cover -covermode=atomic ./..."}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root, bin, log := qualityFixture(t, false)

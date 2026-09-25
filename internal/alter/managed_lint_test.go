@@ -32,7 +32,7 @@ func TestManagedLintExecutesSelectedLintersOnceAtProjectRoot(t *testing.T) {
 		"go|" + root + "|3|mod tidy -diff",
 		"golangci-lint|" + root + "|4|fmt --config .golangci.yml --diff",
 		"golangci-lint|" + root + "|3|run --config .golangci.yml",
-		"govulncheck|" + root + "|1|./...",
+		"govulncheck|" + root + "|3|-show verbose ./...",
 		"gocyclo|" + root + "|6|-top 20 -avg -ignore _test\\.go$ .",
 	})
 	if got := canonicalManagedLintCalls(t, managedLintLog(t, log)); !reflect.DeepEqual(got, want) {
@@ -83,7 +83,7 @@ func TestManagedLintWorkflowDiscovery(t *testing.T) {
 			if err != nil {
 				t.Fatalf("just lint: %v\n%s", err, output)
 			}
-			want := []string{"golangci-lint|" + root + "|3|run --config .golangci.yml", "govulncheck|" + root + "|1|./...", "gocyclo|" + root + "|6|-top 20 -avg -ignore _test\\.go$ ."}
+			want := []string{"golangci-lint|" + root + "|3|run --config .golangci.yml", "govulncheck|" + root + "|3|-show verbose ./...", "gocyclo|" + root + "|6|-top 20 -avg -ignore _test\\.go$ ."}
 			want = append([]string{"go|" + root + "|3|mod tidy -diff", "golangci-lint|" + root + "|4|fmt --config .golangci.yml --diff"}, want...)
 			if test.wantRun {
 				want = append([]string{"actionlint|" + root + "|0|"}, want...)
