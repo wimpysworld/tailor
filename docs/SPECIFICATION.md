@@ -310,7 +310,7 @@ The protected roots have no ownership marker. Tailor preserves an existing regul
 
 Tailor does not parse or rewrite a preserved root. If the line is absent, add `import 'just/loader.just'` to `justfile`. If the expression is absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in `flake.nix`.
 
-The generated root requires Just 1.23.0 or later and owns the sole `default` recipe. The core provides exactly three quality commands: `build`, `test`, and `lint`. It also keeps the operational `alter`, `measure`, `setup`, and `release` commands. Pages owns `pages`. `just/go.just` is an empty compatibility import with no recipes.
+The generated root requires Just 1.23.0 or later and owns the sole `default` recipe. The core provides exactly three quality commands: `build`, `test`, and `lint`. It also keeps the operational `setup` and `release` commands. Call `tailor alter`, `tailor baste`, and `tailor measure` directly, without Just wrappers. Pages owns `pages`. `just/go.just` is an empty compatibility import with no recipes.
 
 Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go is the only supported quality ecosystem. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
 
@@ -1565,7 +1565,7 @@ The retired paths are `.github/workflows/tailor-automerge.yml` and `.github/work
 
 The generated root requires Just 1.23.0 or later and imports `just/loader.just`. Tailor preserves an existing root under every alteration mode and `--recut`. Add the exact import manually when a preserved root does not contain it.
 
-The loader conditionally imports available fragments. The core owns `build`, `test`, and `lint`, with inline Go bodies only for explicit Go enablement. Setup, release, alter, measure, and Pages remain operational commands. The root alone owns `default`. See [managed development files](#managed-development-files).
+The loader conditionally imports available fragments. The core owns `build`, `test`, and `lint`, with inline Go bodies only for explicit Go enablement. Setup, release, and Pages remain operational Just commands. Call Tailor directly. `tailor measure` checks local health without authentication and does not run `tailor baste`. Run `tailor baste` separately for an authenticated preview. The root alone owns `default`. See [managed development files](#managed-development-files).
 
 ## Implementation Notes
 

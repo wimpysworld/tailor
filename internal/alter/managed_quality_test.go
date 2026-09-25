@@ -30,6 +30,30 @@ func TestRepositoryQualityRendering(t *testing.T) {
 	}
 }
 
+func TestRepositoryJustRecipes(t *testing.T) {
+	just, err := exec.LookPath("just")
+	if err != nil {
+		t.Skip("just is required")
+	}
+	root := filepath.Join("..", "..")
+	want := []string{"build", "default", "lint", "pages", "release", "setup", "snapshot", "test"}
+	if got := managedJustRecipes(t, just, root); !reflect.DeepEqual(got, want) {
+		t.Fatalf("repository recipes = %v, want %v", got, want)
+	}
+	for _, recipe := range []string{"alter", "measure", "alter-source", "measure-source"} {
+		cmd := exec.CommandContext(t.Context(), just, "--dry-run", recipe)
+		cmd.Dir = root
+		output, err := cmd.CombinedOutput()
+		if err == nil || !strings.Contains(string(output), "does not contain recipe") {
+			t.Errorf("removed recipe %s: %v\n%s", recipe, err, output)
+		}
+	}
+	project, err := os.ReadFile(filepath.Join(root, "just/project.just"))
+	if err != nil || string(project) != "# Build snapshot release packages\nsnapshot:\n    @goreleaser release --snapshot --clean --skip=sign\n" {
+		t.Fatalf("snapshot recipe changed: %v\n%s", err, project)
+	}
+}
+
 func TestQualityCommands(t *testing.T) {
 	lint := []string{"actionlint", "go mod tidy -diff", "golangci-lint fmt --config .golangci.yml --diff", "golangci-lint run --config .golangci.yml", "govulncheck ./...", "gocyclo -top 20 -avg -ignore _test\\.go$ ."}
 	for _, mode := range []string{"check", "correct", "invalid", "$(touch injected)"} {

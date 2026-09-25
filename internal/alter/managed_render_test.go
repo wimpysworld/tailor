@@ -284,10 +284,10 @@ func TestManagedJustCombinationsParseWithUniqueRecipes(t *testing.T) {
 		pages *model.PagesSettings
 		want  []string
 	}{
-		{name: "core", want: []string{"alter", "build", "default", "lint", "measure", "release", "setup", "test"}},
-		{name: "go", goOn: true, want: []string{"alter", "build", "default", "lint", "measure", "release", "setup", "test"}},
-		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "measure", "pages", "release", "setup", "test"}},
-		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"alter", "build", "default", "lint", "measure", "pages", "release", "setup", "test"}},
+		{name: "core", want: []string{"build", "default", "lint", "release", "setup", "test"}},
+		{name: "go", goOn: true, want: []string{"build", "default", "lint", "release", "setup", "test"}},
+		{name: "static pages", pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"build", "default", "lint", "pages", "release", "setup", "test"}},
+		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, want: []string{"build", "default", "lint", "pages", "release", "setup", "test"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := managedRenderConfig(tt.goOn, tt.pages)
@@ -317,6 +317,13 @@ func TestManagedJustCombinationsParseWithUniqueRecipes(t *testing.T) {
 			slices.Sort(got)
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("recipes = %v, want %v", got, tt.want)
+			}
+			for _, recipe := range []string{"alter", "measure", "alter-source", "measure-source"} {
+				// #nosec G204 -- Fixed recipe names and an isolated fixture, with execution disabled.
+				output, err := exec.CommandContext(t.Context(), just, "--justfile", filepath.Join(dir, "justfile"), "--dry-run", recipe).CombinedOutput()
+				if err == nil || !strings.Contains(string(output), "does not contain recipe") {
+					t.Errorf("removed recipe %s: %v\n%s", recipe, err, output)
+				}
 			}
 		})
 	}

@@ -1,10 +1,6 @@
 # Managed by Tailor: just/tailor.just
 [[TAILOR_MANAGED_CGO]]
 
-# Alter Tailor swatches
-alter:
-    @tailor alter
-
 # Run explicitly requested setup for enabled components
 setup: [[TAILOR_MANAGED_SETUP_DEPENDENCIES]]
     [[TAILOR_MANAGED_SETUP_COMMAND]]
@@ -30,11 +26,6 @@ lint $mode="check":
         *) echo "Error: lint mode must be check or correct" >&2; exit 1 ;;
     esac
     [[TAILOR_MANAGED_LINT_BODY]]
-
-# Preview remote and local changes, then inspect local project health
-measure:
-    @tailor baste
-    @tailor measure
 
 # Create a local release tag with just release x.y.z
 release $VERSION:

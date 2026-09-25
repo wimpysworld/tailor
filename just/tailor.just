@@ -1,10 +1,6 @@
 # Managed by Tailor: just/tailor.just
 export CGO_ENABLED := "0"
 
-# Alter Tailor swatches
-alter:
-    @tailor alter
-
 # Run explicitly requested setup for enabled components
 setup:
     @echo "No setup recipes are enabled."
@@ -175,11 +171,6 @@ lint $mode="check":
     if [[ -f "${project_script}" ]]; then
         bash "${project_script}" "${mode}"
     fi
-
-# Preview remote and local changes, then inspect local project health
-measure:
-    @tailor baste
-    @tailor measure
 
 # Create a local release tag with just release x.y.z
 release $VERSION:

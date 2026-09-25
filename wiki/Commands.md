@@ -195,13 +195,13 @@ Operational commands remain separate:
 | Command | Behaviour |
 |---|---|
 | `just` | List recipes |
-| `just alter` | Apply Tailor changes with authentication |
-| `just measure` | Preview changes, then inspect health |
 | `just setup` | Run explicitly enabled component setup |
 | `just release x.y.z` | Validate the clean tree and create a local version tag |
 | `just pages` | Preview enabled Pages at `http://127.0.0.1:18473` |
 
-Tailor's project fragment retains `alter-source`, `measure-source`, and `snapshot`. Snapshot runs `goreleaser release --snapshot --clean --skip=sign`. Tailor's project build script adds `go build -ldflags "-s -w" -o tailor ./cmd/tailor` after the managed build. No quality aliases remain.
+Call `tailor alter`, `tailor baste`, and `tailor measure` directly. From Tailor's source checkout, use `go run ./cmd/tailor alter`, `go run ./cmd/tailor baste`, or `go run ./cmd/tailor measure`.
+
+Tailor's project fragment retains `snapshot`. Snapshot runs `goreleaser release --snapshot --clean --skip=sign`. Tailor's project build script adds `go build -ldflags "-s -w" -o tailor ./cmd/tailor` after the managed build. No quality aliases remain.
 
 ### Activate Playwright MCP
 
@@ -223,7 +223,7 @@ The configured MCP server starts its own headless, isolated browser. Do not star
 
 A [validated future contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/mcp-adoption.md) defines the proposed `--adopt-mcp` and `--release-mcp` flags. Tailor does not implement these flags and does not infer consent. Future adoption will use a local ownership ledger bound to the project. Entry edits will preserve non-target client bytes, and release will preserve all client file bytes. Release is blocked while a transaction is pending. Reviewed recovery comes first. Client-version acceptance and adoption implementation remain separate follow-on work.
 
-Unlike `tailor measure`, `just measure` needs authentication because its first command is `tailor baste`. If that preview fails, the recipe stops before the local health check.
+`tailor measure` checks local health without authentication. It does not include the authenticated `tailor baste` preview that the removed `just measure` wrapper ran first. Run `tailor baste` separately when you need that preview.
 
 Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. Before you add the exact Just loader import from [managed development files](Configuration#managed-development-files), remove or rename each user recipe that duplicates a managed recipe, including `build` and `test`. Keep custom checks under distinct wrapper names. Tailor does not rewrite user recipes or change production recipe names.
 

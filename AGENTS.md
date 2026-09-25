@@ -43,6 +43,9 @@ tailor/
 - Keep setup and release operational and outside quality commands. Never run them implicitly.
 - Enter dev shell: `nix develop` or `direnv allow`
 - Task runner: `just` (lists available recipes)
+- Call `tailor alter`, `tailor baste`, and `tailor measure` directly, without Just wrappers.
+- From this source checkout, use `go run ./cmd/tailor <command>`.
+- Run `tailor baste` separately for an authenticated preview. `tailor measure` checks local health without authentication.
 - Create release: `just release 0.1.0`
 
 ## Code style
