@@ -103,6 +103,22 @@ func TestManagedHookCGOAndPlatform(t *testing.T) {
 	}
 }
 
+func TestManagedGoHookHasNoUnusedBindings(t *testing.T) {
+	deadnix, err := exec.LookPath("deadnix")
+	if err != nil {
+		t.Skip("deadnix is required")
+	}
+	for _, policy := range []*bool{nil, new(false), new(true)} {
+		cfg := &config.Config{Languages: &config.LanguageSettings{Go: new(true), GoOptions: &config.GoOptions{CGO: policy}}}
+		content := renderSelectedManagedFiles(t, cfg)["nix/hooks/go.nix"]
+		cmd := exec.CommandContext(t.Context(), deadnix, "--fail")
+		cmd.Stdin = strings.NewReader(string(content))
+		if output, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("Go hook unused bindings: %v\n%s", err, output)
+		}
+	}
+}
+
 func TestManagedHooksPartialUpgrade(t *testing.T) {
 	nix, err := exec.LookPath("nix")
 	if err != nil {

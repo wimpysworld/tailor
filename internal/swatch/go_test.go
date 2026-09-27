@@ -51,6 +51,40 @@ func TestRenderGoVariants(t *testing.T) {
 	}
 }
 
+func TestDependabotCooldown(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		options swatch.Options
+	}{
+		{"absent", swatch.Options{}},
+		{"enabled", swatch.Options{GoDeclared: true, GoEnabled: true}},
+		{"disabled", swatch.Options{GoDeclared: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			data, err := swatch.Render(".github/dependabot.yml", test.options)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var rendered struct {
+				Updates []struct {
+					Ecosystem string `yaml:"package-ecosystem"`
+					Cooldown  struct {
+						DefaultDays int `yaml:"default-days"`
+					}
+				}
+			}
+			if err := yaml.Unmarshal(data, &rendered); err != nil {
+				t.Fatal(err)
+			}
+			for _, update := range rendered.Updates {
+				if update.Cooldown.DefaultDays != 7 {
+					t.Errorf("%s cooldown = %d, want 7", update.Ecosystem, update.Cooldown.DefaultDays)
+				}
+			}
+		})
+	}
+}
+
 func TestRenderGoSelectionDoesNotChangeRoot(t *testing.T) {
 	base, err := swatch.Content("justfile")
 	if err != nil {

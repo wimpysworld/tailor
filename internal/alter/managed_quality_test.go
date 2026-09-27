@@ -303,6 +303,12 @@ func TestManagedCGOExport(t *testing.T) {
 				t.Fatal("unresolved core placeholder")
 			}
 			root, bin, log := qualityFixture(t, true)
+			writeManagedTestFile(t, root, "just/tailor.just", files["just/tailor.just"])
+			format := exec.CommandContext(t.Context(), "just", "--unstable", "--fmt", "--check", "-f", "just/tailor.just")
+			format.Dir = root
+			if output, err := format.CombinedOutput(); err != nil {
+				t.Fatalf("core formatting: %v\n%s", err, output)
+			}
 			retained, err := os.ReadFile(filepath.Join(root, "just/go.just"))
 			if err != nil {
 				t.Fatal(err)

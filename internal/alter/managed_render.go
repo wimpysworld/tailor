@@ -108,6 +108,8 @@ func renderManagedCGO(cfg *config.Config, content []byte) ([]byte, error) {
 			value = "1"
 		}
 		command = "export CGO_ENABLED := " + strconv.Quote(value)
+	} else {
+		placeholder = append(placeholder, '\n')
 	}
 	return bytes.Replace(content, placeholder, []byte(command), 1), nil
 }

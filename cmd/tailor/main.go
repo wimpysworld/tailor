@@ -151,14 +151,26 @@ func projectName(path string) string {
 
 // AlterCmd applies configured swatches and GitHub settings to the current project.
 type AlterCmd struct {
-	Recut  bool `help:"Overwrite existing first-fit swatches and merge missing .tailor.yml defaults (never swatches and the licence stay untouched)." name:"recut"`
-	stdout io.Writer
-	stderr io.Writer
-	output *output.Policy
+	Recut     bool     `help:"Overwrite existing first-fit swatches and merge missing .tailor.yml defaults (never swatches and the licence stay untouched)." name:"recut"`
+	LocalOnly bool     `help:"Refresh only explicitly selected existing owned files without authentication or network access."`
+	Path      []string `help:"Existing owned destination to refresh (repeatable; requires --local-only)."`
+	Directory string   `help:"Project directory (requires --local-only)."`
+	stdout    io.Writer
+	stderr    io.Writer
+	output    *output.Policy
 }
 
 // Run executes the alter command.
 func (a *AlterCmd) Run() error {
+	if a.LocalOnly {
+		if a.Recut {
+			return fmt.Errorf("local-only alteration does not support --recut")
+		}
+		return a.runLocal()
+	}
+	if len(a.Path) != 0 || a.Directory != "" {
+		return fmt.Errorf("--path and --directory require --local-only")
+	}
 	mode := alter.Apply
 	if a.Recut {
 		mode = alter.Recut
