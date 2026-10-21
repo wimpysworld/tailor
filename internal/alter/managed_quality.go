@@ -52,6 +52,20 @@ func renderManagedQuality(cfg *config.Config, content []byte, registry []managed
 		return strings.Compare(a.Capability.canonicalName(), b.Capability.canonicalName())
 	})
 	var body strings.Builder
+	for _, entry := range entries {
+		if entry.Capability != managedCapabilityRust {
+			continue
+		}
+		preflight, err := managedQualityBody("rust-preflight")
+		if err != nil {
+			return nil, err
+		}
+		tools := ""
+		if operation == managedLint {
+			tools = "rustfmt cargo-fmt cargo-clippy clippy-driver cargo-audit"
+		}
+		body.Write(bytes.ReplaceAll(preflight, []byte("[[TAILOR_RUST_TOOLS]]"), []byte(tools)))
+	}
 	if operation == managedSetup && len(entries) > 0 {
 		body.WriteString("#!/usr/bin/env bash\nset -e\n")
 	}

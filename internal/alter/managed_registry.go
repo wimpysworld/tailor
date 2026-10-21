@@ -18,6 +18,7 @@ const (
 	managedCapabilityPages
 	managedCapabilityPlaywright
 	managedCapabilityGoFFmpegStatigo
+	managedCapabilityRust
 )
 
 type managedPolicy uint8
@@ -96,6 +97,8 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "just/tailor.just", Policy: managedPolicyCore},
 		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildBody: "build-go", TestBody: "test-go", LintBody: "lint-go"},
 		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
+		{Path: "just/rust.just", Policy: managedPolicyFragment, Capability: managedCapabilityRust, BuildBody: "build-rust", TestBody: "test-rust", LintBody: "lint-rust"},
+		{Path: "nix/rust.nix", Policy: managedPolicyFragment, Capability: managedCapabilityRust},
 		{Path: "just/go-ffmpeg-statigo.just", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, SetupBody: "go-ffmpeg-statigo"},
 		{Path: "nix/go-ffmpeg-statigo.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo},
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
@@ -193,11 +196,13 @@ func validateManagedPath(name string) error {
 }
 
 func (capability managedCapability) validDeclaration() bool {
-	return capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
+	return capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
 }
 
 func (capability managedCapability) canonicalName() string {
 	switch capability {
+	case managedCapabilityRust:
+		return "rust"
 	case managedCapabilityGo:
 		return "go"
 	case managedCapabilityGoFFmpegStatigo:
@@ -290,6 +295,8 @@ func managedRootBootstrapEnabled(cfg *config.Config, destination string) (bool, 
 
 func managedCapabilityState(cfg *config.Config, capability managedCapability) (declared, enabled bool) {
 	switch capability {
+	case managedCapabilityRust:
+		return cfg.RustDeclared(), cfg.RustEnabled()
 	case managedCapabilityGo:
 		return cfg.GoDeclared(), cfg.GoEnabled()
 	case managedCapabilityGoFFmpegStatigo:

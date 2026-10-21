@@ -113,6 +113,7 @@ var templateFuncs = template.FuncMap{
 			w.boolean(4, "cgo", languages.GoOptions.CGO)
 			w.boolean(4, "ffmpeg-statigo", languages.GoOptions.FFmpegStatigo)
 		}
+		w.boolean(2, "rust", languages.Rust)
 		return w.lines
 	},
 	"repositoryLines": func(cfg *Config) ([]string, error) {
@@ -414,7 +415,7 @@ var configTemplate = template.Must(template.New("config").Funcs(templateFuncs).P
 license: {{ yamlVal .License }}
 
 {{- if .Languages }}
-{{- if .GoDeclared }}
+{{- if or .GoDeclared .RustDeclared }}
 
 languages:
 {{- range languageLines .Languages }}

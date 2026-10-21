@@ -1,18 +1,23 @@
 license: BlueOak-1.0.0
 
-# true creates or updates owned Go fragments; false removes them; omission leaves them untouched.
+# true creates or updates owned language fragments; false removes them.
+# Omission leaves them untouched.
 languages:
   go: false
+  rust: false
 
 # Model Context Protocol integrations are opt-in.
-# true creates or updates the owned Nix fragment and creates missing MCP client starters.
-# false removes the owned Nix fragment; omission leaves all Playwright files untouched.
+# true creates or updates the owned Nix fragment and creates missing MCP
+# client starters. false removes the owned Nix fragment.
+# Omission leaves all Playwright files untouched.
 mcp:
   playwright: false
 
-# Pages is opt-in. true manages owned Just and Nix fragments; false removes them.
-# Omission leaves the fragments untouched and leaves Pages publishing unmanaged.
-# generator: static (default) creates a starter in an empty path. Hugo and Jekyll need an existing site.
+# Pages is opt-in. true manages owned Just and Nix fragments.
+# false removes them. Omission leaves the fragments untouched and leaves
+# Pages publishing unmanaged.
+# generator: static (default) creates a starter in an empty path.
+# Hugo and Jekyll need an existing site.
 # path: project-relative source directory, default pages.
 # branch: omit to use the current repository default branch.
 # cname: omit to preserve the domain, use "" to clear it, or set a domain.
@@ -46,7 +51,8 @@ pages:
     feed: ""
   # branch: main
   # cname: www.example.com
-  # Static only. Omit links to leave the page unchanged. {} clears its marked links.
+  # Static only. Omit links to leave the page unchanged.
+  # {} clears its marked links.
   # Use full HTTPS URLs, or a bare address for email. Empty values add no icon.
   # links:
   #   website: https://example.com
@@ -83,7 +89,8 @@ immutable_releases:
 actions:
   enabled: true
   # Options: all, local_only, selected. SHA pinning applies separately.
-  # selected requires github_owned_allowed, verified_allowed, and patterns_allowed.
+  # selected requires github_owned_allowed, verified_allowed,
+  # and patterns_allowed.
   allowed_actions: all
   sha_pinning_required: false
   fork_pr_contributor_approval:
@@ -94,7 +101,8 @@ code_scanning:
   query_suite: default
   threat_model: remote
   # An empty list means GitHub detects the languages. Valid values:
-  # actions, c-cpp, csharp, go, java-kotlin, javascript-typescript, python, ruby, swift
+  # actions, c-cpp, csharp, go, java-kotlin, javascript-typescript,
+  # python, ruby, swift
   languages: []
 
 code_quality:
@@ -149,16 +157,20 @@ ruleset:
         strict_required_status_checks_policy: false
         # When true, allow branch creation without status checks.
         do_not_enforce_on_create: false
-        # context is the check name on a pull request, usually the GitHub Actions job name.
-        # Optional integration_id restricts the check to one app. 15368 is GitHub Actions.
+        # context is the check name on a pull request,
+        # usually the GitHub Actions job name.
+        # Optional integration_id restricts the check to one app.
+        # 15368 is GitHub Actions.
         required_status_checks: []
     code_scanning:
-      # Enable only when the tool has results for both the pull request commit and the base branch.
+      # Enable only when the tool has results for both the pull request
+      # commit and the base branch.
       enabled: false
       parameters:
         # tool is the tool name as GitHub shows it, for example CodeQL.
         # alerts_threshold: none, errors, errors_and_warnings, all
-        # security_alerts_threshold: none, critical, high_or_higher, medium_or_higher, all
+        # security_alerts_threshold: none, critical, high_or_higher,
+        # medium_or_higher, all
         code_scanning_tools:
           - tool: CodeQL
             alerts_threshold: errors
@@ -252,7 +264,8 @@ swatches:
   - path: SUPPORT.md
     alteration: always
 
-  # Tailor creates a missing root for always or first-fit, but never rewrites an existing root.
+  # Tailor creates a missing root for always or first-fit,
+  # but never rewrites an existing root.
   # If an existing root lacks the loader import, add: import 'just/loader.just'
   - path: justfile
     alteration: first-fit
@@ -269,7 +282,8 @@ swatches:
   - path: .github/workflows/build-go.yml
     alteration: first-fit
 
-  # Tailor never rewrites an existing root. If its package list lacks the loader, add:
+  # Tailor never rewrites an existing root.
+  # If its package list lacks the loader, add:
   # ++ import ./nix/loader.nix { inherit pkgs; }
   # Review and add new Nix files to Git because flakes exclude untracked files.
   - path: flake.nix

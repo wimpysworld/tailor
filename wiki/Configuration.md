@@ -50,7 +50,7 @@ Owned files start with `# Managed by Tailor: <registered path>`. Tailor stops on
 
 The generated root requires Just 1.23.0 or later and owns the sole `default` recipe. The core provides exactly three quality commands: `build`, `test`, and `lint`. It also keeps the operational `setup` and `release` commands. Call `tailor alter`, `tailor baste`, and `tailor measure` directly, without Just wrappers. Pages owns `pages`. `just/go.just` is an empty compatibility import with no recipes.
 
-Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go is the only supported quality ecosystem. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
+Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go and Rust are the supported quality ecosystems. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
 
 A `never` mode for `justfile` or `.golangci.yml` does not disable Go bodies selected by `languages.go: true`. Remove old quality recipes and aliases from preserved roots and project fragments before loader adoption. Move project-specific quality work into the optional scripts below. Retained marked Go fragments with legacy quality recipes require explicit Go enablement for migration, or manual removal of those recipes. Do not rename legacy helpers into another quality API. Release remains independent of language declarations and keeps its existing local tag flow.
 
@@ -95,6 +95,25 @@ Graphics hooks run only when runtime `/etc/os-release` contains `ID=nixos`. Tail
 
 The FFmpeg component adds `vulkan-loader`, `intel-media-driver`, and `vpl-gpu-rt` on Linux. Its library order is oneVPL, Intel media, then Vulkan. It defaults `ONEVPL_SEARCH_PATH` to the oneVPL library directory. It defaults `LIBVA_DRIVERS_PATH` to system DRI when present, otherwise Intel DRI. It defaults `VK_DRIVER_FILES` to sorted, readable system ICD manifests, including files under linked driver directories. These defaults apply only to unset variables. Explicit empty values and user choices remain unchanged. Tailor neither detects GPU vendors nor forces `LIBVA_DRIVER_NAME`.
 
+## Rust support
+
+Set `languages.rust: true` for one root Cargo package or host-compatible workspace. False removes owned Rust fragments. Omission leaves them untouched. Cargo files do not activate Rust.
+
+Rust requires regular root `Cargo.toml` and `Cargo.lock` files. Symlinks, unsafe parents, and missing tools fail before quality commands. The Nix fragment supplies `rustc`, `cargo`, `rustfmt`, `clippy`, and `cargo-audit` from your existing `pkgs`. Pass a coherent overridden package set when you use a custom toolchain. Tailor changes no flake inputs, locks, or toolchain files.
+
+| Command | Rust commands |
+| --- | --- |
+| `just build` | `cargo build --workspace --locked` |
+| `just test` | `cargo test --workspace --locked` |
+| `just lint check` | `cargo fmt --all -- --check`, then `cargo clippy --workspace --all-targets --locked -- -D warnings`, then `cargo audit --file Cargo.lock` |
+| `just lint correct` | `cargo fmt --all`, then all check commands |
+
+Commands cover every workspace member with default features. Tests retain documentation tests. Libraries and multiple binaries need no selection. Cargo keeps its normal outputs. Add `target/` to your ignore file manually if required.
+
+Locked commands can download dependencies and write build caches. Audit can fetch its advisory database. Correction formats source only. It does not update dependencies, generate locks, or apply Clippy fixes. Cargo build scripts are not sandboxed.
+
+Workflow lint runs once, then Go and Rust run in lexical order, then project hooks run. Rust adds no setup, releases, or Dependabot changes. Existing `justfile` and `flake.nix` roots remain protected, including under `always` and `--recut`. Add missing loader imports manually. Ordinary first-fit files keep their existing alteration rules.
+
 ## Go support
 
 Set `languages.go: true` to add Go development and release files. The Boolean form remains supported. The mapping form requires `enabled`:
@@ -120,7 +139,7 @@ languages:
   go: true
 ```
 
-Go is opt-in. New configs use `false`. Existing configs without this setting remain unchanged, including during default merging. Tailor accepts only the `go` key and Boolean values. Null values and unknown language keys are errors. CodeQL language settings do not enable these swatches.
+Go is opt-in. New configs use `false`. Existing configs without this setting remain unchanged, including during default merging. Tailor accepts `go` and `rust` language keys. Rust accepts only Boolean values. Go also accepts the mapping above. Null values and unknown language keys are errors. CodeQL language settings do not enable these swatches.
 
 | Swatch | Purpose | Default mode |
 |---|---|---|
@@ -244,7 +263,7 @@ A [validated future contract](https://github.com/wimpysworld/tailor/blob/main/do
 
 Tailor accepts only the `playwright` key and a Boolean value. Null sections, null values, duplicate or unknown keys, strings, numbers, lists, and nested values are errors. An empty `mcp: {}` mapping keeps the section but leaves Playwright undeclared.
 
-New configs set `languages.go`, `pages.enabled`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes. Follow the [activation steps](Commands#activate-playwright-mcp) after you change the setting.
+New configs set `languages.go`, `languages.rust`, `pages.enabled`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes. Follow the [activation steps](Commands#activate-playwright-mcp) after you change the setting.
 
 ## Licences
 

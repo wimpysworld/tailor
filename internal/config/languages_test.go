@@ -21,7 +21,7 @@ func TestLanguagesStrictParsing(t *testing.T) {
 		{name: "null section", input: "languages: null\n", wantErr: "languages must be a mapping"},
 		{name: "list section", input: "languages: []\n", wantErr: "languages must be a mapping"},
 		{name: "scalar section", input: "languages: true\n", wantErr: "languages must be a mapping"},
-		{name: "unknown", input: "languages: {rust: true}\n", wantErr: `unrecognised languages setting "rust" in config; valid settings: go`},
+		{name: "unknown", input: "languages: {python: true}\n", wantErr: `unrecognised languages setting "python" in config; valid settings: go, rust`},
 		{name: "null", input: "languages: {go: null}\n", wantErr: "languages.go must be a bool"},
 		{name: "implicit null", input: "languages:\n  go:\n", wantErr: "languages.go must be a bool"},
 		{name: "quoted", input: "languages: {go: 'true'}\n", wantErr: "languages.go must be a bool"},

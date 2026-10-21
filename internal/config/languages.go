@@ -9,7 +9,8 @@ import (
 
 // LanguageSettings controls the language-specific swatches. Nil fields leave the language undeclared.
 type LanguageSettings struct {
-	Go *bool `yaml:"-"`
+	Go   *bool `yaml:"-"`
+	Rust *bool `yaml:"rust,omitempty"`
 	// GoOptions is non-nil for the mapping form, even when all options are absent.
 	// Go holds the enabled value in both forms for compatibility with existing callers.
 	GoOptions *GoOptions `yaml:"-"`
@@ -34,14 +35,22 @@ func (languages *LanguageSettings) UnmarshalYAML(node *yaml.Node) error {
 	extra := make(map[string]any)
 	for i := 0; i < len(node.Content); i += 2 {
 		key := node.Content[i]
-		if key.Tag != "!!str" || key.Value != "go" {
+		if key.Tag != "!!str" || (key.Value != "go" && key.Value != "rust") {
 			extra[key.Value] = nil
 		}
 	}
-	if err := rejectExtra("languages", extra, []string{"go"}); err != nil {
+	if err := rejectExtra("languages", extra, []string{"go", "rust"}); err != nil {
 		return err
 	}
 	*languages = LanguageSettings{}
+	if rustNode, ok := fields["rust"]; ok {
+		if rustNode.Kind != yaml.ScalarNode || rustNode.Tag != "!!bool" {
+			return fmt.Errorf("languages.rust must be a bool")
+		}
+		if err := rustNode.Decode(&languages.Rust); err != nil {
+			return err
+		}
+	}
 	goNode, ok := fields["go"]
 	if !ok {
 		return nil
@@ -106,15 +115,25 @@ func (languages LanguageSettings) MarshalYAML() (any, error) {
 			return nil, fmt.Errorf("languages.go.enabled is required")
 		}
 		return struct {
-			Go any `yaml:"go"`
-		}{Go: struct {
+			Go   any   `yaml:"go"`
+			Rust *bool `yaml:"rust,omitempty"`
+		}{Rust: languages.Rust, Go: struct {
 			Enabled    bool `yaml:"enabled"`
 			*GoOptions `yaml:",inline"`
 		}{Enabled: *languages.Go, GoOptions: languages.GoOptions}}, nil
 	}
 	return struct {
-		Go *bool `yaml:"go,omitempty"`
-	}{Go: languages.Go}, nil
+		Go   *bool `yaml:"go,omitempty"`
+		Rust *bool `yaml:"rust,omitempty"`
+	}{Go: languages.Go, Rust: languages.Rust}, nil
+}
+
+func (cfg *Config) RustDeclared() bool {
+	return cfg != nil && cfg.Languages != nil && cfg.Languages.Rust != nil
+}
+
+func (cfg *Config) RustEnabled() bool {
+	return cfg.RustDeclared() && *cfg.Languages.Rust
 }
 
 // GoDeclared reports whether languages.go is explicitly set, including false.

@@ -25,7 +25,7 @@ func TestFixedManagedRegistry(t *testing.T) {
 	want := []string{
 		"justfile", "flake.nix",
 		"just/loader.just", "nix/loader.nix", "nix/hooks.nix", "nix/hooks/core.nix", "nix/hooks/go.nix", "nix/hooks/go-ffmpeg-statigo.nix", "just/tailor.just",
-		"just/go.just", "nix/go.nix",
+		"just/go.just", "nix/go.nix", "just/rust.just", "nix/rust.nix",
 		"just/go-ffmpeg-statigo.just", "nix/go-ffmpeg-statigo.nix",
 		"just/pages.just", "nix/pages.nix", "nix/playwright.nix",
 		".mcp.json", ".codex/config.toml", "opencode.json", ".pi/mcp.json",
@@ -37,6 +37,9 @@ func TestFixedManagedRegistry(t *testing.T) {
 		var wantBuildBody, wantLintBody, wantTestBody managedQualityBodyName
 		if entry.Path == "just/go.just" {
 			wantBuildBody, wantLintBody, wantTestBody = "build-go", "lint-go", "test-go"
+		}
+		if entry.Path == "just/rust.just" {
+			wantBuildBody, wantLintBody, wantTestBody = "build-rust", "lint-rust", "test-rust"
 		}
 		if entry.BuildBody != wantBuildBody {
 			t.Errorf("fixedManagedRegistry() build recipe for %q = %q, want %q", entry.Path, entry.BuildBody, wantBuildBody)

@@ -1,0 +1,1 @@
+cargo build --workspace --locked

@@ -273,7 +273,7 @@ mcp:
 
 `mcp` must be a map. Its only accepted key is `playwright`, with a Boolean value. Tailor rejects null sections, null values, duplicate or unknown keys, and non-Boolean values. An empty `mcp: {}` mapping preserves the section but leaves Playwright undeclared.
 
-New configurations contain false declarations for `languages.go`, `pages.enabled`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
+New configurations contain false declarations for `languages.go`, `languages.rust`, `pages.enabled`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
 
 The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. A true declaration provisions the Playwright package fragment and renders four MCP client starters from `fixedManagedMCPRegistry`. Pages publishing and the optional `just pages` preview remain separate. Playwright is the only production server in that registry.
 
@@ -286,13 +286,14 @@ Tailor uses one fixed internal registry for development roots, loaders, and frag
 | Protected roots | `justfile`, `flake.nix` |
 | Loaders and core | `just/loader.just`, `nix/loader.nix`, `just/tailor.just` |
 | Go fragments | `just/go.just`, `nix/go.nix` |
+| Rust fragments | `just/rust.just`, `nix/rust.nix` |
 | Pages fragments | `just/pages.just`, `nix/pages.nix` |
 | Playwright package fragment | `nix/playwright.nix` |
 | Playwright MCP client starters | `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.pi/mcp.json` |
 
 The ordinary default set remains 29 configured swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
 
-Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `build`, `test`, and `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Pages, and Playwright package declarations have this exact lifecycle:
+Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `build`, `test`, and `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Rust, Pages, and Playwright package declarations have this exact lifecycle:
 
 | Declaration | Fragment action |
 | --- | --- |
@@ -316,7 +317,7 @@ The `.envrc` starter keeps `nix_direnv_manual_reload` and registers `watch_file`
 
 The generated root requires Just 1.23.0 or later and owns the sole `default` recipe. The core provides exactly three quality commands: `build`, `test`, and `lint`. It also keeps the operational `setup` and `release` commands. Call `tailor alter`, `tailor baste`, and `tailor measure` directly, without Just wrappers. Pages owns `pages`. `just/go.just` is an empty compatibility import with no recipes.
 
-Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go is the only supported quality ecosystem. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
+Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go and Rust are the supported quality ecosystems. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
 
 A `never` mode for `justfile` or `.golangci.yml` does not disable Go bodies selected by `languages.go: true`. Remove old quality recipes and aliases from preserved roots and project fragments before loader adoption. Move project-specific quality work into the optional scripts below. Retained marked Go fragments with legacy quality recipes require explicit Go enablement for migration, or manual removal of those recipes. Do not rename legacy helpers into another quality API. Release remains independent of language declarations and keeps its existing local tag flow.
 
@@ -356,14 +357,14 @@ Managed development files do not change Pages publishing, Pages source files, or
 
 ### Go ecosystem support
 
-The top-level `languages` section selects language-specific development swatches. Go is the only supported language key:
+The top-level `languages` section selects language-specific development support. Its supported keys are `go` and `rust`:
 
 ```yaml
 languages:
   go: true
 ```
 
-`languages` must be a map. Its only accepted key is `go`, with a Boolean value. Reject null sections, null values, unknown keys, and non-Boolean values. An empty map leaves Go unspecified. Internally, `Languages *LanguageSettings` and `Go *bool` preserve absent, false, and true states.
+`languages` must be a map. It accepts Boolean `go` and `rust` values, plus the Go mapping described below. Reject null sections, null values, unknown keys, and invalid types. An empty map leaves both languages unspecified. Internally, `Languages *LanguageSettings` and `Go *bool` preserve absent, false, and true states.
 
 New configurations contain `languages.go: false`. Default merging preserves an absent `languages` section or absent `go` key in existing configurations. It never infers language selection from source files or CodeQL settings. `code_scanning.languages` and `code_quality.languages` remain independent.
 
@@ -459,6 +460,27 @@ The generated release configuration requires `GITHUB_REPOSITORY` and `GITHUB_REP
 The builder workflow runs tests, coverage, lint checks, and govulncheck. The security job runs one govulncheck scan, converts its JSON output to text to enforce findings, and converts the same output to SARIF when upload is allowed. Pull requests and default-branch pushes build GoReleaser snapshots and upload archives, native packages, and checksums without publication. Snapshot jobs build container images locally, but do not push images or include them in downloadable artifacts. Tags that match `v*.*.*` publish GitHub Releases and GHCR images. Default-branch handling must use the repository's default branch, not a fixed `main` or `master` branch.
 
 The Go release templates use GitHub-hosted runners and do not require Nix or GoReleaser Pro. The release job authenticates to GHCR with the existing GitHub token and grants `packages: write`. No extra secrets are required. The templates do not configure signing or external package repositories. Go support does not change Tailor's independent CodeQL default setup.
+
+### Rust ecosystem support
+
+Explicit `languages.rust: true` enables one root Cargo package or host-compatible workspace. False removes owned `just/rust.just` and `nix/rust.nix` fragments. Omission preserves them without inspection. The Just fragment is an empty compatibility import. New configurations declare false. Default merging and serialisation preserve omission and explicit values. Cargo files never activate Rust automatically.
+
+| Command | Rust body |
+| --- | --- |
+| `just build` | `cargo build --workspace --locked` |
+| `just test` | `cargo test --workspace --locked` |
+| `just lint check` | `cargo fmt --all -- --check`, then `cargo clippy --workspace --all-targets --locked -- -D warnings`, then `cargo audit --file Cargo.lock` |
+| `just lint correct` | `cargo fmt --all`, then the complete check sequence |
+
+Rust preflight requires regular root `Cargo.toml` and `Cargo.lock` files, rejects symlinks and unsafe parents, and checks required executables before quality commands. Build and test require Cargo and rustc. Lint also requires rustfmt, cargo-fmt, cargo-clippy, clippy-driver, and cargo-audit. Failures stop later commands and project hooks. Workflow lint still runs once before ecosystem commands. Go runs before Rust, and project hooks run last. Setup and release remain unchanged.
+
+Commands use default features and every workspace member, including members outside `default-members`. Normal Cargo tests retain documentation tests. Libraries and multiple binaries need no special handling. Outputs stay in Cargo's `target/` directory or its configured alternative. Tailor never copies Rust executables to `bin/`.
+
+`--locked` prevents lockfile resolution changes but permits downloads. Checks can write caches and build outputs. Audit can fetch its advisory database. Check mode does not intentionally change source or lockfiles. Correction formats source only, without dependency updates, Clippy fixes, or lockfile generation. Cargo configuration and build scripts remain project-owned and are not sandboxed.
+
+The list-valued Nix fragment selects `rustc`, `cargo`, `rustfmt`, `clippy`, and `cargo-audit` from the supplied `pkgs`. It adds no inputs, lock changes, toolchain files, hooks, setup, or release support. Projects that override toolchains must supply a coherent overridden `pkgs` to the loader. Native dependencies remain project-owned.
+
+Existing `justfile` and `flake.nix` roots remain protected, including under `always` and `--recut`. Add missing loader imports manually. Add `target/` to the project's ignore file manually where required. Rust adds no automatic ignore rules or Dependabot changes. Ordinary first-fit files keep their existing alteration rules.
 
 ### GitHub wiki
 

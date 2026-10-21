@@ -39,7 +39,9 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 	}
 	private := map[string]bool{
 		"setup/go-ffmpeg-statigo.sh": false,
-		"quality/build-go.sh":        false, "quality/test-go.sh": false, "quality/lint-go.sh": false, "quality/workflows.sh": false, "quality/project.sh": false,
+		"just/rust.just":             false, "nix/rust.nix": false,
+		"quality/build-rust.sh": false, "quality/test-rust.sh": false, "quality/lint-rust.sh": false, "quality/rust-preflight.sh": false,
+		"quality/build-go.sh": false, "quality/test-go.sh": false, "quality/lint-go.sh": false, "quality/workflows.sh": false, "quality/project.sh": false,
 		"nix/hooks.nix": false, "nix/hooks/core.nix": false, "nix/hooks/go.nix": false, "nix/hooks/go-ffmpeg-statigo.nix": false,
 		"just/go-ffmpeg-statigo.just": false, "nix/go-ffmpeg-statigo.nix": false,
 		"just/go.just": false, "just/loader.just": false, "just/pages.just": false, "just/tailor.just": false,
