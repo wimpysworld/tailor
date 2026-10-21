@@ -1,0 +1,16 @@
+line-length = 88
+include = ["*.py", "*.pyi"]
+force-exclude = true
+preview = false
+unsafe-fixes = false
+
+[lint]
+select = [
+    "E4", "E7", "E9", "F", "I", "UP", "C4",
+    "B006", "B007", "B012", "B018", "B023", "B024", "B027",
+    "RUF100",
+]
+
+[lint.pyupgrade]
+# Runtime annotation consumers still need syntax that the Python floor supports.
+keep-runtime-typing = true

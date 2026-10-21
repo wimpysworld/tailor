@@ -20,6 +20,7 @@ license: BlueOak-1.0.0
 languages:
   go: false
   rust: false
+  python: false
 
 # Model Context Protocol integrations are opt-in.
 mcp:

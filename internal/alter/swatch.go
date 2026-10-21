@@ -95,6 +95,17 @@ func processSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 			continue
 		}
 
+		if entry.Alteration != swatch.Never {
+			reason, err := PythonPolicyReason(dir, entry.Path)
+			if err != nil {
+				return nil, err
+			}
+			if reason != "" {
+				results = append(results, SwatchResult{Path: entry.Path, Category: Skipped, Reason: SwatchReason(reason)})
+				continue
+			}
+		}
+
 		content, rendered := contents[entry.Path]
 		if !rendered {
 			content, err = swatch.Content(entry.Path)

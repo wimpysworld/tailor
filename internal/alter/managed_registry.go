@@ -19,6 +19,7 @@ const (
 	managedCapabilityPlaywright
 	managedCapabilityGoFFmpegStatigo
 	managedCapabilityRust
+	managedCapabilityPython
 	managedCapabilityGoEbitengine
 	managedCapabilityGoEbitengineAndroid
 )
@@ -105,6 +106,8 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "nix/lib/go-ebitengine-runtime.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoEbitengine, NixKind: managedNixSupport},
 		{Path: "nix/hooks/go-ebitengine.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoEbitengine, NixKind: managedNixHook},
 		{Path: "nix/shells/go-ebitengine-android.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoEbitengineAndroid, NixKind: managedNixShell},
+		{Path: "just/python.just", Policy: managedPolicyFragment, Capability: managedCapabilityPython, BuildBody: "build-python", TestBody: "test-python", LintBody: "lint-python", SetupBody: "python"},
+		{Path: "nix/python.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPython},
 		{Path: "just/rust.just", Policy: managedPolicyFragment, Capability: managedCapabilityRust, BuildBody: "build-rust", TestBody: "test-rust", LintBody: "lint-rust"},
 		{Path: "nix/rust.nix", Policy: managedPolicyFragment, Capability: managedCapabilityRust},
 		{Path: "just/go-ffmpeg-statigo.just", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, SetupBody: "go-ffmpeg-statigo"},
@@ -204,7 +207,7 @@ func validateManagedPath(name string) error {
 }
 
 func (capability managedCapability) validDeclaration() bool {
-	return capability == managedCapabilityGoEbitengine || capability == managedCapabilityGoEbitengineAndroid || capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
+	return capability == managedCapabilityPython || capability == managedCapabilityGoEbitengine || capability == managedCapabilityGoEbitengineAndroid || capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
 }
 
 func (capability managedCapability) canonicalName() string {
@@ -213,6 +216,8 @@ func (capability managedCapability) canonicalName() string {
 		return "go-ebitengine"
 	case managedCapabilityGoEbitengineAndroid:
 		return "go-ebitengine-android"
+	case managedCapabilityPython:
+		return "python"
 	case managedCapabilityRust:
 		return "rust"
 	case managedCapabilityGo:
@@ -307,6 +312,8 @@ func managedRootBootstrapEnabled(cfg *config.Config, destination string) (bool, 
 
 func managedCapabilityState(cfg *config.Config, capability managedCapability) (declared, enabled bool) {
 	switch capability {
+	case managedCapabilityPython:
+		return cfg.PythonDeclared(), cfg.PythonEnabled()
 	case managedCapabilityRust:
 		return cfg.RustDeclared(), cfg.RustEnabled()
 	case managedCapabilityGo:

@@ -5,6 +5,7 @@ license: BlueOak-1.0.0
 languages:
   go: false
   rust: false
+  python: false
 
 # Model Context Protocol integrations are opt-in.
 # true creates or updates the owned Nix fragment and creates missing MCP
@@ -268,6 +269,12 @@ swatches:
   # but never rewrites an existing root.
   # If an existing root lacks the loader import, add: import 'just/loader.just'
   - path: justfile
+    alteration: first-fit
+
+  - path: ruff.toml
+    alteration: first-fit
+
+  - path: pyrightconfig.json
     alteration: first-fit
 
   - path: .golangci.yml

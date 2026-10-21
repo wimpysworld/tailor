@@ -21,10 +21,10 @@ func TestPagesStarterPathsMatchRegistry(t *testing.T) {
 	}
 }
 
-func TestAllReturns29Swatches(t *testing.T) {
+func TestAllReturns31Swatches(t *testing.T) {
 	all := swatch.All()
-	if len(all) != 29 {
-		t.Fatalf("All() returned %d swatches, want 29", len(all))
+	if len(all) != 31 {
+		t.Fatalf("All() returned %d swatches, want 31", len(all))
 	}
 }
 
@@ -59,6 +59,8 @@ func TestSwatchAttributes(t *testing.T) {
 		{"flake.nix", swatch.FirstFit, swatch.Development},
 		{"cubic.yaml", swatch.FirstFit, swatch.Development},
 		{"justfile", swatch.FirstFit, swatch.Development},
+		{"ruff.toml", swatch.FirstFit, swatch.Development},
+		{"pyrightconfig.json", swatch.FirstFit, swatch.Development},
 		{swatch.GoLintDestination, swatch.FirstFit, swatch.Development},
 		{swatch.GoReleaseDestination, swatch.FirstFit, swatch.Development},
 		{"Dockerfile", swatch.FirstFit, swatch.Development},
@@ -168,8 +170,8 @@ func TestHealthSwatchesReturnsCorrectSubset(t *testing.T) {
 
 func TestPathsReturnsSortedList(t *testing.T) {
 	names := swatch.Paths()
-	if len(names) != 29 {
-		t.Fatalf("Paths() returned %d names, want 29", len(names))
+	if len(names) != 31 {
+		t.Fatalf("Paths() returned %d names, want 31", len(names))
 	}
 	for i := 1; i < len(names); i++ {
 		if names[i] < names[i-1] {

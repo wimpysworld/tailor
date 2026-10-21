@@ -55,6 +55,8 @@ var registry = []Swatch{
 	{Path: "flake.nix", DefaultAlteration: FirstFit, Category: Development},
 	{Path: "cubic.yaml", DefaultAlteration: FirstFit, Category: Development},
 	{Path: "justfile", DefaultAlteration: FirstFit, Category: Development},
+	{Path: "ruff.toml", DefaultAlteration: FirstFit, Category: Development},
+	{Path: "pyrightconfig.json", DefaultAlteration: FirstFit, Category: Development},
 	{Path: GoLintDestination, DefaultAlteration: FirstFit, Category: Development},
 	{Path: GoReleaseDestination, DefaultAlteration: FirstFit, Category: Development},
 	{Path: "Dockerfile", DefaultAlteration: FirstFit, Category: Development},

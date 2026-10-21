@@ -22,7 +22,7 @@ Alternatively, use `tailor alter --recut` to regenerate the issue configuration.
 
 ## Managed development files
 
-Tailor manages Just and Nix loaders separately from ordinary swatches. The ordinary default set remains 29 entries. The `justfile` and `flake.nix` entries only control creation when those roots are missing.
+Tailor manages Just and Nix loaders separately from ordinary swatches. The ordinary default set contains 31 entries. The `justfile` and `flake.nix` entries only control creation when those roots are missing.
 
 Tailor preserves an existing `justfile` or `flake.nix` for every mode and when its swatch entry is omitted. Tailor reports that root as preserved and gives loader adoption guidance. A missing root with mode `never` or an omitted entry stays missing and produces no root guidance. Connect an existing root only when the exact loader line is absent:
 
@@ -50,7 +50,7 @@ Owned files start with `# Managed by Tailor: <registered path>`. Tailor stops on
 
 The generated root requires Just 1.23.0 or later and owns the sole `default` recipe. The core provides exactly three quality commands: `build`, `test`, and `lint`. It also keeps the operational `setup` and `release` commands. Call `tailor alter`, `tailor baste`, and `tailor measure` directly, without Just wrappers. Pages owns `pages`. `just/go.just` is an empty compatibility import with no recipes.
 
-Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go and Rust are the supported quality ecosystems. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
+Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go, Python, and Rust are the supported quality ecosystems. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
 
 A `never` mode for `justfile` or `.golangci.yml` does not disable Go bodies selected by `languages.go: true`. Remove old quality recipes and aliases from preserved roots and project fragments before loader adoption. Move project-specific quality work into the optional scripts below. Retained marked Go fragments with legacy quality recipes require explicit Go enablement for migration, or manual removal of those recipes. Do not rename legacy helpers into another quality API. Release remains independent of language declarations and keeps its existing local tag flow.
 
@@ -95,6 +95,33 @@ Graphics hooks run only when runtime `/etc/os-release` contains `ID=nixos`. Tail
 
 The FFmpeg component adds `vulkan-loader`, `intel-media-driver`, and `vpl-gpu-rt` on Linux. Its library order is oneVPL, Intel media, then Vulkan. It defaults `ONEVPL_SEARCH_PATH` to the oneVPL library directory. It defaults `LIBVA_DRIVERS_PATH` to system DRI when present, otherwise Intel DRI. It defaults `VK_DRIVER_FILES` to sorted, readable system ICD manifests, including files under linked driver directories. These defaults apply only to unset variables. Explicit empty values and user choices remain unchanged. Tailor neither detects GPU vendors nor forces `LIBVA_DRIVER_NAME`.
 
+## Python support
+
+Set `languages.python: true` for one root uv package. False removes only owned `just/python.just` and `nix/python.nix` fragments. Omission preserves them. Python files do not activate support.
+
+Provide regular, non-symlink `pyproject.toml` and `uv.lock` files, a named package, a build backend, and `project.requires-python`. Tailor rejects workspaces, workspace membership, and local, URL, or VCS dependencies. It never creates a manifest, lock, or environment during alteration.
+
+The Nix fragment supplies Python with `packaging` and `pip-audit`, plus uv, Ruff, and BasedPyright. Its `tailor-python` wrapper selects that interpreter even when an unrelated environment puts its `python3` first on `PATH`. The audit package uses the same overridden Python. These packages use the existing `pkgs`. It adds no application libraries, pytest, flake inputs, or lock changes. Declare pytest in the project's default development dependency group.
+
+Python requirements use PEP 440 through `packaging`. A requirement must contain an explicit `>=`, `~=`, or `==` floor without a wildcard. `.python-version`, when present, must contain one `3.MINOR` or `3.MINOR.PATCH` value. Both the selected Nix Python and the project interpreter must satisfy these constraints. A newer compatible interpreter does not test the minimum supported version.
+
+Run `just setup` explicitly to create or synchronise `.venv`. Setup validates metadata, runs `uv lock --check`, then `uv sync --locked --python "$selected_nix_python" --no-python-downloads`. Python recipes set `UV_PYTHON_DOWNLOADS=never`. A conflicting `UV_PROJECT_ENVIRONMENT` fails. An unrelated active environment is not selected.
+
+Quality commands require `.venv/pyvenv.cfg` and executable `.venv/bin/python`. The interpreter can be a normal symlink. Environment directory symlinks and unsafe project parents fail. Quality preflight runs `uv lock --check` and `uv sync --check --locked --python "$project_python" --no-python-downloads`. It never synchronises implicitly.
+
+| Command | Python work after preflight |
+| --- | --- |
+| `just build` | `uv build --python "$project_python" --no-python-downloads` |
+| `just test` | `"$project_python" -m pytest` |
+| `just lint check` | Ruff format check, Ruff check without fixes, BasedPyright with `--baselinemode=lock`, then audit |
+| `just lint correct` | `ruff check --fix --no-unsafe-fixes .`, then `ruff format .`, then all checks and audit |
+
+Build isolation can download build dependencies and execute the backend. The project lock does not pin isolated build dependencies. Builds can create source-tree metadata and distributions. Lint preserves source, locks, and type baselines. Tools can write caches.
+
+Audit exports default groups to a temporary requirements file with `uv export --locked --format requirements-txt --no-emit-project --no-hashes`. The selected Nix Python runs `-m pip_audit --requirement FILE --no-deps --disable-pip --strict`. Project and audit Python must have identical packaging marker environments, including patch versions, implementation, and platform fields. The check uses the managed `packaging` module without installing it in `.venv`. A mismatch stops lint before quality commands or sync. Rebuild `.venv` with explicit setup before retrying. Audit covers the active platform, not every extra or cross-platform lock branch. Export, collection, network, and vulnerability failures stop lint. The temporary file is removed on exit.
+
+`ruff.toml` and `pyrightconfig.json` are Python-only first-fit starters. The type starter selects `standard` with `failOnWarnings: false`. Tailor detects alternative root, ancestor, and nested policies with a TOML parser. It preserves those policies, including under `always` and recut. Existing Black or mypy policy produces adoption guidance instead of a conflicting starter. Adopt explicit Ruff and BasedPyright policies before lint. Tailor does not translate mypy plugins or run implicit BasedPyright recommended defaults. `measure` reports equivalent policies as present and adoption conflicts as warnings.
+
 ## Rust support
 
 Set `languages.rust: true` for one root Cargo package or host-compatible workspace. False removes owned Rust fragments. Omission leaves them untouched. Cargo files do not activate Rust.
@@ -112,7 +139,7 @@ Commands cover every workspace member with default features. Tests retain docume
 
 Locked commands can download dependencies and write build caches. Audit can fetch its advisory database. Correction formats source only. It does not update dependencies, generate locks, or apply Clippy fixes. Cargo build scripts are not sandboxed.
 
-Workflow lint runs once, then Go and Rust run in lexical order, then project hooks run. Rust adds no setup, releases, or Dependabot changes. Existing `justfile` and `flake.nix` roots remain protected, including under `always` and `--recut`. Add missing loader imports manually. Ordinary first-fit files keep their existing alteration rules.
+Workflow lint runs once, then Go, Python, and Rust run in lexical order, then project hooks run. Rust adds no setup, releases, or Dependabot changes. Existing `justfile` and `flake.nix` roots remain protected, including under `always` and `--recut`. Add missing loader imports manually. Ordinary first-fit files keep their existing alteration rules.
 
 ## Go support
 
@@ -139,7 +166,7 @@ languages:
   go: true
 ```
 
-Go is opt-in. New configs use `false`. Existing configs without this setting remain unchanged, including during default merging. Tailor accepts `go` and `rust` language keys. Rust accepts only Boolean values. Go also accepts the mapping above. Null values and unknown language keys are errors. CodeQL language settings do not enable these swatches.
+Go is opt-in. New configs use `false`. Existing configs without this setting remain unchanged, including during default merging. Tailor accepts `go`, `python`, and `rust` language keys. Python and Rust accept only Boolean values. Go also accepts the mapping above. Null values and unknown language keys are errors. CodeQL language settings do not enable these swatches.
 
 | Swatch | Purpose | Default mode |
 |---|---|---|
@@ -305,7 +332,7 @@ A [validated future contract](https://github.com/wimpysworld/tailor/blob/main/do
 
 Tailor accepts only the `playwright` key and a Boolean value. Null sections, null values, duplicate or unknown keys, strings, numbers, lists, and nested values are errors. An empty `mcp: {}` mapping keeps the section but leaves Playwright undeclared.
 
-New configs set `languages.go`, `languages.rust`, `pages.enabled`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes. Follow the [activation steps](Commands#activate-playwright-mcp) after you change the setting.
+New configs set `languages.go`, `languages.python`, `languages.rust`, `pages.enabled`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes. Follow the [activation steps](Commands#activate-playwright-mcp) after you change the setting.
 
 ## Licences
 
@@ -321,7 +348,7 @@ If the licence fetch fails, check the identifier and API access. Earlier changes
 
 ## Default swatch set
 
-Tailor embeds 29 ordinary default swatches. Managed loaders and fragments are a separate class and do not increase this count:
+Tailor embeds 31 ordinary default swatches. Managed loaders and fragments are a separate class and do not increase this count:
 
 | Swatch | Mode |
 |--------|------|
@@ -336,6 +363,8 @@ Tailor embeds 29 ordinary default swatches. Managed loaders and fragments are a 
 | `.github/FUNDING.yml` | `first-fit` |
 | `.github/ISSUE_TEMPLATE/config.yml` | `first-fit` |
 | `justfile` | `first-fit` |
+| `ruff.toml` | `first-fit` (only when `languages.python: true`) |
+| `pyrightconfig.json` | `first-fit` (only when `languages.python: true`) |
 | `.golangci.yml` | `first-fit` (only when `languages.go: true`) |
 | `.goreleaser.yaml` | `first-fit` (only when `languages.go: true`) |
 | `.github/workflows/build-go.yml` | `first-fit` (only when `languages.go: true`) |

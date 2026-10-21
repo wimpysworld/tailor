@@ -127,6 +127,7 @@ var templateFuncs = template.FuncMap{
 			}
 		}
 		w.boolean(2, "rust", languages.Rust)
+		w.boolean(2, "python", languages.Python)
 		return w.lines, w.err
 	},
 	"repositoryLines": func(cfg *Config) ([]string, error) {
@@ -428,7 +429,7 @@ var configTemplate = template.Must(template.New("config").Funcs(templateFuncs).P
 license: {{ yamlVal .License }}
 
 {{- if .Languages }}
-{{- if or .GoDeclared .RustDeclared }}
+{{- if or .GoDeclared .RustDeclared .PythonDeclared }}
 
 languages:
 {{- range languageLines .Languages }}

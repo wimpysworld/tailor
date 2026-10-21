@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -282,6 +283,42 @@ func (m *MeasureCmd) Run() (runErr error) {
 			return fmt.Errorf("loading config: %w", err)
 		}
 		diff = measure.CheckConfigDiff(cfg, swatch.All())
+		if cfg.PythonEnabled() {
+			for _, name := range []string{"ruff.toml", "pyrightconfig.json"} {
+				skipped := false
+				for _, entry := range cfg.Swatches {
+					if entry.Path == name && entry.Alteration == swatch.Never {
+						skipped = true
+					}
+				}
+				if skipped {
+					continue
+				}
+				reason, err := alter.PythonPolicyReason(dir, name)
+				if err != nil {
+					return err
+				}
+				if reason != "" {
+					filtered := diff[:0]
+					for _, finding := range diff {
+						if finding.Path != name || finding.Category != measure.NotConfigured {
+							filtered = append(filtered, finding)
+						}
+					}
+					diff = filtered
+				}
+				status := measure.Present
+				if strings.Contains(reason, "adoption required") {
+					status = measure.Warning
+				}
+				if reason == "" {
+					if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+						status = measure.Missing
+					}
+				}
+				health = append(health, measure.HealthResult{Path: name, Status: status, Detail: reason})
+			}
+		}
 	}
 
 	progress.Observe(output.StageEvent{ID: "measure", Label: "Local files measured", Phase: "complete"})

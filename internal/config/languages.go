@@ -9,8 +9,9 @@ import (
 
 // LanguageSettings controls the language-specific swatches. Nil fields leave the language undeclared.
 type LanguageSettings struct {
-	Go   *bool `yaml:"-"`
-	Rust *bool `yaml:"rust,omitempty"`
+	Go     *bool `yaml:"-"`
+	Rust   *bool `yaml:"rust,omitempty"`
+	Python *bool `yaml:"python,omitempty"`
 	// GoOptions is non-nil for the mapping form, even when all options are absent.
 	// Go holds the enabled value in both forms for compatibility with existing callers.
 	GoOptions *GoOptions `yaml:"-"`
@@ -36,14 +37,22 @@ func (languages *LanguageSettings) UnmarshalYAML(node *yaml.Node) error {
 	extra := make(map[string]any)
 	for i := 0; i < len(node.Content); i += 2 {
 		key := node.Content[i]
-		if key.Tag != "!!str" || (key.Value != "go" && key.Value != "rust") {
+		if key.Tag != "!!str" || (key.Value != "go" && key.Value != "rust" && key.Value != "python") {
 			extra[key.Value] = nil
 		}
 	}
-	if err := rejectExtra("languages", extra, []string{"go", "rust"}); err != nil {
+	if err := rejectExtra("languages", extra, []string{"go", "rust", "python"}); err != nil {
 		return err
 	}
 	*languages = LanguageSettings{}
+	if pythonNode, ok := fields["python"]; ok {
+		if pythonNode.Kind != yaml.ScalarNode || pythonNode.Tag != "!!bool" {
+			return fmt.Errorf("languages.python must be a bool")
+		}
+		if err := pythonNode.Decode(&languages.Python); err != nil {
+			return err
+		}
+	}
 	if rustNode, ok := fields["rust"]; ok {
 		if rustNode.Kind != yaml.ScalarNode || rustNode.Tag != "!!bool" {
 			return fmt.Errorf("languages.rust must be a bool")
@@ -121,17 +130,27 @@ func (languages LanguageSettings) MarshalYAML() (any, error) {
 			return nil, fmt.Errorf("languages.go.enabled is required")
 		}
 		return struct {
-			Go   any   `yaml:"go"`
-			Rust *bool `yaml:"rust,omitempty"`
-		}{Rust: languages.Rust, Go: struct {
+			Go     any   `yaml:"go"`
+			Rust   *bool `yaml:"rust,omitempty"`
+			Python *bool `yaml:"python,omitempty"`
+		}{Python: languages.Python, Rust: languages.Rust, Go: struct {
 			Enabled    bool `yaml:"enabled"`
 			*GoOptions `yaml:",inline"`
 		}{Enabled: *languages.Go, GoOptions: languages.GoOptions}}, nil
 	}
 	return struct {
-		Go   *bool `yaml:"go,omitempty"`
-		Rust *bool `yaml:"rust,omitempty"`
-	}{Go: languages.Go, Rust: languages.Rust}, nil
+		Go     *bool `yaml:"go,omitempty"`
+		Rust   *bool `yaml:"rust,omitempty"`
+		Python *bool `yaml:"python,omitempty"`
+	}{Go: languages.Go, Rust: languages.Rust, Python: languages.Python}, nil
+}
+
+func (cfg *Config) PythonDeclared() bool {
+	return cfg != nil && cfg.Languages != nil && cfg.Languages.Python != nil
+}
+
+func (cfg *Config) PythonEnabled() bool {
+	return cfg.PythonDeclared() && *cfg.Languages.Python
 }
 
 func (cfg *Config) RustDeclared() bool {
@@ -195,6 +214,8 @@ func (cfg *Config) FFmpegStatigoEnabled() bool {
 // SwatchActive applies the language opt-in requirement, not Pages or wiki readiness checks.
 func (cfg *Config) SwatchActive(path string) bool {
 	switch path {
+	case "ruff.toml", "pyrightconfig.json":
+		return cfg.PythonEnabled()
 	case ".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", "Dockerfile":
 		return cfg.GoEnabled()
 	default:

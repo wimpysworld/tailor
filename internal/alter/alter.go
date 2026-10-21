@@ -117,6 +117,13 @@ func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *ap
 	if err := preflightIgnoreRoot(cfg, dir); err != nil {
 		return partial(err)
 	}
+	for _, entry := range cfg.Swatches {
+		if cfg.SwatchActive(entry.Path) && entry.Alteration != swatch.Never {
+			if _, err := PythonPolicyReason(dir, entry.Path); err != nil {
+				return partial(err)
+			}
+		}
+	}
 	goContents, err := prepareGoSwatches(cfg, dir, mode, "")
 	if err != nil {
 		return partial(err)

@@ -31,8 +31,8 @@ func TestManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 			t.Errorf("managed template %q lacks its ownership marker", entry.Path)
 		}
 	}
-	if len(managed) != 26 {
-		t.Fatalf("managed=%d, want 26", len(managed))
+	if len(managed) != 28 {
+		t.Fatalf("managed=%d, want 28", len(managed))
 	}
 
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(name string, entry fs.DirEntry, err error) error {
@@ -55,7 +55,7 @@ func TestManagedNixCanonicalFormatting(t *testing.T) {
 	if err != nil {
 		t.Skip("nixfmt is required")
 	}
-	configs := []*config.Config{{}, ffmpegConfig(), ebitengineConfig()}
+	configs := []*config.Config{{}, ffmpegConfig(), ebitengineConfig(), {Languages: &config.LanguageSettings{Python: new(true)}}}
 	for _, policy := range []*bool{nil, new(false), new(true)} {
 		configs = append(configs, &config.Config{Languages: &config.LanguageSettings{
 			Go: new(true), GoOptions: &config.GoOptions{CGO: policy},

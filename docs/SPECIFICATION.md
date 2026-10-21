@@ -286,14 +286,15 @@ Tailor uses one fixed internal registry for development roots, loaders, and frag
 | Protected roots | `justfile`, `flake.nix` |
 | Loaders and core | `just/loader.just`, `nix/loader.nix`, `just/tailor.just` |
 | Go fragments | `just/go.just`, `nix/go.nix` |
+| Python fragments | `just/python.just`, `nix/python.nix` |
 | Rust fragments | `just/rust.just`, `nix/rust.nix` |
 | Pages fragments | `just/pages.just`, `nix/pages.nix` |
 | Playwright package fragment | `nix/playwright.nix` |
 | Playwright MCP client starters | `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.pi/mcp.json` |
 
-The ordinary default set remains 29 configured swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
+The ordinary default set contains 31 configured swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
 
-Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `build`, `test`, and `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Rust, Pages, and Playwright package declarations have this exact lifecycle:
+Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `build`, `test`, and `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Python, Rust, Pages, and Playwright package declarations have this exact lifecycle:
 
 | Declaration | Fragment action |
 | --- | --- |
@@ -317,7 +318,7 @@ The `.envrc` starter keeps `nix_direnv_manual_reload` and registers `watch_file`
 
 The generated root requires Just 1.23.0 or later and owns the sole `default` recipe. The core provides exactly three quality commands: `build`, `test`, and `lint`. It also keeps the operational `setup` and `release` commands. Call `tailor alter`, `tailor baste`, and `tailor measure` directly, without Just wrappers. Pages owns `pages`. `just/go.just` is an empty compatibility import with no recipes.
 
-Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go and Rust are the supported quality ecosystems. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
+Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go, Python, and Rust are the supported quality ecosystems. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
 
 A `never` mode for `justfile` or `.golangci.yml` does not disable Go bodies selected by `languages.go: true`. Remove old quality recipes and aliases from preserved roots and project fragments before loader adoption. Move project-specific quality work into the optional scripts below. Retained marked Go fragments with legacy quality recipes require explicit Go enablement for migration, or manual removal of those recipes. Do not rename legacy helpers into another quality API. Release remains independent of language declarations and keeps its existing local tag flow.
 
@@ -370,7 +371,7 @@ To add Android, replace `ebitengine: true` with `ebitengine: {enabled: true, and
 
 Android accepts only a mapping with the required Boolean `enabled`. Enabling Android accepts the Android SDK licence terms. Only the dedicated shell imports a private SDK package set with scoped licence acceptance and an Android-only unfree predicate. Global Nix settings remain unchanged. Android uses fixed platform `"35"`, build-tools `"35.0.0"`, and NDK `"28.2.13676358"`. There are no desktop, web, assets, delivery, licence, or version switches. Default shells do not evaluate the SDK, even when Android is enabled. Unsupported package attributes or versions fail rather than silently omit tools. Different versions require a project-owned shell.
 
-The four owned destinations are `nix/go-ebitengine.nix`, `nix/lib/go-ebitengine-runtime.nix`, `nix/hooks/go-ebitengine.nix`, and optional `nix/shells/go-ebitengine-android.nix`. Support and shell kinds never enter automatic package or hook loaders. Missing support files leave the desktop hook inactive. An incomplete Android shell fails with reconciliation guidance. Existing ownership, symlink, preflight, preview, and protected-root rules apply. The ordinary swatch count remains 29. No quality body, setup body, or Just alias is added.
+The four owned destinations are `nix/go-ebitengine.nix`, `nix/lib/go-ebitengine-runtime.nix`, `nix/hooks/go-ebitengine.nix`, and optional `nix/shells/go-ebitengine-android.nix`. Support and shell kinds never enter automatic package or hook loaders. Missing support files leave the desktop hook inactive. An incomplete Android shell fails with reconciliation guidance. Existing ownership, symlink, preflight, preview, and protected-root rules apply. The ordinary swatch count is 31. No quality body, setup body, or Just alias is added.
 
 Base tools include Bash, GNU tools, Git, curl, gzip, zip, unzip, staticcheck built with the caller's Go, and `tailor-ebitenmobile`. Linux adds nine ALSA, GL, and X11 client libraries, mesa-demos, and pciutils. Runtime hooks use the existing NixOS guard and path helper, with host drivers first. Brotli and miniserve are always included; the project must use its selected Go's `wasm_exec.js`. Common tools always include FFmpeg (`ffmpeg-headless`), ImageMagick, Vorbis tools, Git LFS, standalone `android-tools`, Node.js, Wrangler, and Butler. Python, NumPy, Pillow, Matplotlib, Blender, and Pyright are not included. Android SDK, NDK, JDK, and Gradle remain exclusive to the enabled Android shell. Engine forks, staticcheck overrides, Blender stubs, bridges, recipes, and application files remain project-owned. Ebitengine does not enable ffmpeg-statigo.
 
@@ -380,16 +381,32 @@ Android is restricted to x86_64-linux and supplies the pinned SDK/NDK, JDK21, Gr
 
 Alteration and shell hooks never run Go, installers, SDK managers, signing, devices, or cloud commands. Explicit builds can fetch pinned Go or Gradle dependencies. iOS binding requires macOS and a separately installed, selected, licensed Xcode. Tailor supplies no iOS application or SDK. Real cross-builds, browser, graphics, audio, controllers, devices, signing, macOS, Windows, and iOS remain separate platform acceptance checks.
 
+### Python ecosystem support
+
+`languages.python` accepts only a Boolean. New configurations default to false. Default merging preserves omission. True selects owned Python Nix and empty compatibility Just fragments, inline setup and quality bodies, and two ordinary first-fit starters: `ruff.toml` and `pyrightconfig.json`. False removes only owned fragments. Helpers are private embedded sources, not ordinary swatches. Alteration needs no Python installation.
+
+Support is limited to one named root uv package with a build backend, regular non-symlink `pyproject.toml` and `uv.lock`, and an explicit Python floor. Reject workspaces, ancestor workspace membership, local, URL, and VCS dependency sources. Python metadata uses `packaging` for PEP 440. Require an explicit non-wildcard `>=`, `~=`, or `==` floor. A version file supports one `3.MINOR` or `3.MINOR.PATCH` value. Both selected and project interpreters must satisfy metadata. This does not verify the minimum version with a newer compatible interpreter.
+
+Nix supplies Python with `packaging` and `pip-audit`, uv, Ruff, and BasedPyright from coherent `pkgs`. The `tailor-python` wrapper selects that interpreter independently of an active environment's `python3`. The `pip-audit` package uses the same overridden Python. No application libraries or project pytest are supplied. Projects declare pytest in the default development group. No tool installer, interpreter download, implicit environment sync, or lock regeneration is permitted.
+
+Explicit setup validates metadata, runs `uv lock --check`, and runs `uv sync --locked --python "$selected_nix_python" --no-python-downloads`. All Python recipes export `UV_PYTHON_DOWNLOADS=never`. Reject conflicting `UV_PROJECT_ENVIRONMENT`. Quality requires safe `.venv` directories, regular `pyvenv.cfg`, and executable `.venv/bin/python`. Preserve the absolute environment interpreter path without resolving its normal symlink. Preflight runs `uv lock --check`, then `uv sync --check --locked --python "$project_python" --no-python-downloads`.
+
+Build runs `uv build --python "$project_python" --no-python-downloads`, never `uv build --locked`. Isolated build dependencies are not pinned by the project lock. The backend can write metadata and distributions. Test runs `"$project_python" -m pytest`, with no global fallback. Lint runs `ruff format --check .`, `ruff check --no-fix .`, and `basedpyright --pythonpath "$project_python" --baselinemode=lock`. Correction first runs `ruff check --fix --no-unsafe-fixes .` and `ruff format .`. It never changes dependencies or type baselines.
+
+Audit uses a securely created temporary file and an exit cleanup trap. Export uses `uv export --locked --format requirements-txt --no-emit-project --no-hashes`. The selected Nix interpreter runs `-m pip_audit --requirement FILE --no-deps --disable-pip --strict`. Require identical `packaging.markers.default_environment()` maps for project and audit Python, including full Python versions, implementation, and platform fields. Probe the project interpreter with the managed `packaging` module without installing it in `.venv`. Reject mismatches before any quality command or environment sync and require an explicit `.venv` rebuild through setup. Coverage is the root package dependencies and default groups on the active platform, not every extra or platform. All export, collection, network, and vulnerability failures fail lint. Cache writes remain permitted.
+
+The canonical Ruff starter uses 88 columns, stable correctness rules, safe fixes, and runtime typing preservation. The type starter selects `standard` and `failOnWarnings: false`. Shared TOML-aware discovery checks root, ancestors, and nested policy files. Never shadow alternative Ruff or BasedPyright policies, including recut and `always`. Preserve Black and mypy policy, skip conflicting starters, and report adoption guidance. Quality requires explicit Ruff and BasedPyright policies and never substitutes recommended defaults. Measure uses the same discovery and reports equivalent policies as present. Project hooks run after successful workflows and lexical Go, Python, Rust bodies.
+
 ### Go ecosystem support
 
-The top-level `languages` section selects language-specific development support. Its supported keys are `go` and `rust`:
+The top-level `languages` section selects language-specific development support. Its supported keys are `go`, `python`, and `rust`:
 
 ```yaml
 languages:
   go: true
 ```
 
-`languages` must be a map. It accepts Boolean `go` and `rust` values, plus the Go mapping described below. Reject null sections, null values, unknown keys, and invalid types. An empty map leaves both languages unspecified. Internally, `Languages *LanguageSettings` and `Go *bool` preserve absent, false, and true states.
+`languages` must be a map. It accepts Boolean `go`, `python`, and `rust` values, plus the Go mapping described below. Reject null sections, null values, unknown keys, and invalid types. An empty map leaves all languages unspecified. Internally, `Languages *LanguageSettings` and `Go *bool` preserve absent, false, and true states.
 
 New configurations contain `languages.go: false`. Default merging preserves an absent `languages` section or absent `go` key in existing configurations. It never infers language selection from source files or CodeQL settings. `code_scanning.languages` and `code_quality.languages` remain independent.
 
@@ -513,7 +530,7 @@ The wiki publication job uses `ubuntu-slim` with an explicit 15-minute timeout, 
 
 `repository.has_wiki: true` activates four wiki swatches on public repositories. No separate config section or command exists. Every config that `fit` creates uses `has_wiki: false`, including for repositories with an enabled wiki. An omitted setting leaves wiki files unmanaged, even when default merging adds `false` during that run.
 
-The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Existing starter destinations remain unchanged, including recut and an explicit `always` mode. `never` skips creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 29 swatches.
+The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Existing starter destinations remain unchanged, including recut and an explicit `always` mode. `never` skips creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 31 swatches.
 
 Local safety preflight runs before writes. It rejects source symlinks, Git metadata, non-regular files and unsafe workflow destinations or parents through rooted filesystem access. Pages preflight also completes before wiki enablement. Tailor reads repository privacy, the current default branch and `has_wiki`. Known private repositories and projects without repository context skip wiki files. Unavailable or incomplete repository metadata blocks readiness.
 
@@ -737,6 +754,8 @@ Use an exclusive sibling temporary file, file sync, close, rename, and directory
 - `.envrc`
 - `flake.nix`
 - `justfile`
+- `ruff.toml`
+- `pyrightconfig.json`
 - `.golangci.yml`
 - `.goreleaser.yaml`
 - `.github/workflows/build-go.yml`
@@ -838,7 +857,7 @@ Creates a project directory and writes `.tailor.yml` from the embedded `swatches
 
 The defaults can disable an existing wiki, Code Quality and immutable releases, and replace an existing `Tailor` ruleset when `alter` applies them. Edit the generated config before `alter` to preserve different settings. Topics stay unmanaged because the embedded defaults omit them.
 
-The default swatch set contains 29 registered destinations:
+The default swatch set contains 31 registered destinations:
 
 - `.github/workflows/tailor-pages.yml`
 - `pages/index.html`
@@ -860,6 +879,8 @@ The default swatch set contains 29 registered destinations:
 - `CONTRIBUTING.md`
 - `SUPPORT.md`
 - `justfile`
+- `ruff.toml`
+- `pyrightconfig.json`
 - `.golangci.yml`
 - `.goreleaser.yaml`
 - `.github/workflows/build-go.yml`
@@ -1244,7 +1265,7 @@ Behaviour:
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 
-The active configuration has 29 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
+The active configuration has 31 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
 
 Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
 

@@ -52,7 +52,28 @@ func renderManagedQuality(cfg *config.Config, content []byte, registry []managed
 		return strings.Compare(a.Capability.canonicalName(), b.Capability.canonicalName())
 	})
 	var body strings.Builder
+	if operation == managedSetup && len(entries) > 0 {
+		body.WriteString("#!/usr/bin/env bash\nset -euo pipefail\n")
+	}
 	for _, entry := range entries {
+		if entry.Capability == managedCapabilityPython {
+			preflight, err := managedQualityBody("python-preflight")
+			if err != nil {
+				return nil, err
+			}
+			helper, err := swatch.Content("quality/python-preflight.py")
+			if err != nil {
+				return nil, err
+			}
+			tools := ""
+			if operation == managedLint {
+				tools = "ruff basedpyright"
+			}
+			preflight = bytes.ReplaceAll(preflight, []byte("[[TAILOR_PYTHON_TOOLS]]"), []byte(tools))
+			preflight = bytes.ReplaceAll(preflight, []byte("[[TAILOR_PYTHON_OPERATION]]"), []byte(operation))
+			body.Write(bytes.ReplaceAll(preflight, []byte("[[TAILOR_PYTHON_HELPER]]"), bytes.TrimSpace(helper)))
+		}
+
 		if entry.Capability != managedCapabilityRust {
 			continue
 		}
@@ -65,9 +86,6 @@ func renderManagedQuality(cfg *config.Config, content []byte, registry []managed
 			tools = "rustfmt cargo-fmt cargo-clippy clippy-driver cargo-audit"
 		}
 		body.Write(bytes.ReplaceAll(preflight, []byte("[[TAILOR_RUST_TOOLS]]"), []byte(tools)))
-	}
-	if operation == managedSetup && len(entries) > 0 {
-		body.WriteString("#!/usr/bin/env bash\nset -e\n")
 	}
 	if operation == managedLint {
 		workflows, err := managedQualityBody("workflows")

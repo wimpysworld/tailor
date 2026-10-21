@@ -27,6 +27,7 @@ func TestFixedManagedRegistry(t *testing.T) {
 		"just/loader.just", "nix/loader.nix", "nix/hooks.nix", "nix/hooks/core.nix", "nix/hooks/go.nix", "nix/hooks/go-ffmpeg-statigo.nix", "just/tailor.just",
 		"just/go.just", "nix/go.nix",
 		"nix/go-ebitengine.nix", "nix/lib/go-ebitengine-runtime.nix", "nix/hooks/go-ebitengine.nix", "nix/shells/go-ebitengine-android.nix",
+		"just/python.just", "nix/python.nix",
 		"just/rust.just", "nix/rust.nix",
 		"just/go-ffmpeg-statigo.just", "nix/go-ffmpeg-statigo.nix",
 		"just/pages.just", "nix/pages.nix", "nix/playwright.nix",
@@ -39,6 +40,9 @@ func TestFixedManagedRegistry(t *testing.T) {
 		var wantBuildBody, wantLintBody, wantTestBody managedQualityBodyName
 		if entry.Path == "just/go.just" {
 			wantBuildBody, wantLintBody, wantTestBody = "build-go", "lint-go", "test-go"
+		}
+		if entry.Path == "just/python.just" {
+			wantBuildBody, wantLintBody, wantTestBody = "build-python", "lint-python", "test-python"
 		}
 		if entry.Path == "just/rust.just" {
 			wantBuildBody, wantLintBody, wantTestBody = "build-rust", "lint-rust", "test-rust"
