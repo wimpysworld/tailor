@@ -19,8 +19,9 @@ type LanguageSettings struct {
 // GoOptions holds optional settings from a languages.go mapping.
 // Nil fields preserve omission. Options have no effect when Go is disabled.
 type GoOptions struct {
-	CGO           *bool `yaml:"cgo,omitempty"`
-	FFmpegStatigo *bool `yaml:"ffmpeg-statigo,omitempty"`
+	CGO           *bool              `yaml:"cgo,omitempty"`
+	FFmpegStatigo *bool              `yaml:"ffmpeg-statigo,omitempty"`
+	Ebitengine    *EbitengineOptions `yaml:"ebitengine,omitempty"`
 }
 
 // UnmarshalYAML accepts the legacy Boolean and the explicit mapping form.
@@ -74,6 +75,11 @@ func (languages *LanguageSettings) UnmarshalYAML(node *yaml.Node) error {
 			continue
 		}
 		switch key {
+		case "ebitengine":
+			var engine EbitengineOptions
+			if err := engine.UnmarshalYAML(value); err != nil {
+				return err
+			}
 		case "enabled", "cgo", "ffmpeg-statigo":
 			if value.Kind != yaml.ScalarNode || value.Tag != "!!bool" {
 				return fmt.Errorf("languages.go.%s must be a bool", key)
@@ -82,7 +88,7 @@ func (languages *LanguageSettings) UnmarshalYAML(node *yaml.Node) error {
 			extra[key] = nil
 		}
 	}
-	if err := rejectExtra("languages.go", extra, []string{"enabled", "cgo", "ffmpeg-statigo"}); err != nil {
+	if err := rejectExtra("languages.go", extra, []string{"enabled", "cgo", "ffmpeg-statigo", "ebitengine"}); err != nil {
 		return err
 	}
 	if _, ok := options["enabled"]; !ok {
@@ -105,7 +111,7 @@ func (languages *LanguageSettings) UnmarshalYAML(node *yaml.Node) error {
 	}
 	languages.Go = mapping.Enabled
 	languages.GoOptions = &mapping.GoOptions
-	return nil
+	return ValidateEbitengine(&Config{Languages: languages})
 }
 
 // MarshalYAML preserves Boolean and mapping forms, including omitted options.

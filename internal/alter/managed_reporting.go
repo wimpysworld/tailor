@@ -261,6 +261,17 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 			guidance = append(guidance, managedMCPAdoptionGuidance(cfg, result.Path, mcpRegistry)...)
 		}
 	}
+	if cfg.EbitengineEnabled() {
+		guidance = append(guidance, "Adopt watches for `nix/lib`, `nix/shells`, and their `*.nix` files in existing `.envrc` files. Review before normal direnv approval; Tailor never grants trust.")
+	}
+	if cfg.EbitengineAndroidEnabled() {
+		guidance = append(guidance, "Android SDK licence consent is scoped to the generated Android shell. Enter it only after review. No SDK installation or licence acceptance runs during alteration.")
+		if slices.ContainsFunc(results, func(result SwatchResult) bool {
+			return result.Path == "flake.nix" && result.Reason == SkipManagedRootExists
+		}) {
+			guidance = append(guidance, "Extend the per-system devShells attribute set, not its package list, with `// pkgs.lib.optionalAttrs (system == \"x86_64-linux\" && builtins.pathExists ./nix/shells/go-ebitengine-android.nix) { android = import ./nix/shells/go-ebitengine-android.nix { inherit pkgs; }; }`. Pass the same overridden `pkgs`. Do not overwrite an existing `android` output; compose or migrate it manually.")
+		}
+	}
 	if len(newNix) != 0 {
 		sort.Strings(newNix)
 		appendManagedNotice(report, "review and add new Nix files to Git because Nix flakes exclude untracked files: "+managedPathList(newNix))

@@ -25,7 +25,9 @@ func TestFixedManagedRegistry(t *testing.T) {
 	want := []string{
 		"justfile", "flake.nix",
 		"just/loader.just", "nix/loader.nix", "nix/hooks.nix", "nix/hooks/core.nix", "nix/hooks/go.nix", "nix/hooks/go-ffmpeg-statigo.nix", "just/tailor.just",
-		"just/go.just", "nix/go.nix", "just/rust.just", "nix/rust.nix",
+		"just/go.just", "nix/go.nix",
+		"nix/go-ebitengine.nix", "nix/lib/go-ebitengine-runtime.nix", "nix/hooks/go-ebitengine.nix", "nix/shells/go-ebitengine-android.nix",
+		"just/rust.just", "nix/rust.nix",
 		"just/go-ffmpeg-statigo.just", "nix/go-ffmpeg-statigo.nix",
 		"just/pages.just", "nix/pages.nix", "nix/playwright.nix",
 		".mcp.json", ".codex/config.toml", "opencode.json", ".pi/mcp.json",
@@ -211,6 +213,7 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 				"just/pages.just":             false,
 				"nix/pages.nix":               false,
 				"nix/playwright.nix":          false,
+				"nix/go-ebitengine.nix":       false, "nix/lib/go-ebitengine-runtime.nix": false, "nix/hooks/go-ebitengine.nix": false, "nix/shells/go-ebitengine-android.nix": false,
 			},
 		},
 		{

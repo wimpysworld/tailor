@@ -26,6 +26,9 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 	if cfg == nil {
 		return nil, fmt.Errorf("managed file rendering requires a config")
 	}
+	if err := config.ValidateEbitengine(cfg); err != nil {
+		return nil, err
+	}
 	if err := validateManagedRegistry(registry); err != nil {
 		return nil, fmt.Errorf("validating managed registry: %w", err)
 	}

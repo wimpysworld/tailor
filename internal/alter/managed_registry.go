@@ -19,6 +19,8 @@ const (
 	managedCapabilityPlaywright
 	managedCapabilityGoFFmpegStatigo
 	managedCapabilityRust
+	managedCapabilityGoEbitengine
+	managedCapabilityGoEbitengineAndroid
 )
 
 type managedPolicy uint8
@@ -36,6 +38,8 @@ type managedNixKind uint8
 const (
 	managedNixList managedNixKind = iota
 	managedNixHook
+	managedNixSupport
+	managedNixShell
 )
 
 type managedRegistryEntry struct {
@@ -97,6 +101,10 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "just/tailor.just", Policy: managedPolicyCore},
 		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildBody: "build-go", TestBody: "test-go", LintBody: "lint-go"},
 		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
+		{Path: "nix/go-ebitengine.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoEbitengine},
+		{Path: "nix/lib/go-ebitengine-runtime.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoEbitengine, NixKind: managedNixSupport},
+		{Path: "nix/hooks/go-ebitengine.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoEbitengine, NixKind: managedNixHook},
+		{Path: "nix/shells/go-ebitengine-android.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoEbitengineAndroid, NixKind: managedNixShell},
 		{Path: "just/rust.just", Policy: managedPolicyFragment, Capability: managedCapabilityRust, BuildBody: "build-rust", TestBody: "test-rust", LintBody: "lint-rust"},
 		{Path: "nix/rust.nix", Policy: managedPolicyFragment, Capability: managedCapabilityRust},
 		{Path: "just/go-ffmpeg-statigo.just", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, SetupBody: "go-ffmpeg-statigo"},
@@ -126,7 +134,7 @@ func validateManagedRegistry(registry []managedRegistryEntry) error {
 			return fmt.Errorf("managed registry contains duplicate destination %q", entry.Path)
 		}
 		seen[entry.Path] = struct{}{}
-		if entry.NixKind > managedNixHook || entry.NixKind == managedNixHook && (path.Ext(entry.Path) != ".nix" || (entry.Policy != managedPolicyCore && entry.Policy != managedPolicyFragment)) {
+		if entry.NixKind > managedNixShell || entry.NixKind != managedNixList && (path.Ext(entry.Path) != ".nix" || (entry.Policy != managedPolicyCore && entry.Policy != managedPolicyFragment)) {
 			return fmt.Errorf("managed registry destination %q has an invalid Nix kind", entry.Path)
 		}
 
@@ -196,11 +204,15 @@ func validateManagedPath(name string) error {
 }
 
 func (capability managedCapability) validDeclaration() bool {
-	return capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
+	return capability == managedCapabilityGoEbitengine || capability == managedCapabilityGoEbitengineAndroid || capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
 }
 
 func (capability managedCapability) canonicalName() string {
 	switch capability {
+	case managedCapabilityGoEbitengine:
+		return "go-ebitengine"
+	case managedCapabilityGoEbitengineAndroid:
+		return "go-ebitengine-android"
 	case managedCapabilityRust:
 		return "rust"
 	case managedCapabilityGo:
@@ -299,6 +311,10 @@ func managedCapabilityState(cfg *config.Config, capability managedCapability) (d
 		return cfg.RustDeclared(), cfg.RustEnabled()
 	case managedCapabilityGo:
 		return cfg.GoDeclared(), cfg.GoEnabled()
+	case managedCapabilityGoEbitengine:
+		return cfg.EbitengineDeclared() || cfg.GoDeclared() && !cfg.GoEnabled(), cfg.EbitengineEnabled()
+	case managedCapabilityGoEbitengineAndroid:
+		return cfg.EbitengineDeclared() || cfg.GoDeclared() && !cfg.GoEnabled(), cfg.EbitengineAndroidEnabled()
 	case managedCapabilityGoFFmpegStatigo:
 		return cfg.FFmpegStatigoDeclared() || cfg.GoDeclared() && !cfg.GoEnabled(), cfg.FFmpegStatigoEnabled()
 	case managedCapabilityPages:

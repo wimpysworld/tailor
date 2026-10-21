@@ -38,6 +38,7 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 		registered[p] = true
 	}
 	private := map[string]bool{
+		"nix/go-ebitengine.nix": false, "nix/hooks/go-ebitengine.nix": false, "nix/lib/go-ebitengine-runtime.nix": false, "nix/shells/go-ebitengine-android.nix": false,
 		"setup/go-ffmpeg-statigo.sh": false,
 		"just/rust.just":             false, "nix/rust.nix": false,
 		"quality/build-rust.sh": false, "quality/test-rust.sh": false, "quality/lint-rust.sh": false, "quality/rust-preflight.sh": false,

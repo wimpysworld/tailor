@@ -108,7 +108,7 @@ func TestEnvrcWatchOrder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("watch order: %v\n%s", err, output)
 	}
-	want := "manual\nwatch nix\nwatch nix/hooks\nwatch nix/hooks.nix\nwatch nix/loader.nix\nwatch nix/package space.nix\nwatch nix/hooks/core.nix\nuse flake\n"
+	want := "manual\nwatch nix\nwatch nix/hooks\nwatch nix/lib\nwatch nix/shells\nwatch nix/hooks.nix\nwatch nix/loader.nix\nwatch nix/package space.nix\nwatch nix/hooks/core.nix\nuse flake\n"
 	if strings.TrimSpace(string(output)) != strings.TrimSpace(want) {
 		t.Fatalf("watch order = %q, want %q", output, want)
 	}

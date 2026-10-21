@@ -43,6 +43,12 @@
               ++ import ./nix/loader.nix { inherit pkgs; };
           };
         }
+        //
+          pkgs.lib.optionalAttrs
+            (system == "x86_64-linux" && builtins.pathExists ./nix/shells/go-ebitengine-android.nix)
+            {
+              android = import ./nix/shells/go-ebitengine-android.nix { inherit pkgs; };
+            }
       );
     };
 }

@@ -60,13 +60,13 @@ Keep the capability declaration explicitly true so that Tailor recreates the fra
 
 ### Nix shell cache
 
-New `.envrc` starters watch `nix`, `nix/hooks`, and their `.nix` files before `use flake`. File watches detect edits. Directory watches detect added or removed fragments, including hook fragments. Missing directories are watched too, so their creation triggers a reload. Watches stay within these two directories, not the whole repository.
+New `.envrc` starters watch `nix`, `nix/hooks`, `nix/lib`, `nix/shells`, and their `.nix` files before `use flake`. File watches detect edits. Directory watches detect added or removed fragments, including hook fragments. Missing directories are watched too, so their creation triggers a reload. Watches stay within these four directories, not the whole repository.
 
 Existing `.envrc` files use `first-fit`, so normal alterations preserve them. Manually add this block before your existing `use flake` line:
 
 ```bash
-watch_file nix nix/hooks
-for file in nix/*.nix nix/hooks/*.nix; do
+watch_file nix nix/hooks nix/lib nix/shells
+for file in nix/*.nix nix/hooks/*.nix nix/lib/*.nix nix/shells/*.nix; do
   if [ -e "$file" ]; then
     watch_file "$file"
   fi
@@ -187,6 +187,48 @@ Before Tailor creates or replaces the release configuration, `Dockerfile` must b
 Before Tailor creates or replaces the builder workflow, it checks the lint and release configurations. Both must already be regular files, or Tailor must plan to create them. Tailor does not check the contents of customised configurations.
 
 When Go is true, Tailor places Go bodies in `just/tailor.just` and updates the empty `just/go.just` compatibility import. The managed build validates all packages before publication to `bin/`. Library-only modules succeed without `bin/`. Duplicate names, symlinked `bin`, and non-regular outputs fail. Existing regular executables can be replaced. The managed body writes no root binary, but a project script can add one. The Nix fragment retains the existing Go development tools.
+
+### Ebitengine
+
+Set `ebitengine: true` inside the enabled Go mapping for desktop and web support. To add Android, use this declaration:
+
+```yaml
+languages:
+  go:
+    enabled: true
+    ebitengine:
+      enabled: true
+      android:
+        enabled: true
+```
+
+Desktop and web support are always included. Android is off unless its mapping contains `enabled: true`. Enabling Android accepts the Android SDK licence terms. Acceptance applies only to the dedicated shell's private SDK package set, not global Nix settings. Android uses platform 35, build-tools 35.0.0, and NDK 28.2.13676358. Keep different versions in a project-owned shell. There are no profile, licence, or version switches. Unknown keys, nulls, incorrect types, and enabled children under disabled parents fail before writes. Default merging preserves authored declarations.
+
+Omission preserves owned files. Component false or Go false removes them. A declared true component selects desktop and web support, so changing a mapping to Boolean true removes an earlier Android shell. Four private Nix files supply packages, runtime libraries, a hook, and the optional Android shell. No recipe or setup action is added.
+
+Tools include Bash, GNU tools, Git, curl, gzip, zip, unzip, staticcheck, the mobile runner, Brotli, and miniserve. Linux also receives nine ALSA, OpenGL, and X11 libraries, plus graphics diagnostics. Use the selected Go's matching `wasm_exec.js`. Common tools always include FFmpeg (`ffmpeg-headless`), ImageMagick, Vorbis tools, Git LFS, standalone `android-tools`, Node.js, Wrangler, and Butler. No extra switches are needed. Python, NumPy, Pillow, Matplotlib, Blender, and Pyright are not included. Android SDK, NDK, JDK, and Gradle require the enabled Android shell. Engine forks, staticcheck overrides, Blender stubs and bridges, game recipes, and signing files remain project-owned.
+
+Existing effective CGO policy does not change. Linux runtime hooks use the NixOS-only guard and respect `TAILOR_NIXOS_DRIVERS=0`. Host drivers remain first. Host display/audio services, graphics drivers, and device permissions remain external prerequisites.
+
+The Android shell requires x86_64-linux, JDK21, and Gradle8 >=8.13. It includes desktop dependencies for release tests, but no emulator, images, sources, or CMake. The default shell does not evaluate or download the SDK, even when Android is enabled. Missing attributes or versions require a compatible project override.
+
+New flake roots expose the optional Android shell. For an existing root, extend the per-system `devShells` attribute set manually:
+
+```nix
+// pkgs.lib.optionalAttrs
+  (system == "x86_64-linux" && builtins.pathExists ./nix/shells/go-ebitengine-android.nix)
+  {
+    android = import ./nix/shells/go-ebitengine-android.nix { inherit pkgs; };
+  }
+```
+
+Pass the same overridden `pkgs` to both loaders and the Android shell. Do not overwrite an existing `android` output. Review and migrate that output deliberately. Adopt the directory watches above. Tailor never grants direnv trust.
+
+Invoke `tailor-ebitenmobile` only when you want a mobile build. It resolves the project's actual Ebitengine module, including local replacements. It builds the host tool in private temporary storage with read-only module flags, then forwards the original arguments and project flags. Binding forces CGO=1 even when Just exports CGO=0. Temporary files are removed after success, failure, or signals. The runner never installs `@latest` or changes your module declarations.
+
+For iOS, `tailor-ebitenmobile bind -target ios ...` requires macOS and a separately installed, selected, licensed Xcode. Tailor supplies no iOS application. No actual iOS acceptance test is claimed. Real desktop cross-builds, browser, graphics, audio, controllers, signing, Android devices, and macOS/Windows execution require separate platform checks.
+
+Alteration and shell activation do not run installers, SDK managers, signing, device commands, or cloud operations. Explicit Go and Gradle builds can fetch project dependencies.
 
 ### Shared Go policy
 
