@@ -20,7 +20,7 @@ func TestPythonPolicies(t *testing.T) {
 		{".ruff.toml", "", "ruff.toml", "existing Python policy"},
 	} {
 		t.Run(tc.path+tc.destination+tc.body, func(t *testing.T) {
-			root := t.TempDir()
+			root := testTempDir(t)
 			writeManagedTestFile(t, root, tc.path, []byte(tc.body))
 			for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
 				cfg := &config.Config{Languages: &config.LanguageSettings{Python: new(true)}, Swatches: []config.SwatchEntry{{Path: tc.destination, Alteration: swatch.Always}}}
@@ -34,7 +34,7 @@ func TestPythonPolicies(t *testing.T) {
 			}
 		})
 	}
-	root := t.TempDir()
+	root := testTempDir(t)
 	writeManagedTestFile(t, root, "pyproject.toml", []byte("[tool.ruff]\n"))
 	child := filepath.Join(root, "child")
 	if err := os.Mkdir(child, 0o755); err != nil {

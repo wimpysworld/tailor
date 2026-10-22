@@ -66,7 +66,7 @@ func TestEbitengineMobileRunner(t *testing.T) {
 	if err != nil {
 		t.Skip("nix required")
 	}
-	root := t.TempDir()
+	root := testTempDir(t)
 	files := renderSelectedManagedFiles(t, ebitengineConfig())
 	writeManagedRenderFixture(t, root, "nix/go-ebitengine.nix", files["nix/go-ebitengine.nix"])
 	expr := `let pkgs = rec { bash="bash"; coreutils="coreutils"; findutils="findutils"; gnused="sed"; gnugrep="grep"; gawk="awk"; git="git"; curl="curl"; gzip="gzip"; zip="zip"; unzip="unzip"; brotli="brotli"; miniserve="miniserve"; go="selected-go"; go-tools.override = _: "staticcheck"; writeShellApplication = x: x.text; lib.optionals = _: _: []; }; in builtins.elemAt (import ` + strconv.Quote(filepath.Join(root, "nix/go-ebitengine.nix")) + ` {inherit pkgs;}) 12`

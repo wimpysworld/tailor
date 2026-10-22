@@ -149,7 +149,7 @@ func TestManagedCGOCommands(t *testing.T) {
 func TestManagedFFmpegSetupStubbed(t *testing.T) {
 	for _, scenario := range []string{"update", "current", "init", "no-tag", "fetch-failure", "download-failure", "source", "fallback", "checkout-failure", "config-failure", "untagged"} {
 		t.Run(scenario, func(t *testing.T) {
-			root := t.TempDir()
+			root := testTempDir(t)
 			bin := filepath.Join(root, "stubs")
 			log := filepath.Join(root, "calls")
 			rendered := renderSelectedManagedFiles(t, ffmpegConfig())

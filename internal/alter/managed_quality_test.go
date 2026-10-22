@@ -341,9 +341,18 @@ func TestManagedCGOExport(t *testing.T) {
 	}
 }
 
+func testTempDir(t *testing.T) string {
+	t.Helper()
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return root
+}
+
 func qualityFixture(t *testing.T, enabled bool) (string, string, string) {
 	t.Helper()
-	root := filepath.Join(t.TempDir(), "project with spaces")
+	root := filepath.Join(testTempDir(t), "project with spaces")
 	writeManagedLintFixture(t, root, renderSelectedManagedFiles(t, managedRenderConfig(enabled, nil)))
 	bin, log := filepath.Join(root, "stubs"), filepath.Join(root, "calls")
 	for _, name := range []string{"go", "golangci-lint", "govulncheck", "gocyclo", "actionlint"} {
