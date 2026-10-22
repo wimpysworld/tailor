@@ -24,7 +24,7 @@ let
         esac
       done
       IFS=, read -r -a targets <<< "$target"
-      for component in "''${targets[@]}"; do
+      for component in ''${targets[@]+"''${targets[@]}"}; do
         case "''${component%%/*}" in
           android)
             if [ ! -d "''${ANDROID_HOME:-}" ] || [ ! -d "''${ANDROID_NDK_HOME:-}" ]; then

@@ -62,6 +62,26 @@ func TestEbitengineLifecycleAndLoaders(t *testing.T) {
 }
 
 func TestEbitengineMobileRunner(t *testing.T) {
+	testEbitengineMobileRunner(t, "bash")
+}
+
+func TestEbitengineMobileRunnerWithBashThree(t *testing.T) {
+	for _, candidate := range []string{"bash3", "bash32", "bash-3.2", "/bin/bash", "bash"} {
+		path, err := exec.LookPath(candidate)
+		if err != nil {
+			continue
+		}
+		output, err := exec.CommandContext(t.Context(), path, "-c", `printf '%s' "${BASH_VERSINFO[0]}"`).Output()
+		if err == nil && string(output) == "3" {
+			testEbitengineMobileRunner(t, path)
+			return
+		}
+	}
+	t.Skip("Bash 3 executable is not available")
+}
+
+func testEbitengineMobileRunner(t *testing.T, bash string) {
+	t.Helper()
 	nix, err := exec.LookPath("nix")
 	if err != nil {
 		t.Skip("nix required")
@@ -103,6 +123,10 @@ case "$1" in
 set -eu
 test "$CGO_ENABLED:$GOOS:$GOARCH:$GOFLAGS:$GOWORK" = '1:js:wasm:-tags=project:workspace'
 test "$PWD" = "$CALLER"
+case "$TARGET_FORM" in
+ equals) test "$1" = -target=; shift ;;
+ separate) test "$1" = -target; test "$2" = ''; shift 2 ;;
+esac
 test "$#" = 3
 test "$1" = bind
 test "$2" = '-o=output with spaces'
@@ -130,6 +154,7 @@ esac
 		name, target, host, xcrun, want string
 		missingSDK                      bool
 	}{
+		{name: "empty target", target: ""},
 		{name: "android", target: "android"},
 		{name: "android architectures", target: "android/arm64,android/amd64"},
 		{name: "ios", target: "ios", want: "iOS binding requires"},
@@ -150,7 +175,7 @@ esac
 				} else {
 					args = append(args, "-target="+tc.target)
 				}
-				cmd := exec.CommandContext(t.Context(), "bash", args...)
+				cmd := exec.CommandContext(t.Context(), bash, args...)
 				sdk := root
 				if tc.missingSDK {
 					sdk = filepath.Join(root, "missing-sdk")
@@ -168,24 +193,36 @@ esac
 		}
 	}
 	tempRoot := t.TempDir()
-	for _, result := range []string{"0", "7", "23", "143"} {
-		cmd := exec.CommandContext(t.Context(), "bash", "-euc", runner, "runner", "bind", "-o=output with spaces", "./mobile")
-		cmd.Dir = root
-		toolPath := filepath.Join(root, "tool-path")
-		cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "MODULE="+module, "CALLER="+root, "TOOL_PATH="+toolPath, "CGO_ENABLED=0", "GOOS=js", "GOARCH=wasm", "GOFLAGS=-tags=project", "GOWORK=workspace", "GOARM=7", "GOAMD64=v3", "GOWASM=satconv", "GOEXPERIMENT=project", "RESULT="+result, "TMPDIR="+tempRoot)
-		out, err := cmd.CombinedOutput()
-		if result == "0" && err != nil {
-			t.Fatalf("runner: %v %s", err, out)
-		}
-		if result != "0" {
-			var exit *exec.ExitError
-			if !errors.As(err, &exit) || strconv.Itoa(exit.ExitCode()) != result {
-				t.Fatalf("exit: %v %s", err, out)
-			}
-		}
-		entries, err := os.ReadDir(tempRoot)
-		if err != nil || len(entries) != 0 {
-			t.Fatalf("temporary directory remains: %v %v", entries, err)
+	for _, targetForm := range []string{"none", "equals", "separate"} {
+		for _, result := range []string{"0", "7", "23", "143"} {
+			t.Run(targetForm+"/result="+result, func(t *testing.T) {
+				args := []string{"-euc", runner, "runner"}
+				switch targetForm {
+				case "equals":
+					args = append(args, "-target=")
+				case "separate":
+					args = append(args, "-target", "")
+				}
+				args = append(args, "bind", "-o=output with spaces", "./mobile")
+				cmd := exec.CommandContext(t.Context(), bash, args...)
+				cmd.Dir = root
+				toolPath := filepath.Join(root, "tool-path")
+				cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "MODULE="+module, "CALLER="+root, "TOOL_PATH="+toolPath, "CGO_ENABLED=0", "GOOS=js", "GOARCH=wasm", "GOFLAGS=-tags=project", "GOWORK=workspace", "GOARM=7", "GOAMD64=v3", "GOWASM=satconv", "GOEXPERIMENT=project", "RESULT="+result, "TMPDIR="+tempRoot, "TARGET_FORM="+targetForm)
+				out, err := cmd.CombinedOutput()
+				if result == "0" && err != nil {
+					t.Fatalf("runner: %v %s", err, out)
+				}
+				if result != "0" {
+					var exit *exec.ExitError
+					if !errors.As(err, &exit) || strconv.Itoa(exit.ExitCode()) != result {
+						t.Fatalf("exit: %v %s", err, out)
+					}
+				}
+				entries, err := os.ReadDir(tempRoot)
+				if err != nil || len(entries) != 0 {
+					t.Fatalf("temporary directory remains: %v %v", entries, err)
+				}
+			})
 		}
 	}
 }
