@@ -29,11 +29,26 @@ func evaluateManagedPlatformHooks(t *testing.T, cfg *config.Config, linux, x86 b
 		}
 	}
 	expression := `let linux = ` + strconv.FormatBool(linux) + `; x86 = ` + strconv.FormatBool(x86) + `; pkgs = { stdenv.isLinux = linux; stdenv.hostPlatform.isx86_64 = x86; lib.optionalString = b: s: if b then s else ""; vulkan-loader = if linux then "/vulkan" else throw "Vulkan on Darwin"; intel-media-driver = if linux && x86 then "/intel" else throw "Intel on unsupported host"; vpl-gpu-rt = if linux && x86 then "/vpl" else throw "VPL on unsupported host"; }; in import ` + strconv.Quote(filepath.Join(root, "nix/hooks.nix")) + ` { inherit pkgs; }`
-	output, err := exec.CommandContext(t.Context(), nix, "eval", "--impure", "--raw", "--expr", expression).CombinedOutput()
+	cmd := exec.CommandContext(t.Context(), nix, "eval", "--impure", "--raw", "--expr", expression)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("hook evaluation: %v\n%s", err, output)
+		t.Fatalf("hook evaluation: %v\n%s%s", err, output, stderr.String())
 	}
 	return string(output)
+}
+
+func TestManagedHookEvaluationExcludesStderr(t *testing.T) {
+	root := t.TempDir()
+	writeManagedRenderFixture(t, root, "nix", []byte("#!/bin/sh\nprintf 'export CGO_ENABLED=1\\n'\nprintf 'exit 37\\n' >&2\n"))
+	if err := os.Chmod(filepath.Join(root, "nix"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", root+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if hook := evaluateManagedHooks(t, ffmpegConfig(), true); hook != "export CGO_ENABLED=1\n" {
+		t.Fatalf("hook source includes unexpected output: %q", hook)
+	}
 }
 
 func TestManagedHookRuntime(t *testing.T) {
@@ -178,9 +193,12 @@ func TestManagedFFmpegPlatforms(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			expr := `let linux = ` + strconv.FormatBool(tc.linux) + `; x86 = ` + strconv.FormatBool(tc.x86) + `; pkgs = { stdenv.isLinux = linux; stdenv.hostPlatform.isx86_64 = x86; lib.optionals = b: xs: if b then xs else []; pkg-config = "pkg-config"; git = "git"; curl = "curl"; jq = "jq"; vulkan-loader = if linux then "vulkan" else throw "Vulkan on Darwin"; intel-media-driver = if linux && x86 then "intel" else throw "Intel on unsupported host"; vpl-gpu-rt = if linux && x86 then "vpl" else throw "VPL on unsupported host"; }; in import ` + strconv.Quote(filepath.Join(root, "ffmpeg.nix")) + ` { inherit pkgs; }`
-			output, err := exec.CommandContext(t.Context(), nix, "eval", "--offline", "--impure", "--json", "--expr", expr).Output()
+			cmd := exec.CommandContext(t.Context(), nix, "eval", "--offline", "--impure", "--json", "--expr", expr)
+			var stderr strings.Builder
+			cmd.Stderr = &stderr
+			output, err := cmd.Output()
 			if err != nil || strings.TrimSpace(string(output)) != tc.want {
-				t.Fatalf("packages: %v %s", err, output)
+				t.Fatalf("packages: %v\n%s%s", err, output, stderr.String())
 			}
 			hook := evaluateManagedPlatformHooks(t, ffmpegConfig(), tc.linux, tc.x86)
 			if !tc.linux && strings.Contains(hook, "tailor_prepend_path LD_LIBRARY_PATH") {
