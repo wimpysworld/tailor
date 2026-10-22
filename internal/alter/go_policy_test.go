@@ -55,7 +55,7 @@ func TestGoPolicyDirectoryExclusions(t *testing.T) {
 					"internal/" + name + "_test.go": false,
 					"not_" + name + "/bad.go":       false,
 					name + "_extra/bad.go":          false,
-					"good.go":                      false,
+					"good.go":                       false,
 				} {
 					matched := false
 					for _, pattern := range patterns {
