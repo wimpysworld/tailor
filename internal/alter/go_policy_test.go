@@ -1,7 +1,6 @@
 package alter
 
 import (
-	"bytes"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -21,8 +20,49 @@ func TestRepositoryGoPolicy(t *testing.T) {
 	}
 	path := filepath.Join(root, swatch.GoLintDestination)
 	got, err := os.ReadFile(path)
-	if err != nil || !bytes.Equal(got, want) {
-		t.Fatalf("repository Go policy differs from the shared default: %v", err)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var repository, shared map[string]any
+	if err := yaml.Unmarshal(got, &repository); err != nil {
+		t.Fatal(err)
+	}
+	if err := yaml.Unmarshal(want, &shared); err != nil {
+		t.Fatal(err)
+	}
+	linters, ok := shared["linters"].(map[string]any)
+	if !ok {
+		t.Fatal("shared Go policy has no linters mapping")
+	}
+	exclusions, ok := linters["exclusions"].(map[string]any)
+	if !ok {
+		t.Fatal("shared Go policy has no exclusions mapping")
+	}
+	rules, ok := exclusions["rules"].([]any)
+	if !ok {
+		t.Fatal("shared Go policy has no exclusion rules")
+	}
+	// This ordinary first-fit policy omits only the two shared G703 exceptions.
+	// Tailor does not use the dev tools or audio engine that require them.
+	for _, path := range []string{`tools/(rasterise|placement-score)/main\.go`, `internal/engine/audio_linux\.go`} {
+		rule := map[string]any{"path": path, "text": "G703", "linters": []any{"gosec"}}
+		var retained []any
+		matches := 0
+		for _, candidate := range rules {
+			if reflect.DeepEqual(candidate, rule) {
+				matches++
+			} else {
+				retained = append(retained, candidate)
+			}
+		}
+		if matches != 1 {
+			t.Fatalf("shared Go policy has %d exact G703 exceptions for %q, want 1", matches, path)
+		}
+		rules = retained
+	}
+	exclusions["rules"] = rules
+	if !reflect.DeepEqual(repository, shared) {
+		t.Fatal("repository Go policy differs from the shared default beyond the two approved G703 omissions")
 	}
 }
 
