@@ -185,6 +185,10 @@ def preflight(root, operation, interpreter):
                         or name != "pyproject.toml"
                         or "ruff" in data.get("tool", {})
                     )
+                    if ruff_policy:
+                        break
+            if ruff_policy:
+                break
     if not ruff_policy:
         raise ValueError(
             "adopt an explicit Ruff policy before Python lint; Black policy is not converted"

@@ -311,10 +311,18 @@ func (m *MeasureCmd) Run() (runErr error) {
 				if pythonPolicy.AdoptionRequired {
 					status = measure.Warning
 				}
-				if pythonPolicy.Reason == "" {
-					if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
+				info, err := os.Lstat(filepath.Join(dir, name))
+				switch {
+				case os.IsNotExist(err):
+					if pythonPolicy.Reason == "" {
 						status = measure.Missing
 					}
+				case err != nil:
+					status = measure.Warning
+					pythonPolicy.Reason = fmt.Sprintf("cannot inspect Python policy %q: %v; check file permissions", name, err)
+				case !info.Mode().IsRegular():
+					status = measure.Warning
+					pythonPolicy.Reason = fmt.Sprintf("unsafe Python policy %q; replace it with a regular file, not a directory or symlink", name)
 				}
 				health = append(health, measure.HealthResult{Path: name, Status: status, Detail: pythonPolicy.Reason})
 			}

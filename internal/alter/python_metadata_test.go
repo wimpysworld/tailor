@@ -189,6 +189,25 @@ with patch.dict(scope, find_spec=lambda name: True):
         preflight(root, 'lint', str(root / '.venv/bin/python'))
         assert path.read_text() == content
         path.unlink()
+    malformed = nested / 'pyproject.toml'
+    malformed.write_text('[tool.ruff\n')
+    try:
+        preflight(root, 'lint', str(root / '.venv/bin/python'))
+    except ValueError:
+        pass
+    else:
+        raise AssertionError('malformed policy accepted without Ruff policy')
+    (nested / 'ruff.toml').write_text('line-length=88\n')
+    later = nested / 'later'
+    later.mkdir()
+    (later / 'pyproject.toml').write_text('[tool.ruff\n')
+    preflight(root, 'lint', str(root / '.venv/bin/python'))
+    assert malformed.read_text() == '[tool.ruff\n'
+    assert (later / 'pyproject.toml').read_text() == '[tool.ruff\n'
+    (nested / 'ruff.toml').unlink()
+    malformed.unlink()
+    (later / 'pyproject.toml').unlink()
+    later.rmdir()
     (nested / 'pyproject.toml').write_text('[tool.black]\nline-length=88\n')
     try:
         preflight(root, 'lint', str(root / '.venv/bin/python'))

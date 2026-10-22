@@ -475,6 +475,83 @@ func TestMeasurePythonPolicyStatus(t *testing.T) {
 	}
 }
 
+func TestMeasurePythonPolicyDestination(t *testing.T) {
+	for _, name := range []string{"ruff.toml", "pyrightconfig.json"} {
+		for _, kind := range []string{"missing", "regular", "directory", "symlink", "dangling"} {
+			t.Run(name+"/"+kind, func(t *testing.T) {
+				dir := t.TempDir()
+				if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte("languages:\n  python: true\nswatches: []\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				path := filepath.Join(dir, name)
+				target := filepath.Join(t.TempDir(), "policy")
+				if kind != "dangling" {
+					if err := os.WriteFile(target, []byte("unchanged"), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				}
+				want := "warning"
+				switch kind {
+				case "missing":
+					want = "missing"
+				case "regular":
+					want = "present"
+					if err := os.WriteFile(path, []byte("{}"), 0o644); err != nil {
+						t.Fatal(err)
+					}
+				case "directory":
+					if err := os.Mkdir(path, 0o755); err != nil {
+						t.Fatal(err)
+					}
+				default:
+					if err := os.Symlink(target, path); err != nil {
+						t.Fatal(err)
+					}
+				}
+				before, _ := os.Lstat(path)
+				t.Chdir(dir)
+				var stdout, stderr strings.Builder
+				cmd := MeasureCmd{output: output.New(&stdout, &stderr, output.Plain)}
+				if err := cmd.Run(); err != nil {
+					t.Fatal(err)
+				}
+				if !strings.Contains(stdout.String(), fmt.Sprintf("%-16s%s", want+":", name)) {
+					t.Fatalf("expected %s for %s:\n%s", want, name, stdout.String())
+				}
+				if want == "warning" && !strings.Contains(stdout.String(), "replace it with a regular file") {
+					t.Fatalf("missing repair guidance:\n%s", stdout.String())
+				}
+				after, err := os.Lstat(path)
+				if kind == "missing" {
+					if !os.IsNotExist(err) {
+						t.Fatalf("measure created destination: %v", err)
+					}
+				} else if err != nil || !os.SameFile(before, after) || before.Mode() != after.Mode() {
+					t.Fatalf("measure changed destination: %v", err)
+				}
+				if kind == "symlink" || kind == "dangling" {
+					if link, err := os.Readlink(path); err != nil || link != target {
+						t.Fatalf("measure changed symlink: %q, %v", link, err)
+					}
+				}
+				if kind == "regular" {
+					if body, err := os.ReadFile(path); err != nil || string(body) != "{}" {
+						t.Fatalf("measure changed policy: %q, %v", body, err)
+					}
+				}
+				body, err := os.ReadFile(target)
+				if kind == "dangling" {
+					if !os.IsNotExist(err) {
+						t.Fatalf("measure created symlink target: %v", err)
+					}
+				} else if err != nil || string(body) != "unchanged" {
+					t.Fatalf("measure changed target: %q, %v", body, err)
+				}
+			})
+		}
+	}
+}
+
 func TestMeasurePythonPolicyInspectionError(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.Mkdir(filepath.Join(dir, "nested"), 0o755); err != nil {
