@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"strings"
 
 	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -76,6 +77,22 @@ func ApplyLocal(cfg *config.Config, dir string, paths []string) (updated []strin
 	return updated, nil
 }
 
+type localInspectionError struct {
+	name string
+	err  error
+}
+
+func (err *localInspectionError) Error() string {
+	reason := err.err.Error()
+	var conflict *dependabotConflictError
+	if errors.As(err.err, &conflict) {
+		reason = strings.ReplaceAll(conflict.Reason, "Dependabot", "managed")
+	}
+	return fmt.Sprintf("inspecting local-only destination %q: %s", err.name, reason)
+}
+
+func (err *localInspectionError) Unwrap() error { return err.err }
+
 type localFile struct {
 	name       string
 	parent     *os.Root
@@ -112,7 +129,7 @@ func prepareLocalFile(root *os.Root, cfg *config.Config, dir, name string) (file
 	}
 	file.before, err = inspectDependabotEntry(file.parent, path.Base(name), true, dependabotInspectionHooks{})
 	if err != nil {
-		return file, err
+		return file, &localInspectionError{name: name, err: err}
 	}
 	if file.before.Kind != dependabotDestinationRegular || !hasManagedMarker(file.before.Content, name) {
 		return file, fmt.Errorf("local-only destination %q must be an existing regular file owned by Tailor", name)
@@ -156,7 +173,7 @@ func (file localFile) recheck(root *os.Root) error {
 	}
 	current, err := inspectDependabotEntry(file.parent, path.Base(file.name), true, dependabotInspectionHooks{})
 	if err != nil {
-		return err
+		return &localInspectionError{name: file.name, err: err}
 	}
 	if current.Kind != dependabotDestinationRegular || !os.SameFile(current.Identity, file.before.Identity) || !bytes.Equal(current.Content, file.before.Content) {
 		return fmt.Errorf("local-only destination %q changed after preflight", file.name)

@@ -2,9 +2,11 @@ package alter
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/config"
@@ -112,6 +114,39 @@ func TestApplyLocalRejectsBeforeAnyWrite(t *testing.T) {
 				t.Fatal("failed preflight changed files")
 			}
 		})
+	}
+}
+
+func TestLocalManagedInspectionErrors(t *testing.T) {
+	for _, name := range []string{"just/tailor.just", "nix/hooks/go.nix"} {
+		for _, stage := range []string{"preflight", "recheck"} {
+			t.Run(name+"/"+stage, func(t *testing.T) {
+				dir, cfg, _ := localFixture(t)
+				root, err := os.OpenRoot(dir)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer root.Close()
+				file, err := prepareLocalFile(root, cfg, dir, name)
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer file.parent.Close()
+				writeManagedTestFile(t, dir, name, bytes.Repeat([]byte("x"), dependabotMaxBytes+1))
+				if stage == "preflight" {
+					_, err = ApplyLocal(cfg, dir, []string{name})
+				} else {
+					err = file.recheck(root)
+				}
+				if err == nil || !strings.Contains(err.Error(), name) || !strings.Contains(err.Error(), "exceeds 1048576 bytes") || strings.Contains(strings.ToLower(err.Error()), "dependabot") {
+					t.Fatalf("unexpected managed inspection error: %v", err)
+				}
+				var cause *dependabotConflictError
+				if !errors.As(err, &cause) {
+					t.Fatalf("inspection error lost its cause: %v", err)
+				}
+			})
+		}
 	}
 }
 
