@@ -53,12 +53,13 @@ func TestRenderGoVariants(t *testing.T) {
 
 func TestDependabotCooldown(t *testing.T) {
 	for _, test := range []struct {
-		name    string
-		options swatch.Options
+		name       string
+		options    swatch.Options
+		ecosystems map[string]int
 	}{
-		{"absent", swatch.Options{}},
-		{"enabled", swatch.Options{GoDeclared: true, GoEnabled: true}},
-		{"disabled", swatch.Options{GoDeclared: true}},
+		{"absent", swatch.Options{}, map[string]int{"github-actions": 1, "gomod": 1, "nix": 1}},
+		{"enabled", swatch.Options{GoDeclared: true, GoEnabled: true}, map[string]int{"github-actions": 1, "gomod": 1, "nix": 1}},
+		{"disabled", swatch.Options{GoDeclared: true}, map[string]int{"github-actions": 1, "nix": 1}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			data, err := swatch.Render(".github/dependabot.yml", test.options)
@@ -75,6 +76,13 @@ func TestDependabotCooldown(t *testing.T) {
 			}
 			if err := yaml.Unmarshal(data, &rendered); err != nil {
 				t.Fatal(err)
+			}
+			ecosystems := make(map[string]int)
+			for _, update := range rendered.Updates {
+				ecosystems[update.Ecosystem]++
+			}
+			if !reflect.DeepEqual(ecosystems, test.ecosystems) {
+				t.Fatalf("Dependabot ecosystems = %v, want %v", ecosystems, test.ecosystems)
 			}
 			for _, update := range rendered.Updates {
 				if update.Cooldown.DefaultDays != 7 {

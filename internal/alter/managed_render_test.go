@@ -208,7 +208,11 @@ func TestRenderManagedBuildAggregateUsesCanonicalCapabilityOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Index(rendered, []byte("goexe=")) >= bytes.Index(rendered, []byte("go vet ./...")) {
+	goExe, goVet := bytes.Index(rendered, []byte("goexe=")), bytes.Index(rendered, []byte("go vet ./..."))
+	if goExe < 0 || goVet < 0 {
+		t.Fatalf("build aggregate lacks a build or vet marker:\n%s", rendered)
+	}
+	if goExe >= goVet {
 		t.Fatalf("unexpected build aggregate:\n%s", rendered)
 	}
 }
@@ -287,7 +291,11 @@ func TestRenderManagedLintAggregateUsesCanonicalCapabilityOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Index(core, []byte("go mod tidy -diff")) >= bytes.Index(core, []byte("go vet ./...")) {
+	goTidy, goVet := bytes.Index(core, []byte("go mod tidy -diff")), bytes.Index(core, []byte("go vet ./..."))
+	if goTidy < 0 || goVet < 0 {
+		t.Fatalf("lint aggregate lacks a tidy or vet marker:\n%s", core)
+	}
+	if goTidy >= goVet {
 		t.Fatalf("unexpected lint aggregate:\n%s", core)
 	}
 
