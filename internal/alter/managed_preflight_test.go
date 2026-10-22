@@ -380,6 +380,62 @@ func TestPreflightManagedFilesRejectsRetainedLegacyGoBuildBody(t *testing.T) {
 	}
 }
 
+func TestPreflightManagedFilesRetainedUnmarkedGoRecipes(t *testing.T) {
+	for _, test := range []struct {
+		name     string
+		body     string
+		conflict bool
+	}{
+		{name: "build", body: "build:\n    @true\n", conflict: true},
+		{name: "test", body: "test:\n    @true\n", conflict: true},
+		{name: "lint arguments", body: "lint mode='check':\n    @true\n", conflict: true},
+		{name: "quiet recipe", body: "@build:\n    true\n", conflict: true},
+		{name: "private attribute", body: "[private]\nbuild:\n    @true\n", conflict: true},
+		{name: "unique", body: "custom:\n    @true\n"},
+		{name: "private name", body: "_build:\n    @true\n"},
+		{name: "legacy helper", body: "build-go:\n    @true\n"},
+		{name: "comment", body: "# build:\ncustom:\n    @true\n"},
+		{name: "body text", body: "custom:\n    echo build:\n"},
+		{name: "variable", body: "build := 'custom'\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeManagedTestFile(t, dir, "just/go.just", []byte(test.body))
+			before := snapshotManagedTree(t, dir)
+			cfg := &config.Config{}
+			selections, err := selectManagedFiles(cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rendered, err := renderManagedFiles(cfg, selections)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = preflightManagedFiles(dir, selections, rendered)
+			if test.conflict {
+				if err == nil || !strings.Contains(err.Error(), "remove or rename") || strings.Contains(err.Error(), "set languages.go") {
+					t.Fatalf("expected manual collision guidance, got %v", err)
+				}
+			} else if err != nil {
+				t.Fatal(err)
+			}
+			if after := snapshotManagedTree(t, dir); !reflect.DeepEqual(after, before) {
+				t.Fatalf("preflight changed files: before=%v after=%v", before, after)
+			}
+			writeManagedTestFile(t, dir, "justfile", []byte("import 'just/loader.just'\n"))
+			for path, content := range rendered {
+				writeManagedTestFile(t, dir, path, content)
+			}
+			command := exec.CommandContext(t.Context(), managedLintExecutable(t), "--summary")
+			command.Dir = dir
+			output, parseErr := command.CombinedOutput()
+			if (parseErr != nil) != test.conflict {
+				t.Fatalf("Just parser disagrees with preflight: %v\n%s", parseErr, output)
+			}
+		})
+	}
+}
+
 func TestPreflightManagedFilesRejectsMissingEnabledBuildBody(t *testing.T) {
 	selection := managedSelection{
 		Entry: managedRegistryEntry{

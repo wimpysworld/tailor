@@ -84,7 +84,13 @@ func preflightLegacyGoRecipes(root *os.Root, selections []managedSelection) erro
 	if err != nil {
 		return fmt.Errorf("reading retained Go fragment %q: %w", destination, err)
 	}
-	if hasManagedMarker(content, destination) {
+	marked := hasManagedMarker(content, destination)
+	for _, recipe := range []string{"build", "test", "lint"} {
+		if !marked && hasManagedRecipe(content, recipe) {
+			return fmt.Errorf("retained fragment %q defines the core %s recipe; remove or rename that recipe before adopting the managed loader", destination, recipe)
+		}
+	}
+	if marked {
 		for _, recipe := range []string{"build", "test", "lint", "build-go", "test-go", "lint-go", "_lint-go", "check-go", "vet-go", "fmt-go", "fmt-check-go", "tidy-go", "tidy-check-go", "coverage-go", "complexity-go"} {
 			if hasManagedRecipe(content, recipe) {
 				return fmt.Errorf("retained managed fragment %q still defines the legacy %s recipe; set languages.go to true to migrate it, or remove or rename that recipe before retrying", destination, recipe)
@@ -95,10 +101,15 @@ func preflightLegacyGoRecipes(root *os.Root, selections []managedSelection) erro
 }
 
 func hasManagedRecipe(content []byte, recipe string) bool {
-	declaration := []byte(recipe + ":")
 	for line := range bytes.SplitSeq(content, []byte("\n")) {
 		line = bytes.TrimSuffix(line, []byte("\r"))
-		if bytes.Equal(line, declaration) || bytes.HasPrefix(line, append(bytes.Clone(declaration), ' ')) {
+		line = bytes.TrimPrefix(line, []byte("@"))
+		rest, found := bytes.CutPrefix(line, []byte(recipe))
+		if !found || len(rest) == 0 || rest[0] != ':' && rest[0] != ' ' && rest[0] != '\t' {
+			continue
+		}
+		colon := bytes.IndexByte(rest, ':')
+		if colon >= 0 && (colon+1 == len(rest) || rest[colon+1] != '=') {
 			return true
 		}
 	}
