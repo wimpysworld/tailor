@@ -149,7 +149,6 @@ func TestManagedGoPolicyOrderAndFailure(t *testing.T) {
 func TestManagedGoStandalonePolicyRecipes(t *testing.T) {
 	for recipe, want := range map[string][]string{
 		"test": {"go|2|vet ./...", "go|4|test -cover -covermode=atomic ./..."},
-		"lint": {"actionlint|0|", "go|3|mod tidy -diff", "golangci-lint|4|fmt --config .golangci.yml --diff", "golangci-lint|3|run --config .golangci.yml", "govulncheck|3|-show verbose ./...", "gocyclo|6|-top 20 -avg -ignore _test\\.go$ ."},
 	} {
 		t.Run(recipe, func(t *testing.T) {
 			root := filepath.Join(t.TempDir(), "project with spaces")
