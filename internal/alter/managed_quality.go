@@ -20,7 +20,10 @@ func (operation managedRecipeOperation) contribution(name string) ([]byte, error
 		directory = "setup"
 	}
 	body, err := swatch.Content(directory + "/" + name + ".sh")
-	if err != nil || len(bytes.TrimSpace(body)) == 0 {
+	if err != nil {
+		return nil, fmt.Errorf("reading managed quality contribution %q: %w", name, err)
+	}
+	if len(bytes.TrimSpace(body)) == 0 {
 		return nil, fmt.Errorf("missing managed quality contribution %q", name)
 	}
 	return body, nil

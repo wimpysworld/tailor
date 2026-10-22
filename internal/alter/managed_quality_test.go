@@ -2,6 +2,8 @@ package alter
 
 import (
 	"bytes"
+	"errors"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -13,6 +15,53 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 	"gopkg.in/yaml.v3"
 )
+
+func TestQualityContributionReadError(t *testing.T) {
+	for _, operation := range managedOperations() {
+		t.Run(string(operation), func(t *testing.T) {
+			body, err := operation.contribution("missing-contribution")
+			if body != nil || !errors.Is(err, fs.ErrNotExist) {
+				t.Fatalf("contribution = %q, %v, want wrapped missing-file error", body, err)
+			}
+			if !strings.Contains(err.Error(), `reading managed quality contribution "missing-contribution"`) {
+				t.Fatalf("missing contribution context: %v", err)
+			}
+			var pathErr *fs.PathError
+			if !errors.As(err, &pathErr) {
+				t.Fatalf("lost embedded read error: %v", err)
+			}
+			directory := "quality"
+			if operation == managedSetup {
+				directory = "setup"
+			}
+			if pathErr.Path != "swatches/"+directory+"/missing-contribution.sh" {
+				t.Fatalf("read path = %q", pathErr.Path)
+			}
+		})
+	}
+}
+
+func TestQualityMissingContributionStopsBeforeWrites(t *testing.T) {
+	root := t.TempDir()
+	writeManagedTestFile(t, root, "just/tailor.just", []byte("preserve existing core\n"))
+	before := snapshotManagedTree(t, root)
+	entry := managedRegistryEntry{
+		Path: "just/go.just", Policy: managedPolicyFragment,
+		Capability: managedCapabilityGo, BuildBody: "missing-contribution",
+	}
+	cfg := managedRenderConfig(true, nil)
+	body, err := renderManagedQuality(cfg, []byte("[[TAILOR_MANAGED_BUILD_BODY]]"), []managedRegistryEntry{entry}, managedBuild)
+	if body != nil || !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("render = %q, %v, want wrapped missing-file error", body, err)
+	}
+	_, err = preflightManagedFiles(root, []managedSelection{{Entry: entry, Enabled: true}}, managedRenderedFiles{})
+	if !errors.Is(err, fs.ErrNotExist) {
+		t.Fatalf("preflight = %v, want wrapped missing-file error", err)
+	}
+	if !reflect.DeepEqual(before, snapshotManagedTree(t, root)) {
+		t.Fatal("missing contribution changed project files")
+	}
+}
 
 func TestRepositoryQualityRendering(t *testing.T) {
 	root := filepath.Join("..", "..")
