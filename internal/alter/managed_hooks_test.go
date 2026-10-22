@@ -55,6 +55,11 @@ func testManagedHookRuntime(t *testing.T, x86 bool) {
 		{"preserve", "ID=nixos", `export LD_LIBRARY_PATH=:/existing:/vpl/lib:/existing: ONEVPL_SEARCH_PATH=chosen LIBVA_DRIVERS_PATH=chosen VK_DRIVER_FILES=chosen`, `test "$LD_LIBRARY_PATH" = "$host/lib:/vpl/lib:/intel/lib:/vulkan/lib:/existing"; test "$ONEVPL_SEARCH_PATH:$LIBVA_DRIVERS_PATH:$VK_DRIVER_FILES" = chosen:chosen:chosen`, true, true},
 		{"empty", "ID=nixos", `export ONEVPL_SEARCH_PATH= LIBVA_DRIVERS_PATH= VK_DRIVER_FILES=`, `test "$ONEVPL_SEARCH_PATH:$LIBVA_DRIVERS_PATH:$VK_DRIVER_FILES" = ::`, true, true},
 		{"fallback", "ID='nixos'", "", `test "$LD_LIBRARY_PATH" = /vpl/lib:/intel/lib:/vulkan/lib; test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, false, false},
+		{"empty DRI", "ID=nixos", "", `test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, true, true},
+		{"other driver", "ID=nixos", "", `test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, true, true},
+		{"unreadable driver", "ID=nixos", "", `test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, true, true},
+		{"directory driver", "ID=nixos", "", `test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, true, true},
+		{"dangling driver", "ID=nixos", "", `test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, true, true},
 		{"optout", "ID=nixos", `export TAILOR_NIXOS_DRIVERS=0`, `test "${LD_LIBRARY_PATH+x}${ONEVPL_SEARCH_PATH+x}${LIBVA_DRIVERS_PATH+x}${VK_DRIVER_FILES+x}" = ""`, true, true},
 		{"other linux", "ID=ubuntu", "", `test "${LD_LIBRARY_PATH+x}${ONEVPL_SEARCH_PATH+x}${LIBVA_DRIVERS_PATH+x}${VK_DRIVER_FILES+x}" = ""`, true, true},
 	} {
@@ -63,6 +68,9 @@ func testManagedHookRuntime(t *testing.T, x86 bool) {
 				tc.check = strings.ReplaceAll(tc.check, "/vpl/lib:/intel/lib:", "")
 				tc.check = strings.ReplaceAll(tc.check, `test "$ONEVPL_SEARCH_PATH" = /vpl/lib`, `test "${ONEVPL_SEARCH_PATH+x}" = ""`)
 				tc.check = strings.ReplaceAll(tc.check, `test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, `test "${LIBVA_DRIVERS_PATH+x}" = ""`)
+				if tc.name == "other driver" {
+					tc.check = `test "$LIBVA_DRIVERS_PATH" = "$host/lib/dri"`
+				}
 				if tc.name == "preserve" {
 					tc.check = strings.ReplaceAll(tc.check, "/vulkan/lib:/existing", "/vulkan/lib:/existing:/vpl/lib")
 				}
@@ -79,6 +87,33 @@ func testManagedHookRuntime(t *testing.T, x86 bool) {
 			if tc.dri {
 				if err := os.MkdirAll(filepath.Join(host, "lib/dri"), 0o755); err != nil {
 					t.Fatal(err)
+				}
+				driver := filepath.Join(host, "lib/dri/iHD_drv_video.so")
+				switch tc.name {
+				case "empty DRI":
+				case "other driver":
+					writeManagedRenderFixture(t, host, "lib/dri/other_drv_video.so", []byte("driver"))
+				case "unreadable driver":
+					if os.Geteuid() == 0 {
+						t.Skip("root can read files without read permission")
+					}
+					writeManagedRenderFixture(t, host, "lib/dri/iHD_drv_video.so", []byte("driver"))
+					if err := os.Chmod(driver, 0); err != nil {
+						t.Fatal(err)
+					}
+				case "directory driver":
+					if err := os.Mkdir(driver, 0o755); err != nil {
+						t.Fatal(err)
+					}
+				case "dangling driver":
+					if err := os.Symlink("missing.so", driver); err != nil {
+						t.Fatal(err)
+					}
+				default:
+					writeManagedRenderFixture(t, host, "lib/driver.so", []byte("driver"))
+					if err := os.Symlink("../driver.so", driver); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 			icds := filepath.Join(root, "icds")
