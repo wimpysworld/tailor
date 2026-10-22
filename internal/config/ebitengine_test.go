@@ -83,6 +83,53 @@ func TestEbitengineDeclarations(t *testing.T) {
 	}
 }
 
+func TestEbitengineProgrammaticRoundTrip(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		engine EbitengineOptions
+	}{
+		{"enabled boolean", EbitengineOptions{Enabled: true}},
+		{"disabled boolean", EbitengineOptions{Enabled: false}},
+		{"android enabled", EbitengineOptions{Enabled: true, Android: &EbitengineAndroidOptions{Enabled: true}}},
+		{"android disabled", EbitengineOptions{Enabled: true, Android: &EbitengineAndroidOptions{Enabled: false}}},
+		{"both disabled", EbitengineOptions{Enabled: false, Android: &EbitengineAndroidOptions{Enabled: false}}},
+		{"enabled mapping", EbitengineOptions{Enabled: true, Mapping: true}},
+		{"disabled mapping", EbitengineOptions{Enabled: false, Mapping: true}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			want := tc.engine
+			want.Mapping = want.Mapping || want.Android != nil
+			data, err := yaml.Marshal(tc.engine)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got EbitengineOptions
+			if err := yaml.Unmarshal(data, &got); err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("marshal round trip = %#v, want %#v", got, want)
+			}
+			cfg, err := parseAndValidate([]byte("license: MIT\nlanguages: {go: {enabled: true}}\n"), "config")
+			if err != nil {
+				t.Fatal(err)
+			}
+			cfg.Languages.GoOptions.Ebitengine = &tc.engine
+			dir := t.TempDir()
+			if err := Write(dir, cfg, "2026-10-21", "Refitted"); err != nil {
+				t.Fatal(err)
+			}
+			loaded, err := Load(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(loaded.Ebitengine(), &want) {
+				t.Fatalf("write round trip = %#v, want %#v", loaded.Ebitengine(), &want)
+			}
+		})
+	}
+}
+
 func TestEbitengineRejectsInvalidDeclarations(t *testing.T) {
 	for _, value := range []string{"null", "[]", "'true'", "{}", "{enabled: null}", "{enabled: true, unknown: true}", "{enabled: true, desktop: true}", "{enabled: true, desktop: false}", "{enabled: true, web: true}", "{enabled: true, assets: true}", "{enabled: true, delivery: true}", "{enabled: true, accept-license: true}", "{enabled: true, android: {enabled: true, platform: '35'}}", "{enabled: true, android: {enabled: true, build-tools: '35.0.0'}}", "{enabled: true, android: {enabled: true, ndk: '28.2.13676358'}}", "{enabled: true, android: {enabled: true, accept-license: true}}", "{enabled: true, android: {enabled: null}}", "{enabled: true, android: {enabled: true, enabled: false}}", "{enabled: true, enabled: false}", "{enabled: false, web: true}", "{enabled: false, android: {enabled: true}}", "{enabled: true, android: true}", "{enabled: true, android: null}", "{enabled: true, android: {}}", "{enabled: true, android: {enabled: false, unknown: true}}", "{enabled: true, android: {enabled: false, accept-license: null}}", "{enabled: true, android: {enabled: false, ndk: ''}}", "{enabled: true, assets: null}", "{enabled: true, delivery: 'false'}", "{enabled: true, android: false}", "{enabled: true, android: {enabled: true, accept-license: false}}", "{enabled: true, android: {enabled: false, platform: 35}}", "{enabled: true, android: {enabled: false, ndk: 'latest'}}", "{enabled: true, android: {enabled: false, build-tools: '${evil}'}}"} {
 		t.Run(value, func(t *testing.T) {

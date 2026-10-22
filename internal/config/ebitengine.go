@@ -75,7 +75,7 @@ func (a *EbitengineAndroidOptions) UnmarshalYAML(node *yaml.Node) error {
 }
 
 func (e EbitengineOptions) MarshalYAML() (any, error) {
-	if !e.Mapping {
+	if !e.Mapping && e.Android == nil {
 		return e.Enabled, nil
 	}
 	type plain EbitengineOptions
