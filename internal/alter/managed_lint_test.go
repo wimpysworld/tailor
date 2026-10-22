@@ -98,10 +98,36 @@ func TestManagedLintWorkflowDiscovery(t *testing.T) {
 	}
 }
 
+func TestManagedLintWorkflowGateStructure(t *testing.T) {
+	rendered := renderSelectedManagedFiles(t, managedRenderConfig(false, nil))
+	lines := strings.Split(string(rendered["just/tailor.just"]), "\n")
+	for index := range lines {
+		lines[index] = strings.TrimSpace(lines[index])
+	}
+	core := strings.Join(lines, "\n")
+	for _, fragment := range []string{
+		"check_workflows() {",
+		"for workflow in .github/workflows/* .github/workflows/.*; do",
+		`case "${workflow}" in *.yml|*.yaml)`,
+		`if [[ -f "${workflow}" ]]; then`,
+	} {
+		if !strings.Contains(core, fragment) {
+			t.Fatalf("managed lint omits workflow validation structure %q", fragment)
+		}
+	}
+	definition := strings.Index(core, "check_workflows() {")
+	validation := strings.Index(core, "\nactionlint\n")
+	invocation := strings.Index(core, "\ncheck_workflows\n")
+	project := strings.Index(core, "project_script='just/project/lint.sh'")
+	if validation <= definition || invocation <= validation || project <= invocation {
+		t.Fatal("managed lint must call actionlint through the workflow gate before the project script")
+	}
+}
+
 func TestManagedLintInvalidWorkflowFails(t *testing.T) {
 	actionlint, err := exec.LookPath("actionlint")
 	if err != nil {
-		t.Skip("actionlint is unavailable")
+		t.Skip("actionlint is unavailable; workflow structure and stubbed failure propagation are checked independently")
 	}
 	root := t.TempDir()
 	writeManagedLintFixture(t, root, renderSelectedManagedFiles(t, managedRenderConfig(false, nil)))

@@ -12,13 +12,6 @@ import (
 )
 
 func TestBuilderSavedVulnerabilityResults(t *testing.T) {
-	tool, err := exec.LookPath("govulncheck")
-	if err != nil {
-		t.Skip("govulncheck is not installed")
-	}
-	t.Logf("converter: %s", tool)
-	t.Setenv("GOVULNDB", "file://"+t.TempDir())
-	t.Setenv("GOTELEMETRY", "off")
 	data, err := os.ReadFile("../../.github/workflows/builder.yml")
 	if err != nil {
 		t.Fatal(err)
@@ -60,6 +53,16 @@ func TestBuilderSavedVulnerabilityResults(t *testing.T) {
 	if scans != 1 || check != checkCommand || report != reportCommand {
 		t.Fatal("expected one scan and conversion of its saved JSON into text and SARIF")
 	}
+}
+
+func TestBuilderSavedVulnerabilityConversion(t *testing.T) {
+	tool, err := exec.LookPath("govulncheck")
+	if err != nil {
+		t.Skip("govulncheck is not installed; workflow structure is checked independently")
+	}
+	t.Logf("converter: %s", tool)
+	t.Setenv("GOVULNDB", "file://"+t.TempDir())
+	t.Setenv("GOTELEMETRY", "off")
 	const config = `{"config":{"protocol_version":"v1.0.0","scanner_name":"govulncheck","scanner_version":"fixture","scan_level":"symbol","scan_mode":"source"}}
 `
 	const osv = `{"osv":{"id":"GO-TEST-0001","summary":"Offline fixture","details":"Offline fixture","database_specific":{"url":"https://example.invalid/GO-TEST-0001"},"affected":[{"package":{"name":"example.com/fixture","ecosystem":"Go"},"ranges":[{"type":"SEMVER","events":[{"introduced":"0"},{"fixed":"1.1.0"}]}]}]}}

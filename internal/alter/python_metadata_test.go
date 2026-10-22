@@ -123,12 +123,14 @@ root = Path(sys.argv[2])
 (root / 'uv.lock').write_text('version=1\n')
 preflight = scope['preflight']
 preflight(root, 'setup', str(root / '.venv/bin/python'))
+(root / '.venv').mkdir()
+(root / '.venv/pyvenv.cfg').write_text('include-system-site-packages = false\n')
 try:
     preflight(root, 'test', str(root / '.venv/bin/python'))
-except ValueError:
-    pass
+except ValueError as error:
+    assert str(error) == 'run just setup: .venv/bin/python is missing or not executable', error
 else:
-    raise AssertionError('missing environment accepted')
+    raise AssertionError('missing interpreter accepted')
 import subprocess
 import venv
 venv.EnvBuilder(with_pip=False).create(root / '.venv')

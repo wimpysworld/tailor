@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,8 +26,12 @@ func TestLocalOnlyCLIHasNoRemoteAccess(t *testing.T) {
 		t.Fatal("local-only created a GitHub client")
 		return nil, nil
 	}))
+	t.Cleanup(gh.SetInspectWikiFunc(func(string, string, string) error {
+		t.Fatal("local-only inspected a remote wiki")
+		return nil
+	}))
 	dir := t.TempDir()
-	testutil.WriteFile(t, dir, ".tailor.yml", "license: none\nlanguages:\n  go: true\nswatches:\n  - path: .github/dependabot.yml\n    alteration: first-fit\n")
+	testutil.WriteFile(t, dir, ".tailor.yml", "license: none\nrepository:\n  has_wiki: true\nlanguages:\n  go: true\nswatches:\n  - path: .github/dependabot.yml\n    alteration: first-fit\n")
 	paths := []string{".github/dependabot.yml", "nix/hooks/go.nix", "just/tailor.just"}
 	args := []string{"alter", "--local-only", "--directory", dir}
 	for _, name := range paths {
@@ -65,14 +68,22 @@ func TestLocalOnlyCLIHasNoRemoteAccess(t *testing.T) {
 			t.Fatalf("quiet error: exit %d, stdout = %q, stderr = %q", code, &stdout, &stderr)
 		}
 	}
-	for _, args := range [][]string{
-		{"alter", "--path", "just/tailor.just"},
-		{"alter", "--directory", dir},
-		{"alter", "--local-only"},
-		{"alter", "--local-only", "--recut", "--path", "just/tailor.just"},
+	for _, test := range []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"path requires local-only", []string{"alter", "--path", "just/tailor.just"}, "--path and --directory require --local-only"},
+		{"directory requires local-only", []string{"alter", "--directory", dir}, "--path and --directory require --local-only"},
+		{"local-only requires path", []string{"alter", "--local-only"}, "local-only alteration requires at least one --path"},
+		{"local-only rejects recut", []string{"alter", "--local-only", "--recut", "--path", "just/tailor.just"}, "local-only alteration does not support --recut"},
 	} {
-		if code := run(args, io.Discard, io.Discard); code == 0 {
-			t.Fatalf("accepted invalid flags: %v", args)
-		}
+		t.Run(test.name, func(t *testing.T) {
+			var stdout, stderr bytes.Buffer
+			code := run(test.args, &stdout, &stderr)
+			if code == 0 || !strings.Contains(stderr.String(), test.want) || stdout.Len() != 0 {
+				t.Fatalf("invalid flags %v: exit %d, stdout = %q, stderr = %q; want %q", test.args, code, &stdout, &stderr, test.want)
+			}
+		})
 	}
 }
