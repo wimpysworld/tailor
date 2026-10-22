@@ -426,6 +426,7 @@ func TestPreflightManagedFilesRetainedUnmarkedGoRecipes(t *testing.T) {
 			for path, content := range rendered {
 				writeManagedTestFile(t, dir, path, content)
 			}
+			// #nosec G204 -- The executable is resolved from the fixed name "just" and only parses the temporary fixture.
 			command := exec.CommandContext(t.Context(), managedLintExecutable(t), "--summary")
 			command.Dir = dir
 			output, parseErr := command.CombinedOutput()
