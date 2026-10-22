@@ -182,9 +182,9 @@ The generated files require Just 1.23.0 or later. The protected root imports man
 | `just build` | Validate Go packages and publish executable packages to `bin/` |
 | `just test` | Run full `go vet ./...` once, then `go test -cover -covermode=atomic ./...` with console coverage |
 | `just lint` | Read-only checks, identical to `just lint check` |
-| `just lint correct` | Run `go mod tidy` and the configured formatter, then repeat all checks |
+| `just lint correct` | Run core workflow lint, then tidy and format enabled ecosystems before their validation checks |
 
-For Go, lint checks run sequentially: `go mod tidy -diff`, `golangci-lint fmt --config .golangci.yml --diff`, workflow lint, `golangci-lint run --config .golangci.yml`, `govulncheck -show verbose ./...`, then diagnostic `gocyclo`. Each failure stops later commands. Lint does not run vet or tests. Test coverage stays in the console and creates no `coverage.out`. Lint rejects modes other than `check` and `correct` before any work.
+Core workflow lint runs once before ecosystem checks, even when no language is enabled. For Go, subsequent checks run sequentially: `go mod tidy -diff`, `golangci-lint fmt --config .golangci.yml --diff`, `golangci-lint run --config .golangci.yml`, `govulncheck -show verbose ./...`, then diagnostic `gocyclo`. Each failure stops later commands. Lint does not run vet or tests. Test coverage stays in the console and creates no `coverage.out`. Lint rejects modes other than `check` and `correct` before any work.
 
 Optional project-owned scripts at `just/project/build.sh`, `just/project/test.sh`, and `just/project/lint.sh` run with Bash after their managed commands succeed. Scripts run from the project root. The lint script receives `check` or `correct` as its first argument. Keep its check mode read-only. Missing scripts are skipped. Symlinks and non-regular scripts, or linked or non-directory parents, fail visibly. Tailor does not generate or overwrite these scripts. Do not expose alternative quality recipes through wrappers.
 

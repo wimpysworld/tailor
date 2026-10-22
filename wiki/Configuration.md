@@ -143,7 +143,7 @@ Workflow lint runs once, then Go, Python, and Rust run in lexical order, then pr
 
 ## Go support
 
-Set `languages.go: true` to add Go development and release files. The Boolean form remains supported. The mapping form requires `enabled`:
+Set `languages.go: true` or `languages.go: {enabled: true}` to add Go development and release files. The mapping form requires Boolean `enabled`:
 
 ```yaml
 languages:
@@ -153,7 +153,7 @@ languages:
     ffmpeg-statigo: true
 ```
 
-Both optional keys accept only Booleans. Unknown keys, null values, and a mapping without `enabled` are invalid. The component requires enabled Go and rejects explicit `cgo: false`. With the component enabled, omitted `cgo` resolves to true without changing authored YAML. Otherwise omitted `cgo` leaves the caller environment unchanged. The always-managed `just/tailor.just` exports the effective `CGO_ENABLED` value once: `"0"` for false or `"1"` for true. This export overrides the caller environment for all managed, imported, and root recipes and project scripts, including setup and source commands. No per-ecosystem export is needed. Disabled Go or absent policy emits no export. The Go shell hook applies the same policy to direct shell commands, independently of the graphics guard and opt-out. The rendered builder workflow also receives the policy. Regenerate managed files after a policy change. Reload the development shell for direct shell commands. Just needs no shell reload.
+The optional keys are `cgo`, `ffmpeg-statigo`, and `ebitengine`. The `cgo` and `ffmpeg-statigo` values must be Booleans. The `ebitengine` value accepts a Boolean or the mapping described in [Ebitengine](#ebitengine). Unknown keys, null values, and a mapping without `enabled` are invalid. The ffmpeg-statigo component requires enabled Go and rejects explicit `cgo: false`. With the component enabled, omitted `cgo` resolves to true without changing authored YAML. Otherwise omitted `cgo` leaves the caller environment unchanged. The always-managed `just/tailor.just` exports the effective `CGO_ENABLED` value once: `"0"` for false or `"1"` for true. This export overrides the caller environment for all managed, imported, and root recipes and project scripts, including setup and source commands. No per-ecosystem export is needed. Disabled Go or absent policy emits no export. The Go shell hook applies the same policy to direct shell commands, independently of the graphics guard and opt-out. The rendered builder workflow also receives the policy. Regenerate managed files after a policy change. Reload the development shell for direct shell commands. Just needs no shell reload.
 
 Component true creates owned Just, Nix package, and Nix hook fragments. The Just fragment is an empty compatibility import. The core `setup` recipe contains the enabled component body. Component false removes only owned fragments. An absent component preserves them, unless Go is explicitly false. Go false removes owned Go and component fragments. Go absent preserves all of them. Default merging preserves the authored Boolean or mapping form and does not insert optional keys.
 
@@ -270,9 +270,9 @@ The initial default uses Nyala's reviewed policy. It retains `G306` and three sc
 | `just build` | Validate Go packages and publish executable packages to `bin/` |
 | `just test` | Run full `go vet ./...` once, then `go test -cover -covermode=atomic ./...` with console coverage |
 | `just lint` | Read-only checks, identical to `just lint check` |
-| `just lint correct` | Run `go mod tidy` and the configured formatter, then repeat all checks |
+| `just lint correct` | Run core workflow lint, then tidy and format enabled ecosystems before their validation checks |
 
-For Go, lint checks run sequentially: `go mod tidy -diff`, `golangci-lint fmt --config .golangci.yml --diff`, workflow lint, `golangci-lint run --config .golangci.yml`, `govulncheck -show verbose ./...`, then diagnostic `gocyclo`. Each failure stops later commands. Lint does not run vet or tests. Test coverage stays in the console and creates no `coverage.out`. Lint rejects modes other than `check` and `correct` before any work.
+Core workflow lint runs once before ecosystem checks, even when no language is enabled. For Go, subsequent checks run sequentially: `go mod tidy -diff`, `golangci-lint fmt --config .golangci.yml --diff`, `golangci-lint run --config .golangci.yml`, `govulncheck -show verbose ./...`, then diagnostic `gocyclo`. Each failure stops later commands. Lint does not run vet or tests. Test coverage stays in the console and creates no `coverage.out`. Lint rejects modes other than `check` and `correct` before any work.
 
 Optional project-owned scripts at `just/project/build.sh`, `just/project/test.sh`, and `just/project/lint.sh` run with Bash after their managed commands succeed. Scripts run from the project root. The lint script receives `check` or `correct` as its first argument. Keep its check mode read-only. Missing scripts are skipped. Symlinks and non-regular scripts, or linked or non-directory parents, fail visibly. Tailor does not generate or overwrite these scripts. Do not expose alternative quality recipes through wrappers.
 
