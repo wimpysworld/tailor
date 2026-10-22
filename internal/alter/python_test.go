@@ -3,6 +3,7 @@ package alter
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -100,8 +101,8 @@ func TestPythonRecipeContract(t *testing.T) {
 			}
 			after := snapshotManagedTree(t, root)
 			delete(after, "calls")
-			if len(before) != len(after) {
-				t.Fatal("quality changed project files")
+			if !reflect.DeepEqual(before, after) {
+				t.Fatalf("quality changed project files: before=%v after=%v", before, after)
 			}
 			if output, err := qualityRun(t, root, bin, log, "uv lock --check", args...); err == nil {
 				t.Fatalf("ignored stale lock: %s", output)
