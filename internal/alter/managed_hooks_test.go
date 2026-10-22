@@ -37,7 +37,7 @@ func TestManagedHookRuntime(t *testing.T) {
 		name, id, initial, check string
 		drivers, dri             bool
 	}{
-		{"defaults", "ID=\"nixos\"", "", `test "$LD_LIBRARY_PATH" = "$host/lib:/vpl/lib:/intel/lib:/vulkan/lib"; test "$ONEVPL_SEARCH_PATH" = /vpl/lib; test "$LIBVA_DRIVERS_PATH" = "$host/lib/dri"; test "$VK_DRIVER_FILES" = "$host/share/vulkan/icd.d/a.json:$host/share/vulkan/icd.d/z.json"`, true, true},
+		{"defaults", "ID=\"nixos\"", "", `test "$LD_LIBRARY_PATH" = "$host/lib:/vpl/lib:/intel/lib:/vulkan/lib"; test "$ONEVPL_SEARCH_PATH" = /vpl/lib; test "$LIBVA_DRIVERS_PATH" = "$host/lib/dri"; test "$VK_DRIVER_FILES" = "$host/share/vulkan/icd.d/a.json:$host/share/vulkan/icd.d/b [driver].json:$host/share/vulkan/icd.d/c linked.json:$host/share/vulkan/icd.d/z.json"; test -s "$find_log"`, true, true},
 		{"preserve", "ID=nixos", `export LD_LIBRARY_PATH=:/existing:/vpl/lib:/existing: ONEVPL_SEARCH_PATH=chosen LIBVA_DRIVERS_PATH=chosen VK_DRIVER_FILES=chosen`, `test "$LD_LIBRARY_PATH" = "$host/lib:/vpl/lib:/intel/lib:/vulkan/lib:/existing"; test "$ONEVPL_SEARCH_PATH:$LIBVA_DRIVERS_PATH:$VK_DRIVER_FILES" = chosen:chosen:chosen`, true, true},
 		{"empty", "ID=nixos", `export ONEVPL_SEARCH_PATH= LIBVA_DRIVERS_PATH= VK_DRIVER_FILES=`, `test "$ONEVPL_SEARCH_PATH:$LIBVA_DRIVERS_PATH:$VK_DRIVER_FILES" = ::`, true, true},
 		{"fallback", "ID='nixos'", "", `test "$LD_LIBRARY_PATH" = /vpl/lib:/intel/lib:/vulkan/lib; test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, false, false},
@@ -62,6 +62,16 @@ func TestManagedHookRuntime(t *testing.T) {
 			icds := filepath.Join(root, "icds")
 			writeManagedRenderFixture(t, icds, "z.json", []byte("{}"))
 			writeManagedRenderFixture(t, icds, "a.json", []byte("{}"))
+			writeManagedRenderFixture(t, icds, "b [driver].json", []byte("{}"))
+			if err := os.Symlink("a.json", filepath.Join(icds, "c linked.json")); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Symlink("missing.json", filepath.Join(icds, "dangling.json")); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.Mkdir(filepath.Join(icds, "directory.json"), 0o755); err != nil {
+				t.Fatal(err)
+			}
 			if err := os.MkdirAll(filepath.Join(host, "share/vulkan"), 0o755); err != nil {
 				t.Fatal(err)
 			}
@@ -69,7 +79,19 @@ func TestManagedHookRuntime(t *testing.T) {
 				t.Fatal(err)
 			}
 			script := strings.NewReplacer("/etc/os-release", release, "/run/opengl-driver", host).Replace(hook)
-			script = "set -eu\nunset LD_LIBRARY_PATH ONEVPL_SEARCH_PATH LIBVA_DRIVERS_PATH VK_DRIVER_FILES TAILOR_NIXOS_DRIVERS\nhost=" + strconv.Quote(host) + "\n" + tc.initial + "\n" + script + "\n" + script + "\n" + tc.check + "\ntest \"$CGO_ENABLED\" = 1\n"
+			portableFind := `
+find() {
+  printf 'invoked\n' >> "$find_log"
+  for arg in "$@"; do
+    if [ "$arg" = -readable ]; then
+      printf 'find: -readable is not portable\n' >&2
+      return 1
+    fi
+  done
+  command find "$@"
+}
+`
+			script = "set -eu\nunset LD_LIBRARY_PATH ONEVPL_SEARCH_PATH LIBVA_DRIVERS_PATH VK_DRIVER_FILES TAILOR_NIXOS_DRIVERS\nhost=" + strconv.Quote(host) + "\nfind_log=" + strconv.Quote(filepath.Join(root, "find.log")) + "\n" + portableFind + tc.initial + "\n" + script + "\n" + script + "\n" + tc.check + "\ntest \"$CGO_ENABLED\" = 1\n"
 			cmd := exec.CommandContext(t.Context(), "bash")
 			cmd.Stdin = strings.NewReader(script)
 			output, err := cmd.CombinedOutput()

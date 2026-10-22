@@ -16,8 +16,10 @@ pkgs.lib.optionalString pkgs.stdenv.isLinux ''
     if [ "''${VK_DRIVER_FILES+x}" != x ] && [ -d /run/opengl-driver/share/vulkan/icd.d ]; then
       tailor_icds=""
       while IFS= read -r tailor_icd; do
-        tailor_icds="''${tailor_icds:+$tailor_icds:}$tailor_icd"
-      done < <(find -L /run/opengl-driver/share/vulkan/icd.d -type f -name '*.json' -readable 2>/dev/null | LC_ALL=C sort)
+        if [ -r "$tailor_icd" ]; then
+          tailor_icds="''${tailor_icds:+$tailor_icds:}$tailor_icd"
+        fi
+      done < <(find -L /run/opengl-driver/share/vulkan/icd.d -type f -name '*.json' 2>/dev/null | LC_ALL=C sort)
       if [ -n "$tailor_icds" ]; then export VK_DRIVER_FILES="$tailor_icds"; fi
       unset tailor_icds tailor_icd
     fi
