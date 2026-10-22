@@ -107,6 +107,7 @@ def preflight(root, operation, interpreter):
         subprocess.check_output(
             [
                 interpreter,
+                "-I",
                 "-c",
                 "import sys; print('.'.join(map(str, sys.version_info[:3])))",
             ],

@@ -8,12 +8,74 @@ import (
 	"testing"
 )
 
+func TestPythonImportIsolation(t *testing.T) {
+	python, err := exec.LookPath("python3")
+	if err != nil {
+		t.Skip("Python 3.11+ with packaging is required")
+	}
+	if err := exec.CommandContext(t.Context(), python, "-I", "-c", "import tomllib, packaging").Run(); err != nil {
+		t.Skip("Python 3.11+ with packaging is required")
+	}
+	helper, err := os.ReadFile("../../swatches/quality/python-preflight.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	shell, err := os.ReadFile("../../swatches/quality/python-preflight.sh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, location := range []string{"root", "PYTHONPATH"} {
+		t.Run(location, func(t *testing.T) {
+			root, bin, log := qualityFixture(t, false)
+			shadow := root
+			if location == "PYTHONPATH" {
+				shadow = t.TempDir()
+			}
+			t.Setenv("PYTHONPATH", shadow)
+			t.Setenv("UV_PROJECT_ENVIRONMENT", "")
+			for _, name := range []string{"tomllib.py", "packaging/__init__.py", "pip_audit/__main__.py", "sitecustomize.py"} {
+				writeManagedTestFile(t, shadow, name, []byte("raise RuntimeError('shadow module imported')\n"))
+			}
+			writeManagedExecutable(t, filepath.Join(bin, "tailor-python"), "#!/bin/sh\nexec '"+python+"' \"$@\"\n")
+			writeManagedExecutable(t, filepath.Join(bin, "uv"), "#!/bin/sh\nprintf '%s\\n' \"$*\" >> \"$CALLS\"\n")
+			writeManagedTestFile(t, root, "uv.lock", []byte("version=1\n"))
+			// #nosec G204 -- The interpreter and temporary environment path are controlled by this test.
+			create := exec.CommandContext(t.Context(), python, "-I", "-m", "venv", "--without-pip", filepath.Join(root, ".venv"))
+			if output, err := create.CombinedOutput(); err != nil {
+				t.Fatalf("create environment: %v\n%s", err, output)
+			}
+			script := strings.NewReplacer("[[TAILOR_PYTHON_TOOLS]]", "", "[[TAILOR_PYTHON_OPERATION]]", "test", "[[TAILOR_PYTHON_HELPER]]", string(helper)).Replace(string(shell))
+			for _, valid := range []bool{false, true} {
+				metadata := "[project]\nname='fixture'\nrequires-python='>=3.11'\n"
+				if valid {
+					metadata += "[build-system]\nbuild-backend='hatchling.build'\n"
+				}
+				writeManagedTestFile(t, root, "pyproject.toml", []byte(metadata))
+				command := exec.CommandContext(t.Context(), "bash", "-eu", "-c", script)
+				command.Dir = root
+				command.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "CALLS="+log)
+				output, err := command.CombinedOutput()
+				if (err == nil) != valid || strings.Contains(string(output), "shadow module imported") {
+					t.Fatalf("valid=%v: %v\n%s", valid, err, output)
+				}
+				if !valid {
+					if !strings.Contains(string(output), "build backend") || len(managedLintLog(t, log)) != 0 {
+						t.Fatalf("metadata rejection did not precede uv: %s", output)
+					}
+				} else if calls := managedLintLog(t, log); len(calls) != 2 || calls[0] != "lock --check" {
+					t.Fatalf("unexpected uv calls: %v", calls)
+				}
+			}
+		})
+	}
+}
+
 func TestPythonMetadata(t *testing.T) {
 	python, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("Python 3.11+ with packaging is required for metadata tests")
 	}
-	probe := exec.CommandContext(t.Context(), python, "-c", "import tomllib, packaging")
+	probe := exec.CommandContext(t.Context(), python, "-I", "-c", "import tomllib, packaging")
 	if err := probe.Run(); err != nil {
 		t.Skip("Python 3.11+ with packaging is required for metadata tests")
 	}
@@ -67,9 +129,13 @@ except ValueError:
     pass
 else:
     raise AssertionError('missing environment accepted')
-(root / '.venv/bin').mkdir(parents=True)
-(root / '.venv/pyvenv.cfg').write_text('home=fixture\n')
-(root / '.venv/bin/python').symlink_to(sys.executable)
+import subprocess
+import venv
+venv.EnvBuilder(with_pip=False).create(root / '.venv')
+subprocess.run([str(root / '.venv/bin/python'), '-I', '-c',
+    'import importlib.util, sys; '
+    'assert sys.prefix != sys.base_prefix; '
+    'assert importlib.util.find_spec("packaging") is None'], check=True)
 preflight(root, 'test', str(root / '.venv/bin/python'))
 from packaging.markers import Marker
 import json
@@ -138,7 +204,7 @@ except ValueError:
 else:
     raise AssertionError('conflicting environment accepted')
 `
-	command := exec.CommandContext(t.Context(), python, "-", helper, t.TempDir())
+	command := exec.CommandContext(t.Context(), python, "-I", "-", helper, t.TempDir())
 	command.Stdin = strings.NewReader(script)
 	command.Env = append(os.Environ(), "PYTHONDONTWRITEBYTECODE=1", "UV_PROJECT_ENVIRONMENT=")
 	output, err := command.CombinedOutput()

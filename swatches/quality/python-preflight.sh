@@ -8,7 +8,7 @@ for tool in tailor-python uv [[TAILOR_PYTHON_TOOLS]]; do
 done
 selected_nix_python="$(command -v tailor-python)"
 project_python="${PWD}/.venv/bin/python"
-"${selected_nix_python}" - "${PWD}" "[[TAILOR_PYTHON_OPERATION]]" "${project_python}" <<'TAILOR_PYTHON'
+"${selected_nix_python}" -I - "${PWD}" "[[TAILOR_PYTHON_OPERATION]]" "${project_python}" <<'TAILOR_PYTHON'
 [[TAILOR_PYTHON_HELPER]]
 TAILOR_PYTHON
 uv lock --check

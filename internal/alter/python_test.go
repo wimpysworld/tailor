@@ -255,7 +255,7 @@ func TestPythonRecipeContract(t *testing.T) {
 			cfg := &config.Config{Languages: &config.LanguageSettings{Python: new(true)}}
 			writeManagedLintFixture(t, root, renderSelectedManagedFiles(t, cfg))
 			for _, tool := range []string{"tailor-python", "uv", "ruff", "basedpyright"} {
-				writeManagedExecutable(t, filepath.Join(bin, tool), "#!/bin/sh\nif [ \"$1\" = - ]; then cat >/dev/null; exit 0; fi\ncall='"+tool+"'\ncall=\"$call $*\"\nprintf '%s\\n' \"$call\" >> \"$CALLS\"\n[ \"$call\" != \"$FAIL_CALL\" ]\n")
+				writeManagedExecutable(t, filepath.Join(bin, tool), "#!/bin/sh\nif [ \"$1\" = -I ] && [ \"$2\" = - ]; then cat >/dev/null; exit 0; fi\ncall='"+tool+"'\ncall=\"$call $*\"\nprintf '%s\\n' \"$call\" >> \"$CALLS\"\n[ \"$call\" != \"$FAIL_CALL\" ]\n")
 			}
 			foreign := filepath.Join(root, "foreign/bin")
 			writeManagedExecutable(t, filepath.Join(foreign, "python3"), "#!/bin/sh\necho foreign-python-selected >&2\nexit 99\n")
@@ -291,7 +291,7 @@ func TestPythonRecipeContract(t *testing.T) {
 				t.Fatal(calls)
 			}
 			if operation == "check" || operation == "correct" {
-				for _, want := range []string{"ruff format --check .", "ruff check --no-fix .", "--baselinemode=lock", "--no-emit-project --no-hashes", "--no-deps --disable-pip --strict"} {
+				for _, want := range []string{"ruff format --check .", "ruff check --no-fix .", "--baselinemode=lock", "--no-emit-project --no-hashes", "tailor-python -I -m pip_audit", "--no-deps --disable-pip --strict"} {
 					if !strings.Contains(calls, want) {
 						t.Fatal(calls)
 					}
