@@ -50,6 +50,42 @@ func TestPythonPolicies(t *testing.T) {
 	}
 }
 
+func TestPythonPolicyNestedErrors(t *testing.T) {
+	for _, tc := range []struct {
+		name, destination, policy, nested, want string
+		wantErr                                bool
+	}{
+		{"black", "ruff.toml", "[tool.black]\n", "[invalid", "adoption required", false},
+		{"mypy", "pyrightconfig.json", "[tool.mypy]\n", "[invalid", "adoption required", false},
+		{"ruff-unresolved", "ruff.toml", "[tool.ruff]\n", "[invalid", "", true},
+		{"pyright-unresolved", "pyrightconfig.json", "[tool.pyright]\n", "[invalid", "", true},
+		{"no-alternative", "ruff.toml", "", "[invalid", "", true},
+		{"nested-black-precedence", "ruff.toml", "[tool.ruff]\n", "[tool.black]\n", "adoption required", false},
+		{"nested-mypy-precedence", "pyrightconfig.json", "[tool.pyright]\n", "[tool.mypy]\n", "adoption required", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := testTempDir(t)
+			writeManagedTestFile(t, root, "pyproject.toml", []byte(tc.policy))
+			writeManagedTestFile(t, root, "nested/pyproject.toml", []byte(tc.nested))
+			writeManagedTestFile(t, root, tc.destination, []byte("existing destination\n"))
+			before := snapshotManagedTree(t, root)
+			for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
+				cfg := &config.Config{Languages: &config.LanguageSettings{Python: new(true)}, Swatches: []config.SwatchEntry{{Path: tc.destination, Alteration: swatch.Always}}}
+				results, err := processSwatches(cfg, root, mode, nil, nil)
+				if (err != nil) != tc.wantErr {
+					t.Fatalf("mode %v: results=%v error=%v", mode, results, err)
+				}
+				if !tc.wantErr && (len(results) != 1 || !strings.Contains(string(results[0].Reason), tc.want)) {
+					t.Fatalf("mode %v: results=%v", mode, results)
+				}
+				if after := snapshotManagedTree(t, root); !reflect.DeepEqual(before, after) {
+					t.Fatalf("mode %v changed policy files", mode)
+				}
+			}
+		})
+	}
+}
+
 func TestPythonPolicyAncestorAlias(t *testing.T) {
 	for _, policy := range []string{"real/.ruff.toml", "real/project/.ruff.toml", "real/project/nested/.ruff.toml"} {
 		t.Run(policy, func(t *testing.T) {

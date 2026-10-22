@@ -38,6 +38,7 @@ func PythonPolicyReason(dir, destination string) (string, error) {
 		}
 	}
 	var reason string
+	var adoptionRequired bool
 	inspect := func(directory string) error {
 		names := []string{"pyproject.toml", ".ruff.toml", "ruff.toml", "pyrightconfig.json", "mypy.ini", ".mypy.ini", "setup.cfg"}
 		for _, name := range names {
@@ -96,6 +97,7 @@ func PythonPolicyReason(dir, destination string) (string, error) {
 				reason = "existing Python policy preserved: " + path
 			}
 			if conflict {
+				adoptionRequired = true
 				reason = "Python adoption required; conflicting policy preserved: " + path
 			}
 		}
@@ -108,6 +110,9 @@ func PythonPolicyReason(dir, destination string) (string, error) {
 		if current == filepath.Dir(current) {
 			break
 		}
+	}
+	if adoptionRequired {
+		return reason, nil
 	}
 	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
