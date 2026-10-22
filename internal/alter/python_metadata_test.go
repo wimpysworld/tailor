@@ -140,7 +140,7 @@ else:
 `
 	command := exec.CommandContext(t.Context(), python, "-", helper, t.TempDir())
 	command.Stdin = strings.NewReader(script)
-	command.Env = append(os.Environ(), "PYTHONDONTWRITEBYTECODE=1")
+	command.Env = append(os.Environ(), "PYTHONDONTWRITEBYTECODE=1", "UV_PROJECT_ENVIRONMENT=")
 	output, err := command.CombinedOutput()
 	if err != nil {
 		t.Fatalf("metadata tests: %v\n%s", err, output)
