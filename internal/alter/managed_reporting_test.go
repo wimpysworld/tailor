@@ -550,9 +550,26 @@ func TestManagedExecutionExcludesManagedPathsFromOrdinarySwatches(t *testing.T) 
 				t.Fatal(err)
 			}
 			for _, path := range []string{"justfile", "flake.nix", ".mcp.json"} {
-				want, err := swatch.Content(path)
+				var want []byte
+				if path == ".mcp.json" {
+					want, err = renderManagedMCPDestination(cfg, path, fixedManagedMCPRegistry())
+				} else {
+					want, err = swatch.Content(path)
+				}
 				if err != nil {
 					t.Fatal(err)
+				}
+				if path == ".mcp.json" && string(want) != `{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "playwright-mcp",
+      "args": ["--headless", "--isolated"]
+    }
+  }
+}
+` {
+					t.Fatalf("selected MCP starter = %s, want only the Playwright stdio launcher", want)
 				}
 				assertManagedBytes(t, filepath.Join(dir, path), want)
 
