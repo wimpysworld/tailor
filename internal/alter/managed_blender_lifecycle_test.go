@@ -9,11 +9,18 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
 func TestManagedBlenderPreservesFlakeAndReportsManualOutput(t *testing.T) {
+	t.Setenv("GH_TOKEN", "")
+	t.Setenv("GITHUB_TOKEN", "")
+	t.Cleanup(gh.SetNewRESTClientFunc(func(string) (*api.RESTClient, error) {
+		return nil, errors.New("GitHub credentials are unavailable in this test")
+	}))
 	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
 		for _, state := range []string{"true", "false", "absent"} {
 			t.Run(managedModeName(mode)+"/"+state, func(t *testing.T) {
@@ -24,7 +31,7 @@ func TestManagedBlenderPreservesFlakeAndReportsManualOutput(t *testing.T) {
 				if state != "absent" {
 					cfg.MCP = &config.MCPSettings{Blender: new(state == "true")}
 				}
-				report, err := Execute(cfg, root, mode, nil, io.Discard, Options{})
+				report, err := Execute(cfg, root, mode, managedProductionClient(t), io.Discard, Options{})
 				if err != nil {
 					t.Fatal(err)
 				}
