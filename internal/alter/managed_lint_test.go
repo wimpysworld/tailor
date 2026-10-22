@@ -150,7 +150,7 @@ func TestManagedLintStopsAtFirstFailure(t *testing.T) {
 		{name: "actionlint", statusEnv: "TAILOR_ACTIONLINT_STATUS=17", wantCalls: []string{"actionlint"}},
 		{name: "golangci-lint", statusEnv: "TAILOR_GOLANGCI_STATUS=19", wantCalls: []string{"actionlint", "go", "golangci-lint"}},
 		{name: "govulncheck", statusEnv: "TAILOR_GOVULNCHECK_STATUS=23", wantCalls: []string{"actionlint", "go", "golangci-lint", "golangci-lint", "govulncheck"}},
-		{name: "vet", statusEnv: "TAILOR_GO_STATUS=29", wantCalls: []string{"actionlint", "go"}},
+		{name: "mod-tidy", statusEnv: "TAILOR_GO_STATUS=29", wantCalls: []string{"actionlint", "go"}},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root := t.TempDir()
@@ -189,7 +189,7 @@ func TestManagedLintMissingExecutablesFailVisibly(t *testing.T) {
 		{name: "actionlint", available: []string{"go", "golangci-lint"}, wantTool: "actionlint"},
 		{name: "golangci-lint", available: []string{"actionlint", "go"}, wantTool: "golangci-lint"},
 		{name: "govulncheck", available: []string{"go", "actionlint", "golangci-lint"}, wantTool: "govulncheck"},
-		{name: "vet", available: []string{"actionlint", "golangci-lint", "govulncheck"}, wantTool: "go"},
+		{name: "mod-tidy", available: []string{"actionlint", "golangci-lint", "govulncheck"}, wantTool: "go"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			root := t.TempDir()

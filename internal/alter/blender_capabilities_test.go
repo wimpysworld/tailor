@@ -1,7 +1,6 @@
 package alter_test
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,9 +11,20 @@ import (
 )
 
 func TestBlenderLifecycleAcrossModes(t *testing.T) {
-	for _, mode := range []alter.ApplyMode{alter.DryRun, alter.Apply, alter.Recut} {
+	for _, mode := range []struct {
+		name  string
+		value alter.ApplyMode
+	}{
+		{name: "dry-run", value: alter.DryRun},
+		{name: "apply", value: alter.Apply},
+		{name: "recut", value: alter.Recut},
+	} {
 		for _, state := range []string{"", "false", "true"} {
-			t.Run(fmt.Sprintf("%v/%s", mode, state), func(t *testing.T) {
+			name := state
+			if name == "" {
+				name = "absent"
+			}
+			t.Run(mode.name+"/"+name, func(t *testing.T) {
 				declaration := ""
 				if state != "" {
 					declaration = "mcp: {blender: " + state + "}\n"
@@ -28,11 +38,11 @@ func TestBlenderLifecycleAcrossModes(t *testing.T) {
 				for _, path := range playwrightPaths[1:] {
 					writeOnDisk(t, tc.Dir, path, []byte("disabled user settings\n"))
 				}
-				output := captureAlterRun(t, loadTestConfig(t, tc.Dir), tc.Dir, mode, tc.Client)
+				output := captureAlterRun(t, loadTestConfig(t, tc.Dir), tc.Dir, mode.value, tc.Client)
 				for _, path := range playwrightPaths[1:] {
 					assertCapabilityBytes(t, tc.Dir, path, []byte("disabled user settings\n"))
 				}
-				if state == "false" && mode != alter.DryRun {
+				if state == "false" && mode.value != alter.DryRun {
 					assertCapabilityMissing(t, tc.Dir, "nix/blender.nix")
 				} else {
 					assertCapabilityBytes(t, tc.Dir, "nix/blender.nix", fragment)

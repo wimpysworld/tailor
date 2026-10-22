@@ -38,8 +38,11 @@ func TestPythonConfiguration(t *testing.T) {
 				t.Fatal(err)
 			}
 			loaded, err := Load(dir)
-			if err != nil || !reflect.DeepEqual(cfg.Languages, loaded.Languages) {
-				t.Fatalf("round trip: %v", err)
+			if err != nil {
+				t.Fatalf("round trip load: %v", err)
+			}
+			if !reflect.DeepEqual(cfg.Languages, loaded.Languages) {
+				t.Fatalf("round trip changed languages: got %+v, want %+v", loaded.Languages, cfg.Languages)
 			}
 			for _, path := range []string{"ruff.toml", "pyrightconfig.json"} {
 				if cfg.SwatchActive(path) != cfg.PythonEnabled() {

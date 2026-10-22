@@ -2,7 +2,6 @@ package alter
 
 import (
 	"bytes"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,8 +92,16 @@ func TestManagedFFmpegLifecycle(t *testing.T) {
 }
 
 func TestManagedCGOCommands(t *testing.T) {
-	for _, policy := range []*bool{nil, new(false), new(true)} {
-		t.Run(fmt.Sprint(policy), func(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		policy *bool
+	}{
+		{name: "nil"},
+		{name: "false", policy: new(false)},
+		{name: "true", policy: new(true)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			policy := test.policy
 			cfg := &config.Config{Languages: &config.LanguageSettings{Go: new(true), GoOptions: &config.GoOptions{CGO: policy}}}
 			rendered := renderSelectedManagedFiles(t, cfg)
 			if policy == nil {

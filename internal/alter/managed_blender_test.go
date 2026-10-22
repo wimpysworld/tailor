@@ -3,7 +3,6 @@ package alter
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"reflect"
 	"testing"
 
@@ -11,10 +10,18 @@ import (
 )
 
 func TestManagedBlenderCompositions(t *testing.T) {
-	for _, blender := range []*bool{nil, new(false), new(true)} {
-		for _, playwright := range []*bool{nil, new(false), new(true)} {
-			t.Run(fmt.Sprintf("%v/%v", blender, playwright), func(t *testing.T) {
-				cfg := &config.Config{MCP: &config.MCPSettings{Blender: blender, Playwright: playwright}}
+	states := []struct {
+		name  string
+		value *bool
+	}{
+		{name: "nil"},
+		{name: "false", value: new(false)},
+		{name: "true", value: new(true)},
+	}
+	for _, blender := range states {
+		for _, playwright := range states {
+			t.Run("blender="+blender.name+"/playwright="+playwright.name, func(t *testing.T) {
+				cfg := &config.Config{MCP: &config.MCPSettings{Blender: blender.value, Playwright: playwright.value}}
 				rendered := renderSelectedManagedFiles(t, cfg)
 				for _, destination := range managedMCPDestinations() {
 					content, exists := rendered[destination]
