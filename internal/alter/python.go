@@ -41,6 +41,9 @@ func PythonPolicyReason(dir, destination string) (string, error) {
 	inspect := func(directory string) error {
 		names := []string{"pyproject.toml", ".ruff.toml", "ruff.toml", "pyrightconfig.json", "mypy.ini", ".mypy.ini", "setup.cfg"}
 		for _, name := range names {
+			if directory == root && name == destination {
+				continue
+			}
 			path := filepath.Join(directory, name)
 			info, err := os.Lstat(path)
 			if os.IsNotExist(err) {
@@ -88,9 +91,6 @@ func PythonPolicyReason(dir, destination string) (string, error) {
 				_, mypy := document.Tool["mypy"]
 				equivalent = destination == "ruff.toml" && ruff || destination == "pyrightconfig.json" && (based || pyright)
 				conflict = destination == "ruff.toml" && black || destination == "pyrightconfig.json" && mypy
-			}
-			if directory == root && name == destination {
-				continue
 			}
 			if equivalent && reason == "" {
 				reason = "existing Python policy preserved: " + path

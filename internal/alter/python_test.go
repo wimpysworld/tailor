@@ -111,6 +111,74 @@ func TestPythonPolicyAliasRejectsLinkedPaths(t *testing.T) {
 	}
 }
 
+func TestPythonPolicyDestinationLifecycle(t *testing.T) {
+	for _, destination := range []string{"ruff.toml", "pyrightconfig.json"} {
+		for _, tc := range []struct {
+			name       string
+			alteration swatch.AlterationMode
+			mode       ApplyMode
+			replace    bool
+		}{
+			{"always-preview", swatch.Always, DryRun, false},
+			{"always", swatch.Always, Apply, true},
+			{"first-fit-preview", swatch.FirstFit, DryRun, false},
+			{"first-fit", swatch.FirstFit, Apply, true},
+			{"recut", swatch.FirstFit, Recut, true},
+			{"never", swatch.Never, Apply, false},
+			{"never-recut", swatch.Never, Recut, false},
+		} {
+			t.Run(destination+"/"+tc.name, func(t *testing.T) {
+				root := testTempDir(t)
+				outside := testTempDir(t)
+				original := []byte("outside policy must stay unchanged\n")
+				writeManagedTestFile(t, outside, "policy", original)
+				target := filepath.Join(outside, "policy")
+				path := filepath.Join(root, destination)
+				managedSymlinkOrSkip(t, target, path)
+				cfg := &config.Config{Languages: &config.LanguageSettings{Python: new(true)}, Swatches: []config.SwatchEntry{{Path: destination, Alteration: tc.alteration}}}
+				results, err := processSwatches(cfg, root, tc.mode, nil, nil)
+				if err != nil || len(results) != 1 {
+					t.Fatalf("results=%v error=%v", results, err)
+				}
+				info, err := os.Lstat(path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if tc.replace {
+					if !info.Mode().IsRegular() {
+						t.Fatal("destination was not replaced with a regular file")
+					}
+					want, err := swatch.Content(destination)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got, err := os.ReadFile(path); err != nil || string(got) != string(want) {
+						t.Fatalf("destination=%q error=%v", got, err)
+					}
+				} else if got, err := os.Readlink(path); err != nil || got != target {
+					t.Fatalf("symlink=%q error=%v", got, err)
+				}
+				if got, err := os.ReadFile(target); err != nil || string(got) != string(original) {
+					t.Fatalf("outside policy=%q error=%v", got, err)
+				}
+			})
+		}
+		t.Run(destination+"/first-fit-regular", func(t *testing.T) {
+			root := testTempDir(t)
+			original := []byte("custom policy\n")
+			writeManagedTestFile(t, root, destination, original)
+			cfg := &config.Config{Languages: &config.LanguageSettings{Python: new(true)}, Swatches: []config.SwatchEntry{{Path: destination, Alteration: swatch.FirstFit}}}
+			results, err := processSwatches(cfg, root, Apply, nil, nil)
+			if err != nil || len(results) != 1 || results[0].Reason != SkipFirstFitExists {
+				t.Fatalf("results=%v error=%v", results, err)
+			}
+			if got, err := os.ReadFile(filepath.Join(root, destination)); err != nil || string(got) != string(original) {
+				t.Fatalf("custom policy=%q error=%v", got, err)
+			}
+		})
+	}
+}
+
 func TestPythonRecipeContract(t *testing.T) {
 	for _, operation := range []string{"setup", "build", "test", "check", "correct"} {
 		t.Run(operation, func(t *testing.T) {
