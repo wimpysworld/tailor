@@ -3,9 +3,7 @@
 pkgs.lib.optionalString
   (pkgs.stdenv.isLinux && builtins.pathExists ../lib/go-ebitengine-runtime.nix)
   ''
-    if tailor_nixos_drivers; then
-      tailor_prepend_path LD_LIBRARY_PATH "${
-        pkgs.lib.makeLibraryPath (import ../lib/go-ebitengine-runtime.nix { inherit pkgs; })
-      }"
-    fi
+    tailor_prepend_path LD_LIBRARY_PATH "${
+      pkgs.lib.makeLibraryPath (import ../lib/go-ebitengine-runtime.nix { inherit pkgs; })
+    }"
   ''

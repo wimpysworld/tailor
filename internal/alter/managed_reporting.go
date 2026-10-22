@@ -242,7 +242,7 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 	var newNix []string
 	var guidance []string
 	for _, result := range results {
-		if result.Category == WouldCopy && (result.Path == "flake.nix" || strings.HasSuffix(result.Path, ".nix")) {
+		if result.Category == WouldCopy && (result.Path == "flake.nix" || strings.HasSuffix(result.Path, ".nix") || strings.HasPrefix(result.Path, "nix/patches/")) {
 			newNix = append(newNix, result.Path)
 		}
 		if result.Category != Skipped {
@@ -268,11 +268,18 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 	}
 	if cfg.EbitengineAndroidEnabled() {
 		guidance = append(guidance, "Android SDK licence consent is scoped to the generated Android shell. Enter it only after review. No SDK installation or licence acceptance runs during alteration.")
+		guidance = append(guidance, "In project-owned Android recipes, replace the temporary ebitenmobile build and invocation with `tailor-ebitenmobile bind`, retaining all bind arguments, package paths, and output paths. Keep Gradle packaging project-owned and use `-Pandroid.aapt2FromMavenOverride=\"$ANDROID_BUILD_TOOLS/aapt2\"`. Tailor does not generate application identifiers, signing configuration, or deployment recipes. After separate SDK approval, verify binding and unsigned Gradle packaging; tool availability alone does not validate Android builds.")
 		if slices.ContainsFunc(results, func(result SwatchResult) bool {
 			return result.Path == "flake.nix" && result.Reason == SkipManagedRootExists
 		}) {
 			guidance = append(guidance, "Extend the per-system devShells attribute set, not its package list, with `// pkgs.lib.optionalAttrs (system == \"x86_64-linux\" && builtins.pathExists ./nix/shells/go-ebitengine-android.nix) { android = import ./nix/shells/go-ebitengine-android.nix { inherit pkgs; }; }`. Pass the same overridden `pkgs`. Do not overwrite an existing `android` output; compose or migrate it manually.")
+			guidance = append(guidance, "For an existing `android` output, first compare its SDK versions and overrides. After review, replace its shell body with `import ./nix/shells/go-ebitengine-android.nix { inherit pkgs; }` and retain required project settings through `.overrideAttrs (old: { shellHook = old.shellHook + \"\\n\" + projectHook; })`. Remove duplicate SDK, adb, Java, and shared hook declarations. Keep custom hooks last and retain host-driver precedence. Do not add another `android` attribute.")
 		}
+	}
+	if cfg.BlenderEnabled() && slices.ContainsFunc(results, func(result SwatchResult) bool {
+		return result.Path == "flake.nix" && result.Reason == SkipManagedRootExists
+	}) {
+		guidance = append(guidance, "In the preserved flake's per-system packages, manually add `blender-agent-bridge-extension = (import ./nix/lib/blender.nix { inherit pkgs; }).extension;` inside `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix)`. Preserve existing outputs and use the same overridden `pkgs`. Build with `nix build .#blender-agent-bridge-extension`. Install the ZIP separately after approval; Tailor does not install Blender or start its bridge.")
 	}
 	if len(newNix) != 0 {
 		sort.Strings(newNix)
@@ -288,7 +295,7 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 		return result.Path == "nix/blender.nix" && (result.Category == NoChange || result.Category == WouldRemove)
 	})
 	if cfg.BlenderDeclared() && !cfg.BlenderEnabled() && blenderRemovalReported {
-		appendManagedNotice(report, "mcp.blender is false, so Tailor removes `nix/blender.nix` but preserves MCP client settings. Disable or remove their blender-agent-bridge servers to avoid a missing `blender-bridge` executable")
+		appendManagedNotice(report, "mcp.blender is false, so Tailor removes the owned Blender fragment, helper, and patch but preserves MCP client settings. Disable or remove their blender-agent-bridge servers to avoid a missing `blender-bridge` executable")
 	}
 	if len(guidance) != 0 {
 		appendGuidance(report, strings.Join(guidance, "\n")+"\n")

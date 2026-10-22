@@ -70,9 +70,9 @@ func TestManagedNixLoaderEvaluatesRelativePackageLists(t *testing.T) {
 		wantValues []string
 	}{
 		{name: "core"},
-		{name: "go", goOn: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf"}},
+		{name: "go", goOn: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf", "staticcheck"}},
 		{name: "pages", pages: true, wantValues: []string{"miniserve"}},
-		{name: "all", goOn: true, pages: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf", "miniserve"}},
+		{name: "all", goOn: true, pages: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf", "staticcheck", "miniserve"}},
 	}
 
 	for _, tc := range cases {
@@ -89,7 +89,7 @@ func TestManagedNixLoaderEvaluatesRelativePackageLists(t *testing.T) {
 				}
 			}
 			loader := filepath.Join(root, "nix", "loader.nix")
-			expression := `let pkgs = { go = "go"; golangci-lint = "golangci-lint"; govulncheck = "govulncheck"; goreleaser = "goreleaser"; gocyclo = "gocyclo"; goperf = "goperf"; miniserve = "miniserve"; }; in import ` + strconv.Quote(loader) + ` { inherit pkgs; }`
+			expression := `let pkgs = { go = "go"; golangci-lint = "golangci-lint"; govulncheck = "govulncheck"; goreleaser = "goreleaser"; gocyclo = "gocyclo"; goperf = "goperf"; miniserve = "miniserve"; go-tools = { version = "2026.2.2"; override = args: assert args.buildGoModule == "go"; "staticcheck"; }; buildGoModule.override = args: args.go; }; in import ` + strconv.Quote(loader) + ` { inherit pkgs; }`
 			command := exec.CommandContext(t.Context(), nix, "eval", "--impure", "--json", "--expr", expression) // #nosec G204 -- The executable and fixture are controlled by the test.
 			command.Dir = t.TempDir()
 			output, err := command.CombinedOutput()
@@ -102,6 +102,52 @@ func TestManagedNixLoaderEvaluatesRelativePackageLists(t *testing.T) {
 			}
 			if !slices.Equal(got, tc.wantValues) {
 				t.Fatalf("packages = %v, want %v", got, tc.wantValues)
+			}
+		})
+	}
+}
+
+func TestManagedGoStaticcheckSourceAndCompiler(t *testing.T) {
+	nix := requireManagedExecutable(t, "nix")
+	for _, tc := range []struct {
+		name, version, source, compiler string
+		upgrade                         bool
+	}{
+		{"older", "2026.2.1", "upstream", "go-1.27.2", true},
+		{"current", "2026.2.2", "upstream", "go-1.26", false},
+		{"newer", "2026.3.0", "upstream", "go-1.27.2", false},
+		{"fork", "2026.2.2", "custom-fork", "custom-go", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			files := renderSelectedManagedFiles(t, managedRenderConfig(true, nil))
+			writeManagedRenderFixture(t, root, "nix/go.nix", files["nix/go.nix"])
+			expression := `let
+  original = { version = ` + strconv.Quote(tc.version) + `; src = ` + strconv.Quote(tc.source) + `; vendorHash = "original-vendor"; };
+  pkgs = {
+    go = ` + strconv.Quote(tc.compiler) + `;
+    buildGoModule.override = args: args.go;
+    go-tools = original // { override = args: let rebound = original // { compiler = args.buildGoModule; }; in rebound // { overrideAttrs = f: rebound // (f rebound); }; };
+    fetchFromGitHub = args: assert args.owner == "dominikh" && args.repo == "go-tools" && args.tag == "2026.2.2" && args.hash == "sha256-nmcXIQf9Mws4CMQDKQ1NUYHLYkm+ggSnh5sDiuvdnK4="; "pinned-source";
+  };
+  selected = builtins.elemAt (import ` + strconv.Quote(filepath.Join(root, "nix/go.nix")) + ` { inherit pkgs; }) 6;
+in { inherit (selected) version src vendorHash compiler; }`
+			output, err := exec.CommandContext(t.Context(), nix, "eval", "--offline", "--impure", "--json", "--expr", expression).CombinedOutput()
+			if err != nil {
+				t.Fatalf("Staticcheck eval: %v\n%s", err, output)
+			}
+			var got map[string]string
+			if err := json.Unmarshal(output, &got); err != nil {
+				t.Fatal(err)
+			}
+			want := map[string]string{"version": tc.version, "src": tc.source, "vendorHash": "original-vendor", "compiler": tc.compiler}
+			if tc.upgrade {
+				want["version"] = "2026.2.2"
+				want["src"] = "pinned-source"
+				want["vendorHash"] = "sha256-YC+DQZ3xjLGzhUXq/KBYhi1PGE63hBFaFor+XUZE1Ng="
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("Staticcheck = %v, want %v", got, want)
 			}
 		})
 	}
@@ -124,6 +170,8 @@ func TestManagedNixGitVisibilityUsesIsolatedRepository(t *testing.T) {
         goreleaser = "goreleaser";
         gocyclo = "gocyclo";
         goperf = "goperf";
+        go-tools = { version = "2026.2.2"; override = args: assert args.buildGoModule == "go"; "staticcheck"; };
+        buildGoModule.override = args: args.go;
         miniserve = "miniserve";
       };
     };
@@ -144,7 +192,7 @@ func TestManagedNixGitVisibilityUsesIsolatedRepository(t *testing.T) {
 
 	managedGit(t, git, root, "add", "nix/go.nix")
 	managedGit(t, git, root, "commit", "-m", "track Go fragment")
-	want := []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf"}
+	want := []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf", "staticcheck"}
 	if got := managedNixFlakeList(t, nix, root, flakeURL); !reflect.DeepEqual(got, want) {
 		t.Fatalf("packages with tracked fragment = %v, want %v", got, want)
 	}

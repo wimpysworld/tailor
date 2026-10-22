@@ -71,8 +71,8 @@ func TestManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 			t.Errorf("managed template %q lacks its ownership marker", entry.Path)
 		}
 	}
-	if len(managed) != 29 {
-		t.Fatalf("managed=%d, want 29", len(managed))
+	if len(managed) != 31 {
+		t.Fatalf("managed=%d, want 31", len(managed))
 	}
 
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(name string, entry fs.DirEntry, err error) error {
@@ -389,9 +389,9 @@ func TestManagedNixFragmentsReturnPackageLists(t *testing.T) {
 		wantValues []string
 	}{
 		{name: "core", wantValues: []string{}},
-		{name: "go", goOn: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf"}},
+		{name: "go", goOn: true, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf", "staticcheck"}},
 		{name: "pages", pages: &model.PagesSettings{Enabled: new(true)}, wantValues: []string{"miniserve"}},
-		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf", "miniserve"}},
+		{name: "all", goOn: true, pages: &model.PagesSettings{Enabled: new(true)}, wantValues: []string{"go", "golangci-lint", "govulncheck", "goreleaser", "gocyclo", "goperf", "staticcheck", "miniserve"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			rendered := renderSelectedManagedFiles(t, managedRenderConfig(tt.goOn, tt.pages))
@@ -402,7 +402,7 @@ func TestManagedNixFragmentsReturnPackageLists(t *testing.T) {
 				}
 			}
 			loader := filepath.Join(dir, "nix", "loader.nix")
-			expression := `let pkgs = { go = "go"; golangci-lint = "golangci-lint"; govulncheck = "govulncheck"; goreleaser = "goreleaser"; gocyclo = "gocyclo"; goperf = "goperf"; miniserve = "miniserve"; }; in import ` + strconv.Quote(loader) + ` { inherit pkgs; }`
+			expression := `let pkgs = { go = "go"; golangci-lint = "golangci-lint"; govulncheck = "govulncheck"; goreleaser = "goreleaser"; gocyclo = "gocyclo"; goperf = "goperf"; miniserve = "miniserve"; go-tools = { version = "2026.2.2"; override = args: assert args.buildGoModule == "go"; "staticcheck"; }; buildGoModule.override = args: args.go; }; in import ` + strconv.Quote(loader) + ` { inherit pkgs; }`
 			output, err := exec.CommandContext(t.Context(), nix, "eval", "--impure", "--json", "--expr", expression).CombinedOutput()
 			if err != nil {
 				t.Fatalf("nix eval: %v\n%s", err, output)

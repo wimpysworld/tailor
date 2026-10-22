@@ -22,6 +22,15 @@
       forAllSystems = nixpkgs.lib.genAttrs supportedSystems;
     in
     {
+      packages = forAllSystems (
+        system:
+        let
+          pkgs = import nixpkgs { inherit system; };
+        in
+        pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix) {
+          blender-agent-bridge-extension = (import ./nix/lib/blender.nix { inherit pkgs; }).extension;
+        }
+      );
       devShells = forAllSystems (
         system:
         let

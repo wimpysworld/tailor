@@ -61,20 +61,19 @@ else
       gradle
     ]
     ++ import ../go.nix { inherit pkgs; }
-    ++ import ../go-ebitengine.nix { inherit pkgs; };
+    ++ builtins.filter (package: package != pkgs.android-tools) (
+      import ../go-ebitengine.nix { inherit pkgs; }
+    );
     ANDROID_HOME = home;
     ANDROID_SDK_ROOT = home;
     ANDROID_NDK_HOME = "${home}/ndk/28.2.13676358";
     ANDROID_BUILD_TOOLS = "${home}/build-tools/35.0.0";
-    JAVA_HOME = "${jdk}";
+    JAVA_HOME = jdk.home;
     shellHook =
       (import ../hooks.nix { inherit pkgs; })
       + "\n"
-      + (import ../hooks/go-ebitengine.nix { inherit pkgs; })
-      + "\n"
-      + (if builtins.pathExists ../hooks/core.nix then import ../hooks/core.nix { inherit pkgs; } else "")
       + ''
-        export PATH="${home}/platform-tools:${home}/build-tools/35.0.0:$PATH"
+        tailor_prepend_path PATH "${home}/platform-tools:${home}/build-tools/35.0.0:${jdk.home}/bin"
         export CGO_ENABLED=1
       '';
   }

@@ -49,6 +49,7 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 		"just/go-ffmpeg-statigo.just": false, "nix/go-ffmpeg-statigo.nix": false,
 		"just/go.just": false, "just/loader.just": false, "just/pages.just": false, "just/tailor.just": false,
 		"nix/go.nix": false, "nix/loader.nix": false, "nix/pages.nix": false, "nix/playwright.nix": false, "nix/blender.nix": false,
+		"nix/lib/blender.nix": false, "nix/patches/blender-agent-bridge-local-glb.patch": false,
 		".mcp.json": false, ".codex/config.toml": false, "opencode.json": false, ".pi/mcp.json": false,
 	}
 

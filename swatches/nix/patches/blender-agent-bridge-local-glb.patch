@@ -1,0 +1,1911 @@
+# Managed by Tailor: nix/patches/blender-agent-bridge-local-glb.patch
+--- a/addon/claude_blender/__init__.py
++++ b/addon/claude_blender/__init__.py
+@@ -120,6 +120,8 @@
+     "agent_tools",
+     "transcript",
+     "live_preview",
++    "local_glb",
++    "matched_views",
+     "script_templates",
+     "handler_runtime",
+     "animation_runtime",
+--- /dev/null
++++ b/addon/claude_blender/local_glb.py
+@@ -0,0 +1,229 @@
++"""Project-contained GLB imports with isolated preview rollback."""
++
++from __future__ import annotations
++
++import json
++import os
++import stat
++import struct
++import tempfile
++
++import bpy
++
++from . import live_preview, project_files
++
++MAX_GLB_BYTES = 64 * 1024 * 1024
++DATA_KINDS = (
++    ("object", "objects"), ("collection", "collections"),
++    ("mesh", "meshes"), ("curve", "curves"),
++    ("armature", "armatures"), ("camera", "cameras"),
++    ("light", "lights"), ("action", "actions"),
++    ("material", "materials"), ("node_group", "node_groups"),
++    ("image", "images"),
++)
++
++
++_configured_root_binding = None
++
++
++def _open_directory(path):
++    if (os.name != "posix" or any(not hasattr(os, flag) for flag in
++            ("O_NOFOLLOW", "O_DIRECTORY", "O_NONBLOCK"))
++            or os.open not in os.supports_dir_fd):
++        raise ValueError("Safe local GLB reads are unavailable on this platform")
++    if not isinstance(path, str) or not path.startswith("/") or path.startswith("//"):
++        raise ValueError("An absolute import directory is required")
++    parts = path.rstrip("/").split("/")[1:]
++    if not parts or any(not part or part.startswith(".") or "\\" in part for part in parts):
++        raise ValueError("Invalid import directory")
++    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
++    identity = []
++    try:
++        for part in parts:
++            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
++            os.close(descriptor)
++            descriptor = child
++            info = os.fstat(descriptor)
++            identity.append((info.st_dev, info.st_ino))
++        return descriptor, tuple(identity)
++    except BaseException:
++        os.close(descriptor)
++        raise
++
++
++def configure_import_root(prefs, _context):
++    global _configured_root_binding
++    root = prefs.local_glb_import_root
++    _configured_root_binding = (root, None)
++    try:
++        descriptor, identity = _open_directory(root)
++    except (OSError, ValueError):
++        return
++    os.close(descriptor)
++    _configured_root_binding = (root, identity)
++
++
++def _import_root(context):
++    global _configured_root_binding
++    filepath = getattr(bpy.data, "filepath", "")
++    if filepath:
++        return os.path.dirname(filepath), None
++    addon = context.preferences.addons.get(__package__)
++    prefs = addon.preferences if addon else None
++    root = getattr(prefs, "local_glb_import_root", "")
++    if not root:
++        raise ValueError("Save the scene or configure a local GLB import root in Preferences")
++    if _configured_root_binding is None or _configured_root_binding[0] != root:
++        configure_import_root(prefs, context)
++    if _configured_root_binding[1] is None:
++        raise ValueError("Invalid configured import directory")
++    return root, _configured_root_binding[1]
++
++
++def _read_project_glb(resolved):
++    # Bind every ancestor without following links, then check the binding after read.
++    parts = resolved["relative_path"].split(os.sep)
++    descriptor, identity = _open_directory(resolved["project_root"])
++    try:
++        if resolved.get("identity") is not None and identity != resolved["identity"]:
++            raise ValueError("The configured import directory changed")
++        for part in parts[:-1]:
++            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
++            os.close(descriptor)
++            descriptor = child
++            directory_info = os.fstat(descriptor)
++            identity += ((directory_info.st_dev, directory_info.st_ino),)
++        source = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=descriptor)
++        with os.fdopen(source, "rb") as handle:
++            info = os.fstat(handle.fileno())
++            if not stat.S_ISREG(info.st_mode):
++                raise ValueError("The GLB source must be a regular file")
++            if info.st_size > MAX_GLB_BYTES:
++                raise ValueError("The GLB source exceeds 64 MiB")
++            data = handle.read(MAX_GLB_BYTES + 1)
++            if len(data) > MAX_GLB_BYTES:
++                raise ValueError("The GLB source exceeds 64 MiB")
++            parent = os.path.join(resolved["project_root"], *parts[:-1])
++            check, current = _open_directory(parent)
++            try:
++                if current != identity:
++                    raise ValueError("The import directory changed during read")
++                verified = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=check)
++                try:
++                    final = os.fstat(verified)
++                    fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns")
++                    if any(getattr(info, field) != getattr(final, field) for field in fields):
++                        raise ValueError("The GLB source changed during read")
++                finally:
++                    os.close(verified)
++            finally:
++                os.close(check)
++            return data
++    finally:
++        os.close(descriptor)
++
++
++def _validate_glb(data):
++    if len(data) < 20:
++        raise ValueError("Truncated GLB header")
++    magic, version, length = struct.unpack_from("<4sII", data)
++    if magic != b"glTF" or version != 2 or length != len(data):
++        raise ValueError("Expected a complete GLB version 2 file")
++    offset = 12
++    chunks = []
++    while offset < length:
++        if offset + 8 > length:
++            raise ValueError("Truncated GLB chunk header")
++        size, kind = struct.unpack_from("<I4s", data, offset)
++        offset += 8
++        if size % 4 or offset + size > length:
++            raise ValueError("Invalid GLB chunk length")
++        chunks.append((kind, data[offset:offset + size]))
++        offset += size
++    if [kind for kind, _ in chunks] not in ([b"JSON"], [b"JSON", b"BIN\0"]):
++        raise ValueError("Expected JSON followed by an optional embedded BIN chunk")
++    document = json.loads(chunks[0][1].decode("utf-8"))
++    if not isinstance(document, dict) or document.get("asset", {}).get("version") != "2.0":
++        raise ValueError("Expected glTF asset version 2.0")
++    if document.get("animations") or len(document.get("scenes", [])) > 1:
++        raise ValueError("Only static, single-scene GLBs support safe preview import")
++    if "KHR_materials_variants" in document.get("extensions", {}):
++        raise ValueError("Material variants change existing scene settings and are blocked")
++    pending = [document]
++    while pending:
++        value = pending.pop()
++        if isinstance(value, dict):
++            if any(key.lower() == "uri" for key in value):
++                raise ValueError("GLB URI references are blocked; embed all buffers and images")
++            pending.extend(value.values())
++        elif isinstance(value, list):
++            pending.extend(value)
++
++
++def import_local_glb(context, relative_path):
++    if getattr(context, "mode", "OBJECT") != "OBJECT":
++        return {"ok": False, "code": "local_glb_invalid", "message": "Switch to Object Mode before import"}
++    try:
++        normalized = project_files._normalized_project_relative_path(relative_path)
++        if normalized is None or os.path.splitext(normalized)[1].lower() != ".glb":
++            raise ValueError("Invalid GLB path")
++        root, identity = _import_root(context)
++        resolved = {"project_root": root, "relative_path": normalized, "identity": identity}
++        data = _read_project_glb(resolved)
++        _validate_glb(data)
++    except (OSError, ValueError, TypeError, AttributeError, RecursionError):
++        return {"ok": False, "code": "local_glb_invalid", "message": "Local GLB access failed. Save the scene or check the import root, relative path, and embedded GLB format."}
++
++    before = {kind: {item.as_pointer() for item in getattr(bpy.data, collection)} for kind, collection in DATA_KINDS}
++    label = "Import local GLB"
++    scope = live_preview.begin_isolated(label, context)
++    transaction = scope["transaction"]
++    created = []
++    error = None
++    try:
++        # Import the validated bytes, not a path that another process can replace.
++        with tempfile.TemporaryDirectory(prefix="blender-local-glb-") as directory:
++            path = os.path.join(directory, "asset.glb")
++            with open(path, "wb") as handle:
++                handle.write(data)
++            result = bpy.ops.import_scene.gltf(
++                filepath=path, import_scene_extras=False, import_pack_images=True,
++            )
++            if result != {"FINISHED"}:
++                raise RuntimeError("The GLB importer did not finish")
++    except Exception as exc:
++        error = exc
++    finally:
++        for kind, collection in DATA_KINDS:
++            items = list(getattr(bpy.data, collection))
++            names = {item.name for item in items}
++            for item in items:
++                if item.as_pointer() not in before[kind]:
++                    # Preview rollback resolves names without a library qualifier.
++                    if any(other != item and other.name == item.name for other in items):
++                        index = 1
++                        while f"local_glb_{kind}_{index}" in names:
++                            index += 1
++                        item.name = f"local_glb_{kind}_{index}"
++                        names.add(item.name)
++                    live_preview._record_created_id(kind, item.name)
++                    created.append({"kind": kind, "name": item.name})
++    if error is not None:
++        rollback = live_preview.abort_isolated(scope, context)
++        return {"ok": False, "code": "local_glb_import_failed", "message": "Local GLB import failed", "rollback": rollback}
++    try:
++        transaction["applied_steps"].append({
++            "type": "import_local_glb", "label": label,
++            "source_file": resolved["relative_path"], "created_data": created,
++        })
++        live_preview._mark_pending(context, label)
++        live_preview.redraw(context)
++        transaction = live_preview.finish_isolated(scope)
++    except Exception as exc:
++        rollback = live_preview.abort_isolated(scope, context)
++        return {"ok": False, "code": "local_glb_import_failed", "message": "Local GLB preview failed", "rollback": rollback}
++    return {
++        "ok": True, "message": "Local GLB imported; preview remains pending",
++        "transaction_id": transaction["id"], "preview_pending": True,
++        "created_data": created,
++    }
+--- /dev/null
++++ b/addon/claude_blender/matched_views.py
+@@ -0,0 +1,185 @@
++"""Matched geometry evidence in a disposable scene, without source scene edits."""
++from __future__ import annotations
++
++import hashlib
++import json
++import math
++import os
++import tempfile
++
++import bpy
++from mathutils import Vector
++
++from . import lab_parity
++
++
++def _targets(context, target):
++    kind, name = target["kind"], target["name"]
++    if kind not in ("OBJECT", "COLLECTION") or not isinstance(name, str) or not name:
++        raise ValueError("Supply an explicit OBJECT or COLLECTION name")
++    items = context.scene.objects if kind == "OBJECT" else bpy.data.collections
++    matches = [item for item in items if item.name == name]
++    if len(matches) != 1:
++        raise ValueError("Target must resolve to exactly one " + kind + ": " + name)
++    objects = [matches[0]] if kind == "OBJECT" else list(matches[0].all_objects)
++    if not objects or len(objects) > 256:
++        raise ValueError("Each target must contain 1 to 256 objects")
++    if any(obj.type != "MESH" or obj.name not in context.scene.objects for obj in objects):
++        raise ValueError("Targets must contain only mesh objects in the current scene")
++    if any(obj.instance_type != "NONE" or getattr(obj, "particle_systems", ()) for obj in objects):
++        raise ValueError("Instanced targets are not supported")
++    if any(obj.modifiers for obj in objects):
++        raise ValueError("Targets with modifiers are not supported; apply modifiers before capture to avoid viewport/render differences")
++    return sorted(objects, key=lambda obj: obj.name)
++
++
++def _validate(views, profile):
++    if not 1 <= len(views) <= 6:
++        raise ValueError("Supply 1 to 6 views")
++    for key in ("width", "height"):
++        if type(profile[key]) is not int or not 32 <= profile[key] <= 1024:
++            raise ValueError("Resolution must be 32 to 1024 pixels")
++    colour = profile["colour"]
++    if len(colour) != 3 or any(not math.isfinite(x) or not 0 <= x <= 1 for x in colour):
++        raise ValueError("Colour must contain three finite values from 0 to 1")
++    for view in views:
++        for key in ("position", "look_at"):
++            if len(view[key]) != 3 or any(not math.isfinite(x) or abs(x) > 100000 for x in view[key]):
++                raise ValueError("Camera coordinates must be finite and within 100000 units")
++        if view["position"] == view["look_at"]:
++            raise ValueError("Camera position and look_at must differ")
++        if view["projection"] not in ("PERSP", "ORTHO"):
++            raise ValueError("Unknown projection")
++        for key, low, high in (("lens", 1, 250), ("ortho_scale", 0.01, 10000)):
++            if not math.isfinite(view[key]) or not low <= view[key] <= high:
++                raise ValueError("Invalid camera " + key)
++
++
++def _render(scene, path):
++    scene.render.filepath = path
++    result = bpy.ops.render.render(write_still=True, scene=scene.name)
++    if result != {"FINISHED"}:
++        raise RuntimeError("The matched-view render did not finish")
++
++
++def capture_matched_views(context, baseline, candidate, views, profile):
++    try:
++        _validate(views, profile)
++        targets = {"baseline": _targets(context, baseline), "candidate": _targets(context, candidate)}
++        if {obj.as_pointer() for obj in targets["baseline"]} & {obj.as_pointer() for obj in targets["candidate"]}:
++            raise ValueError("Baseline and candidate must not overlap")
++    except (ValueError, KeyError, TypeError) as exc:
++        return {"ok": False, "code": "matched_views_invalid", "message": str(exc)}
++
++    owned = []
++    scene = None
++    directory = ""
++    def track(collection, item):
++        owned.append((collection, item))
++        return item
++    try:
++        root = lab_parity._render_root_info(context, create=True)["render_thumbnail_root"]
++        directory = tempfile.mkdtemp(prefix="matched-", dir=root)
++        scene = bpy.data.scenes.new("Matched views")
++        scene.render.engine = "CYCLES"
++        scene.cycles.device = "CPU"
++        scene.cycles.samples = 16
++        scene.cycles.seed = 0
++        scene.cycles.use_animated_seed = False
++        scene.cycles.use_denoising = False
++        scene.render.threads_mode = "FIXED"
++        scene.render.threads = 2
++        scene.render.resolution_x = profile["width"]
++        scene.render.resolution_y = profile["height"]
++        scene.render.resolution_percentage = 100
++        scene.render.image_settings.file_format = "PNG"
++        scene.render.image_settings.color_mode = "RGBA"
++        scene.render.image_settings.color_depth = "8"
++        scene.view_settings.view_transform = "Standard"
++        scene.view_settings.look = "None"
++        scene.view_settings.exposure = 0
++        scene.view_settings.gamma = 1
++        world = track(bpy.data.worlds, bpy.data.worlds.new("Matched world"))
++        world.use_nodes = True
++        world.node_tree.nodes.get("Background").inputs[0].default_value = (0.15, 0.15, 0.15, 1)
++        world.node_tree.nodes.get("Background").inputs[1].default_value = 0.8
++        scene.world = world
++        material = track(bpy.data.materials, bpy.data.materials.new("Matched material"))
++        material.use_nodes = True
++        shader = material.node_tree.nodes.get("Principled BSDF")
++        shader.inputs["Base Color"].default_value = (*profile["colour"], 1)
++        shader.inputs["Roughness"].default_value = 0.8
++        light_data = track(bpy.data.lights, bpy.data.lights.new("Matched sun", "SUN"))
++        light_data.energy = 3
++        light_data.angle = 0.1
++        light = track(bpy.data.objects, bpy.data.objects.new("Matched sun", light_data))
++        scene.collection.objects.link(light)
++        light.rotation_euler = (0.4, -0.6, -0.4)
++        camera_data = track(bpy.data.cameras, bpy.data.cameras.new("Matched camera"))
++        camera = track(bpy.data.objects, bpy.data.objects.new("Matched camera", camera_data))
++        scene.collection.objects.link(camera)
++        scene.camera = camera
++        camera_data.sensor_width = 36
++        camera_data.sensor_fit = "HORIZONTAL"
++        camera_data.clip_start = 0.01
++        camera_data.clip_end = 100000
++        copies = {}
++        depsgraph = context.evaluated_depsgraph_get()
++        for role, objects in targets.items():
++            copies[role] = []
++            for source in objects:
++                evaluated = source.evaluated_get(depsgraph)
++                mesh = track(bpy.data.meshes, bpy.data.meshes.new_from_object(evaluated, depsgraph=depsgraph))
++                mesh.materials.clear()
++                mesh.materials.append(material)
++                obj = track(bpy.data.objects, bpy.data.objects.new("Matched " + source.name, mesh))
++                scene.collection.objects.link(obj)
++                obj.matrix_world = evaluated.matrix_world.copy()
++                copies[role].append(obj)
++        manifest = {
++            "schema_version": 1, "blender_version": bpy.app.version_string,
++            "source_scene": context.scene.name, "source_frame": context.scene.frame_current,
++            "targets": {role: [obj.name for obj in objects] for role, objects in targets.items()},
++            "views": views, "profile": {**profile, "engine": "CYCLES", "samples": 16, "seed": 0,
++                "device": "CPU", "denoising": False, "resolution_percentage": 100,
++                "clip_start": 0.01, "clip_end": 100000, "png_colour_mode": "RGBA", "png_colour_depth": 8,
++                "lighting": {"world_colour": [0.15] * 3, "world_strength": 0.8, "sun_energy": 3,
++                    "sun_angle": 0.1, "sun_rotation": [0.4, -0.6, -0.4]},
++                "material_roughness": 0.8, "view_transform": "Standard", "look": "None",
++                "exposure": 0, "gamma": 1, "sensor_width": 36, "sensor_fit": "HORIZONTAL"},
++            "evidence_kind": "matched_geometry_comparison", "images": [],
++        }
++        for index, view in enumerate(views):
++            camera.location = view["position"]
++            camera.rotation_euler = (Vector(view["look_at"]) - camera.location).to_track_quat("-Z", "Y").to_euler()
++            camera_data.type = view["projection"]
++            camera_data.lens = view["lens"]
++            camera_data.ortho_scale = view["ortho_scale"]
++            for role in targets:
++                for group, objects in copies.items():
++                    for obj in objects:
++                        obj.hide_render = group != role
++                path = os.path.join(directory, f"{index:02d}-{role}.png")
++                _render(scene, path)
++                with open(path, "rb") as handle:
++                    digest = hashlib.sha256(handle.read()).hexdigest()
++                manifest["images"].append({"view_index": index, "role": role, "path": path, "sha256": digest})
++        path = os.path.join(directory, "manifest.json")
++        with open(path, "x", encoding="utf-8") as handle:
++            json.dump(manifest, handle, indent=2, allow_nan=False)
++        return {"ok": True, "manifest_path": path, "manifest": manifest}
++    except Exception as exc:
++        return {"ok": False, "code": "matched_views_failed", "message": str(exc), "partial_output_dir": directory}
++    finally:
++        if scene is not None:
++            bpy.data.scenes.remove(scene)
++        for collection, item in reversed(owned):
++            collection.remove(item, do_unlink=True)
++
++
++def register():
++    pass
++
++
++def unregister():
++    pass
+--- a/addon/claude_blender/preferences.py
++++ b/addon/claude_blender/preferences.py
+@@ -94,9 +94,21 @@
+     return user_paths.user_data_path("checkpoints")
+ 
+ 
++def _local_glb_root_update(self, context):
++    from . import local_glb
++    local_glb.configure_import_root(self, context)
++
++
+ class CLAUDEBLENDER_AP_preferences(bpy.types.AddonPreferences):
+     bl_idname = __package__
+ 
++    local_glb_import_root: bpy.props.StringProperty(
++        name="Unsaved Scene GLB Root",
++        description="Local-user-approved absolute directory for GLB imports in unsaved scenes only. Blank blocks access",
++        subtype="DIR_PATH",
++        default="",
++        update=_local_glb_root_update,
++    )
+     screenshot_default: bpy.props.BoolProperty(
+         name="Screenshot Toggle Default",
+         description="Default state for viewport screenshot inclusion",
+@@ -293,6 +305,7 @@
+         safety.label(text="Safety")
+         safety.prop(self, "checkpoints_enabled")
+         safety.prop(self, "autosave_enabled")
++        safety.prop(self, "local_glb_import_root")
+ 
+         connection = layout.box()
+         connection.label(text="Connection")
+--- a/addon/claude_blender/tool_handlers/camera_render_evidence.py
++++ b/addon/claude_blender/tool_handlers/camera_render_evidence.py
+@@ -356,6 +356,14 @@
+     }
+ 
+ 
++def capture_matched_views(context, args):
++    from .. import matched_views
++
++    return matched_views.capture_matched_views(
++        context, args["baseline"], args["candidate"], args["views"], args["profile"],
++    )
++
++
+ def register(handler_registry, specs):
+     for spec in specs:
+         try:
+--- a/addon/claude_blender/tool_handlers/external_assets.py
++++ b/addon/claude_blender/tool_handlers/external_assets.py
+@@ -233,6 +233,12 @@
+     )
+ 
+ 
++def import_local_glb(context, args):
++    from .. import local_glb
++
++    return local_glb.import_local_glb(context, args["relative_path"])
++
++
+ def register(handler_registry, specs):
+     for spec in specs:
+         try:
+--- a/addon/claude_blender/tool_registry/domains/camera_render_evidence.py
++++ b/addon/claude_blender/tool_registry/domains/camera_render_evidence.py
+@@ -908,6 +908,43 @@
+   'owner': 'camera_render_evidence'}])
+ 
+ 
++_TARGET = {
++    "type": "object", "properties": {
++        "kind": {"type": "string", "enum": ["OBJECT", "COLLECTION"]},
++        "name": {"type": "string", "minLength": 1, "maxLength": 255},
++    }, "required": ["kind", "name"], "additionalProperties": False,
++}
++_VECTOR = {"type": "array", "items": {"type": "number"}, "minItems": 3, "maxItems": 3}
++SPECS += (ToolSpec(
++    name="capture_matched_views",
++    description="Compare explicit baseline and candidate mesh objects or collections from identical fixed cameras. Renders evaluated geometry with one shared neutral material and lighting in a disposable scene. Returns full-size PNG paths and a SHA-256 evidence manifest, not reference style scores. Synchronous, up to six views at 1024 square pixels.",
++    input_schema={
++        "type": "object", "properties": {
++            "baseline": _TARGET, "candidate": _TARGET,
++            "views": {"type": "array", "minItems": 1, "maxItems": 6, "items": {
++                "type": "object", "properties": {
++                    "position": _VECTOR, "look_at": _VECTOR,
++                    "projection": {"type": "string", "enum": ["PERSP", "ORTHO"]},
++                    "lens": {"type": "number", "minimum": 1, "maximum": 250},
++                    "ortho_scale": {"type": "number", "minimum": 0.01, "maximum": 10000},
++                }, "required": ["position", "look_at", "projection", "lens", "ortho_scale"],
++                "additionalProperties": False,
++            }},
++            "profile": {"type": "object", "properties": {
++                "width": {"type": "integer", "minimum": 32, "maximum": 1024},
++                "height": {"type": "integer", "minimum": 32, "maximum": 1024},
++                "colour": {"type": "array", "items": {"type": "number", "minimum": 0, "maximum": 1}, "minItems": 3, "maxItems": 3},
++            }, "required": ["width", "height", "colour"], "additionalProperties": False},
++        }, "required": ["baseline", "candidate", "views", "profile"], "additionalProperties": False,
++    },
++    contract={"mutates_scene": False, "has_side_effects": True,
++        "permissions": ["scene:read", "files:write"], "supports_headless": True,
++        "long_running": True, "timeout_seconds": 180},
++    handler_key="capture_matched_views", order=1802,
++    groups=("camera_render", "deep_inspect"), exposure="catalog", owner="camera_render_evidence",
++),)
++
++
+ def register(registry):
+     registry.register_many(SPECS)
+ 
+--- a/addon/claude_blender/tool_registry/domains/external_assets.py
++++ b/addon/claude_blender/tool_registry/domains/external_assets.py
+@@ -675,6 +675,28 @@
+   'owner': 'external_assets'}])
+ 
+ 
++SPECS += (ToolSpec(
++    name="import_local_glb",
++    description="Import a static, single-scene embedded local GLB from the saved .blend directory, or the locally configured import root for an unsaved scene. Leaves a reversible preview pending. Material variants are blocked.",
++    input_schema={
++        "type": "object",
++        "properties": {"relative_path": {
++            "type": "string", "minLength": 1, "maxLength": 1024,
++            "description": "Project-relative .glb path. No parent paths, hidden paths, or symbolic links. Maximum 64 MiB; no URI references.",
++        }},
++        "required": ["relative_path"], "additionalProperties": False,
++    },
++    contract={
++        "mutates_scene": True, "requires_live_preview": True,
++        "has_side_effects": True,
++        "permissions": ["files:read", "files:write", "scene:mutate", "preview:write"],
++        "supports_headless": True,
++    },
++    handler_key="import_local_glb", order=1801,
++    groups=("external_assets",), exposure="catalog", owner="external_assets",
++),)
++
++
+ def register(registry):
+     registry.register_many(SPECS)
+ 
+--- /dev/null
++++ b/tests/smoke_local_glb.py
+@@ -0,0 +1,86 @@
++"""Run in a separate factory-startup Blender, never in the live user scene."""
++import os
++import sys
++import tempfile
++
++import bpy
++
++ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
++sys.path.insert(0, os.path.join(ROOT, "addon"))
++from claude_blender import live_preview, local_glb, preferences
++
++bpy.utils.register_class(preferences.CLAUDEBLENDER_AP_preferences)
++addon = bpy.context.preferences.addons.new()
++addon.module = "claude_blender"
++prefs = preferences.get_preferences(bpy.context)
++assert prefs.local_glb_import_root == ""
++assert not bpy.data.filepath
++
++with tempfile.TemporaryDirectory(prefix="local-glb-smoke-", dir=os.path.join(ROOT, "dist")) as directory:
++    bpy.ops.export_scene.gltf(filepath=os.path.join(directory, "cube.glb"), use_selection=True, export_animations=False)
++    assert not local_glb.import_local_glb(bpy.context, "cube.glb")["ok"]
++    prefs.local_glb_import_root = directory
++    assert local_glb._configured_root_binding[1] is not None
++    before_unsaved = {collection: {item.as_pointer() for item in getattr(bpy.data, collection)} for _, collection in local_glb.DATA_KINDS}
++    earlier = live_preview.begin("Unsaved earlier preview", bpy.context)
++    result = local_glb.import_local_glb(bpy.context, "cube.glb")
++    assert result["ok"] and result["preview_pending"], result
++    assert not bpy.data.filepath
++    assert live_preview.current_transaction() is earlier
++    assert live_preview.revert(bpy.context)["ok"]
++    for _, collection in local_glb.DATA_KINDS:
++        assert {item.as_pointer() for item in getattr(bpy.data, collection)} == before_unsaved[collection], collection
++    library = os.path.join(directory, "library.blend")
++    bpy.data.libraries.write(library, {bpy.data.objects["Cube"]})
++    bpy.data.objects.remove(bpy.data.objects["Cube"], do_unlink=True)
++    with bpy.data.libraries.load(library, link=True) as (source, target):
++        target.objects = ["Cube"]
++    linked = target.objects[0]
++    bpy.context.scene.collection.objects.link(linked)
++    linked.select_set(True)
++    bpy.context.view_layer.objects.active = linked
++    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(directory, "test.blend"))
++    prefs.local_glb_import_root = "invalid"
++    before = {collection: {item.as_pointer() for item in getattr(bpy.data, collection)} for _, collection in local_glb.DATA_KINDS}
++    selected = {item.name for item in bpy.context.selected_objects}
++    active = bpy.context.view_layer.objects.active.name
++    bpy.context.scene["keep_this"] = "unchanged"
++    parent = live_preview.begin("Earlier preview", bpy.context)
++    result = local_glb.import_local_glb(bpy.context, "cube.glb")
++    assert result["ok"], result
++    assert result["preview_pending"]
++    imported_names = [item["name"] for item in result["created_data"] if item["kind"] == "object"]
++    assert imported_names and "Cube" not in imported_names, result
++    assert linked.library and linked.name == "Cube"
++    assert live_preview.current_transaction() is parent
++    assert len(bpy.data.objects) > len(before["objects"])
++    assert bpy.context.scene["keep_this"] == "unchanged"
++    rollback = live_preview.revert(bpy.context)
++    assert rollback["ok"], rollback
++    assert not rollback["rollback_warnings"], rollback
++    for _, collection in local_glb.DATA_KINDS:
++        assert {item.as_pointer() for item in getattr(bpy.data, collection)} == before[collection], collection
++    assert {item.name for item in bpy.context.selected_objects} == selected
++    assert bpy.context.view_layer.objects.active.name == active
++    from unittest import mock
++    parent = live_preview.begin("Earlier failure preview", bpy.context)
++    parent["applied_steps"].append({"label": "Earlier"})
++    importer = bpy.ops.import_scene.gltf
++    def fail_after_import(**kwargs):
++        assert importer(**kwargs) == {"FINISHED"}
++        material = bpy.data.materials.new("Partial material")
++        material.use_nodes = True
++        image = bpy.data.images.new("Partial image", 2, 2)
++        material.node_tree.nodes.new("ShaderNodeTexImage").image = image
++        raise RuntimeError("Injected failure after real import and image creation")
++    from types import SimpleNamespace
++    proxy = SimpleNamespace(data=bpy.data, ops=SimpleNamespace(import_scene=SimpleNamespace(gltf=fail_after_import)))
++    with mock.patch.object(local_glb, "bpy", proxy):
++        failed = local_glb.import_local_glb(bpy.context, "cube.glb")
++    assert not failed["ok"] and failed["rollback"]["ok"], failed
++    assert live_preview.current_transaction() is parent
++    assert parent["applied_steps"] == [{"label": "Earlier"}]
++    for _, collection in local_glb.DATA_KINDS:
++        assert {item.as_pointer() for item in getattr(bpy.data, collection)} == before[collection], collection
++    assert linked.library and linked.name == "Cube"
++print("LOCAL_GLB_SMOKE_OK")
+--- /dev/null
++++ b/tests/smoke_matched_views.py
+@@ -0,0 +1,106 @@
++"""Run only in disposable factory-startup Blender."""
++import hashlib
++import json
++import os
++import sys
++import tempfile
++from unittest import mock
++
++import bpy
++
++ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
++sys.path.insert(0, os.path.join(ROOT, "addon"))
++from claude_blender import matched_views
++
++baseline = bpy.data.objects["Cube"]
++vertices = [tuple(vertex.co) for vertex in baseline.data.vertices]
++faces = [tuple(face.vertices) for face in baseline.data.polygons]
++marker = [(x * 0.25 + 1.8, y * 0.25, z * 0.25 + 1.8) for x, y, z in vertices]
++mesh = bpy.data.meshes.new("Asymmetric camera marker")
++mesh.from_pydata(vertices + marker, [], faces + [tuple(index + 8 for index in face) for face in faces])
++baseline.data = mesh
++candidate = baseline.copy()
++candidate.data = baseline.data.copy()
++candidate.name = "../Candidate"
++bpy.context.scene.collection.objects.link(candidate)
++candidate.hide_render = True
++views = [
++    {"position": [0, -6.8, 2.3], "look_at": [0, 0, 0], "projection": "PERSP", "lens": 36, "ortho_scale": 5},
++    {"position": [7, 0, 1], "look_at": [0, 0, 0], "projection": "ORTHO", "lens": 36, "ortho_scale": 5},
++    {"position": [0, -8, 0], "look_at": [0, 0, 0], "projection": "ORTHO", "lens": 36, "ortho_scale": 6},
++]
++profile = {"width": 64, "height": 64, "colour": [0.6, 0.6, 0.6]}
++args = (bpy.context, {"kind": "OBJECT", "name": baseline.name}, {"kind": "OBJECT", "name": candidate.name}, views, profile)
++
++
++def state():
++    scene = bpy.context.scene
++    return {
++        "data": {key: [item.name for item in getattr(bpy.data, key)] for key in ("scenes", "objects", "meshes", "cameras", "lights", "materials", "worlds")},
++        "objects": [(o.name, o.hide_render, o.hide_viewport, o.hide_get(), o.select_get()) for o in scene.objects],
++        "scene": (scene.name, scene.camera.name, scene.render.engine, scene.render.filepath, scene.render.resolution_x, scene.render.resolution_y, scene.render.resolution_percentage),
++        "active": bpy.context.view_layer.objects.active.name,
++    }
++
++
++before = state()
++output = tempfile.mkdtemp(prefix="matched-smoke-")
++with mock.patch.object(matched_views.lab_parity, "_render_root_info", return_value={"render_thumbnail_root": output}):
++    modifier = candidate.modifiers.new("Render only", "SUBSURF")
++    modifier.show_viewport = False
++    modifier.show_render = True
++    rejected = matched_views.capture_matched_views(*args)
++    assert not rejected["ok"] and rejected["code"] == "matched_views_invalid", rejected
++    assert "apply modifiers" in rejected["message"]
++    candidate.modifiers.remove(modifier)
++    result = matched_views.capture_matched_views(*args)
++    assert result["ok"], result
++    assert state() == before, "Source state changed"
++    images = result["manifest"]["images"]
++    def pixels(path):
++        image = bpy.data.images.load(path, check_existing=False)
++        try:
++            assert tuple(image.size) == (64, 64)
++            return tuple(image.pixels)
++        finally:
++            bpy.data.images.remove(image)
++    for index in (0, 2, 4):
++        assert pixels(images[index]["path"]) == pixels(images[index + 1]["path"]), "Matched cameras drifted"
++    orientation = pixels(images[4]["path"])
++    def rgb(x, y):
++        start = (y * 64 + x) * 4
++        return orientation[start:start + 3]
++    assert max(abs(a - b) for a, b in zip(rgb(12, 12), rgb(2, 2))) < 0.02, "Negative X/Z corner must be background"
++    assert max(abs(a - b) for a, b in zip(rgb(51, 51), rgb(2, 2))) > 0.05, "Positive X/Z marker must be at the top right"
++    assert pixels(images[0]["path"]) != pixels(images[2]["path"]), "Views did not change"
++    for image in images:
++        assert os.path.commonpath([output, image["path"]]) == output
++        data = open(image["path"], "rb").read()
++        assert data[:8] == b"\x89PNG\r\n\x1a\n"
++        assert hashlib.sha256(data).hexdigest() == image["sha256"]
++    assert json.load(open(result["manifest_path"]))["images"] == images
++    candidate.scale.x = 1.5
++    bpy.context.view_layer.update()
++    changed = matched_views.capture_matched_views(*args)
++    assert changed["ok"], changed
++    changed_images = changed["manifest"]["images"]
++    assert pixels(changed_images[0]["path"]) != pixels(changed_images[1]["path"]), "Geometry change was not captured"
++    candidate.scale.x = 1
++    bpy.context.view_layer.update()
++    with mock.patch.object(matched_views, "_render", side_effect=RuntimeError("Injected render error")):
++        failed = matched_views.capture_matched_views(*args)
++    assert not failed["ok"], failed
++    assert state() == before, "Render failure changed source state"
++    def cancelled(**kwargs):
++        scene = bpy.data.scenes[kwargs["scene"]]
++        with open(scene.render.filepath, "wb") as handle:
++            handle.write(b"existing PNG")
++        return {"CANCELLED"}
++    from types import SimpleNamespace
++    proxy = SimpleNamespace(data=bpy.data, app=bpy.app, ops=SimpleNamespace(render=SimpleNamespace(render=cancelled)))
++    with mock.patch.object(matched_views, "bpy", proxy):
++        failed = matched_views.capture_matched_views(*args)
++    assert not failed["ok"] and "did not finish" in failed["message"], failed
++    assert not os.path.exists(os.path.join(failed["partial_output_dir"], "manifest.json"))
++    assert state() == before, "Cancelled render changed source state"
++print("MATCHED_VIEWS_SMOKE_OK", result["manifest_path"])
+--- /dev/null
++++ b/tests/smoke_packaged_helpers.py
+@@ -0,0 +1,32 @@
++"""Check the built ZIP in disposable Blender without registering the add-on."""
++import json
++import os
++import sys
++import tempfile
++import zipfile
++
++import bpy
++
++archive = sys.argv[sys.argv.index("--") + 1]
++with tempfile.TemporaryDirectory(prefix="packaged-helper-smoke-") as directory:
++    package = os.path.join(directory, "claude_blender")
++    with zipfile.ZipFile(archive) as source:
++        source.extractall(package)
++    sys.path.insert(0, directory)
++    from claude_blender import tool_dispatcher
++    assert "import_local_glb" in tool_dispatcher.TOOL_FUNCTIONS
++    assert "capture_matched_views" in tool_dispatcher.TOOL_FUNCTIONS
++    def call(name, args):
++        return json.loads(tool_dispatcher.execute_tool(bpy.context, name, args))
++    imported = call("import_local_glb", {"relative_path": "missing.glb"})
++    assert not imported["ok"], imported
++    assert "project" in imported.get("code", "") or "save" in imported.get("message", "").lower(), imported
++    captured = call("capture_matched_views", {
++        "baseline": {"kind": "OBJECT", "name": "Missing"},
++        "candidate": {"kind": "OBJECT", "name": "Cube"},
++        "views": [], "profile": {},
++    })
++    assert not captured["ok"] and captured["code"] == "matched_views_invalid", captured
++    missing = call("import_local_glb", {})
++    assert not missing["ok"] and "KeyError" in missing["message"], missing
++print("PACKAGED_HELPERS_SMOKE_OK")
+--- a/tests/snapshots/tool_registry.json
++++ b/tests/snapshots/tool_registry.json
+@@ -1,5 +1,5 @@
+ {
+-  "catalog_tool_count": 240,
++  "catalog_tool_count": 242,
+   "contracts": {
+     "adaptive_remesh": {
+       "description": "Adaptively refine sculpt topology by subdividing edges that exceed a bounded local target derived from edge length, semantic-region weight, and face curvature. Retains interpolated semantic point attributes, optionally relaxes spacing and projects vertices back to the source surface, and enforces input, per-pass, and result vertex limits. This is a form-preserving refinement pass; it does not decimate or promise production retopology.",
+@@ -3537,6 +3537,170 @@
+         "status_tool": "blender_bridge_status"
+       },
+       "timeout_seconds": 120
++    },
++    "capture_matched_views": {
++      "description": "Compare explicit baseline and candidate mesh objects or collections from identical fixed cameras. Renders evaluated geometry with one shared neutral material and lighting in a disposable scene. Returns full-size PNG paths and a SHA-256 evidence manifest, not reference style scores. Synchronous, up to six views at 1024 square pixels.",
++      "has_side_effects": true,
++      "input_schema": {
++        "additionalProperties": false,
++        "properties": {
++          "baseline": {
++            "additionalProperties": false,
++            "properties": {
++              "kind": {
++                "enum": [
++                  "OBJECT",
++                  "COLLECTION"
++                ],
++                "type": "string"
++              },
++              "name": {
++                "maxLength": 255,
++                "minLength": 1,
++                "type": "string"
++              }
++            },
++            "required": [
++              "kind",
++              "name"
++            ],
++            "type": "object"
++          },
++          "candidate": {
++            "additionalProperties": false,
++            "properties": {
++              "kind": {
++                "enum": [
++                  "OBJECT",
++                  "COLLECTION"
++                ],
++                "type": "string"
++              },
++              "name": {
++                "maxLength": 255,
++                "minLength": 1,
++                "type": "string"
++              }
++            },
++            "required": [
++              "kind",
++              "name"
++            ],
++            "type": "object"
++          },
++          "profile": {
++            "additionalProperties": false,
++            "properties": {
++              "colour": {
++                "items": {
++                  "maximum": 1,
++                  "minimum": 0,
++                  "type": "number"
++                },
++                "maxItems": 3,
++                "minItems": 3,
++                "type": "array"
++              },
++              "height": {
++                "maximum": 1024,
++                "minimum": 32,
++                "type": "integer"
++              },
++              "width": {
++                "maximum": 1024,
++                "minimum": 32,
++                "type": "integer"
++              }
++            },
++            "required": [
++              "width",
++              "height",
++              "colour"
++            ],
++            "type": "object"
++          },
++          "views": {
++            "items": {
++              "additionalProperties": false,
++              "properties": {
++                "lens": {
++                  "maximum": 250,
++                  "minimum": 1,
++                  "type": "number"
++                },
++                "look_at": {
++                  "items": {
++                    "type": "number"
++                  },
++                  "maxItems": 3,
++                  "minItems": 3,
++                  "type": "array"
++                },
++                "ortho_scale": {
++                  "maximum": 10000,
++                  "minimum": 0.01,
++                  "type": "number"
++                },
++                "position": {
++                  "items": {
++                    "type": "number"
++                  },
++                  "maxItems": 3,
++                  "minItems": 3,
++                  "type": "array"
++                },
++                "projection": {
++                  "enum": [
++                    "PERSP",
++                    "ORTHO"
++                  ],
++                  "type": "string"
++                }
++              },
++              "required": [
++                "position",
++                "look_at",
++                "projection",
++                "lens",
++                "ortho_scale"
++              ],
++              "type": "object"
++            },
++            "maxItems": 6,
++            "minItems": 1,
++            "type": "array"
++          }
++        },
++        "required": [
++          "baseline",
++          "candidate",
++          "views",
++          "profile"
++        ],
++        "type": "object"
++      },
++      "long_running": true,
++      "mutates_scene": false,
++      "output_schema": {
++        "additionalProperties": true,
++        "properties": {
++          "message": {
++            "description": "Human-readable status or error message",
++            "type": "string"
++          },
++          "ok": {
++            "description": "Whether the tool completed successfully",
++            "type": "boolean"
++          }
++        },
++        "type": "object"
++      },
++      "permissions": [
++        "scene:read",
++        "files:write"
++      ],
++      "supports_headless": true,
++      "timeout_seconds": 180
+     },
+     "capture_object_inspection_renders": {
+       "description": "Render diagnostic close-up PNGs of named objects from bounded inspection views, then return metadata plus MCP image resource URIs. Use when visual object details need rendered evidence, such as undersides, side views, occluded parts, or model defects. This is synchronous and may take a few seconds per object/view; if it times out, wait and check blender_bridge_status/latest inspection-render metadata before recapturing.",
+@@ -12355,6 +12519,48 @@
+       "supports_headless": true,
+       "timeout_seconds": 300
+     },
++    "import_local_glb": {
++      "description": "Import a static, single-scene embedded local GLB from the saved .blend directory, or the locally configured import root for an unsaved scene. Leaves a reversible preview pending. Material variants are blocked.",
++      "has_side_effects": true,
++      "input_schema": {
++        "additionalProperties": false,
++        "properties": {
++          "relative_path": {
++            "description": "Project-relative .glb path. No parent paths, hidden paths, or symbolic links. Maximum 64 MiB; no URI references.",
++            "maxLength": 1024,
++            "minLength": 1,
++            "type": "string"
++          }
++        },
++        "required": [
++          "relative_path"
++        ],
++        "type": "object"
++      },
++      "mutates_scene": true,
++      "output_schema": {
++        "additionalProperties": true,
++        "properties": {
++          "message": {
++            "description": "Human-readable status or error message",
++            "type": "string"
++          },
++          "ok": {
++            "description": "Whether the tool completed successfully",
++            "type": "boolean"
++          }
++        },
++        "type": "object"
++      },
++      "permissions": [
++        "files:read",
++        "files:write",
++        "scene:mutate",
++        "preview:write"
++      ],
++      "requires_live_preview": true,
++      "supports_headless": true
++    },
+     "import_poly_haven_asset": {
+       "description": "Synchronous fallback: download/cache and import a Poly Haven asset into Blender preview. HDRIs create a world, textures create/assign a material, and models use Blender importers. For normal client workflows, use start_external_asset_download, poll get_external_asset_job_status, then start_external_asset_import_job.",
+       "has_side_effects": true,
+@@ -33091,6 +33297,167 @@
+       "name": "prune_external_asset_cache"
+     },
+     {
++      "description": "Import a static, single-scene embedded local GLB from the saved .blend directory, or the locally configured import root for an unsaved scene. Leaves a reversible preview pending. Material variants are blocked.",
++      "input_schema": {
++        "additionalProperties": false,
++        "properties": {
++          "relative_path": {
++            "description": "Project-relative .glb path. No parent paths, hidden paths, or symbolic links. Maximum 64 MiB; no URI references.",
++            "maxLength": 1024,
++            "minLength": 1,
++            "type": "string"
++          }
++        },
++        "required": [
++          "relative_path"
++        ],
++        "type": "object"
++      },
++      "name": "import_local_glb"
++    },
++    {
++      "description": "Compare explicit baseline and candidate mesh objects or collections from identical fixed cameras. Renders evaluated geometry with one shared neutral material and lighting in a disposable scene. Returns full-size PNG paths and a SHA-256 evidence manifest, not reference style scores. Synchronous, up to six views at 1024 square pixels.",
++      "input_schema": {
++        "additionalProperties": false,
++        "properties": {
++          "baseline": {
++            "additionalProperties": false,
++            "properties": {
++              "kind": {
++                "enum": [
++                  "OBJECT",
++                  "COLLECTION"
++                ],
++                "type": "string"
++              },
++              "name": {
++                "maxLength": 255,
++                "minLength": 1,
++                "type": "string"
++              }
++            },
++            "required": [
++              "kind",
++              "name"
++            ],
++            "type": "object"
++          },
++          "candidate": {
++            "additionalProperties": false,
++            "properties": {
++              "kind": {
++                "enum": [
++                  "OBJECT",
++                  "COLLECTION"
++                ],
++                "type": "string"
++              },
++              "name": {
++                "maxLength": 255,
++                "minLength": 1,
++                "type": "string"
++              }
++            },
++            "required": [
++              "kind",
++              "name"
++            ],
++            "type": "object"
++          },
++          "profile": {
++            "additionalProperties": false,
++            "properties": {
++              "colour": {
++                "items": {
++                  "maximum": 1,
++                  "minimum": 0,
++                  "type": "number"
++                },
++                "maxItems": 3,
++                "minItems": 3,
++                "type": "array"
++              },
++              "height": {
++                "maximum": 1024,
++                "minimum": 32,
++                "type": "integer"
++              },
++              "width": {
++                "maximum": 1024,
++                "minimum": 32,
++                "type": "integer"
++              }
++            },
++            "required": [
++              "width",
++              "height",
++              "colour"
++            ],
++            "type": "object"
++          },
++          "views": {
++            "items": {
++              "additionalProperties": false,
++              "properties": {
++                "lens": {
++                  "maximum": 250,
++                  "minimum": 1,
++                  "type": "number"
++                },
++                "look_at": {
++                  "items": {
++                    "type": "number"
++                  },
++                  "maxItems": 3,
++                  "minItems": 3,
++                  "type": "array"
++                },
++                "ortho_scale": {
++                  "maximum": 10000,
++                  "minimum": 0.01,
++                  "type": "number"
++                },
++                "position": {
++                  "items": {
++                    "type": "number"
++                  },
++                  "maxItems": 3,
++                  "minItems": 3,
++                  "type": "array"
++                },
++                "projection": {
++                  "enum": [
++                    "PERSP",
++                    "ORTHO"
++                  ],
++                  "type": "string"
++                }
++              },
++              "required": [
++                "position",
++                "look_at",
++                "projection",
++                "lens",
++                "ortho_scale"
++              ],
++              "type": "object"
++            },
++            "maxItems": 6,
++            "minItems": 1,
++            "type": "array"
++          }
++        },
++        "required": [
++          "baseline",
++          "candidate",
++          "views",
++          "profile"
++        ],
++        "type": "object"
++      },
++      "name": "capture_matched_views"
++    },
++    {
+       "description": "Run Blender Python immediately with the same process permissions as Blender's Run Script command when Blender-side session script trust is active. Filesystem, network, subprocess, project-file, and Blender API access are allowed. When trust is off the request is refused without retaining script state. This is the default authored-mutation path for object generation, modeling, animation, materials, custom nodes, rigging, and look development unless the user requests helpers. Prefer bounded helpers for operational work that needs recovery, provenance, polling, or path validation. Trusted scripts are checkpoint-backed immediate edits, not live-preview transactions; commit_preview and revert_preview do not apply to their changes.",
+       "input_schema": {
+         "additionalProperties": false,
+@@ -33851,7 +34218,8 @@
+       "create_lookdev_turntable_review",
+       "add_light",
+       "add_camera",
+-      "set_active_camera"
++      "set_active_camera",
++      "capture_matched_views"
+     ],
+     "external_assets": [
+       "list_poly_haven_categories",
+@@ -33871,7 +34239,8 @@
+       "cancel_external_asset_import_job",
+       "delete_external_asset_job",
+       "get_external_asset_cache_diagnostics",
+-      "prune_external_asset_cache"
++      "prune_external_asset_cache",
++      "import_local_glb"
+     ],
+     "generation": [
+       "get_generation_provider_diagnostics",
+@@ -34048,7 +34417,7 @@
+       "organize_scene_for_production"
+     ]
+   },
+-  "registry_digest": "7d6c002eeb1f805edb2145ef461447f91f7595a29a6ab20c382705fcc04ac9f4",
++  "registry_digest": "893c945d3c643296e80de17e38566a3c9375032a09f721a7e2cf484c94720504",
+   "schema_version": 1,
+   "specs": [
+     {
+@@ -57773,6 +58142,233 @@
+     },
+     {
+       "contract": {
++        "has_side_effects": true,
++        "mutates_scene": true,
++        "permissions": [
++          "files:read",
++          "files:write",
++          "scene:mutate",
++          "preview:write"
++        ],
++        "requires_live_preview": true,
++        "supports_headless": true
++      },
++      "description": "Import a static, single-scene embedded local GLB from the saved .blend directory, or the locally configured import root for an unsaved scene. Leaves a reversible preview pending. Material variants are blocked.",
++      "exposure": "catalog",
++      "groups": [
++        "external_assets"
++      ],
++      "handler_key": "import_local_glb",
++      "input_schema": {
++        "additionalProperties": false,
++        "properties": {
++          "relative_path": {
++            "description": "Project-relative .glb path. No parent paths, hidden paths, or symbolic links. Maximum 64 MiB; no URI references.",
++            "maxLength": 1024,
++            "minLength": 1,
++            "type": "string"
++          }
++        },
++        "required": [
++          "relative_path"
++        ],
++        "type": "object"
++      },
++      "name": "import_local_glb",
++      "order": 1801,
++      "output_schema": {
++        "additionalProperties": true,
++        "properties": {
++          "message": {
++            "description": "Human-readable status or error message",
++            "type": "string"
++          },
++          "ok": {
++            "description": "Whether the tool completed successfully",
++            "type": "boolean"
++          }
++        },
++        "type": "object"
++      },
++      "owner": "external_assets"
++    },
++    {
++      "contract": {
++        "has_side_effects": true,
++        "long_running": true,
++        "mutates_scene": false,
++        "permissions": [
++          "scene:read",
++          "files:write"
++        ],
++        "supports_headless": true,
++        "timeout_seconds": 180
++      },
++      "description": "Compare explicit baseline and candidate mesh objects or collections from identical fixed cameras. Renders evaluated geometry with one shared neutral material and lighting in a disposable scene. Returns full-size PNG paths and a SHA-256 evidence manifest, not reference style scores. Synchronous, up to six views at 1024 square pixels.",
++      "exposure": "catalog",
++      "groups": [
++        "camera_render",
++        "deep_inspect"
++      ],
++      "handler_key": "capture_matched_views",
++      "input_schema": {
++        "additionalProperties": false,
++        "properties": {
++          "baseline": {
++            "additionalProperties": false,
++            "properties": {
++              "kind": {
++                "enum": [
++                  "OBJECT",
++                  "COLLECTION"
++                ],
++                "type": "string"
++              },
++              "name": {
++                "maxLength": 255,
++                "minLength": 1,
++                "type": "string"
++              }
++            },
++            "required": [
++              "kind",
++              "name"
++            ],
++            "type": "object"
++          },
++          "candidate": {
++            "additionalProperties": false,
++            "properties": {
++              "kind": {
++                "enum": [
++                  "OBJECT",
++                  "COLLECTION"
++                ],
++                "type": "string"
++              },
++              "name": {
++                "maxLength": 255,
++                "minLength": 1,
++                "type": "string"
++              }
++            },
++            "required": [
++              "kind",
++              "name"
++            ],
++            "type": "object"
++          },
++          "profile": {
++            "additionalProperties": false,
++            "properties": {
++              "colour": {
++                "items": {
++                  "maximum": 1,
++                  "minimum": 0,
++                  "type": "number"
++                },
++                "maxItems": 3,
++                "minItems": 3,
++                "type": "array"
++              },
++              "height": {
++                "maximum": 1024,
++                "minimum": 32,
++                "type": "integer"
++              },
++              "width": {
++                "maximum": 1024,
++                "minimum": 32,
++                "type": "integer"
++              }
++            },
++            "required": [
++              "width",
++              "height",
++              "colour"
++            ],
++            "type": "object"
++          },
++          "views": {
++            "items": {
++              "additionalProperties": false,
++              "properties": {
++                "lens": {
++                  "maximum": 250,
++                  "minimum": 1,
++                  "type": "number"
++                },
++                "look_at": {
++                  "items": {
++                    "type": "number"
++                  },
++                  "maxItems": 3,
++                  "minItems": 3,
++                  "type": "array"
++                },
++                "ortho_scale": {
++                  "maximum": 10000,
++                  "minimum": 0.01,
++                  "type": "number"
++                },
++                "position": {
++                  "items": {
++                    "type": "number"
++                  },
++                  "maxItems": 3,
++                  "minItems": 3,
++                  "type": "array"
++                },
++                "projection": {
++                  "enum": [
++                    "PERSP",
++                    "ORTHO"
++                  ],
++                  "type": "string"
++                }
++              },
++              "required": [
++                "position",
++                "look_at",
++                "projection",
++                "lens",
++                "ortho_scale"
++              ],
++              "type": "object"
++            },
++            "maxItems": 6,
++            "minItems": 1,
++            "type": "array"
++          }
++        },
++        "required": [
++          "baseline",
++          "candidate",
++          "views",
++          "profile"
++        ],
++        "type": "object"
++      },
++      "name": "capture_matched_views",
++      "order": 1802,
++      "output_schema": {
++        "additionalProperties": true,
++        "properties": {
++          "message": {
++            "description": "Human-readable status or error message",
++            "type": "string"
++          },
++          "ok": {
++            "description": "Whether the tool completed successfully",
++            "type": "boolean"
++          }
++        },
++        "type": "object"
++      },
++      "owner": "camera_render_evidence"
++    },
++    {
++      "contract": {
+         "authorization_model": "blender_run_script_equivalent",
+         "description": "Run generated Blender Python with Blender Run Script-equivalent permissions only while Blender-side session script trust is active; changes are checkpoint-backed and outside the live Commit/Revert preview transaction",
+         "destructive_hint": true,
+@@ -59614,5 +60210,5 @@
+       "owner": "generation"
+     }
+   ],
+-  "tool_count": 241
++  "tool_count": 243
+ }
+--- /dev/null
++++ b/tests/unit/test_local_glb.py
+@@ -0,0 +1,320 @@
++from __future__ import annotations
++
++import importlib.util
++import json
++import os
++from pathlib import Path
++import struct
++import sys
++import tempfile
++import types
++import unittest
++from unittest import mock
++
++ROOT = Path(__file__).resolve().parents[2]
++sys.path.insert(0, str(ROOT / "addon"))
++from claude_blender import tool_registry
++
++
++def load_module(name):
++    spec = importlib.util.spec_from_file_location("claude_blender." + name, ROOT / "addon/claude_blender" / (name + ".py"))
++    module = importlib.util.module_from_spec(spec)
++    spec.loader.exec_module(module)
++    return module
++
++
++def glb(document=None):
++    payload = json.dumps(document or {"asset": {"version": "2.0"}}).encode()
++    payload += b" " * (-len(payload) % 4)
++    return struct.pack("<4sIIII", b"glTF", 2, 20 + len(payload), len(payload), 0x4E4F534A) + payload
++
++
++class Collection(list):
++    active = None
++
++    def get(self, name):
++        return next((item for item in self if item.name == name), None)
++
++    def remove(self, item, **kwargs):
++        super().remove(item)
++
++
++class Item:
++    def __init__(self, name):
++        self.name = name
++        self.users = 0
++        self.selected = False
++
++    def as_pointer(self):
++        return id(self)
++
++    def select_set(self, value):
++        self.selected = value
++
++
++class LocalGlbTests(unittest.TestCase):
++    def setUp(self):
++        self.temp = tempfile.TemporaryDirectory(dir=ROOT)
++        self.addCleanup(self.temp.cleanup)
++        self.root = Path(self.temp.name)
++        self.bpy = types.ModuleType("bpy")
++        handlers = types.ModuleType("bpy.app.handlers")
++        handlers.persistent = lambda function: function
++        handlers.load_post = []
++        self.bpy.app = types.SimpleNamespace(handlers=handlers)
++        self.bpy.data = types.SimpleNamespace(filepath=str(self.root / "scene.blend"))
++        self.bpy.ops = types.SimpleNamespace(import_scene=types.SimpleNamespace(gltf=mock.Mock(return_value={"FINISHED"})))
++        modules = {
++            "bpy": self.bpy, "bpy.app.handlers": handlers,
++            "mathutils": types.SimpleNamespace(Matrix=mock.Mock()),
++            "claude_blender.lab_parity": types.ModuleType("lab_parity"),
++            "claude_blender.script_runner": types.ModuleType("script_runner"),
++        }
++        with mock.patch.dict(sys.modules, modules):
++            self.preview = load_module("live_preview")
++            self.files = load_module("project_files")
++            import claude_blender
++            with mock.patch.object(claude_blender, "live_preview", self.preview, create=True), mock.patch.object(claude_blender, "project_files", self.files, create=True):
++                self.module = load_module("local_glb")
++        for _, collection in self.module.DATA_KINDS:
++            setattr(self.bpy.data, collection, Collection())
++        self.old = Item("Existing")
++        self.old.selected = True
++        self.bpy.data.objects.append(self.old)
++        self.bpy.data.objects.active = self.old
++        self.context = types.SimpleNamespace(
++            mode="OBJECT", scene=types.SimpleNamespace(name="Scene"),
++            view_layer=types.SimpleNamespace(objects=self.bpy.data.objects, update=lambda: None),
++            selected_objects=[self.old], screen=None,
++        )
++        self.prefs = types.SimpleNamespace(local_glb_import_root="")
++        self.context.preferences = types.SimpleNamespace(addons={
++            "claude_blender": types.SimpleNamespace(preferences=self.prefs),
++        })
++        self.bpy.context = self.context
++        self.source = self.root / "model.glb"
++        self.source.write_bytes(glb())
++
++    def test_registry_discovery(self):
++        spec = tool_registry.REGISTRY.get("import_local_glb")
++        self.assertEqual(spec.owner, "external_assets")
++        self.assertEqual(spec.exposure, "catalog")
++        self.assertEqual(spec.input_schema["required"], ["relative_path"])
++        self.assertTrue(spec.contract["requires_live_preview"])
++        self.assertIn("files:read", spec.contract["permissions"])
++        self.assertIn("import_local_glb", {item["name"] for item in tool_registry.definitions()})
++
++    def test_path_rejections_leave_preview_unchanged(self):
++        parent = self.preview.begin("Earlier", self.context)
++        (self.root / "link.glb").symlink_to(self.source)
++        (self.root / "linked").symlink_to(self.root, target_is_directory=True)
++        (self.root / "folder.glb").mkdir()
++        for path in ("../model.glb", str(self.source), "link.glb", "linked/model.glb", ".hidden.glb", "folder.glb", "missing.glb", "model.gltf"):
++            with self.subTest(path=path):
++                self.assertFalse(self.module.import_local_glb(self.context, path)["ok"])
++                self.assertIs(parent, self.preview.current_transaction())
++        self.bpy.data.filepath = ""
++        self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.ops.import_scene.gltf.assert_not_called()
++
++    def configure_root(self, root):
++        self.bpy.data.filepath = ""
++        self.prefs.local_glb_import_root = str(root)
++        self.module.configure_import_root(self.prefs, self.context)
++
++    def test_unsaved_root_is_local_and_empty_by_default(self):
++        schema = tool_registry.REGISTRY.get("import_local_glb").input_schema
++        self.assertEqual(set(schema["properties"]), {"relative_path"})
++        self.configure_root(self.root)
++        self.test_success_is_pending_and_revertible()
++
++    def test_absent_and_invalid_roots_preserve_preview_and_hide_paths(self):
++        parent = self.preview.begin("Earlier", self.context)
++        for root in ("", "relative", "//relative", "/", str(self.root / "missing"), str(self.source), str(self.root / ".."), str(self.root / ".hidden")):
++            with self.subTest(root=root):
++                self.configure_root(root)
++                result = self.module.import_local_glb(self.context, "model.glb")
++                self.assertFalse(result["ok"])
++                self.assertNotIn(str(self.root), json.dumps(result))
++                self.assertIs(parent, self.preview.current_transaction())
++        self.context.preferences.addons.clear()
++        self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.ops.import_scene.gltf.assert_not_called()
++
++    def test_symlink_root_and_ancestor_are_blocked(self):
++        real = self.root / "real"
++        real.mkdir()
++        (real / "nested").mkdir()
++        link = self.root / "link"
++        link.symlink_to(real, target_is_directory=True)
++        for root in (link, link / "nested"):
++            self.configure_root(root)
++            self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.data.filepath = str(link / "scene.blend")
++        self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.ops.import_scene.gltf.assert_not_called()
++
++    def test_configured_root_replacement_is_blocked(self):
++        root = self.root / "project"
++        root.mkdir()
++        (root / "model.glb").write_bytes(glb())
++        self.configure_root(root)
++        root.rename(self.root / "old")
++        root.mkdir()
++        (root / "model.glb").write_bytes(glb())
++        self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.ops.import_scene.gltf.assert_not_called()
++
++    def test_root_replacement_during_read_is_blocked(self):
++        root = self.root / "project"
++        root.mkdir()
++        (root / "model.glb").write_bytes(glb())
++        self.configure_root(root)
++        original = self.module._open_directory
++        count = 0
++        def replace(path):
++            nonlocal count
++            count += 1
++            if count == 2:
++                root.rename(self.root / "old")
++                root.mkdir()
++            return original(path)
++        with mock.patch.object(self.module, "_open_directory", side_effect=replace):
++            self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.ops.import_scene.gltf.assert_not_called()
++
++    def test_file_replacement_during_read_is_blocked(self):
++        self.configure_root(self.root)
++        original = self.module._open_directory
++        count = 0
++        def replace(path):
++            nonlocal count
++            count += 1
++            if count == 2:
++                self.source.rename(self.root / "old.glb")
++                self.source.write_bytes(glb())
++            return original(path)
++        with mock.patch.object(self.module, "_open_directory", side_effect=replace):
++            self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.ops.import_scene.gltf.assert_not_called()
++
++    def test_unsaved_paths_and_ancestor_replacement(self):
++        self.configure_root(self.root)
++        parent = self.preview.begin("Earlier", self.context)
++        (self.root / "link.glb").symlink_to(self.source)
++        (self.root / "linked").symlink_to(self.root, target_is_directory=True)
++        for path in ("../model.glb", str(self.source), "link.glb", "linked/model.glb", ".hidden.glb"):
++            self.assertFalse(self.module.import_local_glb(self.context, path)["ok"])
++            self.assertIs(parent, self.preview.current_transaction())
++        ancestor = self.root / "ancestor"
++        root = ancestor / "project"
++        root.mkdir(parents=True)
++        (root / "model.glb").write_bytes(glb())
++        self.configure_root(root)
++        ancestor.rename(self.root / "old")
++        ancestor.mkdir()
++        (self.root / "old" / "project").rename(root)
++        self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.ops.import_scene.gltf.assert_not_called()
++
++    def test_saved_root_has_precedence_without_fallback(self):
++        self.configure_root(self.root)
++        self.bpy.data.filepath = str(self.root / "missing" / "scene.blend")
++        self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.data.filepath = str(self.root / "scene.blend")
++        self.prefs.local_glb_import_root = "invalid"
++        self.assertTrue(self.module.import_local_glb(self.context, "model.glb")["ok"])
++
++    def test_unsupported_platform_and_exception_bytes_are_hidden(self):
++        with mock.patch.object(os, "supports_dir_fd", set()):
++            self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.ops.import_scene.gltf.side_effect = RuntimeError("SECRET FILE BYTES " + str(self.root))
++        result = self.module.import_local_glb(self.context, "model.glb")
++        self.assertFalse(result["ok"])
++        self.assertNotIn("SECRET", json.dumps(result))
++        self.assertNotIn(str(self.root), json.dumps(result))
++
++    def test_non_regular_file_and_size_cap(self):
++        if hasattr(os, "mkfifo"):
++            os.mkfifo(self.root / "pipe.glb")
++            self.assertFalse(self.module.import_local_glb(self.context, "pipe.glb")["ok"])
++        with mock.patch.object(self.module, "MAX_GLB_BYTES", 4):
++            self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.ops.import_scene.gltf.assert_not_called()
++
++    def test_format_rejections(self):
++        invalid = [b"", b"not glb" * 8, glb()[:-1], glb() + b"extra"]
++        for uri in ("../secret", "file:///etc/passwd", "https://example.com/image.png", "data:image/png;base64,AAAA"):
++            invalid.append(glb({"asset": {"version": "2.0"}, "images": [{"uri": uri}]}))
++        for fields in ({"animations": [{}]}, {"scenes": [{}, {}]}, {"extensions": {"KHR_materials_variants": {}}}):
++            invalid.append(glb({"asset": {"version": "2.0"}, **fields}))
++        for data in invalid:
++            with self.subTest(data=data):
++                self.source.write_bytes(data)
++                self.assertFalse(self.module.import_local_glb(self.context, "model.glb")["ok"])
++        self.bpy.ops.import_scene.gltf.assert_not_called()
++
++    def add_partial_data(self, **kwargs):
++        self.assertIsNotNone(self.preview.current_transaction())
++        self.assertEqual(Path(kwargs["filepath"]).read_bytes(), glb())
++        self.assertNotEqual(kwargs["filepath"], str(self.source))
++        for _, collection in self.module.DATA_KINDS:
++            if collection != "collections":
++                getattr(self.bpy.data, collection).append(Item("Imported"))
++        self.old.selected = False
++        self.bpy.data.objects.active = self.bpy.data.objects[-1]
++
++    def test_partial_import_failure_restores_selection_and_parent(self):
++        parent = self.preview.begin("Earlier", self.context)
++        parent["applied_steps"].append({"label": "Earlier"})
++        def fail(**kwargs):
++            self.add_partial_data(**kwargs)
++            raise RuntimeError("partial import")
++        self.bpy.ops.import_scene.gltf.side_effect = fail
++        result = self.module.import_local_glb(self.context, "model.glb")
++        self.assertFalse(result["ok"])
++        self.assertTrue(result["rollback"]["ok"])
++        self.assertIs(self.preview.current_transaction(), parent)
++        self.assertEqual(parent["applied_steps"], [{"label": "Earlier"}])
++        self.assertEqual(self.bpy.data.objects, [self.old])
++        self.assertTrue(self.old.selected)
++        self.assertIs(self.bpy.data.objects.active, self.old)
++        for _, collection in self.module.DATA_KINDS:
++            if collection != "objects":
++                self.assertEqual(list(getattr(self.bpy.data, collection)), [])
++
++    def test_success_is_pending_and_revertible(self):
++        parent = self.preview.begin("Earlier", self.context)
++        def succeed(**kwargs):
++            self.add_partial_data(**kwargs)
++            return {"FINISHED"}
++        self.bpy.ops.import_scene.gltf.side_effect = succeed
++        result = self.module.import_local_glb(self.context, "model.glb")
++        self.assertTrue(result["ok"])
++        self.assertTrue(result["preview_pending"])
++        self.assertIs(self.preview.current_transaction(), parent)
++        self.assertEqual(parent["status"], "pending")
++        self.assertTrue(self.preview.revert(self.context)["ok"])
++        self.assertEqual(self.bpy.data.objects, [self.old])
++
++    def test_linked_name_collision_is_tracked_and_reverted(self):
++        def succeed(**kwargs):
++            self.bpy.data.objects.append(Item(self.old.name))
++            return {"FINISHED"}
++        self.bpy.ops.import_scene.gltf.side_effect = succeed
++        result = self.module.import_local_glb(self.context, "model.glb")
++        self.assertTrue(result["ok"])
++        self.assertEqual(len(result["created_data"]), 1)
++        self.assertNotEqual(result["created_data"][0]["name"], self.old.name)
++        self.assertTrue(self.preview.revert(self.context)["ok"])
++        self.assertEqual(self.bpy.data.objects, [self.old])
++
++    def test_cancelled_import_aborts(self):
++        self.bpy.ops.import_scene.gltf.return_value = {"CANCELLED"}
++        result = self.module.import_local_glb(self.context, "model.glb")
++        self.assertFalse(result["ok"])
++        self.assertEqual(self.preview.current_transaction()["status"], "reverted")
++
++
++if __name__ == "__main__":
++    unittest.main()
+--- /dev/null
++++ b/tests/unit/test_matched_views.py
+@@ -0,0 +1,99 @@
++import copy
++import importlib.util
++from pathlib import Path
++import sys
++import types
++import unittest
++from unittest import mock
++
++ROOT = Path(__file__).resolve().parents[2]
++sys.path.insert(0, str(ROOT / "addon"))
++from claude_blender import tool_registry
++import claude_blender
++
++VIEW = {"position": [0, -6.8, 2.3], "look_at": [0, 0, 0], "projection": "PERSP", "lens": 36, "ortho_scale": 5}
++PROFILE = {"width": 64, "height": 64, "colour": [0.6, 0.6, 0.6]}
++
++
++class Objects(list):
++    def __contains__(self, name):
++        return any(obj.name == name for obj in self)
++
++
++class MatchedViewTests(unittest.TestCase):
++    def setUp(self):
++        self.bpy = types.SimpleNamespace(data=types.SimpleNamespace(collections=[]))
++        spec = importlib.util.spec_from_file_location("claude_blender.matched_views", ROOT / "addon/claude_blender/matched_views.py")
++        self.module = importlib.util.module_from_spec(spec)
++        with mock.patch.dict(sys.modules, {"bpy": self.bpy, "mathutils": types.SimpleNamespace(Vector=mock.Mock())}), mock.patch.object(claude_blender, "lab_parity", mock.Mock(), create=True):
++            spec.loader.exec_module(self.module)
++        self.obj = types.SimpleNamespace(name="Mesh", type="MESH", instance_type="NONE", modifiers=[])
++        self.context = types.SimpleNamespace(scene=types.SimpleNamespace(objects=Objects([self.obj])))
++
++    def test_registry_discovery_and_no_output_override(self):
++        spec = tool_registry.REGISTRY.get("capture_matched_views")
++        self.assertEqual(spec.exposure, "catalog")
++        self.assertFalse(spec.contract["mutates_scene"])
++        self.assertEqual(set(spec.input_schema["properties"]), {"baseline", "candidate", "views", "profile"})
++        self.assertFalse(spec.input_schema["additionalProperties"])
++        self.assertIn(spec.name, {item["name"] for item in tool_registry.definitions()})
++
++    def test_valid_profile(self):
++        self.module._validate([VIEW], PROFILE)
++
++    def test_invalid_profiles(self):
++        for field, value in (("width", 0), ("height", 1025), ("width", True), ("colour", [float("nan")] * 3)):
++            profile = {**PROFILE, field: value}
++            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
++                self.module._validate([VIEW], profile)
++        for views in ([], [VIEW] * 7):
++            with self.assertRaises(ValueError):
++                self.module._validate(views, PROFILE)
++
++    def test_invalid_views(self):
++        for field, value in (("position", VIEW["look_at"]), ("position", [float("inf"), 0, 0]), ("lens", 0), ("projection", "BAD")):
++            with self.subTest(field=field), self.assertRaises(ValueError):
++                self.module._validate([{**VIEW, field: value}], PROFILE)
++
++    def test_missing_empty_ambiguous_targets(self):
++        for name in ("", "Missing"):
++            with self.assertRaises(ValueError):
++                self.module._targets(self.context, {"kind": "OBJECT", "name": name})
++        self.context.scene.objects.append(self.obj)
++        with self.assertRaises(ValueError):
++            self.module._targets(self.context, {"kind": "OBJECT", "name": "Mesh"})
++        self.bpy.data.collections.append(types.SimpleNamespace(name="Empty", all_objects=[]))
++        with self.assertRaises(ValueError):
++            self.module._targets(self.context, {"kind": "COLLECTION", "name": "Empty"})
++
++    def test_non_mesh_and_instances_rejected(self):
++        for field, value in (("type", "LIGHT"), ("instance_type", "COLLECTION")):
++            with mock.patch.object(self.obj, field, value), self.assertRaises(ValueError):
++                self.module._targets(self.context, {"kind": "OBJECT", "name": "Mesh"})
++
++    def test_render_only_modifier_rejected(self):
++        self.obj.modifiers = [types.SimpleNamespace(show_viewport=False, show_render=True)]
++        result = self.module.capture_matched_views(
++            self.context, {"kind": "OBJECT", "name": "Mesh"},
++            {"kind": "OBJECT", "name": "Mesh"}, [VIEW], PROFILE,
++        )
++        self.assertFalse(result["ok"])
++        self.assertEqual(result["code"], "matched_views_invalid")
++        self.assertIn("apply modifiers", result["message"])
++
++    def test_cancelled_render_with_existing_output_rejected(self):
++        import tempfile
++        self.bpy.ops = types.SimpleNamespace(render=types.SimpleNamespace(render=mock.Mock(return_value={"CANCELLED"})))
++        scene = types.SimpleNamespace(name="Scene", render=types.SimpleNamespace(filepath=""))
++        with tempfile.TemporaryDirectory() as directory:
++            path = Path(directory) / "output.png"
++            path.write_bytes(b"existing PNG")
++            with self.assertRaisesRegex(RuntimeError, "did not finish"):
++                self.module._render(scene, str(path))
++
++    def test_valid_target(self):
++        self.assertEqual(self.module._targets(self.context, {"kind": "OBJECT", "name": "Mesh"}), [self.obj])
++
++
++if __name__ == "__main__":
++    unittest.main()
+--- a/tests/unit/test_tool_registry.py
++++ b/tests/unit/test_tool_registry.py
+@@ -19,8 +19,8 @@
+ class ToolRegistryTests(unittest.TestCase):
+     def test_inventory_is_complete_and_domain_owned(self):
+         specs = tool_registry.REGISTRY.specs()
+-        self.assertEqual(241, len(specs))
+-        self.assertEqual(240, len(tool_registry.definitions()))
++        self.assertEqual(243, len(specs))
++        self.assertEqual(242, len(tool_registry.definitions()))
+         self.assertEqual(13, len(tool_registry.DOMAIN_MODULES))
+         self.assertEqual({spec.name for spec in specs}, set(bridge_protocol.TOOL_CONTRACTS))
+         self.assertEqual(

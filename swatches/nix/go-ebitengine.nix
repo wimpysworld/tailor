@@ -76,7 +76,6 @@ with pkgs;
   gzip
   zip
   unzip
-  (go-tools.override { buildGoModule = pkgs.buildGoModule.override { go = pkgs.go; }; })
   mobile
   brotli
   miniserve
@@ -88,11 +87,15 @@ with pkgs;
   nodejs
   wrangler
   butler
+  openssh
+  rsync
+  openssl
 ]
 ++ lib.optionals stdenv.isLinux (
   runtime
   ++ [
     mesa-demos
     pciutils
+    avahi
   ]
 )

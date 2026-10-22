@@ -117,6 +117,8 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright},
 		{Path: "nix/blender.nix", Policy: managedPolicyFragment, Capability: managedCapabilityBlender},
+		{Path: "nix/lib/blender.nix", Policy: managedPolicyFragment, Capability: managedCapabilityBlender, NixKind: managedNixSupport},
+		{Path: "nix/patches/blender-agent-bridge-local-glb.patch", Policy: managedPolicyFragment, Capability: managedCapabilityBlender},
 		{Path: ".mcp.json", Policy: managedPolicySharedStarter},
 		{Path: ".codex/config.toml", Policy: managedPolicySharedStarter},
 		{Path: "opencode.json", Policy: managedPolicySharedStarter},

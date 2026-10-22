@@ -12,7 +12,7 @@ The effective CGO policy generates one shared export in `just/tailor.just`. Expl
 
 The optional development CGO policy does not change the default `CGO_ENABLED=0` release pipeline. Configure FFmpeg release builds separately.
 
-For a preserved flake, adopt both the package loader and the [hook companion](Configuration#nix-shell-hooks) manually. Keep your existing hook last for overrides. Use `TAILOR_NIXOS_DRIVERS=0` to disable graphics environment changes without disabling CGO policy.
+For a preserved flake, adopt both the package loader and the [hook companion](Configuration#nix-shell-hooks) manually. Keep your existing hook last for overrides. Use `TAILOR_NIXOS_DRIVERS=0` to disable host-driver discovery only. Linux component runtime paths and CGO policy remain active.
 
 ## Repository selection
 
@@ -203,13 +203,23 @@ Call `tailor alter`, `tailor baste`, and `tailor measure` directly. From Tailor'
 
 Tailor's project fragment retains `snapshot`. Snapshot runs `goreleaser release --snapshot --clean --skip=sign`. Tailor's project build script adds `go build -ldflags "-s -w" -o tailor ./cmd/tailor` after the managed build. No quality aliases remain.
 
+### Adopt the Android shell
+
+Enable the [Android declaration](Configuration#ebitengine), then preview and apply within the approved scope. New roots expose the optional `android` shell. Preserved roots require manual adoption with the same overridden `pkgs` as both loaders.
+
+For an existing `android` output, compare SDK versions and overrides before replacing its body with the managed shell import. Keep required custom hooks last. Remove duplicate SDK, adb, Java, and shared hook declarations. Do not add another `android` attribute.
+
+In project recipes, replace the temporary mobile runner build and call with `tailor-ebitenmobile bind`. Retain every bind argument, package path, and output path. Keep Gradle packaging project-owned and pass `-Pandroid.aapt2FromMavenOverride="$ANDROID_BUILD_TOOLS/aapt2"`.
+
+After separate SDK approval, enter `nix develop .#android`. Verify binding and unsigned Gradle packaging separately. Tool availability does not prove that an Android application builds.
+
 ### Activate Blender MCP
 
-Set `mcp.blender: true`, then run `tailor baste` and `tailor alter` within the approved scope. Review the package fragment and four client starters. Existing clients need manual adoption of only the missing `blender-agent-bridge` entry. Preserve disabled entries.
+Set `mcp.blender: true`, then run `tailor baste` and `tailor alter` within the approved scope. Review the package fragment, `nix/lib/blender.nix`, owned patch, and four client starters. Existing clients need manual adoption of only the missing `blender-agent-bridge` entry. Preserve disabled entries.
 
-If needed, add `++ import ./nix/loader.nix { inherit pkgs; }` to the preserved flake package list. Review and stage new Nix files with normal approval. Enter the project development shell and start a fresh client from it. Tailor adds no Blender Just recipe or setup command.
+If needed, add `++ import ./nix/loader.nix { inherit pkgs; }` to the preserved flake package list. Adopt the [extension package output](Configuration#blender-agent-bridge) manually in a preserved flake. New roots expose that output automatically. Use the same overridden `pkgs` for the output and both loaders. Review and stage new Nix files and the owned patch with normal approval. Build the matching patched extension with `nix build .#blender-agent-bridge-extension`. Enter the project development shell and start a fresh client from it. Tailor adds no Blender Just recipe or setup command.
 
-Separately install and enable a compatible Blender Agent Bridge extension, open a trusted scene, and press **Start** in **Agent Bridge**. Tailor does not perform these actions. Follow the [Blender security guidance](Configuration#blender-agent-bridge), including private token handling and explicit script trust. Check fresh-client discovery and loopback access without changing global trust or sandbox settings. Configuration parsing alone is not runtime acceptance.
+After separate approval, install and enable the built extension ZIP, then press **Start** in **Agent Bridge**. For local GLB import into an unsaved blank scene, explicitly configure its import root. Otherwise save the scene and keep the configured root blank. Tailor does not perform these actions. Follow the [Blender security guidance](Configuration#blender-agent-bridge), including private token handling and explicit script trust. Check fresh-client discovery and loopback access without changing global trust or sandbox settings. Configuration parsing alone is not runtime acceptance.
 
 ### Activate Playwright MCP
 
@@ -235,7 +245,7 @@ A [validated future contract](https://github.com/wimpysworld/tailor/blob/main/do
 
 Tailor preserves an existing root and gives loader adoption guidance, including for `never`, `--recut`, or an omitted swatch entry. Before you add the exact Just loader import from [managed development files](Configuration#managed-development-files), remove or rename each user recipe that duplicates a managed recipe, including `build` and `test`. Keep custom checks under distinct wrapper names. Tailor does not rewrite user recipes or change production recipe names.
 
-A partial `tailor alter` can leave the imported Just files temporarily invalid. Fix the reported error, then retry `tailor alter` before you run a recipe. The generated dispatch is consistent, but installed tool versions and configuration can produce different diagnostics. This lint aggregation change adds no tool pin or CI policy change.
+A partial `tailor alter` can leave the imported Just files temporarily invalid. Fix the reported error, then retry `tailor alter` before you run a recipe. The generated dispatch is consistent, but installed tool versions and configuration can produce different diagnostics. The lint aggregation does not change CI policy. Generic Go now supplies Staticcheck with the floor described in [Ebitengine tooling](Configuration#ebitengine).
 
 ## Retired workflow cleanup
 

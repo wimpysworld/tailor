@@ -89,7 +89,7 @@ func testEbitengineMobileRunner(t *testing.T, bash string) {
 	root := testTempDir(t)
 	files := renderSelectedManagedFiles(t, ebitengineConfig())
 	writeManagedRenderFixture(t, root, "nix/go-ebitengine.nix", files["nix/go-ebitengine.nix"])
-	expr := `let pkgs = rec { bash="bash"; coreutils="coreutils"; findutils="findutils"; gnused="sed"; gnugrep="grep"; gawk="awk"; git="git"; curl="curl"; gzip="gzip"; zip="zip"; unzip="unzip"; brotli="brotli"; miniserve="miniserve"; go="selected-go"; go-tools.override = _: "staticcheck"; writeShellApplication = x: x.text; lib.optionals = _: _: []; }; in builtins.elemAt (import ` + strconv.Quote(filepath.Join(root, "nix/go-ebitengine.nix")) + ` {inherit pkgs;}) 12`
+	expr := `let pkgs = rec { bash="bash"; coreutils="coreutils"; findutils="findutils"; gnused="sed"; gnugrep="grep"; gawk="awk"; git="git"; curl="curl"; gzip="gzip"; zip="zip"; unzip="unzip"; brotli="brotli"; miniserve="miniserve"; go="selected-go"; writeShellApplication = x: x.text; lib.optionals = _: _: []; }; in builtins.elemAt (import ` + strconv.Quote(filepath.Join(root, "nix/go-ebitengine.nix")) + ` {inherit pkgs;}) 11`
 	output, err := exec.CommandContext(t.Context(), nix, "eval", "--offline", "--impure", "--raw", "--expr", expr).CombinedOutput()
 	if err != nil {
 		t.Fatalf("runner eval: %v %s", err, output)
@@ -126,6 +126,7 @@ test "$PWD" = "$CALLER"
 case "$TARGET_FORM" in
  equals) test "$1" = -target=; shift ;;
  separate) test "$1" = -target; test "$2" = ''; shift 2 ;;
+ android) test "$1" = -target=android/arm64; shift ;;
 esac
 test "$#" = 3
 test "$1" = bind
@@ -193,7 +194,7 @@ esac
 		}
 	}
 	tempRoot := t.TempDir()
-	for _, targetForm := range []string{"none", "equals", "separate"} {
+	for _, targetForm := range []string{"none", "equals", "separate", "android"} {
 		for _, result := range []string{"0", "7", "23", "143"} {
 			t.Run(targetForm+"/result="+result, func(t *testing.T) {
 				args := []string{"-euc", runner, "runner"}
@@ -202,12 +203,14 @@ esac
 					args = append(args, "-target=")
 				case "separate":
 					args = append(args, "-target", "")
+				case "android":
+					args = append(args, "-target=android/arm64")
 				}
 				args = append(args, "bind", "-o=output with spaces", "./mobile")
 				cmd := exec.CommandContext(t.Context(), bash, args...)
 				cmd.Dir = root
 				toolPath := filepath.Join(root, "tool-path")
-				cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "MODULE="+module, "CALLER="+root, "TOOL_PATH="+toolPath, "CGO_ENABLED=0", "GOOS=js", "GOARCH=wasm", "GOFLAGS=-tags=project", "GOWORK=workspace", "GOARM=7", "GOAMD64=v3", "GOWASM=satconv", "GOEXPERIMENT=project", "RESULT="+result, "TMPDIR="+tempRoot, "TARGET_FORM="+targetForm)
+				cmd.Env = append(os.Environ(), "PATH="+bin+":"+os.Getenv("PATH"), "MODULE="+module, "CALLER="+root, "ANDROID_HOME="+root, "ANDROID_NDK_HOME="+root, "TOOL_PATH="+toolPath, "CGO_ENABLED=0", "GOOS=js", "GOARCH=wasm", "GOFLAGS=-tags=project", "GOWORK=workspace", "GOARM=7", "GOAMD64=v3", "GOWASM=satconv", "GOEXPERIMENT=project", "RESULT="+result, "TMPDIR="+tempRoot, "TARGET_FORM="+targetForm)
 				out, err := cmd.CombinedOutput()
 				if result == "0" && err != nil {
 					t.Fatalf("runner: %v %s", err, out)

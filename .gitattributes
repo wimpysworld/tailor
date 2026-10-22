@@ -1,0 +1,2 @@
+# Preserve blank context lines in the embedded unified patch.
+/swatches/nix/patches/blender-agent-bridge-local-glb.patch whitespace=-blank-at-eol

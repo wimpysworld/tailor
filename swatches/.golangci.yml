@@ -61,15 +61,17 @@ linters:
         text: "G101"
         linters:
           - gosec
-      # The rasterise and placement-score dev tools open an operator-supplied path
-      # by design: the operator names the model, text-map, or frame directory.
+      # The rasterise and placement-score dev tools open an operator-supplied
+      # path by design: the operator names the model, text-map, or frame
+      # directory.
       - path: tools/(rasterise|placement-score)/main\.go
         text: "G703"
         linters:
           - gosec
       # audioSinkPresent stats fixed well-known sound-server socket names
-      # (pulse/native, pipewire-0) under the user's own XDG_RUNTIME_DIR. The joined
-      # leaf names are constants, not attacker-controlled path traversal.
+      # (pulse/native, pipewire-0) under the user's own XDG_RUNTIME_DIR.
+      # The joined leaf names are constants, not attacker-controlled path
+      # traversal.
       - path: internal/engine/audio_linux\.go
         text: "G703"
         linters:

@@ -100,7 +100,12 @@ tailor/
 
 ### Blender MCP
 
-- Use `mcp.blender: true` for the bridge package and missing shared starters. Keep Blender and extension installation separate.
+- Use `mcp.blender: true` for the patched bridge, extension ZIP helper, owned patch, and missing shared starters.
+- Build the bridge and extension from the same patched source through `nix/lib/blender.nix`. Keep Blender and extension installation separate.
+- Preserve the upstream pin unless an upgrade is explicit. Keep `import_local_glb` and `capture_matched_views` in the owned patch.
+- Remove only the owned Blender fragment, helper, and patch on false. Preserve them when the declaration is absent.
+- For preserved roots, adopt the extension package output manually with the same overridden `pkgs` as both loaders.
+- Keep the listener on loopback. For an unsaved blank scene, require an explicit local GLB import root, otherwise keep it blank.
 - Preserve existing clients and disabled entries. Use manual adoption for `blender-agent-bridge`, including under `always` and `--recut`.
 - Keep `BLENDER_BRIDGE_TOKEN` out of tracked files and arguments. Do not grant script trust or weaken sandbox restrictions.
 - Use native Pi fields for new Blender entries. Read the installed Pi MCP documentation and adapter configuration documentation before changes.
@@ -125,7 +130,14 @@ tailor/
 - Use `EffectiveGoCGO()` for development policy. Keep release generation and source discovery at `CGO_ENABLED=0`.
 - Keep `nix/loader.nix` list-valued and hook strings in typed `nix/hooks.nix` imports. Run helpers first and the core host prepend last.
 - Preserve existing target roots. Document manual hook composition with custom hooks last and the same overridden `pkgs` for both loaders.
-- Limit graphics hooks to runtime `ID=nixos`, unless `TAILOR_NIXOS_DRIVERS=0`. Preserve explicit scalar values, including empty values.
+- Prepend component runtime libraries on all Linux hosts. Limit host-driver discovery to runtime `ID=nixos` unless `TAILOR_NIXOS_DRIVERS=0`.
+- Keep host drivers first. Default Vulkan ICD discovery in the core hook, independently of ffmpeg-statigo. Preserve explicit scalar values, including empty values.
+- Supply Staticcheck through generic Go. Build with the caller's Go and preserve sources and overrides at or above the managed floor.
+- Keep delivery tools in Ebitengine tooling, including Linux Avahi. Keep scientific Python libraries and the Blender application excluded.
+- Keep Android SDK consent scoped to its separate shell. Prioritise SDK tools and `jdk.home/bin`, and run shared hooks once.
+- Preserve existing Android outputs. Document manual migration, duplicate declaration removal, and custom hooks last with the same overridden `pkgs`.
+- Supply reusable FiveHorizons tooling through Tailor. Keep assets, engine pins, signing, and application recipes project-owned.
+- Do not edit or migrate FiveHorizons unless separately authorised. Do not claim runtime acceptance from parsing or tool availability.
 - Never auto-run component setup. Explicit `just setup` can change Git config and submodules, remove archives, stage changes, and use the network.
 - Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
 - `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not

@@ -36,9 +36,9 @@ Add this expression to the existing Nix package list:
 ++ import ./nix/loader.nix { inherit pkgs; }
 ```
 
-The Nix loader adds package lists only. It can use packages from the existing `pkgs` set, but it does not add flake inputs or change outputs. Review and add new `.nix` files to Git, because Nix flakes exclude untracked files. Tailor does not inspect or stage the Git index.
+The Nix loader adds package lists only. It can use packages from the existing `pkgs` set, but it does not add flake inputs or change outputs. Review and add new Nix files and owned patches to Git, because Nix flakes exclude untracked files. Tailor does not inspect or stage the Git index.
 
-Tailor always reconciles `just/loader.just`, `nix/loader.nix`, and `just/tailor.just`. The fixed loader does not read `.tailor.yml` when Just runs. The generated `build`, `test`, and `lint` dependencies come from the last successful Tailor reconciliation. Go, Pages, and the Playwright package fragment use their Boolean declarations:
+Tailor always reconciles `just/loader.just`, `nix/loader.nix`, and `just/tailor.just`. The fixed loader does not read `.tailor.yml` when Just runs. The generated `build`, `test`, and `lint` dependencies come from the last successful Tailor reconciliation. Go, Python, Rust, Pages, Blender, and Playwright use their capability declarations:
 
 | Declaration | Managed fragment action |
 | --- | --- |
@@ -91,9 +91,9 @@ Replace `existingHook` with your existing hook expression, or omit the concatena
 
 The helper functions run first, component hooks run next, and the core host hook runs last. On NixOS, `LD_LIBRARY_PATH` puts `/run/opengl-driver/lib` first, component libraries next, and existing entries last. The path helper removes duplicate and empty entries and tolerates repeated shell entry and unset variables.
 
-Graphics hooks run only when runtime `/etc/os-release` contains `ID=nixos`. Tailor parses this file without sourcing it. Set `TAILOR_NIXOS_DRIVERS=0` to disable all graphics changes. Pure Nix evaluation cannot identify the host distribution, so package selection uses Linux rather than NixOS. Other Linux hosts receive the packages but no graphics environment changes. Darwin receives neither.
+Component runtime libraries enter `LD_LIBRARY_PATH` on all Linux hosts. Only host-driver discovery requires runtime `/etc/os-release` to contain `ID=nixos`. Tailor parses this file without sourcing it. Set `TAILOR_NIXOS_DRIVERS=0` to disable host-driver discovery, not component runtime paths or CGO policy. Darwin receives neither Linux packages nor graphics hooks.
 
-The FFmpeg component adds `vulkan-loader`, `intel-media-driver`, and `vpl-gpu-rt` on Linux. Its library order is oneVPL, Intel media, then Vulkan. It defaults `ONEVPL_SEARCH_PATH` to the oneVPL library directory. It defaults `LIBVA_DRIVERS_PATH` to system DRI when present, otherwise Intel DRI. It defaults `VK_DRIVER_FILES` to sorted, readable system ICD manifests, including files under linked driver directories. These defaults apply only to unset variables. Explicit empty values and user choices remain unchanged. Tailor neither detects GPU vendors nor forces `LIBVA_DRIVER_NAME`.
+The FFmpeg component adds `vulkan-loader`, `intel-media-driver`, and `vpl-gpu-rt` on Linux. Its library order is oneVPL, Intel media, then Vulkan. On NixOS, it defaults `ONEVPL_SEARCH_PATH` to the oneVPL library directory and `LIBVA_DRIVERS_PATH` to system DRI or Intel DRI fallback. The core hook defaults `VK_DRIVER_FILES` to sorted, readable host ICD manifests, including files under linked driver directories. This core default also applies to Ebitengine without ffmpeg-statigo. These defaults apply only to unset variables. Explicit empty values and user choices remain unchanged. Tailor neither detects GPU vendors nor forces `LIBVA_DRIVER_NAME`.
 
 ## Python support
 
@@ -233,11 +233,11 @@ Desktop and web support are always included. Android is off unless its mapping c
 
 Omission preserves owned files. Component false or Go false removes them. A declared true component selects desktop and web support, so changing a mapping to Boolean true removes an earlier Android shell. Four private Nix files supply packages, runtime libraries, a hook, and the optional Android shell. No recipe or setup action is added.
 
-Tools include Bash, GNU tools, Git, curl, gzip, zip, unzip, staticcheck, the mobile runner, Brotli, and miniserve. Linux also receives nine ALSA, OpenGL, and X11 libraries, plus graphics diagnostics. Use the selected Go's matching `wasm_exec.js`. Common tools always include FFmpeg (`ffmpeg-headless`), ImageMagick, Vorbis tools, Git LFS, standalone `android-tools`, Node.js, Wrangler, and Butler. No extra switches are needed. Python, NumPy, Pillow, Matplotlib, Blender, and Pyright are not included. Android SDK, NDK, JDK, and Gradle require the enabled Android shell. Engine forks, staticcheck overrides, Blender stubs and bridges, game recipes, and signing files remain project-owned.
+Tools include Bash, GNU tools, Git, curl, gzip, zip, unzip, the mobile runner, Brotli, and miniserve. Generic Go supplies Staticcheck with a `2026.2.2` floor, built with the caller's Go. Versions at or above the floor preserve caller sources and overrides, including forks. Older versions use a pinned upstream fallback. Linux also receives nine ALSA, OpenGL, and X11 libraries, graphics diagnostics, and Avahi. Use the selected Go's matching `wasm_exec.js`. Common tools always include FFmpeg (`ffmpeg-headless`), ImageMagick, Vorbis tools, Git LFS, standalone `android-tools`, Node.js, Wrangler, Butler, OpenSSH, rsync, and OpenSSL. No extra switches are needed. Python, NumPy, Pillow, Matplotlib, Blender, and Pyright are not included. Android SDK, NDK, JDK, and Gradle require the enabled Android shell. Engine pins and forks, asset content and processing, game recipes, signing, and deployment remain project-owned. Enable Blender bridge support separately with `mcp.blender`. Tailor supplies reusable tooling rather than retaining project copies by default.
 
-Existing effective CGO policy does not change. Linux runtime hooks use the NixOS-only guard and respect `TAILOR_NIXOS_DRIVERS=0`. Host drivers remain first. Host display/audio services, graphics drivers, and device permissions remain external prerequisites.
+Existing effective CGO policy does not change. Linux runtime hooks prepend component libraries on every Linux host. The NixOS guard and `TAILOR_NIXOS_DRIVERS=0` affect host-driver discovery only. Host drivers remain first when enabled. Host display/audio services, graphics drivers, and device permissions remain external prerequisites.
 
-The Android shell requires x86_64-linux, JDK21, and Gradle8 >=8.13. It includes desktop dependencies for release tests, but no emulator, images, sources, or CMake. The default shell does not evaluate or download the SDK, even when Android is enabled. Missing attributes or versions require a compatible project override.
+The Android shell requires x86_64-linux, JDK21, and Gradle8 >=8.13. It includes desktop dependencies for release tests, but no emulator, images, sources, or CMake. SDK platform-tools and build-tools take PATH priority, followed by `jdk.home/bin`. `JAVA_HOME` uses `jdk.home`. The shell excludes standalone `android-tools` and runs shared hooks once. The default shell does not evaluate or download the SDK, even when Android is enabled. Missing attributes or versions require a compatible project override.
 
 New flake roots expose the optional Android shell. For an existing root, extend the per-system `devShells` attribute set manually:
 
@@ -249,7 +249,15 @@ New flake roots expose the optional Android shell. For an existing root, extend 
   }
 ```
 
-Pass the same overridden `pkgs` to both loaders and the Android shell. Do not overwrite an existing `android` output. Review and migrate that output deliberately. Adopt the directory watches above. Tailor never grants direnv trust.
+Pass the same overridden `pkgs` to both loaders and the Android shell. For an existing `android` output, compare SDK versions and overrides before migration. Replace its shell body with the managed import, rather than adding another `android` attribute. Preserve required custom hooks last:
+
+```nix
+(import ./nix/shells/go-ebitengine-android.nix { inherit pkgs; }).overrideAttrs (old: {
+  shellHook = old.shellHook + "\n" + projectHook;
+})
+```
+
+Replace `projectHook` with the project's hook expression. Remove duplicate SDK, adb, Java, and shared hook declarations. Adopt the directory watches above. Tailor never grants direnv trust.
 
 Invoke `tailor-ebitenmobile` only when you want a mobile build. It resolves the project's actual Ebitengine module, including local replacements. It builds the host tool in private temporary storage with read-only module flags, then forwards the original arguments and project flags. Binding forces CGO=1 even when Just exports CGO=0. Temporary files are removed after success, failure, or signals. The runner never installs `@latest` or changes your module declarations.
 
@@ -336,13 +344,21 @@ New configs set `languages.go`, `languages.python`, `languages.rust`, `pages.ena
 
 ### Blender Agent Bridge
 
-Set `mcp.blender: true` to add `nix/blender.nix` and missing shared client starters. Both integrations can be enabled together. Each client uses `blender-agent-bridge` with `blender-bridge --bridge-url http://127.0.0.1:8765`.
+Set `mcp.blender: true` to add the package fragment, shared helper, owned patch, and missing shared client starters. Both integrations can be enabled together. Each client uses `blender-agent-bridge` with `blender-bridge --bridge-url http://127.0.0.1:8765`.
 
-The package pins bridge version `0.5.6` and uses the existing Nix package set. It does not install Blender, extensions, asset tools, or local patches. Set `mcp.blender: false` to remove only the owned package fragment. Retained client entries can then lack `blender-bridge`. An absent setting leaves the fragment untouched. Existing clients, disabled entries, roots, and final symlinks remain unchanged, including under `--recut` and `always`.
+The latest stable upstream pin remains `0.5.6`, with its unchanged revision and archive hash. `nix/lib/blender.nix` applies `nix/patches/blender-agent-bridge-local-glb.patch` to one source for the bridge and extension ZIP. The patch adds `import_local_glb` and `capture_matched_views`. Tailor does not install Blender or the extension. Set `mcp.blender: false` to remove the owned fragment, helper, and patch. Retained client entries can then lack `blender-bridge`. An absent setting leaves all three destinations untouched. Existing clients, disabled entries, protected roots, and their final symlinks remain unchanged, including under `--recut` and `always`.
 
 Pi uses native `type: "stdio"` and `enabled: true` for Blender. This form was checked with Pi 1.1.0 and the installed adapter's Pi 0.99+ translation. Older adapter versions need separate compatibility review. Tailor does not change existing Playwright fields or migrate client files.
 
-Install a compatible Agent Bridge extension separately in Blender 4.2 or later. Open a trusted scene and start the loopback listener yourself. Keep `BLENDER_BRIDGE_TOKEN` in a private client secret mechanism, never tracked files or command arguments. Without a token, reachable local processes can call the listener. Keep **Trust Agent Scripts** off unless explicitly approved. It grants filesystem, network, subprocess, and Python access. Use one active connection, and retain normal client approvals and sandbox restrictions.
+New flake roots expose `packages.<system>.blender-agent-bridge-extension` automatically when the helper exists. For a preserved root, manually extend its per-system `packages` attribute set:
+
+```nix
+// pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix) {
+  blender-agent-bridge-extension = (import ./nix/lib/blender.nix { inherit pkgs; }).extension;
+}
+```
+
+Preserve existing outputs and pass the same overridden `pkgs` as both loaders. Review and add the helper and patch to Git. Build with `nix build .#blender-agent-bridge-extension`. Install the resulting ZIP separately in Blender 4.2 or later after approval. Start the loopback listener yourself. For `import_local_glb`, save the scene or explicitly set an import root for an unsaved blank scene. Keep the root blank otherwise. Imports require contained, static GLB files with embedded resources. Keep `BLENDER_BRIDGE_TOKEN` in a private client secret mechanism, never tracked files or command arguments. Without a token, reachable local processes can call the listener. Keep **Trust Agent Scripts** off unless explicitly approved. It grants filesystem, network, subprocess, and Python access. Use one active connection, and retain normal client approvals and sandbox restrictions.
 
 Follow the [Blender activation steps](Commands#activate-blender-mcp). Fresh-client discovery, secret forwarding, loopback access, proxy inheritance, and extension compatibility require separate runtime acceptance.
 

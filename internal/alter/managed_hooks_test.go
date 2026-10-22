@@ -75,8 +75,8 @@ func testManagedHookRuntime(t *testing.T, x86 bool) {
 		{"unreadable driver", "ID=nixos", "", `test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, true, true},
 		{"directory driver", "ID=nixos", "", `test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, true, true},
 		{"dangling driver", "ID=nixos", "", `test "$LIBVA_DRIVERS_PATH" = /intel/lib/dri`, true, true},
-		{"optout", "ID=nixos", `export TAILOR_NIXOS_DRIVERS=0`, `test "${LD_LIBRARY_PATH+x}${ONEVPL_SEARCH_PATH+x}${LIBVA_DRIVERS_PATH+x}${VK_DRIVER_FILES+x}" = ""`, true, true},
-		{"other linux", "ID=ubuntu", "", `test "${LD_LIBRARY_PATH+x}${ONEVPL_SEARCH_PATH+x}${LIBVA_DRIVERS_PATH+x}${VK_DRIVER_FILES+x}" = ""`, true, true},
+		{"optout", "ID=nixos", `export TAILOR_NIXOS_DRIVERS=0`, `test "$LD_LIBRARY_PATH" = /vpl/lib:/intel/lib:/vulkan/lib; test "${ONEVPL_SEARCH_PATH+x}${LIBVA_DRIVERS_PATH+x}${VK_DRIVER_FILES+x}" = ""; test ! -e "$find_log"`, true, true},
+		{"other linux", "ID=ubuntu", "", `test "$LD_LIBRARY_PATH" = /vpl/lib:/intel/lib:/vulkan/lib; test "${ONEVPL_SEARCH_PATH+x}${LIBVA_DRIVERS_PATH+x}${VK_DRIVER_FILES+x}" = ""; test ! -e "$find_log"`, true, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if !x86 {

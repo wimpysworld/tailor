@@ -240,8 +240,8 @@ func TestPreflightManagedFilesDoesNotInspectClientsWhenPlaywrightIsFalseOrAbsent
 		wantPlanFiles int
 	}{
 		{name: "false", cfg: &config.Config{MCP: &config.MCPSettings{Playwright: &falseValue}}, wantPlanFiles: 6},
-		{name: "blender false", cfg: &config.Config{MCP: &config.MCPSettings{Blender: &falseValue}}, wantPlanFiles: 6},
-		{name: "both false", cfg: &config.Config{MCP: &config.MCPSettings{Blender: &falseValue, Playwright: &falseValue}}, wantPlanFiles: 7},
+		{name: "blender false", cfg: &config.Config{MCP: &config.MCPSettings{Blender: &falseValue}}, wantPlanFiles: 8},
+		{name: "both false", cfg: &config.Config{MCP: &config.MCPSettings{Blender: &falseValue, Playwright: &falseValue}}, wantPlanFiles: 9},
 		{name: "absent", cfg: &config.Config{}, wantPlanFiles: 5},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
