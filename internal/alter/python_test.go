@@ -14,7 +14,7 @@ import (
 func TestInspectPythonPolicy(t *testing.T) {
 	for _, tc := range []struct {
 		name, path, body, destination string
-		adoptionRequired             bool
+		adoptionRequired              bool
 	}{
 		{"none", "", "", "ruff.toml", false},
 		{"equivalent", ".ruff.toml", "", "ruff.toml", false},
@@ -86,7 +86,7 @@ func TestPythonPolicies(t *testing.T) {
 func TestPythonPolicyNestedErrors(t *testing.T) {
 	for _, tc := range []struct {
 		name, destination, policy, nested, want string
-		wantErr                                bool
+		wantErr                                 bool
 	}{
 		{"black", "ruff.toml", "[tool.black]\n", "[invalid", "adoption required", false},
 		{"mypy", "pyrightconfig.json", "[tool.mypy]\n", "[invalid", "adoption required", false},

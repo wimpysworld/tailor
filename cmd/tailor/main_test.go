@@ -454,7 +454,7 @@ func TestMeasurePythonPolicyStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 			for name, body := range map[string]string{
-				".tailor.yml":     "languages:\n  python: true\nswatches: []\n",
+				".tailor.yml":    "languages:\n  python: true\nswatches: []\n",
 				"pyproject.toml": tc.policy,
 			} {
 				if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
