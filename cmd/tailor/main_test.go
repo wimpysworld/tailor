@@ -513,6 +513,11 @@ func TestMeasurePythonPolicyInspectionError(t *testing.T) {
 			t.Errorf("failed inspection reported %s as present", name)
 		}
 	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
 	if err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -528,7 +533,7 @@ func TestMeasurePythonPolicyInspectionError(t *testing.T) {
 		if !ok {
 			t.Errorf("measure created %s", name)
 		}
-		after, err := os.ReadFile(path)
+		after, err := root.ReadFile(name)
 		if err != nil {
 			return err
 		}
