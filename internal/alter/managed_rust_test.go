@@ -119,9 +119,17 @@ func TestRustInputs(t *testing.T) {
 				case "symlink":
 					managedSymlinkOrSkip(t, "missing", path)
 				}
+				before := snapshotManagedTree(t, root)
 				output, err := qualityRun(t, root, bin, log, "", "lint", "correct")
-				if err == nil || !strings.Contains(string(output), name) || len(managedLintLog(t, log)) != 0 {
-					t.Fatalf("unsafe input reached commands: %v %s", err, output)
+				want := "Rust requires a regular root " + name + ", not a symlink or non-regular file"
+				if kind == "missing" {
+					want = "Rust requires root " + name + ", but it is missing"
+				}
+				if err == nil || !strings.Contains(string(output), want) || len(managedLintLog(t, log)) != 0 {
+					t.Fatalf("unsafe input reached commands or wrong diagnostic: %v %s", err, output)
+				}
+				if !reflect.DeepEqual(before, snapshotManagedTree(t, root)) {
+					t.Fatal("unsafe input changed files")
 				}
 			})
 		}

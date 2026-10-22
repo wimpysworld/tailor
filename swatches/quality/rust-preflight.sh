@@ -1,6 +1,10 @@
 for input in Cargo.toml Cargo.lock; do
+    if [[ ! -e "${input}" && ! -L "${input}" ]]; then
+        echo "Error: Rust requires root ${input}, but it is missing" >&2
+        exit 1
+    fi
     if [[ -L "${input}" || ! -f "${input}" ]]; then
-        echo "Error: Rust requires a regular root ${input}, not a symlink" >&2
+        echo "Error: Rust requires a regular root ${input}, not a symlink or non-regular file" >&2
         exit 1
     fi
 done

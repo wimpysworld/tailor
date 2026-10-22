@@ -261,7 +261,9 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 			guidance = append(guidance, managedMCPAdoptionGuidance(cfg, result.Path, mcpRegistry)...)
 		}
 	}
-	if cfg.EbitengineEnabled() {
+	if cfg.EbitengineEnabled() && slices.ContainsFunc(report.Document.Items, func(item output.Item) bool {
+		return item.Domain == "Files" && item.Name == ".envrc" && item.Outcome == output.Preserved && item.Reason == string(SkipFirstFitExists)
+	}) {
 		guidance = append(guidance, "Adopt watches for `nix/lib`, `nix/shells`, and their `*.nix` files in existing `.envrc` files. Review before normal direnv approval; Tailor never grants trust.")
 	}
 	if cfg.EbitengineAndroidEnabled() {

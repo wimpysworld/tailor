@@ -77,6 +77,40 @@ func TestManagedReportingSeparatesPlannedAndConfirmedResults(t *testing.T) {
 	}
 }
 
+func TestManagedReportingEnvrcGuidance(t *testing.T) {
+	for _, mode := range []ApplyMode{DryRun, Apply} {
+		for _, tc := range []struct {
+			name    string
+			result  SwatchResult
+			enabled bool
+			want    bool
+		}{
+			{"preserved", SwatchResult{Path: ".envrc", Category: Skipped, Reason: SkipFirstFitExists}, true, true},
+			{"fresh", SwatchResult{Path: ".envrc", Category: WouldCopy}, true, false},
+			{"replaced", SwatchResult{Path: ".envrc", Category: WouldOverwrite}, true, false},
+			{"disabled", SwatchResult{Path: ".envrc", Category: Skipped, Reason: SkipFirstFitExists}, false, false},
+			{"absent", SwatchResult{Path: "flake.nix", Category: Skipped, Reason: SkipManagedRootExists}, true, false},
+		} {
+			t.Run(map[ApplyMode]string{DryRun: "preview", Apply: "apply"}[mode]+"/"+tc.name, func(t *testing.T) {
+				cfg := ebitengineConfig()
+				cfg.Languages.GoOptions.Ebitengine.Enabled = tc.enabled
+				report := buildReport("alter", "", nil, nil, nil, []SwatchResult{tc.result}, mode)
+				appendManagedReporting(&report, cfg, nil)
+				if got := strings.Contains(report.Plain, "Adopt watches"); got != tc.want {
+					t.Fatalf("watch guidance = %v, want %v: %s", got, tc.want, report.Plain)
+				}
+				found := false
+				for _, guidance := range report.Document.Guidance {
+					found = found || strings.Contains(guidance.Text, "Adopt watches")
+				}
+				if found != tc.want {
+					t.Fatalf("structured watch guidance = %v, want %v", found, tc.want)
+				}
+			})
+		}
+	}
+}
+
 func TestManagedReportingAddsConditionalWarningsAndAdoptionGuidance(t *testing.T) {
 	results := []SwatchResult{
 		{Path: "justfile", Category: Skipped, Reason: SkipManagedRootExists},
