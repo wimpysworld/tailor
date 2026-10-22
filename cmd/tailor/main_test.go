@@ -440,6 +440,41 @@ func TestRunAlterMalformedConfigError(t *testing.T) {
 	}
 }
 
+func TestMeasurePythonPolicyStatus(t *testing.T) {
+	for _, tc := range []struct {
+		name, policy, destination, status string
+	}{
+		{"equivalent", "[tool.ruff]\n", "ruff.toml", "present"},
+		{"conflicting-formatter", "[tool.black]\n", "ruff.toml", "warning"},
+		{"conflicting-types", "[tool.mypy]\n", "pyrightconfig.json", "warning"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "adoption required")
+			if err := os.Mkdir(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			for name, body := range map[string]string{
+				".tailor.yml":     "languages:\n  python: true\nswatches: []\n",
+				"pyproject.toml": tc.policy,
+			} {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Chdir(dir)
+			var stdout, stderr strings.Builder
+			cmd := MeasureCmd{output: output.New(&stdout, &stderr, output.Plain)}
+			if err := cmd.Run(); err != nil {
+				t.Fatal(err)
+			}
+			want := fmt.Sprintf("%-16s%s ", tc.status+":", tc.destination)
+			if !strings.Contains(stdout.String(), want) {
+				t.Fatalf("output missing %q:\n%s", want, stdout.String())
+			}
+		})
+	}
+}
+
 func TestMeasureCmdRejectsInvalidConfigPath(t *testing.T) {
 	tests := []struct {
 		name   string

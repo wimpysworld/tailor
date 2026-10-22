@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -294,11 +293,11 @@ func (m *MeasureCmd) Run() (runErr error) {
 				if skipped {
 					continue
 				}
-				reason, err := alter.PythonPolicyReason(dir, name)
+				pythonPolicy, err := alter.InspectPythonPolicy(dir, name)
 				if err != nil {
 					return err
 				}
-				if reason != "" {
+				if pythonPolicy.Reason != "" {
 					filtered := diff[:0]
 					for _, finding := range diff {
 						if finding.Path != name || finding.Category != measure.NotConfigured {
@@ -308,15 +307,15 @@ func (m *MeasureCmd) Run() (runErr error) {
 					diff = filtered
 				}
 				status := measure.Present
-				if strings.Contains(reason, "adoption required") {
+				if pythonPolicy.AdoptionRequired {
 					status = measure.Warning
 				}
-				if reason == "" {
+				if pythonPolicy.Reason == "" {
 					if _, err := os.Stat(filepath.Join(dir, name)); err != nil {
 						status = measure.Missing
 					}
 				}
-				health = append(health, measure.HealthResult{Path: name, Status: status, Detail: reason})
+				health = append(health, measure.HealthResult{Path: name, Status: status, Detail: pythonPolicy.Reason})
 			}
 		}
 	}

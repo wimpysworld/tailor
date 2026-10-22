@@ -10,35 +10,44 @@ import (
 	"github.com/pelletier/go-toml/v2"
 )
 
+type PythonPolicy struct {
+	Reason           string
+	AdoptionRequired bool
+}
+
 // PythonPolicyReason preserves alternate policies instead of shadowing them with a starter.
 func PythonPolicyReason(dir, destination string) (string, error) {
+	policy, err := InspectPythonPolicy(dir, destination)
+	return policy.Reason, err
+}
+
+func InspectPythonPolicy(dir, destination string) (PythonPolicy, error) {
 	if destination != "ruff.toml" && destination != "pyrightconfig.json" {
-		return "", nil
+		return PythonPolicy{}, nil
 	}
 	root, err := filepath.Abs(dir)
 	if err != nil {
-		return "", err
+		return PythonPolicy{}, err
 	}
 	info, err := os.Lstat(root)
 	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-		return "", fmt.Errorf("unsafe Python policy parent %q", root)
+		return PythonPolicy{}, fmt.Errorf("unsafe Python policy parent %q", root)
 	}
 	parent, err := filepath.EvalSymlinks(filepath.Dir(root))
 	if err != nil {
-		return "", fmt.Errorf("resolving Python policy parent: %w", err)
+		return PythonPolicy{}, fmt.Errorf("resolving Python policy parent: %w", err)
 	}
 	root = filepath.Join(parent, filepath.Base(root))
 	for current := root; ; current = filepath.Dir(current) {
 		info, err := os.Lstat(current)
 		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
-			return "", fmt.Errorf("unsafe Python policy parent %q", current)
+			return PythonPolicy{}, fmt.Errorf("unsafe Python policy parent %q", current)
 		}
 		if current == filepath.Dir(current) {
 			break
 		}
 	}
-	var reason string
-	var adoptionRequired bool
+	var policy PythonPolicy
 	inspect := func(directory string) error {
 		names := []string{"pyproject.toml", ".ruff.toml", "ruff.toml", "pyrightconfig.json", "mypy.ini", ".mypy.ini", "setup.cfg"}
 		for _, name := range names {
@@ -93,26 +102,26 @@ func PythonPolicyReason(dir, destination string) (string, error) {
 				equivalent = destination == "ruff.toml" && ruff || destination == "pyrightconfig.json" && (based || pyright)
 				conflict = destination == "ruff.toml" && black || destination == "pyrightconfig.json" && mypy
 			}
-			if equivalent && reason == "" {
-				reason = "existing Python policy preserved: " + path
+			if equivalent && policy.Reason == "" {
+				policy.Reason = "existing Python policy preserved: " + path
 			}
 			if conflict {
-				adoptionRequired = true
-				reason = "Python adoption required; conflicting policy preserved: " + path
+				policy.AdoptionRequired = true
+				policy.Reason = "Python adoption required; conflicting policy preserved: " + path
 			}
 		}
 		return nil
 	}
 	for current := root; ; current = filepath.Dir(current) {
 		if err := inspect(current); err != nil {
-			return "", err
+			return PythonPolicy{}, err
 		}
 		if current == filepath.Dir(current) {
 			break
 		}
 	}
-	if adoptionRequired {
-		return reason, nil
+	if policy.AdoptionRequired {
+		return policy, nil
 	}
 	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
@@ -126,5 +135,5 @@ func PythonPolicyReason(dir, destination string) (string, error) {
 		}
 		return inspect(path)
 	})
-	return reason, err
+	return policy, err
 }

@@ -11,6 +11,39 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
+func TestInspectPythonPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name, path, body, destination string
+		adoptionRequired             bool
+	}{
+		{"none", "", "", "ruff.toml", false},
+		{"equivalent", ".ruff.toml", "", "ruff.toml", false},
+		{"message-text-in-path", "adoption required/.ruff.toml", "", "ruff.toml", false},
+		{"root-conflict", "pyproject.toml", "[tool.black]\n", "ruff.toml", true},
+		{"nested-conflict", "nested/pyproject.toml", "[tool.mypy]\n", "pyrightconfig.json", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := testTempDir(t)
+			if tc.path != "" {
+				writeManagedTestFile(t, root, tc.path, []byte(tc.body))
+			}
+			policy, err := InspectPythonPolicy(root, tc.destination)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if policy.AdoptionRequired != tc.adoptionRequired {
+				t.Fatalf("policy=%+v, want AdoptionRequired=%v", policy, tc.adoptionRequired)
+			}
+			if (policy.Reason != "") != (tc.path != "") {
+				t.Fatalf("unexpected reason: %q", policy.Reason)
+			}
+			if reason, err := PythonPolicyReason(root, tc.destination); err != nil || reason != policy.Reason {
+				t.Fatalf("compatibility helper: reason=%q error=%v, want %q", reason, err, policy.Reason)
+			}
+		})
+	}
+}
+
 func TestPythonPolicies(t *testing.T) {
 	for _, tc := range []struct{ path, body, destination, want string }{
 		{"pyproject.toml", "[tool.\"ruff\"]\nline-length=88\n", "ruff.toml", "existing Python policy"},
