@@ -203,8 +203,65 @@ func TestManagedBuildUsesBashThreeCompatibleArrays(t *testing.T) {
 	if strings.Contains(content, `${#main_packages[@]}`) {
 		t.Fatal("managed Go build uses an empty array length under nounset")
 	}
-	if !strings.Contains(content, `for index in "${!outputs[@]}"`) {
-		t.Fatal("managed Go build does not use indexed collision detection")
+	if strings.Contains(content, `${!outputs[@]}`) || strings.Contains(content, `${#outputs[@]}`) {
+		t.Fatal("managed Go build expands empty output arrays under nounset")
+	}
+	count := strings.Index(content, `output_count=0`)
+	collisionLoop := strings.Index(content, `for ((index = 0; index < output_count; index++)); do`)
+	appendOutput := strings.Index(content, `outputs+=("${output}")`)
+	increment := strings.Index(content, `output_count=$((output_count + 1))`)
+	if count < 0 || collisionLoop < count || appendOutput < collisionLoop || increment < appendOutput {
+		t.Fatal("managed Go build must count stored outputs before collision checks")
+	}
+}
+
+func TestManagedBuildWithBashThree(t *testing.T) {
+	var bash string
+	for _, candidate := range []string{"bash3", "bash32", "bash-3.2", "/bin/bash", "bash"} {
+		path, err := exec.LookPath(candidate)
+		if err != nil {
+			continue
+		}
+		output, err := exec.CommandContext(t.Context(), path, "-c", `printf '%s' "${BASH_VERSINFO[0]}"`).Output()
+		if err == nil && string(output) == "3" {
+			bash = path
+			break
+		}
+	}
+	if bash == "" {
+		t.Skip("Bash 3 executable is not available")
+	}
+	just := managedLintExecutable(t)
+	for _, tc := range []struct {
+		name      string
+		files     map[string]string
+		wantError string
+	}{
+		{name: "first executable", files: map[string]string{"cmd/app/main.go": "package main\nfunc main() {}\n"}},
+		{name: "library only", files: map[string]string{"library.go": "package library\n"}},
+		{name: "collision", files: map[string]string{"cmd/app/main.go": "package main\nfunc main() {}\n", "tools/app/main.go": "package main\nfunc main() {}\n"}, wantError: "both produce bin/app"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			writeManagedBuildFixture(t, root, "example.com/project", tc.files)
+			bin := t.TempDir()
+			managedSymlinkOrSkip(t, bash, filepath.Join(bin, "bash"))
+			output, err := runManagedBuild(t, just, root, "PATH="+bin+":"+os.Getenv("PATH"))
+			if tc.wantError != "" {
+				if err == nil || !strings.Contains(string(output), tc.wantError) {
+					t.Fatalf("Bash 3 collision output=%q error=%v", output, err)
+				}
+			} else if err != nil {
+				t.Fatalf("Bash 3 build: %v\n%s", err, output)
+			}
+			if tc.name == "first executable" {
+				if _, err := os.Stat(filepath.Join(root, "bin", "app")); err != nil {
+					t.Fatal(err)
+				}
+			} else if _, err := os.Stat(filepath.Join(root, "bin")); !os.IsNotExist(err) {
+				t.Fatalf("build created bin: %v", err)
+			}
+		})
 	}
 }
 

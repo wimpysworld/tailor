@@ -21,6 +21,7 @@ build:
     goexe="$(go env GOEXE)"
     outputs=()
     owners=()
+    output_count=0
 
     check_bin_directory() {
         if [[ -L bin ]]; then
@@ -59,7 +60,7 @@ build:
             output="${parent##*/}"
         fi
         output="${output}${goexe}"
-        for index in "${!outputs[@]}"; do
+        for ((index = 0; index < output_count; index++)); do
             if [[ "${outputs[${index}]}" == "${output}" ]]; then
                 echo "Error: Go executable packages ${owners[${index}]} and ${package} both produce bin/${output}" >&2
                 exit 1
@@ -68,6 +69,7 @@ build:
         check_output_destination "${output}"
         owners+=("${package}")
         outputs+=("${output}")
+        output_count=$((output_count + 1))
     done
 
     work="$(mktemp -d "${TMPDIR:-/tmp}/tailor-go-build.XXXXXX")"
