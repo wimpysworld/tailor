@@ -75,15 +75,15 @@ linters:
         linters:
           - gosec
     paths:
-      - third_party$
-      - builtin$
-      - examples$
+      - (^|/)third_party(/|$)
+      - (^|/)builtin(/|$)
+      - (^|/)examples(/|$)
 formatters:
   enable:
     - gofumpt
   exclusions:
     generated: lax
     paths:
-      - third_party$
-      - builtin$
-      - examples$
+      - (^|/)third_party(/|$)
+      - (^|/)builtin(/|$)
+      - (^|/)examples(/|$)

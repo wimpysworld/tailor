@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/swatch"
+	"gopkg.in/yaml.v3"
 )
 
 func TestRepositoryGoPolicy(t *testing.T) {
@@ -21,6 +23,50 @@ func TestRepositoryGoPolicy(t *testing.T) {
 	got, err := os.ReadFile(path)
 	if err != nil || !bytes.Equal(got, want) {
 		t.Fatalf("repository Go policy differs from the shared default: %v", err)
+	}
+}
+
+func TestGoPolicyDirectoryExclusions(t *testing.T) {
+	data, err := swatch.Render(swatch.GoLintDestination, swatch.Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	type section struct {
+		Exclusions struct {
+			Paths []string `yaml:"paths"`
+		} `yaml:"exclusions"`
+	}
+	var policy struct {
+		Linters    section `yaml:"linters"`
+		Formatters section `yaml:"formatters"`
+	}
+	if err := yaml.Unmarshal(data, &policy); err != nil {
+		t.Fatal(err)
+	}
+	for name, section := range map[string]section{"linters": policy.Linters, "formatters": policy.Formatters} {
+		t.Run(name, func(t *testing.T) {
+			patterns := section.Exclusions.Paths
+			for _, name := range []string{"third_party", "builtin", "examples"} {
+				for path, want := range map[string]bool{
+					name + "/bad.go":                true,
+					name + "/nested/bad.go":         true,
+					"internal/" + name + "/bad.go":  true,
+					name + "_test.go":               false,
+					"internal/" + name + "_test.go": false,
+					"not_" + name + "/bad.go":       false,
+					name + "_extra/bad.go":          false,
+					"good.go":                      false,
+				} {
+					matched := false
+					for _, pattern := range patterns {
+						matched = matched || regexp.MustCompile(pattern).MatchString(path)
+					}
+					if matched != want {
+						t.Errorf("path %q excluded = %v, want %v", path, matched, want)
+					}
+				}
+			}
+		})
 	}
 }
 
