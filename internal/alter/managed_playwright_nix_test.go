@@ -89,24 +89,34 @@ builtins.head (import ` + strconv.Quote(filepath.Join(root, "nix", "playwright.n
 	})
 }
 
-func managedPlaywrightNixFixture(t *testing.T) string {
-	t.Helper()
-	root := t.TempDir()
-	for _, name := range []string{"flake.nix", "nix/loader.nix", "nix/playwright.nix"} {
-		content, err := swatch.Content(name)
+func TestManagedPlaywrightNixFixtureFiles(t *testing.T) {
+	root := managedPlaywrightNixFixture(t)
+	for name, want := range renderSelectedManagedFiles(t, managedPlaywrightConfig(true)) {
+		if !strings.HasPrefix(name, "nix/") {
+			continue
+		}
+		got, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(name)))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if name == "nix/loader.nix" {
-			content, err = renderManagedLoader(name, content, []managedRegistryEntry{
-				{Path: "nix/loader.nix", Policy: managedPolicyLoader},
-				{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright},
-			})
-			if err != nil {
-				t.Fatal(err)
-			}
+		if !bytes.Equal(got, want) {
+			t.Errorf("fixture %s differs from the production render", name)
 		}
-		writeManagedRenderFixture(t, root, name, content)
+	}
+}
+
+func managedPlaywrightNixFixture(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	flake, err := swatch.Content("flake.nix")
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeManagedRenderFixture(t, root, "flake.nix", flake)
+	for name, content := range renderSelectedManagedFiles(t, managedPlaywrightConfig(true)) {
+		if strings.HasPrefix(name, "nix/") {
+			writeManagedRenderFixture(t, root, name, content)
+		}
 	}
 
 	_, filename, _, ok := runtime.Caller(0)
