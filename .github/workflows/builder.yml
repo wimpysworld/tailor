@@ -122,10 +122,25 @@ jobs:
           tar -xzf "$archive" -C "$RUNNER_TEMP/bin" just
           "$RUNNER_TEMP/bin/just" --version
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: Fetch verified Blender test source
+        if: matrix.runner == 'ubuntu-24.04'
+        shell: bash
+        run: |
+          command -v patch
+          command -v python3
+          source=$(nix build --impure --no-link --print-out-paths --expr '
+            let
+              flake = builtins.getFlake (toString ./.);
+              pkgs = import flake.inputs.nixpkgs { system = "x86_64-linux"; };
+              blender = import ./swatches/nix/lib/blender.nix { inherit pkgs; };
+            in blender.bridge.src.src
+          ')
+          test -d "$source"
+          echo "TAILOR_BLENDER_TEST_SOURCE=$source" >> "$GITHUB_ENV"
       - name: Test
         env:
           TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS: "1"
-        run: go test ./...
+        run: just test
       - name: Build tailor
         run: go build -o tailor ./cmd/tailor
       - name: Measure

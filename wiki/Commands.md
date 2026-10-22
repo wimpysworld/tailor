@@ -205,13 +205,13 @@ Tailor's project fragment retains `snapshot`. Snapshot runs `goreleaser release 
 
 ### Adopt the Android shell
 
-Enable the [Android declaration](Configuration#ebitengine), then preview and apply within the approved scope. New roots expose the optional `android` shell. Preserved roots require manual adoption with the same overridden `pkgs` as both loaders.
+Enable the [Android declaration](Configuration#ebitengine), then preview and apply within the approved scope. The managed Android shell supports only `x86_64-linux`. New roots expose the optional `android` shell only on that system. Preserved roots require manual adoption with the same `x86_64-linux` guard and overridden `pkgs` as both loaders.
 
 For an existing `android` output, compare SDK versions and overrides before replacing its body with the managed shell import. Keep required custom hooks last. Remove duplicate SDK, adb, Java, and shared hook declarations. Do not add another `android` attribute.
 
 In project recipes, replace the temporary mobile runner build and call with `tailor-ebitenmobile bind`. Retain every bind argument, package path, and output path. Keep Gradle packaging project-owned and pass `-Pandroid.aapt2FromMavenOverride="$ANDROID_BUILD_TOOLS/aapt2"`.
 
-After separate SDK approval, enter `nix develop .#android`. Verify binding and unsigned Gradle packaging separately. Tool availability does not prove that an Android application builds.
+On `x86_64-linux`, after separate SDK approval and any required root adoption, enter `nix develop .#android`. This command is not available for the managed shell on macOS or `aarch64-linux`. Verify binding and unsigned Gradle packaging separately. Tool availability does not prove that an Android application builds.
 
 ### Activate Blender MCP
 
