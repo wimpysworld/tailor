@@ -19,6 +19,46 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
+func TestRenderManagedGoHook(t *testing.T) {
+	const placeholder = "  # TAILOR_GO_CGO"
+	for _, tt := range []struct {
+		name    string
+		policy  *bool
+		command string
+	}{
+		{name: "true", policy: new(true), command: "  export CGO_ENABLED=1"},
+		{name: "false", policy: new(false), command: "  export CGO_ENABLED=0"},
+		{name: "absent"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{Languages: &config.LanguageSettings{
+				Go: new(true), GoOptions: &config.GoOptions{CGO: tt.policy},
+			}}
+			for _, count := range []int{0, 1, 2} {
+				t.Run(strconv.Itoa(count), func(t *testing.T) {
+					content := []byte("before\n" + strings.Repeat(placeholder+"\n", count) + "after\n")
+					rendered, err := renderManagedGoHook(cfg, content)
+					if count != 1 {
+						if err == nil || !strings.Contains(err.Error(), "managed Go hook template must contain one CGO placeholder") {
+							t.Fatalf("renderManagedGoHook() error = %v, want placeholder count error", err)
+						}
+						if rendered != nil {
+							t.Fatalf("renderManagedGoHook() returned content on error: %q", rendered)
+						}
+						return
+					}
+					if err != nil {
+						t.Fatal(err)
+					}
+					if want := "before\n" + tt.command + "\nafter\n"; string(rendered) != want {
+						t.Fatalf("renderManagedGoHook() = %q, want %q", rendered, want)
+					}
+				})
+			}
+		})
+	}
+}
+
 func TestManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 	managed := make(map[string]bool)
 	for _, entry := range fixedManagedRegistry() {

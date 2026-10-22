@@ -80,14 +80,7 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 				}
 			}
 		case "nix/hooks/go.nix":
-			command := ""
-			if policy := cfg.EffectiveGoCGO(); policy != nil {
-				command = "  export CGO_ENABLED=0"
-				if *policy {
-					command = "  export CGO_ENABLED=1"
-				}
-			}
-			content = bytes.ReplaceAll(content, []byte("  # TAILOR_GO_CGO"), []byte(command))
+			content, err = renderManagedGoHook(cfg, content)
 		case "just/pages.just":
 			content, err = renderManagedPages(cfg, content)
 		}
@@ -97,6 +90,21 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 		files[entry.Path] = content
 	}
 	return files, nil
+}
+
+func renderManagedGoHook(cfg *config.Config, content []byte) ([]byte, error) {
+	placeholder := []byte("  # TAILOR_GO_CGO")
+	if bytes.Count(content, placeholder) != 1 {
+		return nil, fmt.Errorf("managed Go hook template must contain one CGO placeholder")
+	}
+	command := ""
+	if policy := cfg.EffectiveGoCGO(); policy != nil {
+		command = "  export CGO_ENABLED=0"
+		if *policy {
+			command = "  export CGO_ENABLED=1"
+		}
+	}
+	return bytes.Replace(content, placeholder, []byte(command), 1), nil
 }
 
 func renderManagedCGO(cfg *config.Config, content []byte) ([]byte, error) {
