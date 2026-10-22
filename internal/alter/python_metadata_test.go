@@ -88,6 +88,7 @@ import copy
 import os
 from pathlib import Path
 import sys
+import tomllib
 scope = {'__name__': 'tailor_test'}
 exec(compile(Path(sys.argv[1]).read_text(), sys.argv[1], 'exec'), scope)
 metadata, Version = scope['metadata'], scope['Version']
@@ -195,7 +196,7 @@ with patch.dict(scope, find_spec=lambda name: True):
     malformed.write_text('[tool.ruff\n')
     try:
         preflight(root, 'lint', str(root / '.venv/bin/python'))
-    except ValueError:
+    except tomllib.TOMLDecodeError:
         pass
     else:
         raise AssertionError('malformed policy accepted without Ruff policy')
