@@ -9,6 +9,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/output"
 )
 
+var applyLocal = alter.ApplyLocal
+
 func (a *AlterCmd) runLocal() error {
 	if len(a.Path) == 0 {
 		return fmt.Errorf("local-only alteration requires at least one --path")
@@ -21,7 +23,7 @@ func (a *AlterCmd) runLocal() error {
 	if err != nil {
 		return err
 	}
-	updated, err := alter.ApplyLocal(cfg, dir, a.Path)
+	updated, err := applyLocal(cfg, dir, a.Path)
 	policy := a.output
 	if policy == nil {
 		policy = output.New(a.stdout, a.stderr, output.Auto)
@@ -34,7 +36,9 @@ func (a *AlterCmd) runLocal() error {
 	}
 	if err == nil && len(updated) == 0 {
 		fmt.Fprintln(&plain, "no local changes")
-		doc.Summary.Unchanged = len(a.Path)
+	}
+	if err == nil {
+		doc.Summary = output.Summary{Applied: len(updated), Unchanged: len(a.Path) - len(updated)}
 	}
 	if err == nil || len(updated) > 0 {
 		policy.Print(doc, plain.String())

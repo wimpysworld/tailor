@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,9 +10,76 @@ import (
 
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/repository"
+	"github.com/wimpysworld/tailor/internal/config"
 	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
+
+func TestLocalOnlySummaryCounts(t *testing.T) {
+	original := applyLocal
+	t.Cleanup(func() { applyLocal = original })
+	t.Cleanup(gh.SetTokenForHostFunc(func(string) (string, string) {
+		t.Fatal("local-only resolved authentication")
+		return "", ""
+	}))
+	t.Cleanup(gh.SetCurrentRepoFunc(func(string) (repository.Repository, error) {
+		t.Fatal("local-only resolved repository context")
+		return repository.Repository{}, nil
+	}))
+	t.Cleanup(gh.SetNewRESTClientFunc(func(string) (*api.RESTClient, error) {
+		t.Fatal("local-only created a GitHub client")
+		return nil, nil
+	}))
+	t.Cleanup(gh.SetInspectWikiFunc(func(string, string, string) error {
+		t.Fatal("local-only inspected a remote wiki")
+		return nil
+	}))
+	dir := t.TempDir()
+	testutil.WriteFile(t, dir, ".tailor.yml", "license: none\n")
+	failure := errors.New("local write failed")
+	for _, test := range []struct {
+		name    string
+		updated []string
+		err     error
+		quiet   string
+		plain   string
+	}{
+		{"mixed", []string{"just/tailor.just"}, nil, "1 applied · 1 already match\n", "updated just/tailor.just\n"},
+		{"unchanged", nil, nil, "2 already match\n", "no local changes\n"},
+		{"partial failure", []string{"just/tailor.just"}, failure, "1 applied\n", "updated just/tailor.just\n"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			applyLocal = func(_ *config.Config, _ string, paths []string) ([]string, error) {
+				if len(paths) != 2 || paths[0] != "just/tailor.just" || paths[1] != "nix/hooks/go.nix" {
+					t.Fatalf("unexpected paths: %v", paths)
+				}
+				return test.updated, test.err
+			}
+			for _, format := range []string{"plain", "auto"} {
+				for _, quiet := range []bool{false, true} {
+					args := []string{"alter", "--local-only", "--directory", dir, "--path", "just/tailor.just", "--path", "nix/hooks/go.nix", "--format=" + format}
+					want := test.plain
+					if quiet {
+						args = append(args, "--quiet")
+						want = test.quiet
+					}
+					var stdout, stderr bytes.Buffer
+					code := run(args, &stdout, &stderr)
+					if stdout.String() != want {
+						t.Fatalf("format=%s quiet=%t: stdout = %q, want %q", format, quiet, &stdout, want)
+					}
+					if test.err == nil {
+						if code != 0 || stderr.Len() != 0 {
+							t.Fatalf("success: exit %d, stderr = %q", code, &stderr)
+						}
+					} else if code == 0 || !strings.Contains(stderr.String(), failure.Error()) {
+						t.Fatalf("failure: exit %d, stderr = %q", code, &stderr)
+					}
+				}
+			}
+		})
+	}
+}
 
 func TestLocalOnlyCLIHasNoRemoteAccess(t *testing.T) {
 	t.Cleanup(gh.SetTokenForHostFunc(func(string) (string, string) {
