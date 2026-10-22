@@ -46,7 +46,9 @@ func TestMCPDeclarationsControlPlaywrightFilesAcrossAlterModes(t *testing.T) {
 
 		t.Run(mode.name+"/true-without-pages", func(t *testing.T) {
 			tc := setupAlterTest(t, "license: none\nmcp:\n  playwright: true\nswatches: []\n")
-			output := captureAlterRun(t, loadTestConfig(t, tc.Dir), tc.Dir, mode.mode, tc.Client)
+			cfg := loadTestConfig(t, tc.Dir)
+			want := alter.RenderManagedFilesForTest(t, cfg)
+			output := captureAlterRun(t, cfg, tc.Dir, mode.mode, tc.Client)
 
 			for _, path := range playwrightPaths {
 				if !strings.Contains(output, path) {
@@ -56,13 +58,10 @@ func TestMCPDeclarationsControlPlaywrightFilesAcrossAlterModes(t *testing.T) {
 					assertCapabilityMissing(t, tc.Dir, path)
 					continue
 				}
-				got, err := os.ReadFile(filepath.Join(tc.Dir, path))
-				if err != nil {
-					t.Fatal(err)
+				if len(want[path]) == 0 {
+					t.Fatalf("missing expected Playwright rendering for %s", path)
 				}
-				if !strings.Contains(string(got), "playwright") || strings.Contains(string(got), "blender-bridge") {
-					t.Fatalf("incorrect Playwright-only content for %s: %s", path, got)
-				}
+				assertCapabilityBytes(t, tc.Dir, path, want[path])
 			}
 			if strings.Contains(output, "just/pages.just") || strings.Contains(output, "nix/pages.nix") {
 				t.Fatalf("Playwright enabled Pages files: %s", output)

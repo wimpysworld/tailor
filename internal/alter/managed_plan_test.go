@@ -186,6 +186,7 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 				"just/loader.just": true,
 				"nix/loader.nix":   true,
 				"just/tailor.just": true,
+				"nix/hooks.nix":    true, "nix/hooks/core.nix": true,
 			},
 		},
 		{
@@ -197,6 +198,7 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 				"just/loader.just": true,
 				"nix/loader.nix":   true,
 				"just/tailor.just": true,
+				"nix/hooks.nix":    true, "nix/hooks/core.nix": true,
 			},
 		},
 		{
@@ -207,9 +209,11 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 				MCP:       &config.MCPSettings{Playwright: &falseValue},
 			},
 			want: map[string]bool{
-				"just/loader.just":            true,
-				"nix/loader.nix":              true,
-				"just/tailor.just":            true,
+				"just/loader.just": true,
+				"nix/loader.nix":   true,
+				"just/tailor.just": true,
+				"nix/hooks.nix":    true, "nix/hooks/core.nix": true,
+				"nix/hooks/go.nix": false, "nix/hooks/go-ffmpeg-statigo.nix": false,
 				"just/go.just":                false,
 				"just/go-ffmpeg-statigo.just": false,
 				"nix/go-ffmpeg-statigo.nix":   false,
@@ -234,7 +238,9 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 			want: map[string]bool{
 				"justfile": true, "flake.nix": true,
 				"just/loader.just": true, "nix/loader.nix": true, "just/tailor.just": true,
-				"just/go.just": true, "nix/go.nix": true,
+				"nix/hooks.nix": true, "nix/hooks/core.nix": true,
+				"nix/hooks/go.nix": true,
+				"just/go.just":     true, "nix/go.nix": true,
 				"just/pages.just": true, "nix/pages.nix": true,
 				"nix/playwright.nix": true,
 				".mcp.json":          true, ".codex/config.toml": true, "opencode.json": true, ".pi/mcp.json": true,
@@ -251,14 +257,6 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 			got := make(map[string]bool, len(selected))
 			for _, selection := range selected {
 				got[selection.Entry.Path] = selection.Enabled
-			}
-			tt.want["nix/hooks.nix"] = true
-			tt.want["nix/hooks/core.nix"] = true
-			if tt.cfg.GoDeclared() {
-				tt.want["nix/hooks/go.nix"] = tt.cfg.GoEnabled()
-			}
-			if tt.cfg.GoDeclared() && !tt.cfg.GoEnabled() {
-				tt.want["nix/hooks/go-ffmpeg-statigo.nix"] = false
 			}
 			if !reflect.DeepEqual(got, tt.want) {
 				t.Fatalf("selectManagedFiles() = %v, want %v", got, tt.want)

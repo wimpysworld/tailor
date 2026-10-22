@@ -36,6 +36,7 @@ func TestEbitengineOwnedLifecycle(t *testing.T) {
 			}
 			cfg.Swatches = []config.SwatchEntry{{Path: "justfile", Alteration: swatch.Always}, {Path: "flake.nix", Alteration: swatch.Always}}
 			before := snapshotManagedTree(t, root)
+			want := renderSelectedManagedFiles(t, cfg)
 			execution, err := prepareManagedExecution(cfg, root, func(s []managedSelection) (managedRenderedFiles, error) { return renderManagedFiles(cfg, s) })
 			if err != nil {
 				t.Fatal(err)
@@ -60,6 +61,14 @@ func TestEbitengineOwnedLifecycle(t *testing.T) {
 				}
 				if state == "absent" && string(content) != string(managedContent(path, "old")) {
 					t.Fatalf("absent declaration changed %s", path)
+				}
+				if state == "default" || state == "all" {
+					if len(want[path]) == 0 || string(content) != string(want[path]) {
+						t.Fatalf("%s content = %q, want rendered bytes %q", path, content, want[path])
+					}
+					if string(content) == string(managedContent(path, "old")) {
+						t.Fatalf("enabled declaration did not replace %s", path)
+					}
 				}
 			}
 			for _, path := range []string{"justfile", "flake.nix"} {

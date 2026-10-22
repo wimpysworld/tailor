@@ -111,6 +111,9 @@ func TestQualityCommands(t *testing.T) {
 			writeManagedTestFile(t, root, "just/project/lint.sh", []byte("printf 'project %s %s\\n' \"$1\" \"$PWD\" >> \"$CALLS\"\n"))
 			before := snapshotManagedTree(t, root)
 			output, err := qualityRun(t, root, bin, log, "", "lint", mode)
+			if _, statErr := os.Lstat(filepath.Join(root, "injected")); !os.IsNotExist(statErr) {
+				t.Fatalf("lint expanded the mode argument: %v", statErr)
+			}
 			if mode != "check" && mode != "correct" {
 				if err == nil || !strings.Contains(string(output), "lint mode must be") || len(managedLintLog(t, log)) != 0 {
 					t.Fatalf("invalid mode did work: %s %v", output, err)
