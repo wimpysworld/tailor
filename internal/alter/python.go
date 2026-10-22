@@ -19,6 +19,15 @@ func PythonPolicyReason(dir, destination string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	info, err := os.Lstat(root)
+	if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return "", fmt.Errorf("unsafe Python policy parent %q", root)
+	}
+	parent, err := filepath.EvalSymlinks(filepath.Dir(root))
+	if err != nil {
+		return "", fmt.Errorf("resolving Python policy parent: %w", err)
+	}
+	root = filepath.Join(parent, filepath.Base(root))
 	for current := root; ; current = filepath.Dir(current) {
 		info, err := os.Lstat(current)
 		if err != nil || !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {

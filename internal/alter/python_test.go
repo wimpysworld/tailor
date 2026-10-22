@@ -50,6 +50,67 @@ func TestPythonPolicies(t *testing.T) {
 	}
 }
 
+func TestPythonPolicyAncestorAlias(t *testing.T) {
+	for _, policy := range []string{"real/.ruff.toml", "real/project/.ruff.toml", "real/project/nested/.ruff.toml"} {
+		t.Run(policy, func(t *testing.T) {
+			base := testTempDir(t)
+			root := filepath.Join(base, "real/project")
+			if err := os.MkdirAll(root, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			writeManagedTestFile(t, base, policy, []byte("line-length = 88\n"))
+			managedSymlinkOrSkip(t, filepath.Join(base, "real"), filepath.Join(base, "alias"))
+			alias := filepath.Join(base, "alias/project")
+			before := snapshotManagedTree(t, base)
+			want, err := PythonPolicyReason(root, "ruff.toml")
+			if err != nil || !strings.Contains(want, filepath.Join(base, policy)) {
+				t.Fatalf("physical root: %q, %v", want, err)
+			}
+			if got, err := PythonPolicyReason(alias, "ruff.toml"); err != nil || got != want {
+				t.Fatalf("aliased ancestor: %q, %v; want %q", got, err, want)
+			}
+			for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
+				cfg := &config.Config{Languages: &config.LanguageSettings{Python: new(true)}, Swatches: []config.SwatchEntry{{Path: "ruff.toml", Alteration: swatch.Always}}}
+				results, err := processSwatches(cfg, alias, mode, nil, nil)
+				if err != nil || len(results) != 1 || string(results[0].Reason) != want {
+					t.Fatalf("mode %v: %v, %v", mode, results, err)
+				}
+			}
+			if after := snapshotManagedTree(t, base); !reflect.DeepEqual(before, after) {
+				t.Fatalf("policy discovery changed files: before=%v after=%v", before, after)
+			}
+		})
+	}
+}
+
+func TestPythonPolicyAliasRejectsLinkedPaths(t *testing.T) {
+	for _, linked := range []string{"project", ".ruff.toml", "project/.ruff.toml", "project/nested/.ruff.toml"} {
+		t.Run(linked, func(t *testing.T) {
+			base := testTempDir(t)
+			real := filepath.Join(base, "real")
+			if err := os.MkdirAll(filepath.Join(real, "project/nested"), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			managedSymlinkOrSkip(t, real, filepath.Join(base, "alias"))
+			root := filepath.Join(base, "alias/project")
+			if linked == "project" {
+				managedSymlinkOrSkip(t, filepath.Join(real, "project"), filepath.Join(real, "linked-project"))
+				root = filepath.Join(base, "alias/linked-project")
+			} else {
+				writeManagedTestFile(t, base, "policy.toml", []byte("line-length = 88\n"))
+				managedSymlinkOrSkip(t, filepath.Join(base, "policy.toml"), filepath.Join(real, linked))
+			}
+			before := snapshotManagedTree(t, base)
+			if _, err := PythonPolicyReason(root, "ruff.toml"); err == nil {
+				t.Fatal("accepted linked root or policy")
+			}
+			if after := snapshotManagedTree(t, base); !reflect.DeepEqual(before, after) {
+				t.Fatal("rejected policy changed files")
+			}
+		})
+	}
+}
+
 func TestPythonRecipeContract(t *testing.T) {
 	for _, operation := range []string{"setup", "build", "test", "check", "correct"} {
 		t.Run(operation, func(t *testing.T) {
