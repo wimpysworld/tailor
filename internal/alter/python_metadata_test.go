@@ -94,6 +94,42 @@ for field in markers:
             raise AssertionError('marker mismatch accepted: ' + field)
 with patch.dict(scope, find_spec=lambda name: True):
     preflight(root, 'lint', str(root / '.venv/bin/python'))
+    nested = root / 'src'
+    nested.mkdir()
+    (root / 'pyrightconfig.json').unlink()
+    for name, content in (
+        ('pyrightconfig.json', '{"typeCheckingMode": "off"}'),
+        ('pyproject.toml', '[tool.basedpyright]\ntypeCheckingMode="off"\n'),
+        ('pyproject.toml', '[tool.pyright]\ntypeCheckingMode="off"\n'),
+    ):
+        path = nested / name
+        path.write_text(content)
+        try:
+            preflight(root, 'lint', str(root / '.venv/bin/python'))
+        except ValueError as error:
+            assert 'root invocation does not load nested policies' in str(error), error
+        else:
+            raise AssertionError('nested type policy allowed implicit root defaults')
+        path.unlink()
+    (root / 'pyrightconfig.json').write_text('{}')
+    (root / 'ruff.toml').unlink()
+    for name, content in (
+        ('ruff.toml', 'line-length=88\n'),
+        ('.ruff.toml', 'line-length=88\n'),
+        ('pyproject.toml', '[tool.ruff]\nline-length=88\n'),
+    ):
+        path = nested / name
+        path.write_text(content)
+        preflight(root, 'lint', str(root / '.venv/bin/python'))
+        assert path.read_text() == content
+        path.unlink()
+    (nested / 'pyproject.toml').write_text('[tool.black]\nline-length=88\n')
+    try:
+        preflight(root, 'lint', str(root / '.venv/bin/python'))
+    except ValueError as error:
+        assert 'adopt an explicit Ruff policy' in str(error), error
+    else:
+        raise AssertionError('nested Black policy accepted as Ruff')
 os.environ['UV_PROJECT_ENVIRONMENT'] = '/elsewhere'
 try:
     preflight(root, 'setup', str(root / '.venv/bin/python'))

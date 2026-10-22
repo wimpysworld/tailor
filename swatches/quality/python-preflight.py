@@ -157,13 +157,36 @@ def preflight(root, operation, interpreter):
             ruff_policy = ruff_policy or "ruff" in tool
         for name in (".ruff.toml", "ruff.toml"):
             ruff_policy = regular(directory / name, optional=True) or ruff_policy
+    if not policy:
+        raise ValueError(
+            "adopt an explicit BasedPyright policy at the project root or an ancestor "
+            "before Python lint; the root invocation does not load nested policies; "
+            "mypy policy is not converted"
+        )
+    if not ruff_policy:
+        for directory, children, _ in os.walk(root):
+            children[:] = [
+                name
+                for name in children
+                if not name.startswith(".")
+                and name not in ("node_modules", "vendor")
+                and not (Path(directory) / name).is_symlink()
+            ]
+            directory = Path(directory)
+            if directory == root:
+                continue
+            for name in (".ruff.toml", "ruff.toml", "pyproject.toml"):
+                path = directory / name
+                if regular(path, optional=True):
+                    data = tomllib.loads(path.read_text())
+                    ruff_policy = (
+                        ruff_policy
+                        or name != "pyproject.toml"
+                        or "ruff" in data.get("tool", {})
+                    )
     if not ruff_policy:
         raise ValueError(
             "adopt an explicit Ruff policy before Python lint; Black policy is not converted"
-        )
-    if not policy:
-        raise ValueError(
-            "adopt an explicit BasedPyright policy before Python lint; mypy policy is not converted"
         )
 
 
