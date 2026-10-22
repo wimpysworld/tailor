@@ -21,7 +21,7 @@ func TestEbitengineHooksShareFFmpegRuntime(t *testing.T) {
 			writeManagedRenderFixture(t, root, name, content)
 		}
 	}
-	expression := `let names=["alsa-lib" "libGL" "libX11" "libXcursor" "libXext" "libXi" "libXinerama" "libXrandr" "libXrender" "vulkan-loader" "intel-media-driver" "vpl-gpu-rt"]; pkgs=builtins.listToAttrs (map (name:{inherit name; value="/"+name;}) names) // { stdenv.isLinux=true; lib.optionalString = b: s: if b then s else ""; lib.optionals = b: xs: if b then xs else []; lib.makeLibraryPath = xs: builtins.concatStringsSep ":" (map (x: x+"/lib") xs); }; in import ` + strconv.Quote(filepath.Join(root, "nix/hooks.nix")) + ` {inherit pkgs;}`
+	expression := `let names=["alsa-lib" "libGL" "libX11" "libXcursor" "libXext" "libXi" "libXinerama" "libXrandr" "libXrender" "vulkan-loader" "intel-media-driver" "vpl-gpu-rt"]; pkgs=builtins.listToAttrs (map (name:{inherit name; value="/"+name;}) names) // { stdenv.isLinux=true; stdenv.hostPlatform.isx86_64=true; lib.optionalString = b: s: if b then s else ""; lib.optionals = b: xs: if b then xs else []; lib.makeLibraryPath = xs: builtins.concatStringsSep ":" (map (x: x+"/lib") xs); }; in import ` + strconv.Quote(filepath.Join(root, "nix/hooks.nix")) + ` {inherit pkgs;}`
 	output, err := exec.CommandContext(t.Context(), nix, "eval", "--offline", "--impure", "--raw", "--expr", expression).CombinedOutput()
 	if err != nil {
 		t.Fatalf("hook eval: %v %s", err, output)
