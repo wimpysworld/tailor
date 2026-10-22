@@ -23,18 +23,21 @@ let
           -target=*) target="''${arg#-target=}" ;;
         esac
       done
-      case "$target" in
-        *android*)
-          if [ ! -d "''${ANDROID_HOME:-}" ] || [ ! -d "''${ANDROID_NDK_HOME:-}" ]; then
-            echo "Android binding requires the reviewed Android shell and SDK paths." >&2
-            exit 1
-          fi ;;
-        *ios*)
-          if [ "$(go env GOHOSTOS)" != darwin ] || ! command -v xcrun >/dev/null || ! xcrun --find clang >/dev/null; then
-            echo "iOS binding requires macOS and an installed, selected, licensed Xcode." >&2
-            exit 1
-          fi ;;
-      esac
+      IFS=, read -r -a targets <<< "$target"
+      for component in "''${targets[@]}"; do
+        case "''${component%%/*}" in
+          android)
+            if [ ! -d "''${ANDROID_HOME:-}" ] || [ ! -d "''${ANDROID_NDK_HOME:-}" ]; then
+              echo "Android binding requires the reviewed Android shell and SDK paths." >&2
+              exit 1
+            fi ;;
+          ios|iossimulator)
+            if [ "$(go env GOHOSTOS)" != darwin ] || ! command -v xcrun >/dev/null || ! xcrun --find clang >/dev/null; then
+              echo "iOS binding requires macOS and an installed, selected, licensed Xcode." >&2
+              exit 1
+            fi ;;
+        esac
+      done
       module_dir=$(go list -mod=readonly -f '{{.Module.Dir}}' github.com/hajimehoshi/ebiten/v2) || {
         echo "Cannot resolve Ebitengine. Prepare the project's pinned module dependencies first." >&2
         exit 1
