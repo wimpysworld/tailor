@@ -46,6 +46,12 @@ build:
     }
 
     check_bin_directory
+    if [[ -z "${main_packages[*]-}" ]]; then
+        go build ./...
+        echo "Go packages built successfully. No executable packages were found."
+        exit 0
+    fi
+
     for package in "${main_packages[@]}"; do
         output="${package##*/}"
         if [[ "${output}" =~ ^v([2-9]|[1-9][0-9]+)$ ]]; then
@@ -63,12 +69,6 @@ build:
         owners+=("${package}")
         outputs+=("${output}")
     done
-
-    if (( ${#main_packages[@]} == 0 )); then
-        go build ./...
-        echo "Go packages built successfully. No executable packages were found."
-        exit 0
-    fi
 
     work="$(mktemp -d "${TMPDIR:-/tmp}/tailor-go-build.XXXXXX")"
     trap 'rm -rf "${work}"' EXIT

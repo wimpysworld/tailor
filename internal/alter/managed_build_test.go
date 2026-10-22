@@ -88,8 +88,13 @@ func TestManagedBuildWritesDiscoveredExecutables(t *testing.T) {
 					t.Errorf("output %q info=%v error=%v", name, info, statErr)
 				}
 			}
-			if len(tt.want) == 0 && !strings.Contains(string(output), "No executable packages were found") {
-				t.Fatalf("library build output=%q, want success guidance", output)
+			if len(tt.want) == 0 {
+				if !strings.Contains(string(output), "No executable packages were found") {
+					t.Fatalf("library build output=%q, want success guidance", output)
+				}
+				if _, statErr := os.Stat(filepath.Join(root, "bin")); !os.IsNotExist(statErr) {
+					t.Fatalf("library build created bin: %v", statErr)
+				}
 			}
 		})
 	}
@@ -189,6 +194,14 @@ func TestManagedBuildUsesBashThreeCompatibleArrays(t *testing.T) {
 	content := string(renderSelectedManagedFiles(t, managedRenderConfig(true, nil))["just/tailor.just"])
 	if strings.Contains(content, "declare -A") {
 		t.Fatal("managed Go build uses Bash 4 associative arrays")
+	}
+	guard := strings.Index(content, `if [[ -z "${main_packages[*]-}" ]]; then`)
+	loop := strings.Index(content, `for package in "${main_packages[@]}"`)
+	if guard < 0 || loop < 0 || guard > loop {
+		t.Fatal("managed Go build must handle empty arrays before expansion")
+	}
+	if strings.Contains(content, `${#main_packages[@]}`) {
+		t.Fatal("managed Go build uses an empty array length under nounset")
 	}
 	if !strings.Contains(content, `for index in "${!outputs[@]}"`) {
 		t.Fatal("managed Go build does not use indexed collision detection")
