@@ -295,7 +295,8 @@ func (m *MeasureCmd) Run() (runErr error) {
 				}
 				pythonPolicy, err := alter.InspectPythonPolicy(dir, name)
 				if err != nil {
-					return err
+					health = append(health, measure.HealthResult{Path: name, Status: measure.Warning, Detail: err.Error()})
+					continue
 				}
 				if pythonPolicy.Reason != "" {
 					filtered := diff[:0]

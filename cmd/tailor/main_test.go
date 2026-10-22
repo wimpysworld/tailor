@@ -475,6 +475,92 @@ func TestMeasurePythonPolicyStatus(t *testing.T) {
 	}
 }
 
+func TestMeasurePythonPolicyInspectionError(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.Mkdir(filepath.Join(dir, "nested"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	files := map[string]string{
+		".tailor.yml":           "languages:\n  python: true\nswatches: []\n",
+		"nested/pyproject.toml": "[tool.ruff\n",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Chdir(dir)
+	var stdout, stderr strings.Builder
+	cmd := MeasureCmd{output: output.New(&stdout, &stderr, output.Plain)}
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("health warning must not fail measure: %v", err)
+	}
+	for _, want := range []string{
+		fmt.Sprintf("%-16s%s", "warning:", "README.md"),
+		fmt.Sprintf("%-16s%s", "missing:", "LICENSE"),
+		fmt.Sprintf("%-16s%s", "warning:", "ruff.toml"),
+		fmt.Sprintf("%-16s%s", "warning:", "pyrightconfig.json"),
+		"reading Python policy",
+		filepath.Join(dir, "nested", "pyproject.toml"),
+		"not-configured:",
+	} {
+		if !strings.Contains(stdout.String(), want) {
+			t.Errorf("output missing %q:\n%s", want, stdout.String())
+		}
+	}
+	for _, name := range []string{"ruff.toml", "pyrightconfig.json"} {
+		if strings.Contains(stdout.String(), fmt.Sprintf("%-16s%s", "present:", name)) {
+			t.Errorf("failed inspection reported %s as present", name)
+		}
+	}
+	if err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() {
+			return nil
+		}
+		name, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		before, ok := files[filepath.ToSlash(name)]
+		if !ok {
+			t.Errorf("measure created %s", name)
+		}
+		after, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if string(after) != before {
+			t.Errorf("measure changed %s", name)
+		}
+		delete(files, filepath.ToSlash(name))
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 0 {
+		t.Errorf("measure removed files: %v", files)
+	}
+}
+
+func TestMeasureCmdRejectsMalformedConfig(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, ".tailor.yml"), []byte("languages: [\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(dir)
+	var stdout, stderr strings.Builder
+	cmd := MeasureCmd{output: output.New(&stdout, &stderr, output.Plain)}
+	if err := cmd.Run(); err == nil || !strings.Contains(err.Error(), "loading config:") {
+		t.Fatalf("expected fatal configuration error, got %v", err)
+	}
+	if stdout.Len() != 0 {
+		t.Fatalf("invalid configuration produced a health report: %s", stdout.String())
+	}
+}
+
 func TestMeasureCmdRejectsInvalidConfigPath(t *testing.T) {
 	tests := []struct {
 		name   string
