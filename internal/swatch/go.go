@@ -46,13 +46,9 @@ func Render(path string, options Options) ([]byte, error) {
 	switch path {
 	case GoWorkflowDestination:
 		if options.GoCGO != nil {
-			value := "0"
-			if *options.GoCGO {
-				value = "1"
-			}
-			for _, job := range []string{"lint-code", "coverage", "test", "security"} {
-				header := "  " + job + ":\n"
-				data = bytes.Replace(data, []byte(header), []byte(header+"    env:\n      CGO_ENABLED: \""+value+"\"\n"), 1)
+			data, err = renderGoWorkflowCGO(data, *options.GoCGO)
+			if err != nil {
+				return nil, err
 			}
 		}
 		branch, guard := "**", ""
@@ -104,4 +100,31 @@ func Render(path string, options Options) ([]byte, error) {
 		data = bytes.ReplaceAll(data, []byte("[[TAILOR_GO_DOCKERS]]"), []byte(strings.TrimSuffix(dockers.String(), "\n")))
 	}
 	return data, nil
+}
+
+func renderGoWorkflowCGO(data []byte, enabled bool) ([]byte, error) {
+	jobs := [...]string{"lint-code", "coverage", "test", "security"}
+	var positions [len(jobs)]int
+	lines := bytes.SplitAfter(data, []byte("\n"))
+	for i, job := range jobs {
+		header := []byte("  " + job + ":\n")
+		count := 0
+		for position, line := range lines {
+			if bytes.Equal(line, header) {
+				positions[i] = position
+				count++
+			}
+		}
+		if count != 1 {
+			return nil, fmt.Errorf("rendering Go workflow requires exactly one header for job %q, found %d", job, count)
+		}
+	}
+	value := "0"
+	if enabled {
+		value = "1"
+	}
+	for _, position := range positions {
+		lines[position] = []byte(string(lines[position]) + "    env:\n      CGO_ENABLED: \"" + value + "\"\n")
+	}
+	return bytes.Join(lines, nil), nil
 }
