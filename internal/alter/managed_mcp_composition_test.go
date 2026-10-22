@@ -17,7 +17,7 @@ func TestManagedMCPProductionRegistryMatchesEmbeddedStarters(t *testing.T) {
 		t.Fatal(err)
 	}
 	enabled := true
-	cfg := &config.Config{MCP: &config.MCPSettings{Playwright: &enabled}}
+	cfg := &config.Config{MCP: &config.MCPSettings{Blender: &enabled, Playwright: &enabled}}
 	selections, err := selectManagedFiles(cfg)
 	if err != nil {
 		t.Fatal(err)

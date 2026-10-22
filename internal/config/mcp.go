@@ -8,6 +8,7 @@ import (
 
 // MCPSettings controls Model Context Protocol integrations. Nil fields leave the integration undeclared.
 type MCPSettings struct {
+	Blender    *bool `yaml:"blender,omitempty"`
 	Playwright *bool `yaml:"playwright,omitempty"`
 }
 
@@ -19,6 +20,14 @@ func (cfg *Config) PlaywrightDeclared() bool {
 // PlaywrightEnabled reports whether mcp.playwright is explicitly true.
 func (cfg *Config) PlaywrightEnabled() bool {
 	return cfg.PlaywrightDeclared() && *cfg.MCP.Playwright
+}
+
+func (cfg *Config) BlenderDeclared() bool {
+	return cfg != nil && cfg.MCP != nil && cfg.MCP.Blender != nil
+}
+
+func (cfg *Config) BlenderEnabled() bool {
+	return cfg.BlenderDeclared() && *cfg.MCP.Blender
 }
 
 // validateMCPNodes checks YAML types before decoding can coerce scalar values.
@@ -37,13 +46,13 @@ func validateMCPNodes(document *yaml.Node) error {
 	extra := make(map[string]any)
 	for i := 0; i < len(node.Content); i += 2 {
 		key, value := node.Content[i], node.Content[i+1]
-		if key.Tag != "!!str" || key.Value != "playwright" {
+		if key.Tag != "!!str" || (key.Value != "playwright" && key.Value != "blender") {
 			extra[key.Value] = nil
 			continue
 		}
 		if value.Kind != yaml.ScalarNode || value.Tag != "!!bool" {
-			return fmt.Errorf("mcp.playwright must be a bool")
+			return fmt.Errorf("mcp.%s must be a bool", key.Value)
 		}
 	}
-	return rejectExtra("mcp", extra, []string{"playwright"})
+	return rejectExtra("mcp", extra, []string{"blender", "playwright"})
 }

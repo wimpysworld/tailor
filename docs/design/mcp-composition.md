@@ -4,7 +4,7 @@ Status: implemented internal extension design. The [current contract](../SPECIFI
 
 ## Current boundary
 
-`fixedManagedMCPRegistry` contains one production server, `playwright`. Each `managedMCPServerDefinition` has one `managedMCPProviderDefinition` for Claude, Codex, OpenCode, and Pi.
+`fixedManagedMCPRegistry` contains `blender-agent-bridge` and `playwright`. Each `managedMCPServerDefinition` has one `managedMCPProviderDefinition` for Claude, Codex, OpenCode, and Pi.
 
 Tailor selects declared, enabled servers and renders one destination for each client. It sorts definitions by lexical server name before serialisation. An excluded server contributes no entry. Tailor still renders a client destination when another server is enabled. If no servers are enabled, Tailor does not select or inspect a destination. Package fragments use the separate existing Nix lifecycle, so adding a server definition does not select a package.
 
@@ -13,6 +13,12 @@ Registry validation requires unique server names, unique provider definitions, a
 The four embedded starters remain byte-parity references for the production registry and sources for manual copying. Runtime composition does not read them. The OpenCode V1 starter format remains unchanged.
 
 Tailor creates a composed client file only when the destination is missing. It does not parse, adopt, merge, or replace an existing regular file or final symlink. When all current server declarations are absent or false, Tailor does not inspect a destination. A false declaration can remove only its owned package fragment and can produce the existing package warning.
+
+## Pi compatibility
+
+Blender uses native `type: "stdio"` and `enabled: true` in `.pi/mcp.json`. Pi 1.1.0 documents this form in its installed `docs/mcp.md`. The installed adapter's `README.md` and `docs/configuration.md` document native translation on Pi 0.99 and later. Its `translatePiMcpServer` accepts the Blender entry without ignored fields. Pi's `validateMcpServerConfig` also accepts it in an isolated parse fixture, without a connection.
+
+The validator accepts native and legacy Pi definitions separately and rejects mixed fields. The renderer preserves the legacy Playwright entry bytes, including its proxy launcher. New Blender entries carry no adapter-only lifecycle or direct-tool fields. Existing files need manual adoption. No fifth destination or automatic migration exists.
 
 ## Add a server
 

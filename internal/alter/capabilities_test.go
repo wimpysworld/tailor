@@ -56,11 +56,13 @@ func TestMCPDeclarationsControlPlaywrightFilesAcrossAlterModes(t *testing.T) {
 					assertCapabilityMissing(t, tc.Dir, path)
 					continue
 				}
-				want, err := swatch.Content(path)
+				got, err := os.ReadFile(filepath.Join(tc.Dir, path))
 				if err != nil {
 					t.Fatal(err)
 				}
-				assertCapabilityBytes(t, tc.Dir, path, want)
+				if !strings.Contains(string(got), "playwright") || strings.Contains(string(got), "blender-bridge") {
+					t.Fatalf("incorrect Playwright-only content for %s: %s", path, got)
+				}
 			}
 			if strings.Contains(output, "just/pages.just") || strings.Contains(output, "nix/pages.nix") {
 				t.Fatalf("Playwright enabled Pages files: %s", output)

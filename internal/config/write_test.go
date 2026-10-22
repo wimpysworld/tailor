@@ -24,6 +24,7 @@ languages:
 
 # Model Context Protocol integrations are opt-in.
 mcp:
+  blender: false
   playwright: false
 
 repository:

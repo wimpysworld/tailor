@@ -45,6 +45,7 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 		t.Fatal("MCP is nil, want explicit defaults")
 	}
 	testutil.AssertPtrEqual(t, got.MCP.Playwright, new(false), "mcp.playwright")
+	testutil.AssertPtrEqual(t, got.MCP.Blender, new(false), "mcp.blender")
 	if got.Pages == nil {
 		t.Fatal("Pages is nil, want explicit defaults")
 	}

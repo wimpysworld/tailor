@@ -10,8 +10,9 @@ languages:
 # Model Context Protocol integrations are opt-in.
 # true creates or updates the owned Nix fragment and creates missing MCP
 # client starters. false removes the owned Nix fragment.
-# Omission leaves all Playwright files untouched.
+# Omission leaves that integration's files untouched.
 mcp:
+  blender: false
   playwright: false
 
 # Pages is opt-in. true manages owned Just and Nix fragments.

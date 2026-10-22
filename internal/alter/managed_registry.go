@@ -17,6 +17,7 @@ const (
 	managedCapabilityGo
 	managedCapabilityPages
 	managedCapabilityPlaywright
+	managedCapabilityBlender
 	managedCapabilityGoFFmpegStatigo
 	managedCapabilityRust
 	managedCapabilityPython
@@ -115,6 +116,7 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright},
+		{Path: "nix/blender.nix", Policy: managedPolicyFragment, Capability: managedCapabilityBlender},
 		{Path: ".mcp.json", Policy: managedPolicySharedStarter},
 		{Path: ".codex/config.toml", Policy: managedPolicySharedStarter},
 		{Path: "opencode.json", Policy: managedPolicySharedStarter},
@@ -207,7 +209,7 @@ func validateManagedPath(name string) error {
 }
 
 func (capability managedCapability) validDeclaration() bool {
-	return capability == managedCapabilityPython || capability == managedCapabilityGoEbitengine || capability == managedCapabilityGoEbitengineAndroid || capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
+	return capability == managedCapabilityBlender || capability == managedCapabilityPython || capability == managedCapabilityGoEbitengine || capability == managedCapabilityGoEbitengineAndroid || capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
 }
 
 func (capability managedCapability) canonicalName() string {
@@ -228,6 +230,8 @@ func (capability managedCapability) canonicalName() string {
 		return "pages"
 	case managedCapabilityPlaywright:
 		return "playwright"
+	case managedCapabilityBlender:
+		return "blender"
 	default:
 		return ""
 	}
@@ -328,6 +332,8 @@ func managedCapabilityState(cfg *config.Config, capability managedCapability) (d
 		return cfg.PagesDeclared(), cfg.PagesEnabled()
 	case managedCapabilityPlaywright:
 		return cfg.PlaywrightDeclared(), cfg.PlaywrightEnabled()
+	case managedCapabilityBlender:
+		return cfg.BlenderDeclared(), cfg.BlenderEnabled()
 	default:
 		return false, false
 	}

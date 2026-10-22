@@ -41,6 +41,18 @@ func fixedManagedMCPRegistry() []managedMCPServerDefinition {
 	disabled := false
 	return []managedMCPServerDefinition{
 		{
+			Name: "blender-agent-bridge",
+			State: func(cfg *config.Config) (bool, bool) {
+				return cfg.BlenderDeclared(), cfg.BlenderEnabled()
+			},
+			Definitions: []managedMCPProviderDefinition{
+				{Provider: managedMCPProviderClaude, Type: "stdio", Command: "blender-bridge", Args: []string{"--bridge-url", "http://127.0.0.1:8765"}},
+				{Provider: managedMCPProviderCodex, Command: "blender-bridge", Args: []string{"--bridge-url", "http://127.0.0.1:8765"}, Enabled: &enabled},
+				{Provider: managedMCPProviderOpenCode, Type: "local", Command: "blender-bridge", Args: []string{"--bridge-url", "http://127.0.0.1:8765"}, Enabled: &enabled},
+				{Provider: managedMCPProviderPi, Type: "stdio", Command: "blender-bridge", Args: []string{"--bridge-url", "http://127.0.0.1:8765"}, Enabled: &enabled},
+			},
+		},
+		{
 			Name: "playwright",
 			State: func(cfg *config.Config) (bool, bool) {
 				return cfg.PlaywrightDeclared(), cfg.PlaywrightEnabled()
@@ -162,6 +174,9 @@ func validManagedMCPOpenCodeDefinition(definition managedMCPProviderDefinition) 
 }
 
 func validManagedMCPPiDefinition(definition managedMCPProviderDefinition) bool {
+	if definition.Type == "stdio" {
+		return definition.Enabled != nil && *definition.Enabled && definition.Disabled == nil && definition.Lifecycle == "" && definition.DirectTools == nil
+	}
 	return definition.Type == "" && definition.Enabled == nil && definition.Disabled != nil && !*definition.Disabled && definition.Lifecycle != "" && definition.DirectTools != nil
 }
 

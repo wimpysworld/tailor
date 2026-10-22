@@ -282,6 +282,12 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 	if cfg.PlaywrightDeclared() && !cfg.PlaywrightEnabled() && playwrightRemovalReported {
 		appendManagedNotice(report, "mcp.playwright is false, so Tailor removes `nix/playwright.nix` but preserves MCP client settings. Disable or remove their Playwright servers to avoid a missing `playwright-mcp` executable")
 	}
+	blenderRemovalReported := slices.ContainsFunc(results, func(result SwatchResult) bool {
+		return result.Path == "nix/blender.nix" && (result.Category == NoChange || result.Category == WouldRemove)
+	})
+	if cfg.BlenderDeclared() && !cfg.BlenderEnabled() && blenderRemovalReported {
+		appendManagedNotice(report, "mcp.blender is false, so Tailor removes `nix/blender.nix` but preserves MCP client settings. Disable or remove their blender-agent-bridge servers to avoid a missing `blender-bridge` executable")
+	}
 	if len(guidance) != 0 {
 		appendGuidance(report, strings.Join(guidance, "\n")+"\n")
 	}

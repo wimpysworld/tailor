@@ -30,7 +30,7 @@ func TestFixedManagedRegistry(t *testing.T) {
 		"just/python.just", "nix/python.nix",
 		"just/rust.just", "nix/rust.nix",
 		"just/go-ffmpeg-statigo.just", "nix/go-ffmpeg-statigo.nix",
-		"just/pages.just", "nix/pages.nix", "nix/playwright.nix",
+		"just/pages.just", "nix/pages.nix", "nix/playwright.nix", "nix/blender.nix",
 		".mcp.json", ".codex/config.toml", "opencode.json", ".pi/mcp.json",
 	}
 	if !reflect.DeepEqual(got, want) {

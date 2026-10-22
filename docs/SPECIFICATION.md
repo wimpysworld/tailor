@@ -264,18 +264,27 @@ Settings deliberately excluded due to risk or org-level scope: `visibility`, `de
 
 ### Model Context Protocol support
 
-The top-level `mcp` section declares Model Context Protocol integrations. Playwright is the only supported integration:
+The top-level `mcp` section declares Model Context Protocol integrations. Blender Agent Bridge and Playwright are supported:
 
 ```yaml
 mcp:
+  blender: true
   playwright: true
 ```
 
-`mcp` must be a map. Its only accepted key is `playwright`, with a Boolean value. Tailor rejects null sections, null values, duplicate or unknown keys, and non-Boolean values. An empty `mcp: {}` mapping preserves the section but leaves Playwright undeclared.
+`mcp` must be a map. Its accepted keys are `blender` and `playwright`, each with a Boolean value. Tailor rejects null sections, null values, duplicate or unknown keys, and non-Boolean values. An empty `mcp: {}` mapping preserves the section but leaves both integrations undeclared.
 
-New configurations contain false declarations for `languages.go`, `languages.rust`, `pages.enabled`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
+New configurations contain false declarations for `languages.go`, `languages.rust`, `pages.enabled`, `mcp.blender`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
 
-The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. A true declaration provisions the Playwright package fragment and renders four MCP client starters from `fixedManagedMCPRegistry`. Pages publishing and the optional `just pages` preview remain separate. Playwright is the only production server in that registry.
+The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. A true declaration provisions the Playwright package fragment and renders four MCP client starters from `fixedManagedMCPRegistry`. Pages publishing and the optional `just pages` preview remain separate. The registry also contains `blender-agent-bridge`. Each setting remains independently absent, false, or true.
+
+Blender adds only `nix/blender.nix`, a Python application built with the supplied `pkgs`, setuptools, and wheel. It pins `CallMeJones/blender-agent-bridge` version `0.5.6`, revision `8ef8fc8e0c8220dc812427f9ab89a4634b36cd78`, with a verified archive hash. It adds no flake input, Blender application, stubs, asset tools, extension ZIP, patch, hook, or Just recipe.
+
+All four clients name the server `blender-agent-bridge` and run `blender-bridge --bridge-url http://127.0.0.1:8765`. True creates missing shared starters only. False removes only the owned `nix/blender.nix`, preserves clients, and warns about the missing command. An absent Blender setting preserves its fragment. Shared clients remain uninspected when neither integration is enabled.
+
+The user must separately install and enable a compatible Agent Bridge extension in Blender 4.2 or later, open a trusted scene, and start its loopback listener. Tailor never starts Blender or grants trust. Keep `BLENDER_BRIDGE_TOKEN` in a private client secret mechanism, never tracked files or arguments. Without a token, reachable local processes can call the listener. Keep **Trust Agent Scripts** off unless explicitly approved. That grant allows filesystem, network, subprocess, and Python access. Use one active connection. Fresh-client acceptance must check secret forwarding, loopback access, proxy inheritance, and extension compatibility without weakening a sandbox.
+
+The Blender Pi entry uses native `type: "stdio"` and `enabled: true`. Pi 1.1.0 and the installed adapter's Pi 0.99+ translation support these fields. No adapter-only lifecycle or direct-tool guarantee applies. Existing Playwright fields and proxy bytes remain unchanged. Tailor neither creates a fifth destination nor migrates existing client files.
 
 #### Managed development files
 
@@ -290,11 +299,12 @@ Tailor uses one fixed internal registry for development roots, loaders, and frag
 | Rust fragments | `just/rust.just`, `nix/rust.nix` |
 | Pages fragments | `just/pages.just`, `nix/pages.nix` |
 | Playwright package fragment | `nix/playwright.nix` |
-| Playwright MCP client starters | `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.pi/mcp.json` |
+| Blender package fragment | `nix/blender.nix` |
+| Shared MCP client starters | `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.pi/mcp.json` |
 
 The ordinary default set contains 31 configured swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
 
-Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `build`, `test`, and `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Python, Rust, Pages, and Playwright package declarations have this exact lifecycle:
+Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `build`, `test`, and `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Python, Rust, Pages, Blender, and Playwright package declarations have this exact lifecycle:
 
 | Declaration | Fragment action |
 | --- | --- |

@@ -19,7 +19,7 @@ func TestMCPStrictParsing(t *testing.T) {
 		{name: "string section", input: "mcp: playwright\n", wantErr: "mcp must be a mapping"},
 		{name: "number section", input: "mcp: 1\n", wantErr: "mcp must be a mapping"},
 		{name: "sequence section", input: "mcp: []\n", wantErr: "mcp must be a mapping"},
-		{name: "unknown", input: "mcp: {browser: true}\n", wantErr: `unrecognised mcp setting "browser" in config; valid settings: playwright`},
+		{name: "unknown", input: "mcp: {browser: true}\n", wantErr: `unrecognised mcp setting "browser" in config; valid settings: blender, playwright`},
 		{name: "null value", input: "mcp: {playwright: null}\n", wantErr: "mcp.playwright must be a bool"},
 		{name: "implicit null value", input: "mcp:\n  playwright:\n", wantErr: "mcp.playwright must be a bool"},
 		{name: "string value", input: "mcp: {playwright: 'true'}\n", wantErr: "mcp.playwright must be a bool"},
@@ -52,7 +52,7 @@ func TestMCPStrictParsing(t *testing.T) {
 
 func TestCapabilityAccessorsNilSafe(t *testing.T) {
 	var cfg *Config
-	if cfg.PlaywrightDeclared() || cfg.PlaywrightEnabled() || cfg.PagesDeclared() || cfg.PagesEnabled() {
+	if cfg.BlenderDeclared() || cfg.BlenderEnabled() || cfg.PlaywrightDeclared() || cfg.PlaywrightEnabled() || cfg.PagesDeclared() || cfg.PagesEnabled() {
 		t.Fatal("nil config must report capabilities as absent and disabled")
 	}
 }

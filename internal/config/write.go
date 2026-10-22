@@ -441,11 +441,16 @@ languages: {}
 {{- end }}
 {{- end }}
 {{- if .MCP }}
-{{- if .PlaywrightDeclared }}
+{{- if or .BlenderDeclared .PlaywrightDeclared }}
 
 # Model Context Protocol integrations are opt-in.
 mcp:
+{{- if .BlenderDeclared }}
+  blender: {{ .MCP.Blender }}
+{{- end }}
+{{- if .PlaywrightDeclared }}
   playwright: {{ .MCP.Playwright }}
+{{- end }}
 {{- else }}
 
 mcp: {}

@@ -1,5 +1,14 @@
 {
   "mcpServers": {
+    "blender-agent-bridge": {
+      "command": "blender-bridge",
+      "args": [
+        "--bridge-url",
+        "http://127.0.0.1:8765"
+      ],
+      "type": "stdio",
+      "enabled": true
+    },
     "playwright": {
       "command": "sh",
       "args": [

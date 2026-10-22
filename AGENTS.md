@@ -98,6 +98,15 @@ tailor/
 - Warn that retained client configurations can lose the `playwright-mcp` executable. Manually disable or remove their Playwright entries when appropriate.
 - When `mcp.playwright` is absent, leave Playwright destinations untouched.
 
+### Blender MCP
+
+- Use `mcp.blender: true` for the bridge package and missing shared starters. Keep Blender and extension installation separate.
+- Preserve existing clients and disabled entries. Use manual adoption for `blender-agent-bridge`, including under `always` and `--recut`.
+- Keep `BLENDER_BRIDGE_TOKEN` out of tracked files and arguments. Do not grant script trust or weaken sandbox restrictions.
+- Use native Pi fields for new Blender entries. Read the installed Pi MCP documentation and adapter configuration documentation before changes.
+- Preserve existing Playwright launcher bytes and proxy handling. Do not migrate client files automatically.
+- Treat parsed configuration as syntax evidence only. Require fresh-client and extension compatibility checks before runtime acceptance.
+
 ### Browser validation
 
 - Use the Nix dev shell, which provides `playwright-mcp` with Chromium.

@@ -309,7 +309,7 @@ mcp:
 
 Playwright is independent of Pages. You can enable Playwright when `pages` is absent or `pages.enabled` is false. The MCP server launches and owns its browser. The optional `just pages` command only starts a separate Pages preview server.
 
-A true declaration adds `nix/playwright.nix`, which supplies `playwright-mcp` with Chromium from the existing Nix packages. Playwright is the only production MCP server. Tailor renders one file per client from its fixed server registry, and creates each file only when it is missing:
+A true declaration adds `nix/playwright.nix`, which supplies `playwright-mcp` with Chromium from the existing Nix packages. Tailor renders one file per client from its fixed server registry, and creates each file only when it is missing:
 
 | Client | Starter file | Playwright entry |
 |---|---|---|
@@ -330,9 +330,21 @@ Set `mcp.playwright: false` to remove only an owned `nix/playwright.nix`. Packag
 
 A [validated future contract](https://github.com/wimpysworld/tailor/blob/main/docs/design/mcp-adoption.md) defines explicit entry adoption. The proposed adoption and release flags are not implemented, so current create-missing-only behaviour remains unchanged.
 
-Tailor accepts only the `playwright` key and a Boolean value. Null sections, null values, duplicate or unknown keys, strings, numbers, lists, and nested values are errors. An empty `mcp: {}` mapping keeps the section but leaves Playwright undeclared.
+Tailor accepts `blender` and `playwright`, each with a Boolean value. Null sections, null values, duplicate or unknown keys, strings, numbers, lists, and nested values are errors. An empty `mcp: {}` mapping keeps the section but leaves both integrations undeclared.
 
-New configs set `languages.go`, `languages.python`, `languages.rust`, `pages.enabled`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes. Follow the [activation steps](Commands#activate-playwright-mcp) after you change the setting.
+New configs set `languages.go`, `languages.python`, `languages.rust`, `pages.enabled`, `mcp.blender`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes. Follow the [activation steps](Commands#activate-playwright-mcp) after you change the setting.
+
+### Blender Agent Bridge
+
+Set `mcp.blender: true` to add `nix/blender.nix` and missing shared client starters. Both integrations can be enabled together. Each client uses `blender-agent-bridge` with `blender-bridge --bridge-url http://127.0.0.1:8765`.
+
+The package pins bridge version `0.5.6` and uses the existing Nix package set. It does not install Blender, extensions, asset tools, or local patches. Set `mcp.blender: false` to remove only the owned package fragment. Retained client entries can then lack `blender-bridge`. An absent setting leaves the fragment untouched. Existing clients, disabled entries, roots, and final symlinks remain unchanged, including under `--recut` and `always`.
+
+Pi uses native `type: "stdio"` and `enabled: true` for Blender. This form was checked with Pi 1.1.0 and the installed adapter's Pi 0.99+ translation. Older adapter versions need separate compatibility review. Tailor does not change existing Playwright fields or migrate client files.
+
+Install a compatible Agent Bridge extension separately in Blender 4.2 or later. Open a trusted scene and start the loopback listener yourself. Keep `BLENDER_BRIDGE_TOKEN` in a private client secret mechanism, never tracked files or command arguments. Without a token, reachable local processes can call the listener. Keep **Trust Agent Scripts** off unless explicitly approved. It grants filesystem, network, subprocess, and Python access. Use one active connection, and retain normal client approvals and sandbox restrictions.
+
+Follow the [Blender activation steps](Commands#activate-blender-mcp). Fresh-client discovery, secret forwarding, loopback access, proxy inheritance, and extension compatibility require separate runtime acceptance.
 
 ## Licences
 

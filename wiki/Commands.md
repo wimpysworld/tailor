@@ -203,6 +203,14 @@ Call `tailor alter`, `tailor baste`, and `tailor measure` directly. From Tailor'
 
 Tailor's project fragment retains `snapshot`. Snapshot runs `goreleaser release --snapshot --clean --skip=sign`. Tailor's project build script adds `go build -ldflags "-s -w" -o tailor ./cmd/tailor` after the managed build. No quality aliases remain.
 
+### Activate Blender MCP
+
+Set `mcp.blender: true`, then run `tailor baste` and `tailor alter` within the approved scope. Review the package fragment and four client starters. Existing clients need manual adoption of only the missing `blender-agent-bridge` entry. Preserve disabled entries.
+
+If needed, add `++ import ./nix/loader.nix { inherit pkgs; }` to the preserved flake package list. Review and stage new Nix files with normal approval. Enter the project development shell and start a fresh client from it. Tailor adds no Blender Just recipe or setup command.
+
+Separately install and enable a compatible Blender Agent Bridge extension, open a trusted scene, and press **Start** in **Agent Bridge**. Tailor does not perform these actions. Follow the [Blender security guidance](Configuration#blender-agent-bridge), including private token handling and explicit script trust. Check fresh-client discovery and loopback access without changing global trust or sandbox settings. Configuration parsing alone is not runtime acceptance.
+
 ### Activate Playwright MCP
 
 After you set `mcp.playwright: true`, preview and apply the five managed files:

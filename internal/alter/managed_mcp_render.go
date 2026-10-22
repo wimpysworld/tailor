@@ -150,12 +150,16 @@ func renderManagedMCPPi(definitions []managedMCPNamedDefinition) []byte {
 		output.WriteString(managedMCPJSONString(definition.Command))
 		output.WriteString(",\n      \"args\": ")
 		output.WriteString(managedMCPJSONArray(definition.Args, "        "))
-		output.WriteString(",\n      \"disabled\": ")
-		output.WriteString(strconv.FormatBool(*definition.Disabled))
-		output.WriteString(",\n      \"lifecycle\": ")
-		output.WriteString(managedMCPJSONString(definition.Lifecycle))
-		output.WriteString(",\n      \"directTools\": ")
-		output.WriteString(strconv.FormatBool(*definition.DirectTools))
+		if definition.Type == "stdio" {
+			output.WriteString(",\n      \"type\": \"stdio\",\n      \"enabled\": true")
+		} else {
+			output.WriteString(",\n      \"disabled\": ")
+			output.WriteString(strconv.FormatBool(*definition.Disabled))
+			output.WriteString(",\n      \"lifecycle\": ")
+			output.WriteString(managedMCPJSONString(definition.Lifecycle))
+			output.WriteString(",\n      \"directTools\": ")
+			output.WriteString(strconv.FormatBool(*definition.DirectTools))
+		}
 		output.WriteString("\n    }")
 	}
 	output.WriteString("\n  }\n}\n")
