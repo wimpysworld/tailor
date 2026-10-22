@@ -147,7 +147,7 @@ func TestManagedCGOCommands(t *testing.T) {
 }
 
 func TestManagedFFmpegSetupStubbed(t *testing.T) {
-	for _, scenario := range []string{"update", "current", "init", "no-tag", "fetch-failure", "download-failure", "source", "fallback", "checkout-failure", "config-failure", "untagged"} {
+	for _, scenario := range []string{"update", "current", "init", "no-tag", "fetch-failure", "download-failure", "source", "fallback", "checkout-failure", "config-failure", "untagged", "fallback-non-v", "fallback-no-tag", "api-failure", "fallback-api-failure", "jq-failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := testTempDir(t)
 			bin := filepath.Join(root, "stubs")
@@ -173,13 +173,25 @@ func TestManagedFFmpegSetupStubbed(t *testing.T) {
 "fetch --no-tags origin refs/tags/v1.2.3:refs/tags/v1.2.3") [ "$SCENARIO" != fetch-failure ] || exit 4 ;;
 "diff --cached --quiet third_party/ffmpeg-statigo") [ "$SCENARIO" = current ] ;;
 esac`,
-				"curl": `printf '[\n{\n"tag_name": "v1.2.3",\n"prerelease": false\n}\n]\n'`,
-				"jq":   `cat >/dev/null; if [ "$SCENARIO" = no-tag ]; then echo null; else echo v1.2.3; fi`,
-				"go":   `[ "$SCENARIO" != download-failure ] || exit 5`,
-				"rm":   `:`,
+				"curl": `case "$SCENARIO" in
+api-failure|fallback-api-failure) printf '{"message":"API error"}\n'; exit 22 ;;
+esac
+printf '[\n'
+case "$SCENARIO" in
+fallback-non-v|fallback-no-tag)
+    printf '{\n"tag_name": "release-1.2.3",\n"prerelease": false\n}'
+    if [ "$SCENARIO" = fallback-no-tag ]; then printf '\n]\n'; exit 0; fi
+    printf ',\n' ;;
+esac
+printf '{\n"tag_name": "v1.2.3",\n"prerelease": false\n}\n]\n'`,
+				"jq": `cat >/dev/null
+if [ "$SCENARIO" = jq-failure ]; then echo v1.2.3; echo 'jq: invalid response' >&2; exit 5; fi
+if [ "$SCENARIO" = no-tag ]; then echo null; else echo v1.2.3; fi`,
+				"go": `[ "$SCENARIO" != download-failure ] || exit 5`,
+				"rm": `:`,
 			}
 			for tool, body := range scripts {
-				if tool == "jq" && scenario == "fallback" {
+				if tool == "jq" && strings.HasPrefix(scenario, "fallback") {
 					continue
 				}
 				writeManagedTestFile(t, root, "stubs/"+tool, []byte("#!/bin/sh\nprintf '%s|%s|%s|%s\\n' \"$(basename \"$0\")\" \"$PWD\" \"${CGO_ENABLED:-}\" \"$*\" >> \"$CALLS\"\n"+body+"\n"))
@@ -202,7 +214,8 @@ esac`,
 			cmd.Dir = root
 			cmd.Env = []string{"PATH=" + bin, "CALLS=" + log, "SCENARIO=" + scenario, "CGO_ENABLED=0", "HOME=" + root}
 			output, err := cmd.CombinedOutput()
-			failure := scenario == "no-tag" || scenario == "fetch-failure" || scenario == "download-failure" || scenario == "source" || scenario == "config-failure" || scenario == "checkout-failure"
+			tagFailure := scenario == "no-tag" || scenario == "fallback-no-tag" || scenario == "api-failure" || scenario == "fallback-api-failure" || scenario == "jq-failure"
+			failure := tagFailure || scenario == "fetch-failure" || scenario == "download-failure" || scenario == "source" || scenario == "config-failure" || scenario == "checkout-failure"
 			if (err != nil) != failure {
 				t.Fatalf("error=%v output=%s", err, output)
 			}
@@ -220,14 +233,19 @@ esac`,
 				}
 				return
 			}
-			for _, args := range []string{"config pull.ff only", "config submodule.recurse true", "-s https://api.github.com/repos/linuxmatters/ffmpeg-statigo/releases"} {
+			for _, args := range []string{"config pull.ff only", "config submodule.recurse true", "-fsS https://api.github.com/repos/linuxmatters/ffmpeg-statigo/releases"} {
 				if !strings.Contains(calls, "|"+args+"\n") {
 					t.Fatalf("missing %s: %s", args, calls)
 				}
 			}
-			if scenario == "no-tag" {
-				if strings.Contains(calls, "|fetch ") {
-					t.Fatal(calls)
+			if tagFailure {
+				if !strings.Contains(string(output), "Error: Could not fetch latest release tag") {
+					t.Fatal(string(output))
+				}
+				for _, forbidden := range []string{"|fetch ", "|submodule ", "|checkout ", "|add ", "rm|", "go|"} {
+					if strings.Contains(calls, forbidden) {
+						t.Fatal(calls)
+					}
 				}
 				return
 			}

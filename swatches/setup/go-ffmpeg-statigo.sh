@@ -9,14 +9,15 @@ git config submodule.recurse true
 
 # Get latest stable release tag
 TAG=$(
+    RELEASES=$(curl -fsS https://api.github.com/repos/linuxmatters/ffmpeg-statigo/releases) || exit 1
     if command -v jq &> /dev/null; then
-        curl -s https://api.github.com/repos/linuxmatters/ffmpeg-statigo/releases | \
+        printf '%s\n' "$RELEASES" | \
             jq -r '[.[] | select(.prerelease == false and .draft == false and (.tag_name | startswith("v")))][0].tag_name'
     else
-        curl -s https://api.github.com/repos/linuxmatters/ffmpeg-statigo/releases | \
-            grep -B5 '"prerelease": false' | grep '"tag_name"' | grep -v 'lib-' | head -1 | cut -d'"' -f4
+        printf '%s\n' "$RELEASES" | \
+            grep -B5 '"prerelease": false' | grep '"tag_name": "v' | grep -v 'lib-' | head -1 | cut -d'"' -f4
     fi
-)
+) || TAG=""
 if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
     echo "Error: Could not fetch latest release tag"
     exit 1
