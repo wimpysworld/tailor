@@ -18,7 +18,7 @@
     <header class="container site-header">
       <a class="brand" href="./" aria-label="Tailor home">
         <img class="brand-mark" src="icon.svg" alt="" width="40" height="40">
-        Tailor
+        <span class="brand-name">Tailor</span>
       </a>
       <nav aria-label="Main navigation">
         <ul>
@@ -71,7 +71,7 @@
         </figure>
       </section>
 
-      <section class="features section-rule" aria-labelledby="features-title">
+      <section id="features" class="features section-rule" aria-labelledby="features-title">
         <div>
           <p class="eyebrow">Consistent by default</p>
           <h2 id="features-title">Less repository admin.<br>More project time.</h2>
@@ -114,15 +114,38 @@
           <p class="eyebrow">Get started</p>
           <h2 id="install-title">A better fit for<br>your next project.</h2>
           <p>Install Tailor, then authenticate with <code>gh auth login</code> or set <code>GH_TOKEN</code> or <code>GITHUB_TOKEN</code>.</p>
-        </div>
-        <div class="install-options">
-          <h3>Install with Homebrew</h3>
-          <pre><code>brew install wimpysworld/tap/tailor</code></pre>
           <p>Prefer another package manager? Use bin, Nix, Docker, or a native Linux package.</p>
           <div class="install-links">
             <a class="text-link" href="https://github.com/wimpysworld/tailor#install">All install options <span class="octicon inline-icon link-external" aria-hidden="true"></span></a>
             <a class="text-link" href="https://github.com/wimpysworld/tailor/releases/latest">Download a release <span class="octicon inline-icon link-external" aria-hidden="true"></span></a>
           </div>
+        </div>
+        <div class="accordion install-options">
+          <details open>
+            <summary>Homebrew</summary>
+            <p>Install Tailor on Linux or macOS with Homebrew.</p>
+            <pre><code>brew install wimpysworld/tap/tailor</code></pre>
+          </details>
+          <details>
+            <summary>bin</summary>
+            <p>Install the bare release executable with <a href="https://github.com/marcosnils/bin">bin</a>.</p>
+            <pre><code>bin install github.com/wimpysworld/tailor</code></pre>
+          </details>
+          <details>
+            <summary>Nix</summary>
+            <p>Run or install Tailor from the flake.</p>
+            <pre><code>nix run github:wimpysworld/nix-packages#tailor -- --version
+nix profile install github:wimpysworld/nix-packages#tailor</code></pre>
+          </details>
+          <details>
+            <summary>Docker</summary>
+            <p>Run the container image from GitHub Container Registry.</p>
+            <pre><code>docker run --rm ghcr.io/wimpysworld/tailor --version</code></pre>
+          </details>
+          <details>
+            <summary>Native Linux packages</summary>
+            <p>Download a <code>.deb</code>, <code>.rpm</code>, <code>.apk</code>, or Arch Linux package from the <a href="https://github.com/wimpysworld/tailor/releases/latest">latest release</a>, or install <a href="https://aur.archlinux.org/packages/tailor-bin">tailor-bin</a> from the AUR.</p>
+          </details>
         </div>
       </section>
     </main>
@@ -132,7 +155,7 @@
         <div class="footer-brand">
           <a class="brand" href="./" aria-label="Tailor home">
             <img class="brand-mark" src="icon.svg" alt="" width="40" height="40">
-            Tailor
+            <span class="brand-name">Tailor</span>
           </a>
           <p>Ready-to-wear project templates.<br>Keep your GitHub projects consistent.</p>
         </div>
