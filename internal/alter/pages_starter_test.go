@@ -137,6 +137,7 @@ func TestPagesStarterCustomStyles(t *testing.T) {
 		"flex: 0 0 33px;",
 		".eyebrow + :is(h1, h2) {\n  margin-top: 0.25rem;",
 		"h1 {\n  font-size: clamp(2.25rem, 3.8vw, 3.25rem);\n  line-height: 1.08;\n  letter-spacing: -0.025em;\n  margin-bottom: 1.15rem;\n  overflow-wrap: anywhere;",
+		"h2 {\n  font-size: clamp(1.65rem, 2.5vw, 2.25rem);\n  line-height: 1.15;\n  letter-spacing: -0.02em;\n  margin-bottom: 0.85rem;\n  overflow-wrap: anywhere;",
 		"background-color: var(--mu-primary);",
 		"color: var(--mu-primary-inverse);",
 		".primary-action:is(:hover, :focus)",
