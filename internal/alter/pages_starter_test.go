@@ -100,6 +100,8 @@ func TestPagesStarterCustomStyles(t *testing.T) {
 	}
 	for _, want := range []string{
 		`<a class="primary-action" href="{{REPO_URL}}/releases">`,
+		`<div class="install-links">`,
+		`<div class="accordion install-options">`,
 		`<meta name="theme-color" content="#fff" media="(prefers-color-scheme: light)">`,
 		`<meta name="theme-color" content="rgb(19, 22.5, 30.5)" media="(prefers-color-scheme: dark)">`,
 		`<script src="theme.js"></script>`,
@@ -128,20 +130,28 @@ func TestPagesStarterCustomStyles(t *testing.T) {
 	}
 	style := string(styleData)
 	for _, want := range []string{
+		"--mu-border-radius: 0.375rem;",
+		":not(pre) > code {",
+		".brand {\n  --mu-color: var(--mu-h1-color);",
 		".brand-name {\n  min-width: 0;\n  overflow-wrap: anywhere;",
-		"#hero-title,\n#install-title {\n  overflow-wrap: anywhere;",
 		"flex: 0 0 33px;",
+		".eyebrow + :is(h1, h2) {\n  margin-top: 0.25rem;",
+		"h1 {\n  font-size: clamp(2.25rem, 3.8vw, 3.25rem);\n  line-height: 1.08;\n  letter-spacing: -0.025em;\n  margin-bottom: 1.15rem;\n  overflow-wrap: anywhere;",
 		"background-color: var(--mu-primary);",
-		"color: var(--mu-inverted-color);",
+		"color: var(--mu-primary-inverse);",
 		".primary-action:is(:hover, :focus)",
 		".primary-action:focus-visible",
 		"select:focus-visible",
 		"body > main:focus-visible {\n  outline: none;",
 		"body > main:focus-visible h1:first-of-type::before",
 		".theme-picker select {",
-		".terminal figcaption {\n  display: flex;\n  align-items: center;\n  gap: 1.1rem;\n  border-bottom: 1px solid var(--mu-muted-border-color);\n  padding: 0.8rem 1.25rem;\n  color: var(--mu-code-color);",
-		".terminal-comment {\n  color: var(--mu-code-color);",
-		"@media (max-width: 1023px) {\n  .site-hero {\n    grid-template-columns: 1fr;",
+		".terminal {\n  overflow: hidden;\n  margin: 0;\n  border: 1px solid var(--mu-muted-border-color);\n  border-radius: 0.75rem;\n  background: var(--mu-code-background-color);\n  color: var(--mu-color);\n  box-shadow: var(--mu-card-box-shadow);",
+		".terminal figcaption {\n  display: flex;\n  align-items: center;\n  gap: 0.85rem;\n  border-bottom: 1px solid var(--mu-muted-border-color);\n  padding: 0.75rem 1.25rem;\n  color: var(--mu-muted-color);\n  font-size: 0.78rem;\n  font-weight: 500;",
+		".terminal-comment {\n  color: var(--mu-muted-color);",
+		".terminal-command {\n  color: var(--mu-primary);\n  font-weight: 600;",
+		".steps li > code,\n.steps .step-badge {",
+		".install-options details > summary:focus-visible {\n  outline: 3px solid var(--mu-primary);\n  outline-offset: -3px;",
+		".site-hero,\n  .features,\n  .install {\n    grid-template-columns: 1fr;\n    gap: 2.25rem;",
 	} {
 		if !strings.Contains(style, want) {
 			t.Fatalf("starter style is missing %q", want)

@@ -60,7 +60,7 @@
           <p>Read the documentation, try the latest release, or explore the source code.</p>
         </div>
       </section>
-      <section class="features section-rule" aria-labelledby="features-title">
+      <section id="features" class="features section-rule" aria-labelledby="features-title">
         <div>
           <p class="eyebrow">Features</p>
           <h2 id="features-title">What you can do</h2>
@@ -72,9 +72,26 @@
           <div><dt><span class="feature-number" aria-hidden="true">03</span> Your third feature</dt><dd>Show another reason to try your project.</dd></div>
         </dl>
       </section>
-      <section class="install section-rule" aria-labelledby="install-title">
-        <div><p class="eyebrow">Get started</p><h2 id="install-title">Try {{PROJECT_NAME}}</h2><p>Add your installation instructions or a short usage example here.</p></div>
-        <div><h3>Find your next step</h3><p><a href="{{REPO_URL}}?tab=readme-ov-file">Read the overview</a> or <a href="{{REPO_URL}}/releases">download a release</a>.</p></div>
+      <section id="install" class="install section-rule" aria-labelledby="install-title">
+        <div>
+          <p class="eyebrow">Get started</p>
+          <h2 id="install-title">Try {{PROJECT_NAME}}</h2>
+          <p>Add your installation instructions or a short usage example here.</p>
+          <div class="install-links">
+            <a class="text-link" href="{{REPO_URL}}?tab=readme-ov-file">Read the overview <span class="octicon inline-icon link-external" aria-hidden="true"></span></a>
+            <a class="text-link" href="{{REPO_URL}}/releases">Download a release <span class="octicon inline-icon link-external" aria-hidden="true"></span></a>
+          </div>
+        </div>
+        <div class="accordion install-options">
+          <details open>
+            <summary>Download a release</summary>
+            <p>Get the latest release from <a href="{{REPO_URL}}/releases">GitHub Releases</a>.</p>
+          </details>
+          <details>
+            <summary>Build from source</summary>
+            <p>Explore the source code and build instructions in the <a href="{{REPO_URL}}?tab=readme-ov-file">project overview</a>.</p>
+          </details>
+        </div>
       </section>
 
       <section class="section-rule" aria-labelledby="gallery-title">
