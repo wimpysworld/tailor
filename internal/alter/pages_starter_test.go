@@ -152,7 +152,7 @@ func TestPagesStarterCustomStyles(t *testing.T) {
 		".terminal-command {\n  color: var(--mu-primary);\n  font-weight: 600;",
 		".steps li > code,\n.steps .step-badge {",
 		".install-options details > summary:focus-visible {\n  outline: 3px solid var(--mu-primary);\n  outline-offset: -3px;",
-		".site-hero,\n  .features,\n  .install {\n    grid-template-columns: 1fr;\n    gap: 2.25rem;",
+		"@media (max-width: 760px) {\n  .site-header {\n    flex-wrap: wrap;\n    justify-content: space-between;\n  }\n  .site-header nav {\n    order: 3;\n    width: 100%;\n    margin: 0;\n  }\n  .site-header nav ul {\n    width: 100%;\n    justify-content: flex-start;\n    row-gap: 0.25rem;\n  }\n  .site-hero,\n  .features,\n  .install {\n    grid-template-columns: 1fr;\n    gap: 2.25rem;",
 	} {
 		if !strings.Contains(style, want) {
 			t.Fatalf("starter style is missing %q", want)
