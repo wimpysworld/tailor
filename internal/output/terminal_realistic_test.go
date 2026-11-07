@@ -51,19 +51,32 @@ func TestRealisticTerminalReport(t *testing.T) {
 							t.Errorf("missing stable frame %s", title)
 						}
 					}
-					for _, title := range []string{"Proposed", "Applied", "Created", "Reapply requests", "Already matches", "Preserved", "Excluded"} {
-						start := strings.Index(clean, " Files ")
-						endMarker := "\n╰"
-						if ascii {
-							endMarker = "\n+"
-						}
-						end := strings.Index(clean[start:], endMarker)
-						if end < 0 {
-							end = len(clean) - start
-						}
-						files := clean[start : start+end]
-						if title != "Reapply requests" && strings.Count(files, title) > 1 {
-							t.Errorf("repeated Files subgroup %s", title)
+					filesMarker, endMarker := "╭─ Files ", "\n╰"
+					if ascii {
+						filesMarker, endMarker = "+- Files ", "\n+"
+					}
+					_, files, ok := strings.Cut(clean, filesMarker)
+					if !ok {
+						t.Fatal("missing Files panel")
+					}
+					files, _, ok = strings.Cut(files, endMarker)
+					if !ok {
+						t.Fatal("missing Files panel closing frame")
+					}
+					for _, group := range []struct {
+						title string
+						want  int
+					}{
+						{"Proposed", 1},
+						{"Applied", 1},
+						{"Created", 1},
+						{"Reapply requests", 0},
+						{"Already matches", 1},
+						{"Preserved", 1},
+						{"Excluded", 1},
+					} {
+						if got := strings.Count(files, group.title); got != group.want {
+							t.Errorf("Files subgroup %q count = %d, want %d", group.title, got, group.want)
 						}
 					}
 					if strings.Count(clean, "existing shared settings preserved") != 1 {
