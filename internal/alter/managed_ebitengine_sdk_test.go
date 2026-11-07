@@ -32,14 +32,13 @@ func TestEbitengineAndroidEnablementScopesConsent(t *testing.T) {
 func TestEbitengineAndroidAdoptionGuidance(t *testing.T) {
 	results := []SwatchResult{{Path: "flake.nix", Category: Skipped, Reason: SkipManagedRootExists}}
 	report := buildReport("baste", "", nil, nil, nil, results, DryRun)
-	appendManagedReporting(&report, ebitengineConfig(), results)
+	dir := t.TempDir()
+	writeManagedTestFile(t, dir, "flake.nix", []byte(`{ outputs = { self }: { devShells.x86_64-linux = { android = projectAndroid; }; }; }`))
+	appendManagedReporting(&report, ebitengineConfig(), results, dir)
 	for _, text := range []string{
-		"For an existing `android` output",
-		".overrideAttrs (old:",
-		"Remove duplicate SDK, adb, Java, and shared hook declarations",
-		"tailor-ebitenmobile bind",
-		"-Pandroid.aapt2FromMavenOverride=",
-		"tool availability alone does not validate Android builds",
+		"Verify `flake.nix`",
+		"the existing android declaration needs manual verification, not another attribute",
+		"Syntax inspection does not establish runtime compatibility",
 	} {
 		if !strings.Contains(report.Plain, text) {
 			t.Errorf("Android adoption guidance lacks %q", text)

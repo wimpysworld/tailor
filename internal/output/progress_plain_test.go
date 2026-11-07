@@ -33,14 +33,14 @@ func TestPlainDisablesProgressRegardlessOfFlags(t *testing.T) {
 	}
 }
 
-func TestAutoVerboseRetainsStageRecords(t *testing.T) {
+func TestAutoVerboseNonTTYHasNoStageRecords(t *testing.T) {
 	var stdout, stderr strings.Builder
 	policy := New(&stdout, &stderr, Auto, WithTTY(false), WithStderrTTY(false), WithVerbose(true))
 	progress := policy.StartProgress()
 	progress.Observe(StageEvent{ID: "stage", Label: "Work", Phase: "start"})
 	progress.Stop()
-	if !strings.Contains(stderr.String(), "Work") {
-		t.Fatalf("missing verbose stage record: %q", stderr.String())
+	if progress != nil || stderr.Len() != 0 {
+		t.Fatalf("non-terminal verbose progress: %q", stderr.String())
 	}
 	if stdout.Len() != 0 {
 		t.Fatalf("progress wrote stdout: %q", stdout.String())

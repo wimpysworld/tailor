@@ -25,7 +25,7 @@ func TestManagedBlenderPreservesFlakeAndReportsManualOutput(t *testing.T) {
 		for _, state := range []string{"true", "false", "absent"} {
 			t.Run(managedModeName(mode)+"/"+state, func(t *testing.T) {
 				root := t.TempDir()
-				content := []byte("# project output\r\n{ packages.custom = 42; }\n")
+				content := []byte("# project output\r\n{ outputs = { self }: { packages.custom = 42; }; }\n")
 				writeManagedTestFile(t, root, "flake.nix", content)
 				cfg := &config.Config{License: "none", Swatches: []config.SwatchEntry{{Path: "flake.nix", Alteration: swatch.Always}}}
 				if state != "absent" {
@@ -42,9 +42,8 @@ func TestManagedBlenderPreservesFlakeAndReportsManualOutput(t *testing.T) {
 				}
 				if state == "true" {
 					for _, want := range []string{
-						"per-system packages", "blender-agent-bridge-extension = (import ./nix/lib/blender.nix { inherit pkgs; }).extension;",
-						"pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix)", "same overridden `pkgs`",
-						"nix build .#blender-agent-bridge-extension", "Install the ZIP separately after approval",
+						"Verify `flake.nix`", "per-system packages", "same overridden `pkgs`",
+						"Syntax inspection does not establish runtime compatibility",
 					} {
 						if !strings.Contains(guidance, want) {
 							t.Errorf("guidance lacks %q: %s", want, guidance)

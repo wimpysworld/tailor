@@ -159,7 +159,8 @@ jobs:
           git -C "$context/repository" remote add origin https://github.com/octocat/container-test.git
           docker run --rm --network none --user "$(id -u):$(id -g)" \
             -v "$context/repository:/work:ro" -w /work \
-            tailor:container-test docket | grep -Eq '^repository: +octocat/container-test$'
+            tailor:container-test docket --format=plain |
+            grep -Eq '^repository: +octocat/container-test$'
 
   security:
     name: Security 🔒

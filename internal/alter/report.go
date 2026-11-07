@@ -1,7 +1,6 @@
 package alter
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/wimpysworld/tailor/internal/output"
@@ -28,6 +27,9 @@ func buildReport(command, context string, repo []RepoSettingResult, labels []Lab
 				outcome, action = output.Applied, "set"
 			} else {
 				outcome, action = output.Alteration, "set"
+				if r.Before != "" && r.Before == r.Value && r.Annotation != "" {
+					action = "reapply"
+				}
 			}
 		case WouldSkipScope:
 			outcome, action = output.Attention, "skip"
@@ -42,7 +44,7 @@ func buildReport(command, context string, repo []RepoSettingResult, labels []Lab
 			name = r.Operation.String()
 		}
 		domain, category := repoDomain(r.Section, r.Field)
-		doc.Items = append(doc.Items, output.Item{Domain: domain, Category: category, Outcome: outcome, Action: action, Name: displayName(name), Before: r.Before, After: r.Value, Reason: r.Annotation, Provenance: qualified(r.Section, r.Field)})
+		doc.Items = append(doc.Items, output.Item{Domain: domain, Category: category, Outcome: outcome, Action: action, Name: displayName(name), Before: r.Before, After: r.Value, BeforeItems: r.BeforeItems, AfterItems: r.AfterItems, Reason: r.Annotation, Provenance: qualified(r.Section, r.Field)})
 	}
 	for _, r := range labels {
 		outcome, action := output.Unchanged, "match"
@@ -93,12 +95,12 @@ func buildReport(command, context string, repo []RepoSettingResult, labels []Lab
 	doc.Summary = output.Count(doc.Items)
 	if mode == DryRun {
 		switch {
-		case doc.Summary.Alterations > 0:
-			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Text: "No changes made. Run `tailor alter` to apply " + alterationCount(doc.Summary.Alterations) + "."})
 		case doc.Summary.Attention > 0:
-			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Text: "No changes made. Resolve the items that need attention, then run `tailor baste` again."})
+			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Kind: output.GuidanceFinal, Text: "Resolve the items that need attention, then run `tailor baste` again."})
+		case doc.Summary.Alterations > 0:
+			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Kind: output.GuidanceFinal, Text: "Review the preview, then run `tailor alter`."})
 		default:
-			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Text: "No changes needed."})
+			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Kind: output.GuidanceFinal, Text: "No changes needed."})
 		}
 	}
 	return Report{Document: doc, Plain: FormatOutput(repo, labels, variables, swatches, mode)}
@@ -116,6 +118,9 @@ func swatchReportDecision(result SwatchResult, mode ApplyMode) (output.Outcome, 
 		action = strings.TrimPrefix(string(result.Category), "would ")
 	case Skipped:
 		outcome, action = output.Preserved, "preserve"
+		if result.Reason == SkipModeNever || result.Reason == skipDependabotInactive {
+			outcome, action = output.Excluded, "exclude"
+		}
 	case NoChange:
 		if result.Path == ignoreRootPath && result.Reason == SkipManagedRootExists {
 			outcome, action = output.Preserved, "preserve"
@@ -124,13 +129,6 @@ func swatchReportDecision(result SwatchResult, mode ApplyMode) (output.Outcome, 
 		outcome, action = output.Attention, "resolve"
 	}
 	return outcome, action
-}
-
-func alterationCount(count int) string {
-	if count == 1 {
-		return "1 alteration"
-	}
-	return strconv.Itoa(count) + " alterations"
 }
 
 func repoDomain(section, field string) (string, string) {

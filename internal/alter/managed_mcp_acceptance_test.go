@@ -118,8 +118,9 @@ func TestManagedMCPAcceptancePreservesExistingClientDestinations(t *testing.T) {
 				case "true":
 					assertManagedBytes(t, filepath.Join(dir, "nix/playwright.nix"), renderSelectedManagedFiles(t, cfg)["nix/playwright.nix"])
 					for _, destination := range managedPlaywrightPaths[1:] {
-						if !containsGuidancePath(report.Document.Guidance, destination) {
-							t.Errorf("report lacks preservation guidance for %q", destination)
+						want := destination != ".codex/config.toml"
+						if containsGuidancePath(report.Document.Guidance, destination) != want {
+							t.Errorf("verification guidance for %q disagrees with inspected state", destination)
 						}
 					}
 				case "false":

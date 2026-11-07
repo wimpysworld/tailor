@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -352,7 +353,7 @@ func TestProcessRepoSettingsMixedResults(t *testing.T) {
 		t.Fatalf("got %d results, want %d", len(results), len(want))
 	}
 	for i := range want {
-		if results[i] != want[i] {
+		if !reflect.DeepEqual(results[i], want[i]) {
 			t.Errorf("result %d = %#v, want %#v", i, results[i], want[i])
 		}
 	}

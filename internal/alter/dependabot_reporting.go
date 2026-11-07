@@ -3,6 +3,8 @@ package alter
 import (
 	"errors"
 	"strings"
+
+	"github.com/wimpysworld/tailor/internal/output"
 )
 
 const skipDependabotInactive SwatchReason = "not configured or mode never"
@@ -49,36 +51,33 @@ func appendDependabotReporting(report *Report, plan dependabotPlan, results []Sw
 		return
 	}
 
-	var guidance []string
 	if plan.GoKnown && (result.Category == WouldCopy || result.Category == WouldOverwrite || result.Category == NoChange) {
 		ecosystems := "`github-actions` and `nix`"
 		if plan.GoEnabled {
 			ecosystems = "`github-actions`, `gomod`, and `nix`"
 		}
-		guidance = append(guidance, "The selected Dependabot ecosystems are "+ecosystems+".")
+		appendGuidance(report, "The selected Dependabot ecosystems are "+ecosystems+".\n", output.GuidanceInfo)
 	}
 	if result.Category == WouldOverwrite {
-		guidance = append(guidance, "Tailor replaces the complete Dependabot file. Custom schedules, groups, registries, comments, and other custom fields are not retained.")
+		appendGuidance(report, "Tailor replaces the complete Dependabot file. Custom schedules, groups, registries, comments, and other custom fields are not retained.\n", output.GuidanceRequired)
 	}
 	if result.Category == Skipped && result.Reason == ManagedNotOwned {
-		guidance = append(guidance,
-			"Back up `.github/dependabot.yml` in Git or another user-controlled location before adoption.",
-			"Review both supported Dependabot templates and every custom field that complete-file replacement will discard.",
-			"Keep the file unmarked if any custom field must remain. For adoption, set `languages.go` explicitly to `true` or `false`, then add the exact Tailor marker.",
-			"Resolve any `.github/dependabot.yaml` entry before adoption.",
-			"Run `tailor baste`, review the complete preview, and run `tailor alter` only after approval.",
-		)
+		appendGuidance(report, "Optional: adopt Tailor's Dependabot templates.\n"+
+			"Location: `.github/dependabot.yml` is not owned by Tailor.\n"+
+			"Back up `.github/dependabot.yml` in Git or another user-controlled location before adoption.\n"+
+			"Review both supported Dependabot templates and every custom field that complete-file replacement will discard.\n"+
+			"Keep the file unmarked if any custom field must remain.\n"+
+			"For adoption, set `languages.go` explicitly to `true` or `false`, then add the exact Tailor marker.\n"+
+			"Resolve any `.github/dependabot.yaml` entry before adoption.\n"+
+			"Check: run `tailor baste`, review the complete preview, and run `tailor alter` only after approval.\n", output.GuidanceOptional)
 	}
 	if result.Category == ManagedConflict {
 		reason := string(result.Reason)
 		if strings.Contains(reason, "alternate .github/dependabot.yaml") {
-			guidance = append(guidance, "Resolve `.github/dependabot.yaml`, then run `tailor baste` again.")
+			appendGuidance(report, "Resolve `.github/dependabot.yaml`, then run `tailor baste` again.\n", output.GuidanceRequired)
 		}
 		if strings.Contains(reason, "does not identify one canonical Go state") {
-			guidance = append(guidance, "Set `languages.go` explicitly to `true` or `false`, or remove the Tailor marker, then run `tailor baste` again.")
+			appendGuidance(report, "Set `languages.go` explicitly to `true` or `false`, or remove the Tailor marker, then run `tailor baste` again.\n", output.GuidanceRequired)
 		}
-	}
-	if len(guidance) != 0 {
-		appendGuidance(report, strings.Join(guidance, "\n")+"\n")
 	}
 }

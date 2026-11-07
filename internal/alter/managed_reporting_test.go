@@ -96,12 +96,17 @@ func TestManagedReportingEnvrcGuidance(t *testing.T) {
 				cfg.Languages.GoOptions.Ebitengine.Enabled = tc.enabled
 				report := buildReport("alter", "", nil, nil, nil, []SwatchResult{tc.result}, mode)
 				appendManagedReporting(&report, cfg, nil)
-				if got := strings.Contains(report.Plain, "Adopt watches"); got != tc.want {
+				if got := strings.Contains(report.Plain, "Optional: review `.envrc` watches"); got != tc.want {
 					t.Fatalf("watch guidance = %v, want %v: %s", got, tc.want, report.Plain)
 				}
 				found := false
 				for _, guidance := range report.Document.Guidance {
-					found = found || strings.Contains(guidance.Text, "Adopt watches")
+					if strings.Contains(guidance.Text, "Optional: review `.envrc` watches") {
+						found = true
+						if guidance.Kind != output.GuidanceOptional {
+							t.Fatal("optional review blocks the next action")
+						}
+					}
 				}
 				if found != tc.want {
 					t.Fatalf("structured watch guidance = %v, want %v", found, tc.want)
@@ -123,34 +128,39 @@ func TestManagedReportingAddsConditionalWarningsAndAdoptionGuidance(t *testing.T
 	}
 	report := buildReport("baste", "", nil, nil, nil, results, DryRun)
 	enabled := true
-	appendManagedReporting(&report, &config.Config{MCP: &config.MCPSettings{Playwright: &enabled}}, results)
+	appendManagedReporting(&report, &config.Config{MCP: &config.MCPSettings{Playwright: &enabled}}, results, managedMissingSetupFixture(t))
 
 	for _, text := range []string{
-		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`",
-		"If absent, add `import 'just/loader.just'` to the preserved `justfile`.",
-		"If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.",
-		"If absent, add Tailor's `mcpServers.playwright` starter entry to the preserved `.mcp.json`.",
-		"If absent, add Tailor's `[mcp_servers.playwright]` starter table to the preserved `.codex/config.toml`.",
-		"If absent, add Tailor's `mcp.playwright` starter entry to the preserved `opencode.json`.",
-		"If absent, add Tailor's `mcpServers.playwright` starter entry to the preserved `.pi/mcp.json`.",
+		"Optional: review and add new Nix files to Git",
+		"Add `import 'just/loader.just'` to the preserved `justfile`.",
+		"Append `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in `flake.nix`.",
+		"Add Tailor's `mcpServers.playwright` starter entry to the preserved `.mcp.json`.",
+		"Add Tailor's `[mcp_servers.playwright]` starter table to the preserved `.codex/config.toml`.",
+		"Add Tailor's `mcp.playwright` starter entry to the preserved `opencode.json`.",
+		"Add Tailor's `mcpServers.playwright` starter entry to the preserved `.pi/mcp.json`.",
 	} {
 		if !strings.Contains(report.Plain, text) {
 			t.Errorf("plain report lacks %q: %s", text, report.Plain)
 		}
 	}
+	for _, guidance := range report.Document.Guidance {
+		if strings.HasPrefix(guidance.Text, "Optional: review and add new Nix files") && guidance.Kind != output.GuidanceOptional {
+			t.Fatal("optional Nix review blocks the next action")
+		}
+	}
 	if strings.Contains(strings.ToLower(report.Plain), "index") {
 		t.Fatalf("report claims Git index inspection: %s", report.Plain)
 	}
-	if len(report.Document.Notices) != 1 {
-		t.Fatalf("structured notices = %#v", report.Document.Notices)
+	if len(report.Document.Notices) != 0 {
+		t.Fatalf("optional guidance became a warning: %#v", report.Document.Notices)
 	}
 	for _, text := range []string{
-		"If absent, add `import 'just/loader.just'` to the preserved `justfile`.",
-		"If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.",
-		"If absent, add Tailor's `mcpServers.playwright` starter entry to the preserved `.mcp.json`.",
-		"If absent, add Tailor's `[mcp_servers.playwright]` starter table to the preserved `.codex/config.toml`.",
-		"If absent, add Tailor's `mcp.playwright` starter entry to the preserved `opencode.json`.",
-		"If absent, add Tailor's `mcpServers.playwright` starter entry to the preserved `.pi/mcp.json`.",
+		"Add `import 'just/loader.just'` to the preserved `justfile`.",
+		"Append `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in `flake.nix`.",
+		"Add Tailor's `mcpServers.playwright` starter entry to the preserved `.mcp.json`.",
+		"Add Tailor's `[mcp_servers.playwright]` starter table to the preserved `.codex/config.toml`.",
+		"Add Tailor's `mcp.playwright` starter entry to the preserved `opencode.json`.",
+		"Add Tailor's `mcpServers.playwright` starter entry to the preserved `.pi/mcp.json`.",
 	} {
 		if !containsGuidance(report.Document.Guidance, text) {
 			t.Fatalf("structured guidance lacks %q: %#v", text, report.Document.Guidance)
@@ -175,22 +185,22 @@ func TestManagedReportingDerivesAdoptionGuidanceFromEnabledMCPServers(t *testing
 			syntheticManagedMCPServer("disabled", true, false),
 		}
 		report := buildReport("baste", "", nil, nil, nil, results, DryRun)
-		appendManagedReportingFromMCPRegistry(&report, &config.Config{}, results, registry)
+		appendManagedReportingFromMCPRegistry(&report, &config.Config{}, results, registry, managedMissingSetupFixture(t))
 
 		want := []string{
-			"If absent, add `import 'just/loader.just'` to the preserved `justfile`.",
-			"If absent, add Tailor's `mcpServers.alpha` starter entry to the preserved `.mcp.json`.",
-			"If absent, add Tailor's `mcpServers.zulu` starter entry to the preserved `.mcp.json`.",
-			"If absent, add Tailor's `[mcp_servers.alpha]` starter table to the preserved `.codex/config.toml`.",
-			"If absent, add Tailor's `[mcp_servers.zulu]` starter table to the preserved `.codex/config.toml`.",
-			"If absent, add Tailor's `mcp.alpha` starter entry to the preserved `opencode.json`.",
-			"If absent, add Tailor's `mcp.zulu` starter entry to the preserved `opencode.json`.",
-			"If absent, add Tailor's `mcpServers.alpha` starter entry to the preserved `.pi/mcp.json`.",
-			"If absent, add Tailor's `mcpServers.zulu` starter entry to the preserved `.pi/mcp.json`.",
+			"Add `import 'just/loader.just'` to the preserved `justfile`.",
+			"Add Tailor's `mcpServers.alpha` starter entry to the preserved `.mcp.json`.",
+			"Add Tailor's `mcpServers.zulu` starter entry to the preserved `.mcp.json`.",
+			"Add Tailor's `[mcp_servers.alpha]` starter table to the preserved `.codex/config.toml`.",
+			"Add Tailor's `[mcp_servers.zulu]` starter table to the preserved `.codex/config.toml`.",
+			"Add Tailor's `mcp.alpha` starter entry to the preserved `opencode.json`.",
+			"Add Tailor's `mcp.zulu` starter entry to the preserved `opencode.json`.",
+			"Add Tailor's `mcpServers.alpha` starter entry to the preserved `.pi/mcp.json`.",
+			"Add Tailor's `mcpServers.zulu` starter entry to the preserved `.pi/mcp.json`.",
 		}
 		var got []string
 		for _, guidance := range report.Document.Guidance {
-			if strings.HasPrefix(guidance.Text, "If absent") {
+			if strings.HasPrefix(guidance.Text, "Add ") {
 				got = append(got, guidance.Text)
 			}
 		}
@@ -198,7 +208,7 @@ func TestManagedReportingDerivesAdoptionGuidanceFromEnabledMCPServers(t *testing
 			t.Fatalf("adoption guidance = %#v, want %d entries", got, len(want))
 		}
 		for index, text := range want {
-			if got[index] != text {
+			if !strings.HasPrefix(got[index], text) {
 				t.Errorf("guidance %d = %q, want %q", index, got[index], text)
 			}
 		}
@@ -220,7 +230,7 @@ func TestManagedReportingDerivesAdoptionGuidanceFromEnabledMCPServers(t *testing
 		t.Run(tt.name, func(t *testing.T) {
 			registry := append(fixedManagedMCPRegistry(), syntheticManagedMCPServer("synthetic", true, true))
 			report := buildReport("baste", "", nil, nil, nil, clientResults, DryRun)
-			appendManagedReportingFromMCPRegistry(&report, tt.cfg, clientResults, registry)
+			appendManagedReportingFromMCPRegistry(&report, tt.cfg, clientResults, registry, managedMissingSetupFixture(t))
 
 			for _, text := range []string{
 				"`mcpServers.synthetic` starter entry to the preserved `.mcp.json`",
@@ -244,9 +254,9 @@ func TestManagedReportingQuotesCodexAdoptionKey(t *testing.T) {
 	report := buildReport("baste", "", nil, nil, nil, results, DryRun)
 	appendManagedReportingFromMCPRegistry(&report, &config.Config{}, results, []managedMCPServerDefinition{
 		syntheticManagedMCPServer("server.name café", true, true),
-	})
+	}, managedMissingSetupFixture(t))
 
-	want := "If absent, add Tailor's `[mcp_servers.\"server.name café\"]` starter table to the preserved `.codex/config.toml`."
+	want := "Add Tailor's `[mcp_servers.\"server.name café\"]` starter table to the preserved `.codex/config.toml`."
 	if !strings.Contains(report.Plain, want) {
 		t.Fatalf("Codex guidance lacks quoted key %q: %s", want, report.Plain)
 	}
@@ -389,8 +399,8 @@ func TestManagedExecutionReportsUnselectedExistingRootsWithoutBootstrappingAbsen
 				}
 			}
 			for _, guidance := range []string{
-				"If absent, add `import 'just/loader.just'` to the preserved `justfile`.",
-				"If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.",
+				"Verify `import 'just/loader.just'` in `justfile`: unsupported Just syntax.",
+				"Verify `flake.nix` (package loader: Nix composition is outside the supported literal forms; core hook: Nix composition is outside the supported literal forms). Use the same overridden `pkgs` for both loaders and keep custom hooks last. Syntax inspection does not establish runtime compatibility.",
 			} {
 				if !containsGuidance(report.Document.Guidance, guidance) {
 					t.Errorf("report guidance lacks %q: %#v", guidance, report.Document.Guidance)
@@ -653,7 +663,7 @@ func managedTestRenderer(selections []managedSelection) (managedRenderedFiles, e
 
 func containsGuidance(guidance []output.Guidance, text string) bool {
 	for _, item := range guidance {
-		if item.Text == text {
+		if item.Text == text || strings.HasPrefix(item.Text, text+"\n") {
 			return true
 		}
 	}

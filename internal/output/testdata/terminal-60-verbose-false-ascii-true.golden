@@ -1,0 +1,31 @@
+tailor baste                                 octocat/project
+[PREVIEW] No changes made
+
++- Proposed changes ---------------------------------------+
+| Security                                                 |
+| Secret scanning = disabled -> enabled                    |
+| Actions                                                  |
+| Workflow permissions = write -> read                     |
+| Files                                                    |
+| .github/SECURITY.md: would copy                          |
++----------------------------------------------------------+
+
++- Reapply requests ---------------------------------------+
+| Security                                                 |
+| Push protection: would reapply = enabled                 |
+|   Reapply the enable request.                            |
++----------------------------------------------------------+
+
+1 reapply request, 3 alterations, 1 preserved, 1 excluded,
+3 unchanged
+Details: `tailor baste --verbose`
+
++- Next ---------------------------------------------------+
+| Review the preview, then run `tailor alter`.             |
++----------------------------------------------------------+
+
+Additional guidance
+
+Optional: adopt Tailor's Dependabot templates.
+Use `tailor baste --verbose` for adoption steps and
+safeguards.

@@ -234,13 +234,18 @@ func managedConflictResult(err error) (SwatchResult, bool) {
 	return SwatchResult{Path: ownershipErr.Path, Category: ManagedConflict, Reason: ManagedNotOwned}, true
 }
 
-func appendManagedReporting(report *Report, cfg *config.Config, results []SwatchResult) {
-	appendManagedReportingFromMCPRegistry(report, cfg, results, fixedManagedMCPRegistry())
+func appendManagedReporting(report *Report, cfg *config.Config, results []SwatchResult, dir ...string) {
+	appendManagedReportingFromMCPRegistry(report, cfg, results, fixedManagedMCPRegistry(), dir...)
 }
 
-func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, results []SwatchResult, mcpRegistry []managedMCPServerDefinition) {
+func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, results []SwatchResult, mcpRegistry []managedMCPServerDefinition, directories ...string) {
+	dir := ""
+	if len(directories) > 0 {
+		dir = directories[0]
+	}
 	var newNix []string
 	var guidance []string
+	var optional []string
 	for _, result := range results {
 		if result.Category == WouldCopy && (result.Path == "flake.nix" || strings.HasSuffix(result.Path, ".nix") || strings.HasPrefix(result.Path, "nix/patches/")) {
 			newNix = append(newNix, result.Path)
@@ -250,40 +255,20 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 		}
 		switch result.Reason {
 		case SkipManagedRootExists:
-			switch result.Path {
-			case "justfile":
-				guidance = append(guidance, "If absent, add `import 'just/loader.just'` to the preserved `justfile`.")
-			case "flake.nix":
-				guidance = append(guidance, "If absent, add `++ import ./nix/loader.nix { inherit pkgs; }` to the existing package list in the preserved `flake.nix`.")
-				guidance = append(guidance, "Manually compose `shellHook = (import ./nix/hooks.nix { inherit pkgs; }) + \"\\n\" + existingHook;` in the preserved `flake.nix`, with your existing hook last. Pass the same `pkgs` and Go override to both loaders. Tailor does not overwrite existing roots.")
-			}
+			guidance = append(guidance, managedRootGuidance(cfg, dir, result.Path)...)
 		case SkipManagedSharedExists:
-			guidance = append(guidance, managedMCPAdoptionGuidance(cfg, result.Path, mcpRegistry)...)
+			guidance = append(guidance, managedMCPAdoptionGuidance(cfg, result.Path, mcpRegistry, dir)...)
 		}
 	}
 	if cfg.EbitengineEnabled() && slices.ContainsFunc(report.Document.Items, func(item output.Item) bool {
 		return item.Domain == "Files" && item.Name == ".envrc" && item.Outcome == output.Preserved && item.Reason == string(SkipFirstFitExists)
 	}) {
-		guidance = append(guidance, "Adopt watches for `nix/lib`, `nix/shells`, and their `*.nix` files in existing `.envrc` files. Review before normal direnv approval; Tailor never grants trust.")
+		optional = append(optional, "Optional: review `.envrc` watches for `nix/lib`, `nix/shells`, and their `*.nix` files before normal direnv approval. Tailor never grants trust.")
 	}
-	if cfg.EbitengineAndroidEnabled() {
-		guidance = append(guidance, "Android SDK licence consent is scoped to the generated Android shell. Enter it only after review. No SDK installation or licence acceptance runs during alteration.")
-		guidance = append(guidance, "In project-owned Android recipes, replace the temporary ebitenmobile build and invocation with `tailor-ebitenmobile bind`, retaining all bind arguments, package paths, and output paths. Keep Gradle packaging project-owned and use `-Pandroid.aapt2FromMavenOverride=\"$ANDROID_BUILD_TOOLS/aapt2\"`. Tailor does not generate application identifiers, signing configuration, or deployment recipes. After separate SDK approval, verify binding and unsigned Gradle packaging; tool availability alone does not validate Android builds.")
-		if slices.ContainsFunc(results, func(result SwatchResult) bool {
-			return result.Path == "flake.nix" && result.Reason == SkipManagedRootExists
-		}) {
-			guidance = append(guidance, "Extend the per-system devShells attribute set, not its package list, with `// pkgs.lib.optionalAttrs (system == \"x86_64-linux\" && builtins.pathExists ./nix/shells/go-ebitengine-android.nix) { android = import ./nix/shells/go-ebitengine-android.nix { inherit pkgs; }; }`. Pass the same overridden `pkgs`. Do not overwrite an existing `android` output; compose or migrate it manually.")
-			guidance = append(guidance, "For an existing `android` output, first compare its SDK versions and overrides. After review, replace its shell body with `import ./nix/shells/go-ebitengine-android.nix { inherit pkgs; }` and retain required project settings through `.overrideAttrs (old: { shellHook = old.shellHook + \"\\n\" + projectHook; })`. Remove duplicate SDK, adb, Java, and shared hook declarations. Keep custom hooks last and retain host-driver precedence. Do not add another `android` attribute.")
-		}
-	}
-	if cfg.BlenderEnabled() && slices.ContainsFunc(results, func(result SwatchResult) bool {
-		return result.Path == "flake.nix" && result.Reason == SkipManagedRootExists
-	}) {
-		guidance = append(guidance, "In the preserved flake's per-system packages, manually add `blender-agent-bridge-extension = (import ./nix/lib/blender.nix { inherit pkgs; }).extension;` inside `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix)`. Preserve existing outputs and use the same overridden `pkgs`. Build with `nix build .#blender-agent-bridge-extension`. Install the ZIP separately after approval; Tailor does not install Blender or start its bridge.")
-	}
+
 	if len(newNix) != 0 {
 		sort.Strings(newNix)
-		appendManagedNotice(report, "review and add new Nix files to Git because Nix flakes exclude untracked files: "+managedPathList(newNix))
+		optional = append(optional, "Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: "+managedPathList(newNix)+". Keep normal shell, direnv, SDK, extension, and client approvals.")
 	}
 	playwrightRemovalReported := slices.ContainsFunc(results, func(result SwatchResult) bool {
 		return result.Path == "nix/playwright.nix" && (result.Category == NoChange || result.Category == WouldRemove)
@@ -297,27 +282,71 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 	if cfg.BlenderDeclared() && !cfg.BlenderEnabled() && blenderRemovalReported {
 		appendManagedNotice(report, "mcp.blender is false, so Tailor removes the owned Blender fragment, helper, and patch but preserves MCP client settings. Disable or remove their blender-agent-bridge servers to avoid a missing `blender-bridge` executable")
 	}
-	if len(guidance) != 0 {
-		appendGuidance(report, strings.Join(guidance, "\n")+"\n")
+	appendManagedGuidance(report, guidance)
+	for _, text := range optional {
+		if !slices.ContainsFunc(report.Document.Guidance, func(item output.Guidance) bool { return item.Text == text }) {
+			appendGuidance(report, text+"\n", output.GuidanceOptional)
+		}
 	}
 }
 
-func managedMCPAdoptionGuidance(cfg *config.Config, destination string, registry []managedMCPServerDefinition) []string {
+func managedMCPAdoptionGuidance(cfg *config.Config, destination string, registry []managedMCPServerDefinition, directories ...string) []string {
 	provider, supported := managedMCPProviderForDestination(destination)
 	if !supported {
 		return nil
 	}
 	definitions := enabledManagedMCPDefinitions(cfg, provider, registry)
-	guidance := make([]string, 0, len(definitions))
+	if len(definitions) == 0 {
+		return nil
+	}
+	dir := ""
+	if len(directories) > 0 {
+		dir = directories[0]
+	}
+	content, cause := readManagedInspection(dir, destination)
+	var entries map[string]any
+	if cause == "" {
+		entries, cause = inspectManagedClient(content, destination)
+	}
+	if cause != "" {
+		return []string{"Verify the enabled MCP server entries in `" + destination + "`: " + cause + ". Preserve existing and disabled entries."}
+	}
+	var missing []managedMCPNamedDefinition
 	for _, definition := range definitions {
-		switch destination {
-		case ".mcp.json", ".pi/mcp.json":
-			guidance = append(guidance, "If absent, add Tailor's `mcpServers."+definition.Name+"` starter entry to the preserved `"+destination+"`.")
-		case ".codex/config.toml":
-			guidance = append(guidance, "If absent, add Tailor's `[mcp_servers."+managedMCPTOMLKey(definition.Name)+"]` starter table to the preserved `.codex/config.toml`.")
-		case "opencode.json":
-			guidance = append(guidance, "If absent, add Tailor's `mcp."+definition.Name+"` starter entry to the preserved `opencode.json`.")
+		if _, exists := entries[definition.Name]; !exists {
+			missing = append(missing, definition)
 		}
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	var guidance []string
+	for _, definition := range missing {
+		selected := []managedMCPNamedDefinition{definition}
+		var snippet []byte
+		location := "mcpServers"
+		title := "Add Tailor's `mcpServers." + definition.Name + "` starter entry to the preserved `" + destination + "`."
+		switch provider {
+		case managedMCPProviderClaude:
+			snippet = renderManagedMCPClaude(selected)
+		case managedMCPProviderCodex:
+			location = "mcp_servers"
+			title = "Add Tailor's `[mcp_servers." + managedMCPTOMLKey(definition.Name) + "]` starter table to the preserved `.codex/config.toml`."
+			snippet = renderManagedMCPCodex(selected)
+		case managedMCPProviderOpenCode:
+			location = "mcp"
+			title = "Add Tailor's `mcp." + definition.Name + "` starter entry to the preserved `opencode.json`."
+			snippet = renderManagedMCPOpenCode(selected)
+		case managedMCPProviderPi:
+			snippet = renderManagedMCPPi(selected)
+		}
+		text := title + "\nLocation: `" + location + "`. Merge only the missing entry shown below.\n" +
+			"Preserve unrelated and disabled entries. Do not replace the complete file.\n"
+		for line := range strings.SplitSeq(strings.TrimSuffix(string(snippet), "\n"), "\n") {
+			text += "    " + line + "\n"
+		}
+		text += "Check: run `tailor baste` again, then restart the client from the development shell with normal approvals."
+		guidance = append(guidance, text)
 	}
 	return guidance
 }

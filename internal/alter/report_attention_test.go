@@ -3,7 +3,7 @@ package alter
 import "testing"
 
 func TestBuildReportDryRunAttentionGuidance(t *testing.T) {
-	const attentionGuidance = "No changes made. Resolve the items that need attention, then run `tailor baste` again."
+	const attentionGuidance = "Resolve the items that need attention, then run `tailor baste` again."
 	for _, tt := range []struct {
 		name      string
 		repo      []RepoSettingResult

@@ -3,3 +3,4 @@ dist/
 result/
 /tailor
 /.playwright-mcp/
+/.pi/tasks/
