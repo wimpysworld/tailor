@@ -192,7 +192,16 @@ func TestTerminalCommandSpansAndLongSource(t *testing.T) {
 
 func TestTerminalHierarchy(t *testing.T) {
 	t.Setenv("TERM", "xterm")
-	p := New(nil, nil, Auto, WithTTY(true), WithWidth(80), WithColor(ColorAlways), WithVerbose(true))
+	p := New(nil, nil, Auto, WithTTY(true), WithWidth(80), WithColor(ColorAlways), WithVerbose(true), WithASCII(false))
+	assertMatchingRow := func(got, frameColour string) {
+		t.Helper()
+		row := "pages.https_enforced = true"
+		border := p.style("│", frameColour)
+		want := border + " " + row + strings.Repeat(" ", p.width-4-lipgloss.Width(row)) + " " + border + "\n"
+		if !strings.Contains(got, "\n"+want) {
+			t.Fatalf("missing unstyled matching row %q in:\n%q", want, got)
+		}
+	}
 	doc := Document{Command: "baste", Context: "owner/repo", Items: []Item{{Domain: "Pages", Outcome: Unchanged, Action: "match", Provenance: "pages.https_enforced", Before: "true", After: "true"}}, Guidance: []Guidance{
 		{Kind: GuidanceRequired, Text: "Verify with `tailor baste`."},
 		{Kind: GuidanceOptional, Text: "Optional: use `tailor docket`.\n    git status --short"},
@@ -210,9 +219,7 @@ func TestTerminalHierarchy(t *testing.T) {
 	if strings.Contains(clean, "true → true") {
 		t.Fatal("matching values show a false transition")
 	}
-	if strings.Contains(got, "\x1b[36m") || !strings.Contains(got, p.muted("true")) {
-		t.Fatal("matching results use change colour")
-	}
+	assertMatchingRow(got, settledColour)
 	if strings.Index(clean, "Optional:") < strings.Index(clean, " Next ") || strings.Contains(clean, "Run `tailor alter`") {
 		t.Fatal("incorrect guidance priority")
 	}
@@ -221,7 +228,8 @@ func TestTerminalHierarchy(t *testing.T) {
 	}
 	doc.Items = append(doc.Items, Item{Domain: "Pages", Outcome: Alteration, Action: "set", Name: "Build type", Before: "legacy", After: "workflow"})
 	got = p.Render(doc)
-	if !strings.Contains(got, p.style("workflow", changeColour)) || !strings.Contains(got, p.muted("true")) || !strings.Contains(got, p.muted("Already matches")) {
+	assertMatchingRow(got, changeColour)
+	if !strings.Contains(got, p.style("workflow", changeColour)) || !strings.Contains(got, p.muted("Already matches")) {
 		t.Fatal("mixed domain does not separate matching values from changes")
 	}
 	p.verbose = false
