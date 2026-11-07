@@ -16,7 +16,11 @@ func TestAutoKeepsConciseReportWithoutTerminal(t *testing.T) {
 				p := New(&out, nil, Auto, WithTTY(tty), WithColor(ColorAlways))
 				p.Print(proposalDocument(), "legacy rows")
 				got := out.String()
-				if !strings.Contains(got, "Preview - no changes made") || strings.Contains(got, "legacy rows") {
+				mode := "Preview - no changes made"
+				if tty && term != "dumb" {
+					mode = "No changes made"
+				}
+				if !strings.Contains(got, mode) || strings.Contains(got, "legacy rows") {
 					t.Fatalf("wrong contract: %s", got)
 				}
 				if (!tty || term == "dumb") && strings.Contains(got, "\x1b") {

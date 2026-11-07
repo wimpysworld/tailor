@@ -227,8 +227,11 @@ func (p *Policy) style(text, colour string) string {
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(colour)).Bold(true).Render(text)
 }
 
-// Render creates a border-free report. Attention precedes changes on every stream.
+// Render selects terminal layout without changing report state.
 func (p *Policy) Render(doc Document) string {
+	if p.Rich() && !p.quiet {
+		return p.renderTerminal(doc)
+	}
 	var b strings.Builder
 	summary := doc.Summary
 	if summary == (Summary{}) {
@@ -362,7 +365,7 @@ func (p *Policy) guidance(b *strings.Builder, doc Document) {
 		for line := range strings.SplitSeq(text, "\n") {
 			// Indented source snippets are copyable and must not be reflowed.
 			if strings.HasPrefix(line, "    ") || strings.HasPrefix(line, "\t") {
-				fmt.Fprintln(b, termtext.EscapeControlText(line))
+				fmt.Fprintln(b, p.code(safeSnippet(line)))
 				continue
 			}
 			prose := strings.TrimLeft(line, " ")
@@ -401,12 +404,12 @@ func (p *Policy) line(b *strings.Builder, text, first, rest string) {
 			sep = " "
 		}
 		if line != prefix && lipgloss.Width(line+sep+word) > max(p.width, 20) {
-			fmt.Fprintln(b, line)
+			fmt.Fprintln(b, p.inlineCode(line))
 			line, prefix, sep = rest, rest, ""
 		}
 		line += sep + word
 	}
-	fmt.Fprintln(b, line)
+	fmt.Fprintln(b, p.inlineCode(line))
 }
 
 // Count totals recognised outcomes, counting Created as Applied.

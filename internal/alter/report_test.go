@@ -19,7 +19,17 @@ import (
 	"github.com/wimpysworld/tailor/internal/testutil"
 )
 
+func TestDisabledWikiCommandGuidance(t *testing.T) {
+	text := wikiPreviewGuidance(&gh.WikiReadinessError{Reason: gh.WikiDisabled}, "https://github.com/owner/repo/wiki", "https://github.com/owner/repo.wiki.git", false)
+	var report Report
+	appendGuidance(&report, text, output.GuidanceRequired)
+	if report.Plain != text || !strings.Contains(report.Document.Guidance[0].Text, "1. Run: `tailor alter`") {
+		t.Fatal("wiki command markup changed legacy bytes or omitted emphasis")
+	}
+}
+
 func TestRepeatedAlertsEnablementReport(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
 	const reason = "reapply enable request for Dependency Graph"
 	for _, tc := range []struct {
 		name       string
@@ -115,6 +125,27 @@ func TestRepeatedAlertsEnablementReport(t *testing.T) {
 			}
 			if tc.mode == DryRun && (report.Document.Summary.Alterations != 1 || report.Document.Summary.Applied != 0) {
 				t.Errorf("dry-run summary = %#v", report.Document.Summary)
+			}
+			if tc.mode == DryRun {
+				preview := buildReport(command, "owner/repo", results, nil, nil, []SwatchResult{
+					{Path: "SECURITY.md", Category: WouldCopy},
+					{Path: "SUPPORT.md", Category: WouldCopy},
+				}, DryRun)
+				const advice = "Review the preview, then run `tailor alter`."
+				if got := preview.Document.Guidance[len(preview.Document.Guidance)-1].Text; got != advice {
+					t.Fatalf("final advice = %q, want %q", got, advice)
+				}
+				for _, width := range []int{60, 80} {
+					terminal := output.New(io.Discard, io.Discard, output.Auto, output.WithTTY(true), output.WithWidth(width), output.WithColor(output.ColorNever)).Render(preview.Document)
+					for _, want := range []string{"Reapply requests", "1 reapply request, 2 alterations", "Next", advice} {
+						if !strings.Contains(terminal, want) {
+							t.Errorf("width %d: terminal preview omitted %q:\n%s", width, want, terminal)
+						}
+					}
+					if strings.Contains(terminal, "3 alterations") {
+						t.Errorf("width %d: terminal preview counted a reapply as an alteration:\n%s", width, terminal)
+					}
+				}
 			}
 		})
 	}
@@ -379,6 +410,9 @@ func TestWikiGuidanceKeepsCommandsAndAppendOrder(t *testing.T) {
 	appendDependabotReporting(&report, dependabotPlan{}, []SwatchResult{{Path: dependabotPath, Category: Skipped, Reason: ManagedNotOwned}})
 	wiki := wikiPreviewGuidance(&gh.WikiReadinessError{Reason: gh.WikiBaselineMissing}, "https://github.com/owner/repo/wiki", "https://github.com/owner/repo.wiki.git", true)
 	appendGuidance(&report, wiki, output.GuidanceRequired)
+	if !strings.Contains(report.Plain, wiki) {
+		t.Fatal("legacy wiki guidance changed")
+	}
 	if len(report.Document.Guidance) != 4 {
 		t.Fatalf("guidance blocks = %#v", report.Document.Guidance)
 	}
@@ -390,7 +424,7 @@ func TestWikiGuidanceKeepsCommandsAndAppendOrder(t *testing.T) {
 	for _, width := range []int{60, 80} {
 		got := output.New(nil, nil, output.Auto, output.WithWidth(width)).Render(report.Document)
 		last := -1
-		for _, text := range []string{"Verify the preserved justfile.", "Optional: adopt", "Use `tailor baste --verbose`", "Next steps:", "1. Import the wiki:", "     git clone https://github.com/owner/repo.wiki.git ../tailor-wiki-import", "     rsync -a --ignore-existing --exclude=.git ../tailor-wiki-import/ wiki/", "     rsync -naci --exclude=.git ../tailor-wiki-import/ wiki/", "     git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base", "2. Run tailor baste again."} {
+		for _, text := range []string{"Verify the preserved justfile.", "Optional: adopt", "Use `tailor baste --verbose`", "Next steps:", "1. Import the wiki:", "     git clone https://github.com/owner/repo.wiki.git ../tailor-wiki-import", "     rsync -a --ignore-existing --exclude=.git ../tailor-wiki-import/ wiki/", "     rsync -naci --exclude=.git ../tailor-wiki-import/ wiki/", "     git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base", "2. Run `tailor baste` again."} {
 			index := strings.Index(got, text)
 			if index <= last {
 				t.Fatalf("width %d: missing or out-of-order %q:\n%s", width, text, got)
@@ -409,7 +443,7 @@ func TestOptionalDependabotGuidanceKeepsNextAction(t *testing.T) {
 		want := "No changes needed."
 		if changes {
 			results = append(results, SwatchResult{Path: "new.txt", Category: WouldCopy})
-			want = "Review the preview, then run `tailor alter` to apply 1 alteration."
+			want = "Review the preview, then run `tailor alter`."
 		}
 		report := buildReport("baste", "owner/repo", nil, nil, nil, results, DryRun)
 		appendDependabotReporting(&report, dependabotPlan{}, results)

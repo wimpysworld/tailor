@@ -1,7 +1,6 @@
 package alter
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/wimpysworld/tailor/internal/output"
@@ -99,7 +98,7 @@ func buildReport(command, context string, repo []RepoSettingResult, labels []Lab
 		case doc.Summary.Attention > 0:
 			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Kind: output.GuidanceFinal, Text: "Resolve the items that need attention, then run `tailor baste` again."})
 		case doc.Summary.Alterations > 0:
-			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Kind: output.GuidanceFinal, Text: "Review the preview, then run `tailor alter` to apply " + alterationCount(doc.Summary.Alterations) + "."})
+			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Kind: output.GuidanceFinal, Text: "Review the preview, then run `tailor alter`."})
 		default:
 			doc.Guidance = append(doc.Guidance, output.Guidance{Order: 1000, Kind: output.GuidanceFinal, Text: "No changes needed."})
 		}
@@ -130,13 +129,6 @@ func swatchReportDecision(result SwatchResult, mode ApplyMode) (output.Outcome, 
 		outcome, action = output.Attention, "resolve"
 	}
 	return outcome, action
-}
-
-func alterationCount(count int) string {
-	if count == 1 {
-		return "1 alteration"
-	}
-	return strconv.Itoa(count) + " alterations"
 }
 
 func repoDomain(section, field string) (string, string) {

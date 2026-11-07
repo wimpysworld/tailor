@@ -399,6 +399,9 @@ func appendGuidance(report *Report, guidance string, kind output.GuidanceKind) {
 		return
 	}
 	report.Plain += guidance
+	// Mark the known wiki commands without changing the legacy guidance bytes.
+	guidance = strings.ReplaceAll(guidance, "1. Run: tailor alter", "1. Run: `tailor alter`")
+	guidance = strings.ReplaceAll(guidance, wikiRecheckGuidance, "Run `tailor baste` again. When the wiki checks pass, run `tailor alter`.")
 	report.Document.Guidance = append(report.Document.Guidance, output.Guidance{
 		Order: len(report.Document.Guidance) + 1,
 		Text:  strings.Trim(guidance, "\n"),

@@ -50,7 +50,7 @@ func TestProposalShapeAndResponsiveCards(t *testing.T) {
 		var out strings.Builder
 		New(&out, nil, Auto, WithTTY(true), WithWidth(width)).Print(proposalDocument(), "legacy")
 		got := out.String()
-		for _, want := range []string{"tailor baste", "1 alteration, 13 preserved, 79 unchanged", "Planned changes", "12 first-fit files already exist", "1 file excluded by mode never", "repository.secret_scanning_non_provider_patterns"} {
+		for _, want := range []string{"tailor baste", "1 alteration, 13 preserved, 79 unchanged", "Proposed changes", "Security", "Non-provider secret patterns", "`tailor baste --verbose`"} {
 			if !strings.Contains(strings.Join(strings.Fields(got), " "), want) {
 				t.Errorf("width %d missing %q:\n%s", width, want, got)
 			}
@@ -66,10 +66,10 @@ func TestVerboseExpandsEveryResult(t *testing.T) {
 	t.Setenv("TERM", "xterm")
 	var out strings.Builder
 	New(&out, nil, Auto, WithTTY(true), WithVerbose(true)).Print(proposalDocument(), "")
-	if got := strings.Count(out.String(), "  check\n"); got != 79 {
+	if got := strings.Count(out.String(), "check"); got != 79 {
 		t.Fatalf("expanded unchanged rows = %d, want 79", got)
 	}
-	if got := strings.Count(out.String(), "  first-fit\n"); got != 12 {
+	if got := strings.Count(out.String(), "first-fit, exists"); got != 12 {
 		t.Fatalf("expanded policy rows = %d, want 12", got)
 	}
 }
@@ -133,7 +133,7 @@ func TestResponsiveGridActionsOrderAndBorders(t *testing.T) {
 	for _, width := range []int{20, 60, 100} {
 		got := New(nil, nil, Auto, WithTTY(true), WithWidth(width), WithColor(ColorNever)).Render(doc)
 		for line := range strings.SplitSeq(strings.TrimSuffix(got, "\n"), "\n") {
-			if rendered := lipgloss.Width(line); rendered > width && !strings.Contains(line, "repository.secret_scanning_non_provider_patterns") {
+			if rendered := lipgloss.Width(line); rendered > width && !strings.Contains(line, "repository.secret_scanning_non_provider_patterns") && !strings.Contains(line, "`tailor baste --verbose`") {
 				t.Fatalf("width %d line is %d columns: %q", width, rendered, line)
 			}
 		}

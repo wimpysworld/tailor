@@ -245,6 +245,7 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 	}
 	var newNix []string
 	var guidance []string
+	var optional []string
 	for _, result := range results {
 		if result.Category == WouldCopy && (result.Path == "flake.nix" || strings.HasSuffix(result.Path, ".nix") || strings.HasPrefix(result.Path, "nix/patches/")) {
 			newNix = append(newNix, result.Path)
@@ -262,12 +263,12 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 	if cfg.EbitengineEnabled() && slices.ContainsFunc(report.Document.Items, func(item output.Item) bool {
 		return item.Domain == "Files" && item.Name == ".envrc" && item.Outcome == output.Preserved && item.Reason == string(SkipFirstFitExists)
 	}) {
-		guidance = append(guidance, "Optional: review `.envrc` watches for `nix/lib`, `nix/shells`, and their `*.nix` files before normal direnv approval. Tailor never grants trust.")
+		optional = append(optional, "Optional: review `.envrc` watches for `nix/lib`, `nix/shells`, and their `*.nix` files before normal direnv approval. Tailor never grants trust.")
 	}
 
 	if len(newNix) != 0 {
 		sort.Strings(newNix)
-		guidance = append(guidance, "Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: "+managedPathList(newNix)+". Keep normal shell, direnv, SDK, extension, and client approvals.")
+		optional = append(optional, "Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: "+managedPathList(newNix)+". Keep normal shell, direnv, SDK, extension, and client approvals.")
 	}
 	playwrightRemovalReported := slices.ContainsFunc(results, func(result SwatchResult) bool {
 		return result.Path == "nix/playwright.nix" && (result.Category == NoChange || result.Category == WouldRemove)
@@ -282,6 +283,11 @@ func appendManagedReportingFromMCPRegistry(report *Report, cfg *config.Config, r
 		appendManagedNotice(report, "mcp.blender is false, so Tailor removes the owned Blender fragment, helper, and patch but preserves MCP client settings. Disable or remove their blender-agent-bridge servers to avoid a missing `blender-bridge` executable")
 	}
 	appendManagedGuidance(report, guidance)
+	for _, text := range optional {
+		if !slices.ContainsFunc(report.Document.Guidance, func(item output.Guidance) bool { return item.Text == text }) {
+			appendGuidance(report, text+"\n", output.GuidanceOptional)
+		}
+	}
 }
 
 func managedMCPAdoptionGuidance(cfg *config.Config, destination string, registry []managedMCPServerDefinition, directories ...string) []string {

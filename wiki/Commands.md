@@ -4,22 +4,26 @@ Run Tailor from your project directory. Use `baste` to preview changes before `a
 
 ## Output controls
 
-Tailor uses concise, border-free reports by default, including in pipes and redirected output. Attention appears before planned or confirmed changes. Totals distinguish preserved files from excluded management and unchanged results.
+Tailor selects the terminal layout when standard output is a terminal and `TERM` is not `dumb`. The layout has a command header, context, and a mode badge. Pipes, redirected output, and `TERM=dumb` use border-free concise reports. Both layouts put attention before changes and distinguish preserved, excluded, and unchanged totals.
 
 | Flag | Behaviour |
 |---|---|
-| `--format=auto` | Default concise report on every output stream |
+| `--format=auto` | Default terminal layout, or border-free concise output for pipes and `TERM=dumb` |
 | `--format=plain` | Legacy result rows, with state-aware guidance |
 | `--verbose` | Expand preserved, excluded, and unchanged details, with append-only stage records |
 | `--quiet` | Keep totals, attention, notices, and essential edits or verification steps |
 | `--color=auto\|always\|never` | Control colour on capable terminals |
 | `--no-progress` | Disable live progress without changing the final report |
 
-`--quiet` takes precedence over `--verbose` and uses concise output even with `--format=plain`. It omits optional guidance. Redirected output and `TERM=dumb` contain no colour or cursor controls, even with `--color=always`. `NO_COLOR` disables automatic colour. Plain format never uses colour or progress.
+`--quiet` takes precedence over `--verbose` and uses border-free concise output even with `--format=plain`. It omits optional and informational guidance, and routine final advice without attention. Required edits and verification steps remain visible. Redirected output and `TERM=dumb` contain no colour or cursor controls, even with `--color=always`. `NO_COLOR` disables automatic colour but retains the terminal layout. `--color=never` also retains the layout. Plain format never uses colour or progress.
 
-Concise reports collapse preserved and excluded results into totals and reason counts. Unchanged details stay hidden except in `docket`. Use `--verbose` to inspect each result. Multiline optional guidance shows a short notice and a verbose hint by default. Use `tailor baste --verbose` for the full adoption steps and safeguards. Explicit `--format=plain` retains the full guidance. Preservation is not a blocker. For example, an unowned Dependabot file is preserved, while inactive Dependabot management is excluded.
+The terminal layout uses single-depth panels for attention, proposed or confirmed changes, reapply requests, and the next action. Reapply requests have a separate count outside the alteration count. Default rows use readable names under domain headings. With `--verbose`, domain panels show every result and exact provenance keys when available. `docket` retains identity details. Matching values have no unchanged-value arrow.
 
-Numbered guidance gives specific edits or verification steps before generic advice. For preserved roots and clients, Tailor suppresses instructions for detected setup. See [inspection limits and safety](Configuration#guidance-for-preserved-files). A detected entry is syntax evidence, not runtime acceptance.
+Terminal colours use your palette, with distinct roles for identity, changes, attention, and reapply requests. Matching, preserved, and excluded results use muted text. Suggested commands, explicit backtick spans, and indented guidance snippets receive code highlighting. Backtick delimiters stay visible without colour. Without a UTF-8 locale, frames and arrows use ASCII characters. Widths below 60 columns use no frames. Blocks with overflowing commands or indented snippets also stay unboxed, without splitting copyable content.
+
+Default reports hide preserved and excluded details. Border-free concise output also shows reason counts beside their totals. Use `--verbose` to inspect each result. Multiline optional guidance shows a short notice and a verbose hint by default. Use `tailor baste --verbose` for the full adoption steps and safeguards. Explicit `--format=plain` retains the full guidance. Preservation is not a blocker. For example, an unowned Dependabot file is preserved, while inactive Dependabot management is excluded.
+
+Required guidance replaces generic final advice. In the terminal layout, required edits or final advice appear under `Next`. Optional and informational guidance stay outside `Next` and do not replace the next action. Numbered steps retain their original numbering. For preserved roots and clients, Tailor suppresses instructions for detected setup. See [inspection limits and safety](Configuration#guidance-for-preserved-files). A detected entry is syntax evidence, not runtime acceptance.
 
 Use `tailor --format=plain baste` when you need the legacy rows shown below. Guidance still reflects the inspected state.
 

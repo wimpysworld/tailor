@@ -101,7 +101,12 @@ func TestManagedReportingEnvrcGuidance(t *testing.T) {
 				}
 				found := false
 				for _, guidance := range report.Document.Guidance {
-					found = found || strings.Contains(guidance.Text, "Optional: review `.envrc` watches")
+					if strings.Contains(guidance.Text, "Optional: review `.envrc` watches") {
+						found = true
+						if guidance.Kind != output.GuidanceOptional {
+							t.Fatal("optional review blocks the next action")
+						}
+					}
 				}
 				if found != tc.want {
 					t.Fatalf("structured watch guidance = %v, want %v", found, tc.want)
@@ -136,6 +141,11 @@ func TestManagedReportingAddsConditionalWarningsAndAdoptionGuidance(t *testing.T
 	} {
 		if !strings.Contains(report.Plain, text) {
 			t.Errorf("plain report lacks %q: %s", text, report.Plain)
+		}
+	}
+	for _, guidance := range report.Document.Guidance {
+		if strings.HasPrefix(guidance.Text, "Optional: review and add new Nix files") && guidance.Kind != output.GuidanceOptional {
+			t.Fatal("optional Nix review blocks the next action")
 		}
 	}
 	if strings.Contains(strings.ToLower(report.Plain), "index") {
