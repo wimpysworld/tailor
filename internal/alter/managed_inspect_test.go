@@ -160,6 +160,7 @@ func TestManagedNixInspection(t *testing.T) {
 		{"indented interpolation", `packages = []; shellHook = ''${import ./nix/hooks.nix { inherit pkgs; }}'';`, managedSetupMissing, managedSetupUnknown},
 		{"nested interpolation", `packages = []; shellHook = "${"${import ./nix/hooks.nix { inherit pkgs; }}"}";`, managedSetupMissing, managedSetupUnknown},
 		{"escaped quoted interpolation", `packages = []; shellHook = "echo \${PATH}";`, managedSetupMissing, managedSetupMissing},
+		{"system name hook", `packages = []; shellHook = "x86_64-linux";`, managedSetupMissing, managedSetupMissing},
 		{"escaped indented interpolation", `packages = []; shellHook = ''echo ''${PATH}'';`, managedSetupMissing, managedSetupMissing},
 		{"overridden args", `packages = import ./nix/loader.nix { pkgs = pkgs // { go = pkgs.go_1_26; }; }; shellHook = import ./nix/hooks.nix { inherit pkgs; };`, managedSetupUnknown, managedSetupPresent},
 		{"dynamic packages", `packages = projectPackages; shellHook = projectHook;`, managedSetupUnknown, managedSetupUnknown},
@@ -289,6 +290,89 @@ func TestManagedNixActiveOutputsScope(t *testing.T) {
 	got := inspectManagedNix([]byte(source))
 	if got.packages.state != managedSetupPresent || got.hooks.state != managedSetupPresent {
 		t.Fatalf("active scope not selected: %#v", got)
+	}
+}
+
+func TestManagedNixOptionalOutputs(t *testing.T) {
+	content, err := swatch.Content("flake.nix")
+	if err != nil {
+		t.Fatal(err)
+	}
+	androidGuard := `system == "x86_64-linux" && builtins.pathExists ./nix/shells/go-ebitengine-android.nix`
+	blenderGuard := `builtins.pathExists ./nix/lib/blender.nix`
+	for _, tc := range []struct {
+		name, androidGuard, blenderGuard string
+		android, blender                 managedSetupState
+	}{
+		{"true", "true", "true", managedSetupPresent, managedSetupPresent},
+		{"false", "false", "false", managedSetupMissing, managedSetupMissing},
+		{"unknown", "enabled", "enabled", managedSetupUnknown, managedSetupUnknown},
+		{"generated guards", androidGuard, blenderGuard, managedSetupPresent, managedSetupPresent},
+		{"wrong system", strings.ReplaceAll(androidGuard, "x86_64-linux", "aarch64-linux"), blenderGuard, managedSetupUnknown, managedSetupPresent},
+		{"wrong Android path", strings.ReplaceAll(androidGuard, "go-ebitengine-android.nix", "other.nix"), blenderGuard, managedSetupUnknown, managedSetupPresent},
+		{"wrong Blender path", androidGuard, "builtins.pathExists ./other.nix", managedSetupPresent, managedSetupUnknown},
+		{"swapped guards", blenderGuard, androidGuard, managedSetupUnknown, managedSetupUnknown},
+		{"disabled composition", androidGuard + " && false", blenderGuard + " && false", managedSetupUnknown, managedSetupUnknown},
+		{"empty predicate", "", "", managedSetupUnknown, managedSetupUnknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := strings.NewReplacer(androidGuard, tc.androidGuard, blenderGuard, tc.blenderGuard).Replace(string(content))
+			got := inspectManagedNix([]byte(source))
+			if got.android.state != tc.android || got.blender.state != tc.blender {
+				t.Fatalf("inspection = %#v, want Android %v, Blender %v", got, tc.android, tc.blender)
+			}
+			if tc.android != managedSetupUnknown && (got.packages.state != managedSetupPresent || got.hooks.state != managedSetupPresent) {
+				t.Fatalf("unconditional shell setup lost: %#v", got)
+			}
+			dir := t.TempDir()
+			writeManagedTestFile(t, dir, "flake.nix", []byte(source))
+			cfg := ebitengineConfig()
+			cfg.MCP = &config.MCPSettings{Blender: new(true)}
+			guidance := strings.Join(managedRootGuidance(cfg, dir, "flake.nix"), "\n")
+			for _, output := range []struct {
+				name  string
+				state managedSetupState
+			}{
+				{"android", tc.android},
+				{"blender-agent-bridge-extension", tc.blender},
+			} {
+				switch output.state {
+				case managedSetupPresent:
+					if strings.Contains(guidance, output.name) {
+						t.Errorf("satisfied output has guidance: %s", guidance)
+					}
+				case managedSetupMissing:
+					if !strings.Contains(guidance, "Add `"+output.name+" =") {
+						t.Errorf("disabled output lacks adoption guidance: %s", guidance)
+					}
+				case managedSetupUnknown:
+					if !strings.Contains(guidance, "Verify `flake.nix`") || !strings.Contains(guidance, output.name+" output:") || strings.Contains(guidance, "Add `"+output.name+" =") {
+						t.Errorf("unknown output lacks safe verification guidance: %s", guidance)
+					}
+				}
+			}
+			assertManagedBytes(t, filepath.Join(dir, "flake.nix"), []byte(source))
+		})
+	}
+}
+
+func TestManagedNixOptionalAttrsComposition(t *testing.T) {
+	for _, tc := range []struct {
+		name, expression string
+		state            managedSetupState
+	}{
+		{"inactive duplicate", `{ android = ` + managedNixAndroidOutput + `; } // pkgs.lib.optionalAttrs (false) { android = other; }`, managedSetupPresent},
+		{"active duplicate", `{ android = ` + managedNixAndroidOutput + `; } // pkgs.lib.optionalAttrs (true) { android = other; }`, managedSetupUnknown},
+		{"unknown override", `{ android = ` + managedNixAndroidOutput + `; } // pkgs.lib.optionalAttrs (enabled) { android = other; }`, managedSetupUnknown},
+		{"unrelated guarded output", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix) { android = ` + managedNixAndroidOutput + `; }`, managedSetupUnknown},
+		{"extra guarded output", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix) { blender-agent-bridge-extension = ` + managedNixBlenderOutput + `; android = ` + managedNixAndroidOutput + `; }`, managedSetupUnknown},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := `{ outputs = { self }: { devShells.x86_64-linux = ` + tc.expression + `; }; }`
+			if got := inspectManagedNix([]byte(source)); got.android.state != tc.state {
+				t.Fatalf("inspection = %#v, want Android %v", got, tc.state)
+			}
+		})
 	}
 }
 

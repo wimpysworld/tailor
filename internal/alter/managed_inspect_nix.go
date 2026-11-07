@@ -6,6 +6,11 @@ import (
 	"unicode"
 )
 
+const (
+	managedNixAndroidOutput = "import ./nix/shells/go-ebitengine-android.nix { inherit pkgs ; }"
+	managedNixBlenderOutput = "( import ./nix/lib/blender.nix { inherit pkgs ; } ) .extension"
+)
+
 type managedNixInspection struct {
 	packages managedSetupInspection
 	hooks    managedSetupInspection
@@ -36,8 +41,8 @@ func inspectManagedNix(content []byte) managedNixInspection {
 			}
 		}
 	}
-	result.android = inspectManagedNixOutput(tokens, "devShells", "android", "import ./nix/shells/go-ebitengine-android.nix { inherit pkgs ; }")
-	result.blender = inspectManagedNixOutput(tokens, "packages", "blender-agent-bridge-extension", "( import ./nix/lib/blender.nix { inherit pkgs ; } ) .extension")
+	result.android = inspectManagedNixOutput(tokens, "devShells", "android", managedNixAndroidOutput)
+	result.blender = inspectManagedNixOutput(tokens, "packages", "blender-agent-bridge-extension", managedNixBlenderOutput)
 	return result
 }
 
@@ -88,7 +93,7 @@ func inspectManagedNixHook(tokens []string) managedSetupInspection {
 	if len(tokens) == 0 {
 		return managedSetupInspection{state: managedSetupMissing}
 	}
-	if len(tokens) == 1 && tokens[0] == "\x00" {
+	if len(tokens) == 1 && strings.HasPrefix(tokens[0], "\x00") && !strings.Contains(tokens[0], "${}") {
 		return managedSetupInspection{state: managedSetupMissing, cause: "literal custom hook"}
 	}
 	hook := "import ./nix/hooks.nix { inherit pkgs ; }"
@@ -212,12 +217,17 @@ func managedNixOutputAttrs(tokens []string) (map[string][]string, bool) {
 	}
 	attrs := make(map[string][]string)
 	for len(tokens) > 0 {
+		var predicate []string
 		if tokens[0] == "pkgs.lib.optionalAttrs" {
 			if len(tokens) < 2 || tokens[1] != "(" {
 				return nil, false
 			}
 			end := managedNixEnd(tokens, 1)
 			if end < 0 {
+				return nil, false
+			}
+			predicate = tokens[2:end]
+			if len(predicate) == 0 {
 				return nil, false
 			}
 			tokens = tokens[end+1:]
@@ -232,6 +242,14 @@ func managedNixOutputAttrs(tokens []string) (map[string][]string, bool) {
 		set, ok := managedNixAttrs(tokens[1:end])
 		if !ok {
 			return nil, false
+		}
+		if predicate != nil {
+			switch managedNixOptionalAttrs(predicate, set) {
+			case managedSetupMissing:
+				set = nil
+			case managedSetupUnknown:
+				return nil, false
+			}
 		}
 		for name, value := range set {
 			if _, exists := attrs[name]; exists {
@@ -249,6 +267,26 @@ func managedNixOutputAttrs(tokens []string) (map[string][]string, bool) {
 		tokens = tokens[1:]
 	}
 	return attrs, true
+}
+
+// Generated guards establish adoption only for the output that imports the guarded path.
+// They do not establish path availability or runtime compatibility.
+func managedNixOptionalAttrs(predicate []string, attrs map[string][]string) managedSetupState {
+	switch strings.Join(predicate, " ") {
+	case "true":
+		return managedSetupPresent
+	case "false":
+		return managedSetupMissing
+	case "builtins.pathExists ./nix/lib/blender.nix":
+		if len(attrs) == 1 && strings.Join(attrs["blender-agent-bridge-extension"], " ") == managedNixBlenderOutput {
+			return managedSetupPresent
+		}
+	case "system = = \x00x86_64-linux && builtins.pathExists ./nix/shells/go-ebitengine-android.nix":
+		if len(attrs) == 1 && strings.Join(attrs["android"], " ") == managedNixAndroidOutput {
+			return managedSetupPresent
+		}
+	}
+	return managedSetupUnknown
 }
 
 func managedNixAttrs(tokens []string) (map[string][]string, bool) {
@@ -313,7 +351,8 @@ func managedNixEnd(tokens []string, start int) int {
 	return -1
 }
 
-// Strings are opaque tokens, with interpolation marked separately from literal content.
+// Strings are opaque tokens, except the platform literal in the generated Android guard.
+// Interpolation is marked separately from literal content.
 func managedNixTokens(source string) ([]string, bool) {
 	var tokens []string
 	for i := 0; i < len(source); {
@@ -340,11 +379,13 @@ func managedNixTokens(source string) ([]string, bool) {
 			if !ok {
 				return nil, false
 			}
-			token := "\x00"
+			literal := "\x00"
 			if interpolated {
-				token = "\x00${}"
+				literal = "\x00${}"
+			} else if source[i:end] == `"x86_64-linux"` {
+				literal = "\x00x86_64-linux"
 			}
-			tokens = append(tokens, token)
+			tokens = append(tokens, literal)
 			i = end
 			continue
 		}
