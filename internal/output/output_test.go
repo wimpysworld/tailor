@@ -69,8 +69,8 @@ func TestVerboseExpandsEveryResult(t *testing.T) {
 	if got := strings.Count(out.String(), "check"); got != 79 {
 		t.Fatalf("expanded unchanged rows = %d, want 79", got)
 	}
-	if got := strings.Count(out.String(), "first-fit, exists"); got != 12 {
-		t.Fatalf("expanded policy rows = %d, want 12", got)
+	if got := strings.Count(out.String(), "first-fit, exists"); got != 1 {
+		t.Fatalf("shared preservation reason count = %d, want 1", got)
 	}
 }
 
@@ -280,12 +280,13 @@ func TestTerminalProgressIntegration(t *testing.T) {
 	}
 
 	var verbose strings.Builder
-	verboseProgress := startProgress(&verbose, progressConfig{verbose: true, ascii: true})
+	verbosePolicy := New(nil, &verbose, Auto, WithTTY(true), WithStderrTTY(true), WithVerbose(true), WithASCII(true))
+	verboseProgress := verbosePolicy.StartProgress()
 	verboseProgress.Observe(StageEvent{ID: "wiki", Label: "Wiki\ncheck", Phase: "start", Item: "Home\r.md"})
 	verboseProgress.Observe(StageEvent{ID: "wiki", Label: "Wiki checked", Phase: "complete"})
 	verboseProgress.Stop()
-	if got := verbose.String(); got != "[start] · Wiki\\x0acheck · Home\\x0d.md\n[complete] · Wiki checked\n" || strings.Contains(got, "\x1b[") {
-		t.Fatalf("verbose stage records = %q", got)
+	if got := verbose.String(); got != "" {
+		t.Fatalf("short verbose stages emitted progress = %q", got)
 	}
 }
 
@@ -307,7 +308,7 @@ func TestProgressPolicyControlsColourASCIIAndVerbose(t *testing.T) {
 	verboseProgress := verbosePolicy.StartProgress()
 	verboseProgress.Observe(StageEvent{ID: "licence", Label: "Measuring licence", Phase: "start"})
 	verboseProgress.Stop()
-	if got := stderr.String(); got != "[start] · Measuring licence\n" {
+	if got := stderr.String(); got != "" || !verboseProgress.config.animate {
 		t.Fatalf("verbose policy output = %q", got)
 	}
 }

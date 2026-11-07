@@ -59,6 +59,8 @@ const (
 type Item struct {
 	Domain, Category, OutcomeLabel, Action, Name, Before, After, Reason, Provenance string
 	Outcome                                                                         Outcome
+	// List values retain item boundaries without parsing display strings.
+	BeforeItems, AfterItems []string
 }
 
 // StageEvent reports execution progress without display text parsing.
@@ -120,7 +122,7 @@ func WithWidth(width int) Option { return func(p *Policy) { p.width = width } }
 // WithColor sets the ANSI colour policy independently of layout.
 func WithColor(color Color) Option { return func(p *Policy) { p.color = color } }
 
-// WithVerbose expands result groups and uses append-only stage records.
+// WithVerbose expands result groups without changing live progress.
 func WithVerbose(v bool) Option { return func(p *Policy) { p.verbose = v } }
 
 // WithQuiet limits output to totals and essential guidance.
@@ -175,19 +177,18 @@ func (p *Policy) Stderr() io.Writer { return p.stderr }
 // Rich reports whether automatic format and terminal capabilities permit colour and progress.
 func (p *Policy) Rich() bool { return p.format == Auto && p.tty && os.Getenv("TERM") != "dumb" }
 
-// StartProgress selects live animation or verbose stage records, or returns nil when neither is enabled.
+// StartProgress selects live animation on capable terminals.
 func (p *Policy) StartProgress() *Progress {
 	if p.format == Plain {
 		return nil
 	}
-	animate := p.ProgressEnabled(false) && !p.verbose
-	if !animate && (!p.verbose || p.quiet) {
+	if !p.ProgressEnabled(false) || p.quiet {
 		return nil
 	}
-	return startProgress(p.stderr, progressConfig{animate: animate, verbose: p.verbose, colour: p.colourEnabled(), ascii: p.ascii})
+	return startProgress(p.stderr, progressConfig{animate: true, colour: p.colourEnabled(), ascii: p.ascii})
 }
 
-// ProgressEnabled checks terminal and progress flags, before StartProgress applies the verbose policy.
+// ProgressEnabled checks terminal and progress flags.
 func (p *Policy) ProgressEnabled(noProgress bool) bool {
 	return !noProgress && !p.noProgress && p.Rich() && p.stderrTTY && os.Getenv("TERM") != "dumb"
 }

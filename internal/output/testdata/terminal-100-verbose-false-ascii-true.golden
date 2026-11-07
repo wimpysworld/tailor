@@ -19,9 +19,11 @@ tailor baste                                                                    
 1 reapply request, 3 alterations, 1 preserved, 1 excluded, 3 unchanged
 Details: `tailor baste --verbose`
 
-Optional: adopt Tailor's Dependabot templates.
-Use `tailor baste --verbose` for adoption steps and safeguards.
-
 +- Next -------------------------------------------------------------------------------------------+
 | Review the preview, then run `tailor alter`.                                                     |
 +--------------------------------------------------------------------------------------------------+
+
+Additional guidance
+
+Optional: adopt Tailor's Dependabot templates.
+Use `tailor baste --verbose` for adoption steps and safeguards.

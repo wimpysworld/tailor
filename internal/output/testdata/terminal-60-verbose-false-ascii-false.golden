@@ -3,19 +3,16 @@ tailor baste                                 octocat/project
 
 ╭─ Proposed changes ───────────────────────────────────────╮
 │ Security                                                 │
-│ Secret scanning                                          │
-│   disabled → enabled                                     │
+│ Secret scanning = disabled → enabled                     │
 │ Actions                                                  │
-│ Workflow permissions                                     │
-│   write → read                                           │
+│ Workflow permissions = write → read                      │
 │ Files                                                    │
 │ .github/SECURITY.md: would copy                          │
 ╰──────────────────────────────────────────────────────────╯
 
 ╭─ Reapply requests ───────────────────────────────────────╮
 │ Security                                                 │
-│ Push protection: would reapply                           │
-│   enabled                                                │
+│ Push protection: would reapply = enabled                 │
 │   Reapply the enable request.                            │
 ╰──────────────────────────────────────────────────────────╯
 
@@ -23,10 +20,12 @@ tailor baste                                 octocat/project
 3 unchanged
 Details: `tailor baste --verbose`
 
-Optional: adopt Tailor's Dependabot templates.
-Use `tailor baste --verbose` for adoption steps and
-safeguards.
-
 ╭─ Next ───────────────────────────────────────────────────╮
 │ Review the preview, then run `tailor alter`.             │
 ╰──────────────────────────────────────────────────────────╯
+
+Additional guidance
+
+Optional: adopt Tailor's Dependabot templates.
+Use `tailor baste --verbose` for adoption steps and
+safeguards.

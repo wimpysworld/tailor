@@ -20,7 +20,7 @@ type (
 	}
 	stopProgress   struct{}
 	progressConfig struct {
-		animate, verbose, colour, ascii bool
+		animate, colour, ascii bool
 	}
 )
 
@@ -160,10 +160,6 @@ func (p *Progress) Observe(event StageEvent) {
 	if p.stopped {
 		return
 	}
-	if p.config.verbose {
-		fmt.Fprintln(p.writer, stageRecord(event))
-		return
-	}
 	if p.program != nil {
 		p.program.Send(event)
 		return
@@ -192,20 +188,6 @@ func (p *Progress) activate(generation uint64) {
 	model.stage, model.active = p.stage, true
 	p.program = tea.NewProgram(model, tea.WithInput(nil), tea.WithOutput(p.writer), tea.WithoutSignalHandler())
 	go func() { _, _ = p.program.Run(); close(p.done) }()
-}
-
-func stageRecord(event StageEvent) string {
-	parts := []string{"[" + termtext.EscapeControlText(event.Phase) + "]", termtext.EscapeControlText(event.Label)}
-	if event.Total > 0 {
-		parts = append(parts, fmt.Sprintf("%d of %d", event.Current, event.Total))
-	}
-	if event.Item != "" {
-		parts = append(parts, termtext.EscapeControlText(event.Item))
-	}
-	if event.Err != nil {
-		parts = append(parts, termtext.EscapeControlText(event.Err.Error()))
-	}
-	return strings.Join(parts, " · ")
 }
 
 // WarningWriter prints above the live display, then Bubble Tea redraws the active stage.

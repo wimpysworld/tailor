@@ -44,7 +44,7 @@ func buildReport(command, context string, repo []RepoSettingResult, labels []Lab
 			name = r.Operation.String()
 		}
 		domain, category := repoDomain(r.Section, r.Field)
-		doc.Items = append(doc.Items, output.Item{Domain: domain, Category: category, Outcome: outcome, Action: action, Name: displayName(name), Before: r.Before, After: r.Value, Reason: r.Annotation, Provenance: qualified(r.Section, r.Field)})
+		doc.Items = append(doc.Items, output.Item{Domain: domain, Category: category, Outcome: outcome, Action: action, Name: displayName(name), Before: r.Before, After: r.Value, BeforeItems: r.BeforeItems, AfterItems: r.AfterItems, Reason: r.Annotation, Provenance: qualified(r.Section, r.Field)})
 	}
 	for _, r := range labels {
 		outcome, action := output.Unchanged, "match"

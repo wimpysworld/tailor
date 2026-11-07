@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -88,6 +89,39 @@ func TestTerminalFixtures(t *testing.T) {
 					}
 				})
 			}
+		}
+	}
+}
+
+func TestTerminalSupportingTextFullIntensity(t *testing.T) {
+	t.Setenv("TERM", "xterm-256color")
+	faint := regexp.MustCompile(`\x1b\[(?:[0-9]+;)*2(?:;[0-9]+)*m`)
+	for _, width := range []int{60, 80, 100} {
+		for _, verbose := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%d/verbose=%t", width, verbose), func(t *testing.T) {
+				p := New(nil, nil, Auto, WithTTY(true), WithWidth(width), WithVerbose(verbose), WithColor(ColorAlways))
+				doc := terminalDocument()
+				doc.Guidance[0].Text = "Optional: use `tailor docket`."
+				got := p.Render(doc)
+				if faint.MatchString(got) {
+					t.Fatal("final report contains SGR faint")
+				}
+				if p.muted("supporting value") != "supporting value" {
+					t.Fatal("supporting text overrides the terminal foreground or weight")
+				}
+				clean := ansi.Strip(got)
+				for _, text := range []string{"octocat/project", "3 unchanged", "Optional: use `tailor docket`."} {
+					if !strings.Contains(clean, text) {
+						t.Errorf("missing supporting text %q", text)
+					}
+				}
+				if verbose && (!strings.Contains(clean, "workflow") || !strings.Contains(clean, "active") || !strings.Contains(clean, "d73a4a")) {
+					t.Fatal("verbose report lost matching values")
+				}
+				if !strings.Contains(got, p.code("`tailor docket`")) {
+					t.Fatal("optional command lost full-intensity highlighting")
+				}
+			})
 		}
 	}
 }
@@ -179,7 +213,7 @@ func TestTerminalHierarchy(t *testing.T) {
 	if strings.Contains(got, "\x1b[36m") || !strings.Contains(got, p.muted("true")) {
 		t.Fatal("matching results use change colour")
 	}
-	if strings.Index(clean, "Optional:") > strings.Index(clean, " Next ") || strings.Contains(clean, "Run `tailor alter`") {
+	if strings.Index(clean, "Optional:") < strings.Index(clean, " Next ") || strings.Contains(clean, "Run `tailor alter`") {
 		t.Fatal("incorrect guidance priority")
 	}
 	if !strings.Contains(got, p.code("`tailor docket`")) || !strings.Contains(got, p.code("    git status --short")) {

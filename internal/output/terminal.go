@@ -2,6 +2,7 @@ package output
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"charm.land/lipgloss/v2"
@@ -15,6 +16,7 @@ const (
 	changeColour    = "6"
 	attentionColour = "3"
 	neutralColour   = "4"
+	settledColour   = "2"
 )
 
 func (p *Policy) code(text string) string {
@@ -54,11 +56,9 @@ func (p *Policy) inlineCode(text string) string {
 	return b.String()
 }
 
+// muted keeps supporting text at normal weight in the terminal's foreground.
 func (p *Policy) muted(text string) string {
-	if !p.colourEnabled() {
-		return text
-	}
-	return lipgloss.NewStyle().Faint(true).Render(text)
+	return text
 }
 
 func (p *Policy) renderTerminal(doc Document) string {
@@ -88,6 +88,13 @@ func (p *Policy) renderTerminal(doc Document) string {
 		p.line(&b, detail, "", "")
 	} else {
 		fmt.Fprintln(&b, badge+" "+detail)
+	}
+	summary := doc.Summary
+	if summary == (Summary{}) {
+		summary = Count(doc.Items)
+	}
+	if p.verbose {
+		p.terminalSummary(&b, summary, doc.Items)
 	}
 	b.WriteByte('\n')
 	for _, notice := range doc.Notices {
@@ -132,11 +139,9 @@ func (p *Policy) renderTerminal(doc Document) string {
 			p.resultPanel(&b, "Identity", unchanged, neutralColour, true)
 		}
 	}
-	summary := doc.Summary
-	if summary == (Summary{}) {
-		summary = Count(doc.Items)
+	if !p.verbose {
+		p.terminalSummary(&b, summary, doc.Items)
 	}
-	p.terminalSummary(&b, summary, doc.Items)
 	if !p.verbose && len(doc.Items) > 0 {
 		p.line(&b, "Details: `tailor "+doc.Command+" --verbose`", "", "")
 	}
@@ -156,7 +161,14 @@ func (p *Policy) renderTerminal(doc Document) string {
 			next.Guidance = append(next.Guidance, g)
 		}
 	}
+	advicePolicy.guidance(&advice, next)
+	if text := strings.Trim(advice.String(), "\n"); text != "" {
+		b.WriteByte('\n')
+		p.panel(&b, "Next", text, identityColour)
+	}
 	if len(other.Guidance) > 0 {
+		b.WriteByte('\n')
+		fmt.Fprintln(&b, p.style("Additional guidance", neutralColour))
 		var notes strings.Builder
 		p.guidance(&notes, other)
 		for line := range strings.SplitSeq(strings.TrimSuffix(notes.String(), "\n"), "\n") {
@@ -167,11 +179,6 @@ func (p *Policy) renderTerminal(doc Document) string {
 				fmt.Fprintln(&b, p.inlineCode(p.muted(text)))
 			}
 		}
-	}
-	advicePolicy.guidance(&advice, next)
-	if text := strings.Trim(advice.String(), "\n"); text != "" {
-		b.WriteByte('\n')
-		p.panel(&b, "Next", text, identityColour)
 	}
 	return b.String()
 }
@@ -230,7 +237,7 @@ func (p *Policy) terminalSummary(b *strings.Builder, summary Summary, items []It
 	b.WriteByte('\n')
 }
 
-// domainPanels retains input order within each domain and every result in verbose mode.
+// domainPanels puts actionable domains first, preserving ties and every result.
 func (p *Policy) domainPanels(b *strings.Builder, items []Item) {
 	var domains []string
 	groups := map[string][]Item{}
@@ -244,8 +251,16 @@ func (p *Policy) domainPanels(b *strings.Builder, items []Item) {
 		}
 		groups[domain] = append(groups[domain], item)
 	}
+	domainRank := func(domain string) int {
+		rank := 9
+		for _, item := range groups[domain] {
+			rank = min(rank, terminalRank(item))
+		}
+		return rank
+	}
+	sort.SliceStable(domains, func(i, j int) bool { return domainRank(domains[i]) < domainRank(domains[j]) })
 	for _, domain := range domains {
-		colour := ""
+		colour := settledColour
 		for _, item := range groups[domain] {
 			if item.Outcome == Alteration || item.Outcome == Applied || item.Outcome == Created {
 				if item.Action == "reapply" && colour != changeColour {
@@ -257,6 +272,27 @@ func (p *Policy) domainPanels(b *strings.Builder, items []Item) {
 		}
 		p.resultPanel(b, domain, groups[domain], colour, false)
 	}
+}
+
+func terminalRank(item Item) int {
+	if item.Action == "reapply" {
+		return 3
+	}
+	switch item.Outcome {
+	case Alteration:
+		return 0
+	case Applied:
+		return 1
+	case Created:
+		return 2
+	case Unchanged:
+		return 4
+	case Preserved:
+		return 5
+	case Excluded:
+		return 6
+	}
+	return 7
 }
 
 func terminalDomain(item Item) string {
@@ -297,9 +333,22 @@ func (p *Policy) resultPanel(b *strings.Builder, title string, items []Item, col
 	if p.width >= 60 {
 		inner.width = p.width - 4
 	}
-	var content strings.Builder
-	last := ""
-	for _, item := range items {
+	var content, details strings.Builder
+	items = append([]Item(nil), items...)
+	if p.verbose {
+		sort.SliceStable(items, func(i, j int) bool {
+			a, z := terminalRank(items[i]), terminalRank(items[j])
+			if a != z {
+				return a < z
+			}
+			if a >= 5 {
+				return items[i].Reason < items[j].Reason
+			}
+			return false
+		})
+	}
+	last, lastReason, lastPrefix := "", "", ""
+	for index, item := range items {
 		heading := terminalStatus(item)
 		if domains {
 			heading = terminalDomain(item)
@@ -317,14 +366,82 @@ func (p *Policy) resultPanel(b *strings.Builder, title string, items []Item, col
 			}
 			fmt.Fprintln(&content, p.panelStyle(heading, c))
 		}
+		if heading != last {
+			lastReason, lastPrefix = "", ""
+		}
 		last = heading
-		inner.terminalItem(&content, item)
+		if p.verbose && (item.Outcome == Preserved || item.Outcome == Excluded) && item.Reason != "" {
+			if item.Reason != lastReason {
+				inner.line(&content, item.Reason+":", "", "")
+				lastReason = item.Reason
+			}
+			item.Reason = ""
+		}
+		prefix := ""
+		if p.verbose && strings.HasPrefix(item.Provenance, "ruleset.rules.") {
+			if at := strings.LastIndex(item.Provenance, "."); at >= 0 {
+				candidate := item.Provenance[:at]
+				if strings.Contains(candidate, ".parameters") && lipgloss.Width(candidate) <= inner.width {
+					prefix = candidate
+				}
+			}
+		}
+		if prefix != "" {
+			if prefix != lastPrefix {
+				content.WriteByte('\n')
+				fmt.Fprintln(&content, p.code(prefix))
+			}
+			item.Provenance = strings.TrimPrefix(item.Provenance, prefix+".")
+		}
+		lastPrefix = prefix
+		alignment := 0
+		if p.verbose {
+			for _, peer := range items {
+				if terminalStatus(peer) != heading {
+					continue
+				}
+				key := peer.Provenance
+				if prefix != "" {
+					if !strings.HasPrefix(key, prefix+".") {
+						continue
+					}
+					key = strings.TrimPrefix(key, prefix+".")
+				}
+				if w := lipgloss.Width(key); w <= inner.width/2 {
+					alignment = max(alignment, w)
+				}
+			}
+		}
+		var row strings.Builder
+		inner.terminalItem(&row, item, alignment)
+		oversize := false
+		for line := range strings.SplitSeq(row.String(), "\n") {
+			if lipgloss.Width(line) > inner.width {
+				oversize = true
+			}
+		}
+		if oversize && p.width >= 60 {
+			label := item.Name
+			if label == "" || lipgloss.Width(label) > inner.width-20 {
+				label = fmt.Sprintf("Result %d", index+1)
+			}
+			inner.line(&content, label+" (details below)", "", "")
+			fmt.Fprintln(&details, p.code(termtext.EscapeControlText(label)))
+			details.WriteString(row.String())
+			details.WriteByte('\n')
+		} else {
+			content.WriteString(row.String())
+		}
 	}
 	p.panel(b, title, strings.TrimSuffix(content.String(), "\n"), colour)
+	if details.Len() > 0 {
+		fmt.Fprintln(b, p.style(title+" details", colour))
+		b.WriteString(details.String())
+	}
 	b.WriteByte('\n')
 }
 
-func (p *Policy) terminalItem(b *strings.Builder, item Item) {
+func (p *Policy) terminalItem(b *strings.Builder, item Item, alignment int) {
 	name := item.Provenance
 	if !p.verbose && item.Name != "" {
 		name = item.Name
@@ -362,6 +479,19 @@ func (p *Policy) terminalItem(b *strings.Builder, item Item) {
 	if item.Outcome == Unchanged || item.Outcome == Preserved || item.Outcome == Excluded {
 		valueColour = ""
 	}
+	if len(item.AfterItems) > 0 || len(item.BeforeItems) > 0 {
+		p.line(b, name, "", "")
+		if item.Before != "" && item.Action != "reapply" && item.Outcome != Unchanged {
+			p.terminalList(b, "Before", item.Before, item.BeforeItems, "")
+			p.terminalList(b, "After", item.After, item.AfterItems, valueColour)
+		} else {
+			p.terminalList(b, "", item.After, item.AfterItems, valueColour)
+		}
+		if item.Reason != "" {
+			p.line(b, item.Reason, "  ", "  ")
+		}
+		return
+	}
 	value := p.panelStyle(termtext.EscapeControlText(item.After), valueColour)
 	if item.Before != "" && item.Action != "reapply" && (item.Outcome != Unchanged || item.Before != item.After) {
 		arrow := " → "
@@ -371,7 +501,10 @@ func (p *Policy) terminalItem(b *strings.Builder, item Item) {
 		value = p.muted(termtext.EscapeControlText(item.Before)) + arrow + value
 	}
 	if item.After != "" || item.Before != "" {
-		if p.width < 76 || lipgloss.Width(name+" = "+value) > p.width {
+		if alignment > lipgloss.Width(name) {
+			name += strings.Repeat(" ", alignment-lipgloss.Width(name))
+		}
+		if (alignment > 0 && lipgloss.Width(name) > alignment) || lipgloss.Width(name+" = "+value) > p.width {
 			p.line(b, name, "", "")
 			fmt.Fprintln(b, "  "+value)
 		} else {
@@ -383,6 +516,31 @@ func (p *Policy) terminalItem(b *strings.Builder, item Item) {
 	if item.Reason != "" {
 		p.line(b, item.Reason, "  ", "  ")
 	}
+}
+
+// terminalList wraps only between typed items, never inside a value.
+func (p *Policy) terminalList(b *strings.Builder, label, fallback string, items []string, colour string) {
+	indent := "  "
+	if label != "" {
+		fmt.Fprintln(b, indent+label+":")
+	}
+	if len(items) == 0 {
+		fmt.Fprintln(b, indent+p.panelStyle(termtext.EscapeControlText(fallback), colour))
+		return
+	}
+	line := ""
+	for _, item := range items {
+		item = termtext.EscapeControlText(item)
+		if line != "" && lipgloss.Width(indent+line+", "+item+",") > p.width {
+			fmt.Fprintln(b, indent+p.panelStyle(line+",", colour))
+			line = ""
+		}
+		if line != "" {
+			line += ", "
+		}
+		line += item
+	}
+	fmt.Fprintln(b, indent+p.panelStyle(line, colour))
 }
 
 var terminalLabels = map[string]string{ //nolint:gosec // Public setting names, not credentials.
@@ -400,6 +558,9 @@ func (p *Policy) panelStyle(text, colour string) string {
 
 // panel never clips copyable data. Oversized blocks use a labelled, unboxed layout.
 func (p *Policy) panel(b *strings.Builder, title, content, colour string) {
+	if colour == "" {
+		colour = settledColour
+	}
 	lines := strings.Split(content, "\n")
 	fits := p.width >= 60 && lipgloss.Width(title)+6 <= p.width
 	for _, line := range lines {

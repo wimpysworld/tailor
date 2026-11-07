@@ -1,10 +1,11 @@
 tailor baste                                 octocat/project
 [PREVIEW] No changes made
+1 reapply request, 3 alterations, 1 preserved, 1 excluded,
+3 unchanged
 
 +- Security -----------------------------------------------+
 | Proposed                                                 |
-| repository.secret_scanning                               |
-|   disabled -> enabled                                    |
+| repository.secret_scanning = disabled -> enabled         |
 |                                                          |
 | Reapply requests                                         |
 | repository.secret_scanning_push_protection: would        |
@@ -15,8 +16,7 @@ tailor baste                                 octocat/project
 
 +- Actions ------------------------------------------------+
 | Proposed                                                 |
-| actions.default_workflow_permissions                     |
-|   write -> read                                          |
+| actions.default_workflow_permissions = write -> read     |
 +----------------------------------------------------------+
 
 +- Files --------------------------------------------------+
@@ -24,38 +24,35 @@ tailor baste                                 octocat/project
 | .github/SECURITY.md: would copy                          |
 |                                                          |
 | Preserved                                                |
+| first-fit, exists:                                       |
 | justfile                                                 |
-|   first-fit, exists                                      |
 |                                                          |
 | Excluded                                                 |
+| mode never:                                              |
 | LICENSE                                                  |
-|   mode never                                             |
 +----------------------------------------------------------+
 
 +- Pages --------------------------------------------------+
 | Already matches                                          |
-| pages.build_type                                         |
-|   workflow                                               |
+| pages.build_type = workflow                              |
 +----------------------------------------------------------+
 
 +- Ruleset ------------------------------------------------+
 | Already matches                                          |
-| ruleset.enforcement                                      |
-|   active                                                 |
+| ruleset.enforcement = active                             |
 +----------------------------------------------------------+
 
 +- Labels -------------------------------------------------+
 | Already matches                                          |
-| label.bug                                                |
-|   d73a4a                                                 |
+| label.bug = d73a4a                                       |
 +----------------------------------------------------------+
 
-1 reapply request, 3 alterations, 1 preserved, 1 excluded,
-3 unchanged
-
-Optional: adopt Tailor's Dependabot templates.
-Review with `tailor docket`.
 
 +- Next ---------------------------------------------------+
 | Review the preview, then run `tailor alter`.             |
 +----------------------------------------------------------+
+
+Additional guidance
+
+Optional: adopt Tailor's Dependabot templates.
+Review with `tailor docket`.

@@ -27,7 +27,7 @@ type CLI struct {
 	Version    kong.VersionFlag `help:"Show version."`
 	Format     output.Format    `help:"Output format: auto for concise reports, plain for legacy rows." default:"auto" enum:"auto,plain"`
 	Color      output.Color     `help:"Colour policy for capable terminals. Redirected output has no colour." default:"auto" enum:"auto,always,never"`
-	Verbose    bool             `help:"Show every result and stage."`
+	Verbose    bool             `help:"Show every result and its details."`
 	Quiet      bool             `help:"Print totals and essential attention or verification steps."`
 	NoProgress bool             `help:"Disable live progress."`
 	Fit        FitCmd           `cmd:"" help:"Create a new project with default configuration."`

@@ -261,7 +261,16 @@ func compareActions(declared, live *model.ActionsSettings) []RepoSettingResult {
 		if equal {
 			category = RepoNoChange
 		}
-		results = append(results, RepoSettingResult{Section: "actions", Field: spec.name, Category: category, Value: display, Before: actionsLiveValue(spec.name, live)})
+		result := RepoSettingResult{Section: "actions", Field: spec.name, Category: category, Value: display, Before: actionsLiveValue(spec.name, live)}
+		if spec.name == "patterns_allowed" {
+			result.AfterItems = slices.Clone(*declared.PatternsAllowed)
+			slices.Sort(result.AfterItems)
+			if live.PatternsAllowed != nil {
+				result.BeforeItems = slices.Clone(*live.PatternsAllowed)
+				slices.Sort(result.BeforeItems)
+			}
+		}
+		results = append(results, result)
 	}
 	return results
 }

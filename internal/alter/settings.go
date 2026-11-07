@@ -29,13 +29,14 @@ const (
 // carry the skipped Operation instead. Annotation carries optional context for
 // skipped operations or repeated enable requests.
 type RepoSettingResult struct {
-	Section    string
-	Field      string
-	Category   RepoSettingCategory
-	Value      string
-	Before     string
-	Annotation string
-	Operation  gh.Operation
+	Section                 string
+	Field                   string
+	Category                RepoSettingCategory
+	Value                   string
+	Before                  string
+	Annotation              string
+	Operation               gh.Operation
+	BeforeItems, AfterItems []string
 }
 
 // ProcessRepoSettings compares declared repository settings and applies changes outside DryRun.
@@ -135,6 +136,7 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 		declaredVal := dfv.Elem().Interface()
 
 		var displayVal, beforeVal string
+		var beforeItems, afterItems []string
 		var equal bool
 
 		lfv := liveFields[field.Index].Value
@@ -142,12 +144,15 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 		if dfv.Elem().Kind() == reflect.Slice {
 			dSlice := dfv.Elem().Interface().([]string)
 			displayVal = strings.Join(dSlice, ", ")
+			afterItems = slices.Clone(dSlice)
 			if !lfv.IsNil() {
 				lSlice := lfv.Elem().Interface().([]string)
 				beforeVal = strings.Join(lSlice, ", ")
+				beforeItems = slices.Clone(lSlice)
 				equal = equalStringSets(dSlice, lSlice)
 				if equal {
 					beforeVal = displayVal
+					beforeItems = slices.Clone(afterItems)
 				}
 			}
 		} else {
@@ -168,11 +173,13 @@ func compareSettings(declared, live *model.RepositorySettings) []RepoSettingResu
 			}
 		}
 		results = append(results, RepoSettingResult{
-			Field:      field.YAMLKey,
-			Category:   category,
-			Value:      displayVal,
-			Before:     beforeVal,
-			Annotation: annotation,
+			Field:       field.YAMLKey,
+			Category:    category,
+			Value:       displayVal,
+			Before:      beforeVal,
+			BeforeItems: beforeItems,
+			AfterItems:  afterItems,
+			Annotation:  annotation,
 		})
 	}
 
