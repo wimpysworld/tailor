@@ -44,8 +44,8 @@ func TestLocalOnlySummaryCounts(t *testing.T) {
 		quiet   string
 		plain   string
 	}{
-		{"mixed", []string{"just/tailor.just"}, nil, "1 applied · 1 already match\n", "updated just/tailor.just\n"},
-		{"unchanged", nil, nil, "2 already match\n", "no local changes\n"},
+		{"mixed", []string{"just/tailor.just"}, nil, "1 applied, 1 unchanged\n", "updated just/tailor.just\n"},
+		{"unchanged", nil, nil, "2 unchanged\n", "no local changes\n"},
 		{"partial failure", []string{"just/tailor.just"}, failure, "1 applied\n", "updated just/tailor.just\n"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -65,7 +65,11 @@ func TestLocalOnlySummaryCounts(t *testing.T) {
 					}
 					var stdout, stderr bytes.Buffer
 					code := run(args, &stdout, &stderr)
-					if stdout.String() != want {
+					if format == "auto" && !quiet {
+						if !strings.Contains(stdout.String(), strings.TrimSpace(test.quiet)) || !strings.Contains(stdout.String(), "tailor alter") {
+							t.Fatalf("concise output = %q", &stdout)
+						}
+					} else if stdout.String() != want {
 						t.Fatalf("format=%s quiet=%t: stdout = %q, want %q", format, quiet, &stdout, want)
 					}
 					if test.err == nil {
@@ -113,7 +117,7 @@ func TestLocalOnlyCLIHasNoRemoteAccess(t *testing.T) {
 	if code := run(args, &output, &output); code != 0 {
 		t.Fatalf("local-only exited %d: %s", code, &output)
 	}
-	if bytes.Count(output.Bytes(), []byte("updated ")) != 3 {
+	if bytes.Count(output.Bytes(), []byte(": updated")) != 3 {
 		t.Fatalf("unexpected output: %s", &output)
 	}
 	for _, format := range []string{"plain", "auto"} {
@@ -121,7 +125,7 @@ func TestLocalOnlyCLIHasNoRemoteAccess(t *testing.T) {
 			testutil.WriteFile(t, dir, name, "# Managed by Tailor: "+name+"\nold\n")
 		}
 		quietArgs := append(append([]string{}, args...), "--quiet", "--format="+format)
-		for _, want := range []string{"3 applied\n", "3 already match\n"} {
+		for _, want := range []string{"3 applied\n", "3 unchanged\n"} {
 			var stdout, stderr bytes.Buffer
 			if code := run(quietArgs, &stdout, &stderr); code != 0 {
 				t.Fatalf("quiet local-only exited %d: %s", code, &stderr)

@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/gh"
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/output"
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -99,11 +100,17 @@ func TestRepeatedAlertsEnablementReport(t *testing.T) {
 			if len(results) != 1 || results[0].Category != WouldSet || results[0].Before != "true" || results[0].Value != "true" || results[0].Annotation != reason {
 				t.Fatalf("raw results = %#v", results)
 			}
-			if item.Action != "set" || item.Before != "true" || item.After != "true" || item.Reason != reason || item.Provenance != "repository.vulnerability_alerts_enabled" {
+			wantAction := "set"
+			wantValue := "true -> true"
+			if tc.mode == DryRun {
+				wantAction = "reapply"
+				wantValue = "would reapply = true"
+			}
+			if item.Action != wantAction || item.Before != "true" || item.After != "true" || item.Reason != reason || item.Provenance != "repository.vulnerability_alerts_enabled" {
 				t.Errorf("typed item = %#v", item)
 			}
 			rich := output.New(io.Discard, io.Discard, output.Auto, output.WithWidth(140), output.WithColor(output.ColorNever)).Render(report.Document)
-			if !strings.Contains(rich, "true → true") || !strings.Contains(rich, reason) {
+			if !strings.Contains(rich, wantValue) || !strings.Contains(rich, reason) || (tc.mode == DryRun && strings.Contains(rich, "true -> true")) {
 				t.Errorf("rich output omitted observed values or reason: %q", rich)
 			}
 			if tc.mode == DryRun && (report.Document.Summary.Alterations != 1 || report.Document.Summary.Applied != 0) {
@@ -126,7 +133,7 @@ func TestBuildReportClassifiesSetupSkipsAndAddsBasteGuidance(t *testing.T) {
 	if got := report.Document.Items[1].Outcome; got != output.Attention {
 		t.Fatalf("unavailable outcome = %q, want %q", got, output.Attention)
 	}
-	if got := report.Document.Guidance[len(report.Document.Guidance)-1].Text; got != "No changes made. Run `tailor alter` to apply 1 alteration." {
+	if got := report.Document.Guidance[len(report.Document.Guidance)-1].Text; got != "Resolve the items that need attention, then run `tailor baste` again." {
 		t.Fatalf("baste guidance = %q", got)
 	}
 }
@@ -172,7 +179,7 @@ func TestBuildReportConvertsEveryResultCategory(t *testing.T) {
 		"remove":      {Outcome: output.Alteration, Action: "remove"},
 		".tailor.yml": {Outcome: output.Alteration, Action: "update"},
 		"match-file":  {Outcome: output.Unchanged, Action: "match"},
-		"preserved":   {Outcome: output.Preserved, Action: "preserve"},
+		"preserved":   {Outcome: output.Excluded, Action: "exclude"},
 	}
 	seenAttention := 0
 	for _, item := range report.Document.Items {
@@ -366,13 +373,66 @@ func TestExecuteRetainsLicenceResult(t *testing.T) {
 	}
 }
 
+func TestWikiGuidanceKeepsCommandsAndAppendOrder(t *testing.T) {
+	report := buildReport("baste", "owner/repo", nil, nil, nil, []SwatchResult{{Path: "new.txt", Category: WouldCopy}}, DryRun)
+	appendManagedGuidance(&report, []string{"Verify the preserved justfile."})
+	appendDependabotReporting(&report, dependabotPlan{}, []SwatchResult{{Path: dependabotPath, Category: Skipped, Reason: ManagedNotOwned}})
+	wiki := wikiPreviewGuidance(&gh.WikiReadinessError{Reason: gh.WikiBaselineMissing}, "https://github.com/owner/repo/wiki", "https://github.com/owner/repo.wiki.git", true)
+	appendGuidance(&report, wiki, output.GuidanceRequired)
+	if len(report.Document.Guidance) != 4 {
+		t.Fatalf("guidance blocks = %#v", report.Document.Guidance)
+	}
+	for i, block := range report.Document.Guidance[1:] {
+		if block.Order != i+2 {
+			t.Fatalf("append order = %d, want %d", block.Order, i+2)
+		}
+	}
+	for _, width := range []int{60, 80} {
+		got := output.New(nil, nil, output.Auto, output.WithWidth(width)).Render(report.Document)
+		last := -1
+		for _, text := range []string{"Verify the preserved justfile.", "Optional: adopt", "Use `tailor baste --verbose`", "Next steps:", "1. Import the wiki:", "     git clone https://github.com/owner/repo.wiki.git ../tailor-wiki-import", "     rsync -a --ignore-existing --exclude=.git ../tailor-wiki-import/ wiki/", "     rsync -naci --exclude=.git ../tailor-wiki-import/ wiki/", "     git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base", "2. Run tailor baste again."} {
+			index := strings.Index(got, text)
+			if index <= last {
+				t.Fatalf("width %d: missing or out-of-order %q:\n%s", width, text, got)
+			}
+			last = index
+		}
+		if strings.Contains(got, "Review the preview") || strings.Contains(got, "1. Next steps:") {
+			t.Fatalf("nested numbering or unsafe final advice:\n%s", got)
+		}
+	}
+}
+
+func TestOptionalDependabotGuidanceKeepsNextAction(t *testing.T) {
+	for _, changes := range []bool{false, true} {
+		results := []SwatchResult{{Path: dependabotPath, Category: Skipped, Reason: ManagedNotOwned}}
+		want := "No changes needed."
+		if changes {
+			results = append(results, SwatchResult{Path: "new.txt", Category: WouldCopy})
+			want = "Review the preview, then run `tailor alter` to apply 1 alteration."
+		}
+		report := buildReport("baste", "owner/repo", nil, nil, nil, results, DryRun)
+		appendDependabotReporting(&report, dependabotPlan{}, results)
+		if report.Document.Guidance[1].Kind != output.GuidanceOptional {
+			t.Fatalf("adoption is not optional: %#v", report.Document.Guidance)
+		}
+		got := output.New(nil, nil, output.Auto, output.WithWidth(120)).Render(report.Document)
+		if !strings.Contains(got, want) || !strings.Contains(got, "Optional: adopt") || strings.Contains(got, "need attention") {
+			t.Fatalf("incorrect optional advice:\n%s", got)
+		}
+		if strings.Index(got, want) < strings.Index(got, "Optional: adopt") {
+			t.Fatalf("next action must follow optional advice:\n%s", got)
+		}
+	}
+}
+
 func TestAppendGuidanceKeepsPlainAndTypedReports(t *testing.T) {
 	report := Report{Plain: "results\n"}
-	appendGuidance(&report, "Next steps:\nRun `tailor baste`.\n")
+	appendGuidance(&report, "Next steps:\nRun `tailor baste`.\n", output.GuidanceRequired)
 	if report.Plain != "results\nNext steps:\nRun `tailor baste`.\n" {
 		t.Fatalf("plain guidance = %q", report.Plain)
 	}
-	if len(report.Document.Guidance) != 2 || report.Document.Guidance[1].Text != "Run `tailor baste`." {
+	if len(report.Document.Guidance) != 1 || report.Document.Guidance[0].Text != "Next steps:\nRun `tailor baste`." {
 		t.Fatalf("typed guidance = %#v", report.Document.Guidance)
 	}
 }

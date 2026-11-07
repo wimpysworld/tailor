@@ -17,7 +17,6 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/output"
 	"github.com/wimpysworld/tailor/internal/swatch"
-	"github.com/wimpysworld/tailor/internal/termtext"
 )
 
 // version is set at release time by GoReleaser via -X main.version.
@@ -26,10 +25,10 @@ var version = "dev"
 // CLI is the root command structure parsed by Kong.
 type CLI struct {
 	Version    kong.VersionFlag `help:"Show version."`
-	Format     output.Format    `help:"Output format." default:"auto" enum:"auto,plain"`
-	Color      output.Color     `help:"Colour policy." default:"auto" enum:"auto,always,never"`
+	Format     output.Format    `help:"Output format: auto for concise reports, plain for legacy rows." default:"auto" enum:"auto,plain"`
+	Color      output.Color     `help:"Colour policy for capable terminals. Redirected output has no colour." default:"auto" enum:"auto,always,never"`
 	Verbose    bool             `help:"Show every result and stage."`
-	Quiet      bool             `help:"Print only the final summary."`
+	Quiet      bool             `help:"Print totals and essential attention or verification steps."`
 	NoProgress bool             `help:"Disable live progress."`
 	Fit        FitCmd           `cmd:"" help:"Create a new project with default configuration."`
 	Alter      AlterCmd         `cmd:"" help:"Apply swatch templates to the current project."`
@@ -132,11 +131,7 @@ func (f *FitCmd) Run() (runErr error) {
 
 	observe(output.StageEvent{ID: "write", Label: "Configuration created", Phase: "complete"})
 	progress.Stop()
-	renderedPath := f.Path
-	if policy.Rich() {
-		renderedPath = termtext.EscapeControlText(renderedPath)
-	}
-	doc := output.Document{Command: "fit", Context: renderedPath, Items: []output.Item{{Domain: "Configuration", Outcome: output.Created, Action: "create", Name: ".tailor.yml", Provenance: renderedPath}}, Guidance: []output.Guidance{{Order: 1, Text: "Change into the project directory, then run `tailor alter`."}}}
+	doc := output.Document{Command: "fit", Context: f.Path, Items: []output.Item{{Domain: "Configuration", Outcome: output.Created, Action: "create", Name: ".tailor.yml", Provenance: filepath.Join(f.Path, ".tailor.yml")}}, Guidance: []output.Guidance{{Order: 1, Text: "Review `.tailor.yml` in the project directory, then run `tailor baste`. Apply with `tailor alter` only after approval."}}}
 	policy.Print(doc, fmt.Sprintf("Fitted %s with .tailor.yml\n", f.Path))
 	return nil
 }

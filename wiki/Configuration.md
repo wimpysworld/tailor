@@ -24,13 +24,13 @@ Alternatively, use `tailor alter --recut` to regenerate the issue configuration.
 
 Tailor manages Just and Nix loaders separately from ordinary swatches. The ordinary default set contains 31 entries. The `justfile` and `flake.nix` entries only control creation when those roots are missing.
 
-Tailor preserves an existing `justfile` or `flake.nix` for every mode and when its swatch entry is omitted. Tailor reports that root as preserved and gives loader adoption guidance. A missing root with mode `never` or an omitted entry stays missing and produces no root guidance. Connect an existing root only when the exact loader line is absent:
+Tailor preserves an existing `justfile` or `flake.nix` for every mode and when its swatch entry is omitted. Tailor reports that root as preserved and inspects supported syntax for missing setup or required manual verification. A missing root with mode `never` or an omitted entry stays missing and produces no root guidance. Connect an existing root only when the exact loader line is absent:
 
 ```just
 import 'just/loader.just'
 ```
 
-Add this expression to the existing Nix package list:
+When the package loader is absent, add this expression to the existing Nix package list:
 
 ```nix
 ++ import ./nix/loader.nix { inherit pkgs; }
@@ -76,6 +76,18 @@ done
 Keep `nix_direnv_manual_reload` if you want manual rebuilds. Review the `.envrc` change, then run `direnv allow` when direnv requests approval. Run `nix-direnv-reload` to rebuild the cache, then return to the shell prompt. Manual mode can retain the old environment until that rebuild. A reload alone cannot repair missing watches in nix-direnv 3.1.2. Tailor does not grant approval or rebuild the cache automatically.
 
 Custom imports outside these directories need their own watches before `use flake`. Review and add new Nix files to Git separately, because watches do not change flake source inclusion.
+
+### Guidance for preserved files
+
+`baste` and `alter` inspect preserved roots and enabled MCP client destinations without changing them. Detected setup suppresses redundant instructions. Confirmed missing setup produces a manual edit. Unknown setup produces a verification step.
+
+Inspection reads regular files of at most 1 MiB. Final or parent symlinks, unsafe paths, unreadable files, non-regular files, and concurrent changes produce unknown state. On non-Unix platforms, no-follow inspection is unavailable, so manual verification remains necessary.
+
+Client inspection reads JSON or TOML server names, not runtime compatibility. Invalid syntax, duplicate JSON keys, and unsupported server collections require manual verification. Disabled entries remain untouched and receive no replacement suggestion.
+
+Just inspection recognises literal top-level loader imports. Nix inspection recognises limited literal forms for the package loader, core hook, enabled Android output, and enabled Blender extension output. Indirect or unsupported composition requires manual verification. Tailor does not evaluate Nix or prove that a client, extension, or development shell works.
+
+Use the same overridden `pkgs` for both loaders and keep custom hooks last. Retain normal shell, direnv, SDK, extension, and client approvals. Run `tailor baste` after manual edits. Check runtime behaviour through a fresh client from the development shell.
 
 ### Nix shell hooks
 
@@ -328,7 +340,7 @@ A true declaration adds `nix/playwright.nix`, which supplies `playwright-mcp` wi
 
 Each server has definitions for Claude, Codex, OpenCode, and Pi. Tailor combines selected definitions in lexical server order. The four embedded starters remain byte-parity references and manual-copy sources, not runtime composition sources. The current OpenCode starter format remains unchanged.
 
-Tailor does not parse or merge an existing client file. It preserves regular files and final symlinks, then gives the entry name for manual adoption. Review the starter before you add it to Git.
+Tailor preserves existing client files and final symlinks. Read-only syntax inspection suggests only absent enabled server names, with provider-specific snippets. Existing names count as present, including disabled entries. Tailor does not merge, replace, enable, or validate existing entries at runtime. Unknown syntax produces verification guidance without a snippet. Review each suggested entry before manual adoption.
 
 All starters run `playwright-mcp` with `--headless --isolated`. They do not use a manual stdio process, CDP endpoint, dynamic port, runtime download, or Playwright Just fragment. Your client applies its normal MCP tool approval controls.
 

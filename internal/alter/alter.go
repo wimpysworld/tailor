@@ -89,9 +89,9 @@ func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *ap
 	partial := func(err error) (Report, error) {
 		allSwatches := append(append([]SwatchResult{}, swatchResults...), retiredResults...)
 		report := buildReport(command, context, repoResults, labelResults, variableResults, allSwatches, mode)
-		appendManagedReporting(&report, cfg, managedResults)
+		appendManagedReporting(&report, cfg, managedResults, dir)
 		appendDependabotReporting(&report, dependabot, dependabotResults)
-		appendGuidance(&report, wikiGuidance)
+		appendGuidance(&report, wikiGuidance, output.GuidanceRequired)
 		options.stageError(err)
 		return report, err
 	}
@@ -307,10 +307,10 @@ func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *ap
 	}
 	swatchResults = append(swatchResults, retiredResults...)
 	report := buildReport(command, context, repoResults, labelResults, variableResults, swatchResults, mode)
-	appendManagedReporting(&report, cfg, managedResults)
+	appendManagedReporting(&report, cfg, managedResults, dir)
 	appendDependabotReporting(&report, dependabot, dependabotResults)
 	if wiki != nil {
-		appendGuidance(&report, wiki.nextSteps)
+		appendGuidance(&report, wiki.nextSteps, output.GuidanceRequired)
 	}
 	options.stage("complete", "Complete", "complete")
 	return report, nil
@@ -394,14 +394,16 @@ func processRepoStages(cfg *config.Config, mode ApplyMode, target RepoTarget) ([
 	return results, nil
 }
 
-func appendGuidance(report *Report, guidance string) {
-	if guidance == "" {
+func appendGuidance(report *Report, guidance string, kind output.GuidanceKind) {
+	if strings.TrimSpace(guidance) == "" {
 		return
 	}
 	report.Plain += guidance
-	for i, line := range strings.Split(strings.TrimSuffix(guidance, "\n"), "\n") {
-		report.Document.Guidance = append(report.Document.Guidance, output.Guidance{Order: i + 1, Text: line})
-	}
+	report.Document.Guidance = append(report.Document.Guidance, output.Guidance{
+		Order: len(report.Document.Guidance) + 1,
+		Text:  strings.Trim(guidance, "\n"),
+		Kind:  kind,
+	})
 }
 
 // validateConfig checks both loaded configuration and the result of default merging.

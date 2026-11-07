@@ -645,7 +645,7 @@ swatches:
 				"would copy:                          just/tailor.just\n" +
 				"would copy:                          nix/loader.nix\n" +
 				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
-				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
+				"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/loader.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n",
 		},
 		{
 			name: "apply",
@@ -658,7 +658,7 @@ swatches:
 				"copied:                              just/tailor.just\n" +
 				"copied:                              nix/loader.nix\n" +
 				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
-				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
+				"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/loader.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n",
 		},
 		{
 			name: "recut",
@@ -671,7 +671,7 @@ swatches:
 				"copied:                              just/tailor.just\n" +
 				"copied:                              nix/loader.nix\n" +
 				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
-				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
+				"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/loader.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n",
 		},
 	}
 
@@ -1184,7 +1184,7 @@ swatches:
 
 	const expectedWidth = 37
 	for _, line := range lines {
-		if strings.HasPrefix(line, "warning: ") {
+		if strings.HasPrefix(line, "warning: ") || strings.HasPrefix(line, "Optional: ") {
 			continue
 		}
 		if len(line) < expectedWidth {
@@ -2849,7 +2849,7 @@ swatches:
 				"would copy:                          just/tailor.just\n" +
 				"would copy:                          nix/loader.nix\n" +
 				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
-				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
+				"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/loader.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n",
 		},
 		{
 			name:      "apply",
@@ -2862,7 +2862,7 @@ swatches:
 				"copied:                              just/tailor.just\n" +
 				"copied:                              nix/loader.nix\n" +
 				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
-				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
+				"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/loader.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n",
 		},
 		{
 			name:      "recut",
@@ -2875,7 +2875,7 @@ swatches:
 				"copied:                              just/tailor.just\n" +
 				"copied:                              nix/loader.nix\n" +
 				"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
-				"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n",
+				"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/loader.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n",
 		},
 	}
 
@@ -3040,7 +3040,7 @@ swatches:
 		"copied:                              just/tailor.just\n" +
 		"copied:                              nix/loader.nix\n" +
 		"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
-		"warning: review and add new Nix files to Git because Nix flakes exclude untracked files: `nix/loader.nix`\n"
+		"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/loader.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n"
 	wantFirst = expectedManagedHooks(wantFirst)
 	if first != wantFirst {
 		t.Errorf("first alter.Run() output =\n%s\nwant:\n%s", first, wantFirst)
