@@ -615,7 +615,7 @@ Config merging differs from ordinary file replacement. Protected `justfile`, `fl
 
 The [Pages workflow](GitHub-Pages#workflow) and [wiki workflow](GitHub-wiki#workflow) have their own compatibility and mode checks.
 
-`repository.has_wiki: true` enables wiki management for public repositories, but does not grant import consent. A readable unadopted wiki requires one default-no confirmation or `tailor alter --adopt-wiki`. `--recut` is not consent. Approved imports can replace same-path wiki files with private backups, independently of starter generation. See [wiki import and recovery](GitHub-wiki#import-the-existing-wiki).
+`repository.has_wiki: true` enables wiki management for public repositories. `tailor alter` enables a disabled wiki and imports a readable unadopted wiki automatically. Imports can replace same-path wiki files with private backups, independently of starter generation. A wiki without pages does not block other changes. See [wiki import and recovery](GitHub-wiki#import-the-existing-wiki).
 
 ## Default merging
 

@@ -33,10 +33,6 @@ func (p *wikiRun) didEnable() bool { return p != nil && p.enabledViaAPI }
 // preflightWiki checks workflow ownership and remote adoption before ordinary writes.
 // Enabling a public wiki is the sole permitted early write. DryRun reports readiness blockers and continues the preview.
 func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTarget, declared bool) (*wikiRun, error) {
-	return preflightWikiWithOptions(cfg, dir, mode, target, declared, Options{})
-}
-
-func preflightWikiWithOptions(cfg *config.Config, dir string, mode ApplyMode, target RepoTarget, declared bool, options Options) (*wikiRun, error) {
 	if !declared || cfg.Repository == nil || cfg.Repository.HasWiki == nil {
 		return nil, nil
 	}
@@ -115,7 +111,7 @@ func preflightWikiWithOptions(cfg *config.Config, dir string, mode ApplyMode, ta
 	}
 	if !*repository.HasWiki {
 		if mode == DryRun {
-			return blocked(&gh.WikiReadinessError{Reason: gh.WikiDisabled, Err: errors.New("wiki is disabled; tailor alter will enable repository.has_wiki through the API before checking readiness")})
+			return blocked(&gh.WikiReadinessError{Reason: gh.WikiDisabled, Err: errors.New("wiki is disabled; tailor alter will enable repository.has_wiki through the API, then check and import the wiki")})
 		}
 		if err := target.Client.Patch(fmt.Sprintf("repos/%s/%s", target.Owner, target.Name), strings.NewReader(`{"has_wiki":true}`), nil); err != nil {
 			return blocked(&gh.WikiReadinessError{Reason: gh.WikiMetadataFailed, Err: fmt.Errorf("enabling repository.has_wiki through the API: %w", err)})
@@ -123,7 +119,9 @@ func preflightWikiWithOptions(cfg *config.Config, dir string, mode ApplyMode, ta
 		fmt.Fprintln(target.stderr(), "set: repository.has_wiki = true")
 		p.enabledViaAPI = true
 	}
-	readiness := gh.InspectWiki(dir, remoteURL, baseline)
+	// Metadata confirms a wiki as empty only for a public repository with the wiki enabled, including by this run.
+	confirmed := gh.WikiRepository{Public: !*repository.Private, Enabled: *repository.HasWiki || p.enabledViaAPI}
+	readiness := gh.InspectWiki(dir, remoteURL, baseline, confirmed)
 	pending, err := findWikiImport(dir, remoteURL)
 	if err != nil {
 		if mode == DryRun {
@@ -135,10 +133,16 @@ func preflightWikiWithOptions(cfg *config.Config, dir string, mode ApplyMode, ta
 	if readiness == nil && pending == nil {
 		return p, nil
 	}
+	if pending == nil {
+		if reason, _ := wikiReadinessDetails(readiness); reason == gh.WikiEmpty {
+			p.nextSteps = wikiEmptyGuidance(wikiURL)
+			return p, nil
+		}
+	}
 	if pending == nil && !wikiAdoptionCandidate(readiness) {
 		return blocked(readiness)
 	}
-	snapshot, err := gh.ReadWikiSnapshot(dir, remoteURL, baseline)
+	snapshot, err := gh.ReadWikiSnapshot(dir, remoteURL, baseline, confirmed)
 	if err != nil {
 		return blocked(err)
 	}
@@ -162,18 +166,8 @@ func preflightWikiWithOptions(cfg *config.Config, dir string, mode ApplyMode, ta
 		return p, err
 	}
 	if mode == DryRun {
-		p.nextSteps = "Review the wiki import preview. Run tailor alter for one confirmation, or tailor alter --adopt-wiki for scoped noninteractive consent.\n"
+		p.nextSteps = "Review the wiki import preview. tailor alter imports the wiki automatically.\n"
 		return p, nil
-	}
-	approved := options.AdoptWiki
-	if !approved && options.ConfirmWikiAdoption != nil {
-		approved, err = options.ConfirmWikiAdoption(p.importPlan.summary())
-		if err != nil {
-			return p, fmt.Errorf("confirming wiki adoption: %w", err)
-		}
-	}
-	if !approved {
-		return p, errors.New("wiki adoption was not approved; no wiki files changed. Review tailor baste, then use tailor alter --adopt-wiki for scoped noninteractive consent")
 	}
 	if err := applyWikiImport(dir, p.importPlan); err != nil {
 		return p, fmt.Errorf("wiki adoption stopped: %w", err)
@@ -200,8 +194,23 @@ func wikiReadinessGuidance(err error, wikiURL, remoteURL string, hasSource bool)
 
 func wikiImportGuidance(_ string, _ bool) string {
 	return "   Run tailor baste to inspect the import plan after the wiki can be read safely.\n" +
-		"   Run tailor alter for one confirmation, or use tailor alter --adopt-wiki for noninteractive consent.\n" +
-		"   Tailor preserves local-only files and backs up approved replacements in private Git metadata.\n"
+		"   Run tailor alter. Tailor imports the wiki automatically.\n" +
+		"   Tailor preserves local-only files and backs up replacements in private Git metadata.\n"
+}
+
+// wikiEmptyGuidance describes the browser step that GitHub requires before a wiki repository exists.
+func wikiEmptyGuidance(wikiURL string) string {
+	return fmt.Sprintf(`
+Next steps:
+The wiki has no pages. GitHub creates the wiki repository when you save the first page.
+
+1. Create and save the first page at:
+   %s
+   You can use the content of wiki/Home.md for this page.
+
+2. Run: tailor alter
+   Tailor imports the wiki automatically.
+`, wikiURL)
 }
 
 func wikiPreviewGuidance(err error, wikiURL, remoteURL string, hasSource bool) string {
@@ -209,17 +218,15 @@ func wikiPreviewGuidance(err error, wikiURL, remoteURL string, hasSource bool) s
 	if reason == gh.WikiDisabled {
 		return fmt.Sprintf(`
 Next steps:
-The wiki is off. Other changes will wait until it is ready.
+The wiki is off. tailor alter will turn it on.
 
 1. Run: tailor alter
+   Tailor imports existing wiki pages automatically.
 
-2. If the wiki has no pages, create and save one at:
+2. If the wiki has no pages, create and save the first page at:
    %s
-
-3. If Tailor asks you to import the wiki:
-%s
-4. %s
-`, wikiURL, wikiImportGuidance(remoteURL, hasSource), wikiRecheckGuidance)
+   Then run tailor alter again.
+`, wikiURL)
 	}
 	const waiting = " Other changes will wait until it is ready.\n\n"
 	guidance := "\nNext steps:\n"

@@ -1,8 +1,8 @@
 # GitHub wiki
 
-Tailor imports an existing public GitHub wiki into `wiki/` with approval, then prepares a workflow to publish source changes.
+Tailor imports an existing public GitHub wiki into `wiki/` automatically, then prepares a workflow to publish source changes.
 
-[Setup](#setup) · [Workflow](#workflow) · [Import](#import-the-existing-wiki) · [Recovery](#readiness-and-recovery) · [Publication](#publication) · [Disable](#disable-publishing)
+[Setup](#setup) · [Workflow](#workflow) · [Import](#import-the-existing-wiki) · [No pages](#wiki-without-pages) · [Recovery](#readiness-and-recovery) · [Publication](#publication) · [Disable](#disable-publishing)
 
 ## Setup
 
@@ -10,11 +10,11 @@ Set `repository.has_wiki: true`, then run `tailor baste` to preview setup. Apply
 
 `fit` writes `has_wiki: false`, including for repositories with an enabled wiki. Set it to `true` before `alter` to keep the wiki enabled.
 
-After local safety checks, `alter` enables a disabled wiki through a GitHub API PATCH containing only `has_wiki: true`. Enablement can remain in effect if you decline an import or a later check fails. Other alterations wait until wiki readiness passes.
+After local safety checks, `alter` enables a disabled wiki through a GitHub API PATCH containing only `has_wiki: true`, then continues in the same run. Enablement remains in effect if a later check fails. A wiki without pages does not stop other alterations. Other wiki blockers stop them until wiki readiness passes.
 
 The source must contain only directories and regular files, with no symlinks or `.git` metadata. Copy shared documentation into `wiki/` instead of linking to it. Reserved `.tailor-wiki-*` names block adoption and publication, except the root `wiki/.tailor-wiki-base`. Retain any such files, including abandoned temporary files, for manual review before retrying.
 
-Tailor preserves existing wiki starter pages, including under `alter --recut` or `always`. Their `never` mode skips creation. Approved imports can replace same-path files, including starter pages, with backups.
+Tailor preserves existing wiki starter pages, including under `alter --recut` or `always`. Their `never` mode skips creation. Imports can replace same-path files, including starter pages, with backups.
 
 ## Workflow
 
@@ -32,34 +32,35 @@ The workflow publishes when `wiki/` files or the workflow change on the default 
 
 ## Import the existing wiki
 
-If the remote wiki is readable but not adopted, Tailor prepares an import pinned to its current commit. Ready, adopted sources remain untouched, including uncommitted edits. A pending import still requires completion before normal alterations.
+If the remote wiki is readable but not adopted, `alter` imports it automatically, pinned to its current commit. It does not ask for approval or need a flag, including in noninteractive runs. Ready, adopted sources remain untouched, including uncommitted edits. A pending import completes before normal alterations.
 
-1. Run `tailor baste --verbose` to review additions, replacements and the baseline change.
-2. Run `tailor alter` and approve the single wiki import prompt, which defaults to no.
+1. Optional: run `tailor baste --verbose` to review additions, replacements and the baseline change.
+2. Run `tailor alter`. It imports the wiki, then applies the other declared changes.
 3. Review the imported files, `wiki/.tailor-wiki-base`, workflow and other changes from `alter`.
 4. Commit and push through your normal project workflow to publish from the default branch.
 
-The prompt covers the complete import, including replacements that need backups. Noninteractive runs never infer approval. For explicit consent without a prompt, use:
-
-```bash
-tailor alter --adopt-wiki
-```
-
-`--adopt-wiki` approves only the pinned wiki import, not other alterations. The command still applies other declared changes after readiness passes. `--recut` is not import consent. `--local-only` rejects `--adopt-wiki`.
+`--adopt-wiki` is no longer required. `alter` accepts it for compatibility, and it has no effect. `--local-only` rejects `--adopt-wiki`.
 
 The import preserves binary bytes and executable modes. Local-only files and identical files remain unchanged. Before replacement, Tailor saves the original bytes and modes in private Git metadata. It writes the full remote commit ID to `wiki/.tailor-wiki-base` last. Tailor never stages, commits or pushes wiki files from the CLI.
 
-If the wiki has no saved page, create and save the first page at `https://github.com/OWNER/REPO/wiki`. Use the exact repository URL that Tailor reports. Then rerun `tailor baste` and `tailor alter`. Tailor does not create the first page through an API or an initial push. Initial-push support is unverified, so setup is not fully unattended.
+## Wiki without pages
+
+GitHub creates the wiki repository only when you save the first page. Until then, Tailor reports that the wiki has no pages. This does not stop the run. `alter` creates the starter pages in `wiki/` and the workflow, then applies the other declared changes.
+
+1. Create and save the first page at `https://github.com/OWNER/REPO/wiki`. Use the exact repository URL that Tailor reports. You can use the content of `wiki/Home.md`.
+2. Run `tailor alter` again. It imports the new page automatically.
+
+Tailor does not create the first page through an API or an initial push. Until the first page exists, the workflow logs that it skips publication and succeeds.
 
 ## Readiness and recovery
 
-Run `tailor baste` for a full preview without prompts or persistent writes. Wiki reads use isolated temporary Git storage. A disabled wiki produces conditional guidance until `alter` enables it. A disabled wiki does not prove that pages are missing. Readiness blockers alone do not fail the preview.
+Run `tailor baste` for a full preview without prompts or persistent writes. Wiki reads use isolated temporary Git storage. A disabled wiki produces guidance until `alter` enables it. A disabled wiki does not prove that pages are missing. Readiness blockers alone do not fail the preview.
 
-If Tailor cannot read the remote wiki, fix the reported access or network error before retrying. When absence and denied access are indistinguishable, open the exact `/wiki` URL and check access first. Create a page only if none exists.
+Tailor treats a "not found" answer as a wiki without pages only when GitHub reports a public repository with the wiki enabled. If Tailor cannot read the remote wiki for another reason, fix the reported access or network error before retrying. When absence and denied access are indistinguishable, open the exact `/wiki` URL and check access first. Create a page only if none exists.
 
 Recovery state and backups remain under `tailor/wiki-imports/<transaction>` in the actual Git directory for the worktree. Tailor reports the full path, including for linked worktrees. These files are not project files and never belong in `wiki/`. Keep them after completion.
 
-For a valid interrupted import, review `tailor baste --verbose`, then resume with `tailor alter --adopt-wiki`. Interactive `tailor alter` can also request approval again. Tailor checks the pinned remote commit, journal, backups, file modes, and before/after hashes before resuming. Valid incomplete staging can resume too.
+For a valid interrupted import, run `tailor alter` again. It resumes the import automatically. Tailor checks the pinned remote commit, journal, backups, file modes, and before/after hashes before resuming. Valid incomplete staging can resume too.
 
 Changed remote content, changed local files, corrupt state, unknown backups, or a missing valid journal require manual review. Unsafe paths, unresolved conflict markers, path collisions and detected races also stop adoption. Keep the reported recovery directory and affected files. Compare those files with the journal and backups before any manual repair. Do not delete recovery data or write a baseline to bypass a stop.
 

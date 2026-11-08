@@ -53,9 +53,24 @@ type WikiAccessError struct {
 // Error describes remote availability without exposing Git's diagnostic output.
 func (e *WikiAccessError) Error() string { return e.State }
 
+// WikiRepository is the repository metadata that classifies an unavailable wiki remote.
+type WikiRepository struct {
+	Public  bool
+	Enabled bool
+}
+
 // InspectWiki checks adoption and publication history without changing the project or remote.
-func InspectWiki(dir, remoteURL, baseline string) error {
-	return inspectWiki(dir, remoteURL, baseline)
+func InspectWiki(dir, remoteURL, baseline string, repository WikiRepository) error {
+	return confirmEmptyWiki(inspectWiki(dir, remoteURL, baseline), repository)
+}
+
+// confirmEmptyWiki classifies an unavailable remote as empty only when metadata confirms a public, enabled wiki.
+// GitHub answers anonymous reads of a wiki without pages with "not found" or a credential prompt.
+func confirmEmptyWiki(err error, repository WikiRepository) error {
+	if access, ok := errors.AsType[*WikiAccessError](err); ok && access.Reason == WikiAccessUnknown && repository.Public && repository.Enabled {
+		return &WikiAccessError{Reason: WikiEmpty, State: "wiki has no commits"}
+	}
+	return err
 }
 
 var wikiSourceTrailer = regexp.MustCompile(`(?m)^Tailor-Wiki-Source: ([0-9a-f]{40})$`)

@@ -38,7 +38,7 @@ func TestReadWikiSnapshotFidelity(t *testing.T) {
 	head := wikiFixtureGit(t, remote, "rev-parse", "HEAD")
 	bare := filepath.Join(t.TempDir(), "wiki.git")
 	wikiFixtureGit(t, remote, "clone", "--bare", "--", remote, bare)
-	snapshot, err := ReadWikiSnapshot(project, bare, "")
+	snapshot, err := ReadWikiSnapshot(project, bare, "", WikiRepository{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestReadWikiSnapshotReadiness(t *testing.T) {
 			if tc.imported {
 				wikiFixtureWrite(t, project, "wiki/Home.md", "local edit")
 			}
-			snapshot, err := ReadWikiSnapshot(project, remote, tc.baseline)
+			snapshot, err := ReadWikiSnapshot(project, remote, tc.baseline, WikiRepository{})
 			if err != nil || snapshot == nil {
 				t.Fatalf("snapshot=%v, error=%v", snapshot, err)
 			}
@@ -130,7 +130,7 @@ func TestReadWikiSnapshotPublishedReadiness(t *testing.T) {
 	wikiFixtureGit(t, remote, "add", ".")
 	wikiFixtureGit(t, remote, "commit", "-m", "Publish\n\nTailor-Wiki-Source: "+source)
 	wikiFixtureWrite(t, project, "wiki/Home.md", "local edit")
-	snapshot, err := ReadWikiSnapshot(project, remote, strings.Repeat("a", 40))
+	snapshot, err := ReadWikiSnapshot(project, remote, strings.Repeat("a", 40), WikiRepository{})
 	if err != nil || snapshot.Readiness != nil {
 		t.Fatalf("snapshot=%+v, error=%v", snapshot, err)
 	}
@@ -140,13 +140,13 @@ func TestWikiSnapshotAvailabilityAndRecheck(t *testing.T) {
 	remote := t.TempDir()
 	wikiFixtureGit(t, remote, "init", "-b", "main")
 	var access *WikiAccessError
-	if snapshot, err := ReadWikiSnapshot(t.TempDir(), remote, ""); snapshot != nil || !errors.As(err, &access) || access.Reason != WikiEmpty {
+	if snapshot, err := ReadWikiSnapshot(t.TempDir(), remote, "", WikiRepository{}); snapshot != nil || !errors.As(err, &access) || access.Reason != WikiEmpty {
 		t.Fatalf("empty remote: snapshot=%v, error=%v", snapshot, err)
 	}
 	if err := RecheckWikiHead(remote, strings.Repeat("a", 40)); !errors.As(err, &access) || access.Reason != WikiEmpty {
 		t.Fatalf("empty recheck: %v", err)
 	}
-	if _, err := ReadWikiSnapshot(t.TempDir(), filepath.Join(t.TempDir(), "missing.git"), ""); !errors.As(err, &access) || access.Reason == WikiEmpty {
+	if _, err := ReadWikiSnapshot(t.TempDir(), filepath.Join(t.TempDir(), "missing.git"), "", WikiRepository{}); !errors.As(err, &access) || access.Reason == WikiEmpty {
 		t.Fatalf("unavailable remote: %v", err)
 	}
 	wikiFixtureWrite(t, remote, "Home.md", "first")
@@ -559,7 +559,7 @@ func TestReadWikiSnapshotRejectsUnsafeRemote(t *testing.T) {
 					t.Fatalf("case-collision fixture paths=%q", paths)
 				}
 			}
-			snapshot, err := ReadWikiSnapshot(t.TempDir(), remote, "")
+			snapshot, err := ReadWikiSnapshot(t.TempDir(), remote, "", WikiRepository{})
 			var readiness *WikiReadinessError
 			if snapshot != nil || !errors.As(err, &readiness) || readiness.Reason != WikiUnsafeFile {
 				t.Fatalf("unsafe remote: snapshot=%v, error=%v", snapshot, err)
@@ -617,7 +617,7 @@ func TestWikiSnapshotLimits(t *testing.T) {
 		wikiFixtureWrite(t, remote, "large.bin", strings.Repeat("x", WikiSnapshotMaxBlobBytes+1))
 		wikiFixtureGit(t, remote, "add", ".")
 		wikiFixtureGit(t, remote, "commit", "-m", "Large")
-		snapshot, err := ReadWikiSnapshot(t.TempDir(), remote, "")
+		snapshot, err := ReadWikiSnapshot(t.TempDir(), remote, "", WikiRepository{})
 		if snapshot != nil || err == nil || !strings.Contains(err.Error(), "byte limit") {
 			t.Fatalf("large blob: snapshot=%v, error=%v", snapshot, err)
 		}
@@ -645,7 +645,7 @@ func TestWikiSnapshotGitIsolation(t *testing.T) {
 	t.Setenv("GIT_CONFIG_KEY_0", "protocol.file.allow")
 	t.Setenv("GIT_CONFIG_VALUE_0", "never")
 	t.Setenv("GIT_DIR", filepath.Join(t.TempDir(), "missing"))
-	snapshot, err := ReadWikiSnapshot(t.TempDir(), remote, "")
+	snapshot, err := ReadWikiSnapshot(t.TempDir(), remote, "", WikiRepository{})
 	if err != nil || len(snapshot.Files) != 1 {
 		t.Fatalf("configuration isolation failed: snapshot=%v, error=%v", snapshot, err)
 	}
@@ -672,10 +672,10 @@ func TestWikiSnapshotGitIsolation(t *testing.T) {
 func TestWikiSnapshotHooks(t *testing.T) {
 	restoreInspect := SetInspectWikiFunc(func(string, string, string) error { return nil })
 	defer restoreInspect()
-	if err := InspectWiki("", "", ""); err != nil {
+	if err := InspectWiki("", "", "", WikiRepository{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ReadWikiSnapshot("", "", ""); err == nil || !strings.Contains(err.Error(), "test hook is required") {
+	if _, err := ReadWikiSnapshot("", "", "", WikiRepository{}); err == nil || !strings.Contains(err.Error(), "test hook is required") {
 		t.Fatalf("legacy snapshot isolation: %v", err)
 	}
 	if err := RecheckWikiHead("", ""); err == nil || !strings.Contains(err.Error(), "test hook is required") {
@@ -689,7 +689,7 @@ func TestWikiSnapshotHooks(t *testing.T) {
 		return want, nil
 	})
 	defer restoreSnapshot()
-	if got, err := ReadWikiSnapshot("project", "remote", "baseline"); got != want || err != nil {
+	if got, err := ReadWikiSnapshot("project", "remote", "baseline", WikiRepository{}); got != want || err != nil {
 		t.Fatalf("snapshot hook: %v, %v", got, err)
 	}
 	called := false
@@ -703,7 +703,7 @@ func TestWikiSnapshotHooks(t *testing.T) {
 	}
 	restoreSnapshot()
 	restoreRecheck()
-	if _, err := ReadWikiSnapshot("", "", ""); err == nil {
+	if _, err := ReadWikiSnapshot("", "", "", WikiRepository{}); err == nil {
 		t.Fatal("snapshot hook did not restore isolation")
 	}
 	if err := RecheckWikiHead("", ""); err == nil {

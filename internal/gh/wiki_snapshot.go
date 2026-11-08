@@ -51,10 +51,10 @@ var (
 
 // ReadWikiSnapshot reads tracked files without checkout filters or project writes.
 // Readiness contains adoption blockers, not remote access or unsafe import errors.
-func ReadWikiSnapshot(dir, remoteURL, baseline string) (*WikiSnapshot, error) {
+func ReadWikiSnapshot(dir, remoteURL, baseline string, repository WikiRepository) (*WikiSnapshot, error) {
 	snapshot, err := readWikiSnapshot(dir, remoteURL, baseline)
 	if err != nil {
-		return nil, err
+		return nil, confirmEmptyWiki(err, repository)
 	}
 	if err := ValidateWikiSnapshot(snapshot); err != nil {
 		return nil, err

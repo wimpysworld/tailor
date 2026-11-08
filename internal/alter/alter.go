@@ -36,9 +36,9 @@ func stageLabel(mode ApplyMode, dryRun, mutation string) string {
 
 // Options configures typed execution events.
 type Options struct {
-	Observer            func(output.StageEvent)
-	AdoptWiki           bool
-	ConfirmWikiAdoption func(WikiAdoptionPlan) (bool, error)
+	Observer func(output.StageEvent)
+	// AdoptWiki is accepted for compatibility and has no effect, because alter imports the wiki automatically.
+	AdoptWiki bool
 }
 
 func (o Options) stage(id, label, phase string) {
@@ -202,7 +202,7 @@ func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *ap
 	if err := preflightWikiWrites(cfg, dir, wikiDeclared, &tokens, managedExclusions); err != nil {
 		return partial(err)
 	}
-	wiki, err = preflightWikiWithOptions(cfg, dir, mode, target, wikiDeclared, options)
+	wiki, err = preflightWiki(cfg, dir, mode, target, wikiDeclared)
 	if err != nil {
 		return partial(err)
 	}
