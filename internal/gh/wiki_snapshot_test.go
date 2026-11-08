@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -234,7 +235,7 @@ func TestRecheckWikiHeadMetadataCommand(t *testing.T) {
 	t.Setenv("SSH_AUTH_SOCK", "/untrusted")
 	t.Setenv("SSH_ASKPASS", "/untrusted")
 	wikiMetadataGit(t, `printf '%s\n' "$@" >> "$TAILOR_TEST_WIKI_COMMAND"
-printf '%s\n' "$HOME" "$GIT_TERMINAL_PROMPT" "$GIT_CONFIG_NOSYSTEM" "$GIT_CONFIG_GLOBAL" > "$TAILOR_TEST_WIKI_COMMAND.env"
+printf '%s\n' "$HOME" "$GIT_TERMINAL_PROMPT" "$GIT_CONFIG_NOSYSTEM" "$GIT_CONFIG_GLOBAL" "$GIT_CEILING_DIRECTORIES" > "$TAILOR_TEST_WIKI_COMMAND.env"
 [ -z "${GIT_CONFIG_COUNT+x}${GIT_DIR+x}${SSH_AUTH_SOCK+x}${SSH_ASKPASS+x}" ] || exit 99
 printf '%s\tHEAD\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 `)
@@ -259,7 +260,7 @@ printf '%s\tHEAD\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 		t.Fatalf("temporary storage remains: %v, %v", info, err)
 	}
 	data, err = os.ReadFile(log + ".env")
-	if err != nil || string(data) != temporary+"\n0\n1\n"+os.DevNull+"\n" {
+	if err != nil || string(data) != temporary+"\n0\n1\n"+os.DevNull+"\n"+filepath.Dir(temporary)+"\n" {
 		t.Fatalf("anonymous environment=%q, error=%v", data, err)
 	}
 	if err := recheckWikiHeadGit(remote, strings.Repeat("b", 40)); err == nil {
@@ -280,6 +281,72 @@ printf '%s\tHEAD\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 	after, err := os.ReadFile(log)
 	if err != nil || !bytes.Equal(before, after) {
 		t.Fatalf("invalid ID ran Git: %q, %v", after, err)
+	}
+}
+
+func TestWikiRemoteHeadParentConfigurationIsolation(t *testing.T) {
+	for _, symlinked := range []bool{false, true} {
+		t.Run(fmt.Sprintf("symlinked=%t", symlinked), func(t *testing.T) {
+			nativeGit, err := exec.LookPath("git")
+			if err != nil {
+				t.Fatal(err)
+			}
+			parent, remote, rewritten := t.TempDir(), t.TempDir(), t.TempDir()
+			for i, dir := range []string{parent, remote, rewritten} {
+				wikiFixtureGit(t, dir, "init", "-b", "main")
+				wikiFixtureGit(t, dir, "commit", "--allow-empty", "-m", fmt.Sprintf("Fixture %d", i))
+			}
+			head := wikiFixtureGit(t, remote, "rev-parse", "HEAD")
+			wikiFixtureGit(t, parent, "config", "--local", "url."+rewritten+".insteadOf", remote)
+			wikiFixtureGit(t, parent, "config", "--local", "http.extraHeader", "X-Tailor-Test: harmless")
+			probe := filepath.Join(t.TempDir(), "headers")
+			t.Setenv("TAILOR_TEST_NATIVE_GIT", nativeGit)
+			t.Setenv("TAILOR_TEST_HEADER_PROBE", probe)
+			wikiMetadataGit(t, `scratch=
+while [ "$#" -gt 0 ]; do
+  if [ "$1" = -C ]; then scratch=$2; break; fi
+  shift
+done
+[ -n "$scratch" ] || exit 98
+"$TAILOR_TEST_NATIVE_GIT" -C "$scratch" config --get-all http.extraHeader > "$TAILOR_TEST_HEADER_PROBE"
+status=$?
+[ "$status" -eq 1 ] || exit 99
+"$TAILOR_TEST_NATIVE_GIT" -C "$scratch" -c protocol.allow=never -c protocol.file.allow=always ls-remote -- "$TAILOR_TEST_REMOTE"
+`)
+			t.Setenv("TAILOR_TEST_REMOTE", remote)
+			temporaryParent := parent
+			if symlinked {
+				temporaryParent = filepath.Join(t.TempDir(), "linked-parent")
+				if err := os.Symlink(parent, temporaryParent); err != nil {
+					t.Fatal(err)
+				}
+			}
+			t.Setenv("TMPDIR", temporaryParent)
+			if err := recheckWikiHeadGit(remote, head); err != nil {
+				t.Fatalf("parent configuration affected metadata: %v", err)
+			}
+			data, err := os.ReadFile(probe)
+			if err != nil || len(data) != 0 {
+				t.Fatalf("parent extraheader escaped isolation: %q, %v", data, err)
+			}
+			entries, err := os.ReadDir(parent)
+			if err != nil || len(entries) != 1 || entries[0].Name() != ".git" {
+				t.Fatalf("scratch storage remains: %v, %v", entries, err)
+			}
+		})
+	}
+}
+
+func TestWikiRemoteHeadRejectsAmbiguousCeiling(t *testing.T) {
+	parent := filepath.Join(t.TempDir(), "ambiguous"+string(os.PathListSeparator)+"parent")
+	scratch := filepath.Join(parent, "scratch")
+	if err := os.MkdirAll(scratch, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	_, err := readWikiRemoteHead(t.Context(), scratch, "unused")
+	var readiness *WikiReadinessError
+	if !errors.As(err, &readiness) || readiness.Reason != WikiInspectionFailed {
+		t.Fatalf("ambiguous discovery ceiling accepted: %v", err)
 	}
 }
 

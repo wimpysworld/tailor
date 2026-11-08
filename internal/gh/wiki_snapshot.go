@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -143,12 +144,26 @@ func recheckWikiHeadGit(remoteURL, expected string) error {
 }
 
 func readWikiRemoteHead(ctx context.Context, dir, remoteURL string) (string, error) {
+	scratch, err := filepath.Abs(dir)
+	if err != nil {
+		return "", wikiSnapshotError(WikiInspectionFailed, "", "cannot isolate wiki reference inspection")
+	}
+	scratch, err = filepath.EvalSymlinks(scratch)
+	if err != nil {
+		return "", wikiSnapshotError(WikiInspectionFailed, "", "cannot isolate wiki reference inspection")
+	}
+	ceiling := filepath.Dir(scratch)
+	if strings.ContainsRune(ceiling, os.PathListSeparator) {
+		return "", wikiSnapshotError(WikiInspectionFailed, "", "wiki temporary path cannot form a Git discovery ceiling")
+	}
 	refs := &wikiLimitedBuffer{limit: WikiSnapshotMaxTreeBytes}
 	diagnostics := &wikiLimitedBuffer{limit: 64 << 10}
 	// All refs distinguish an empty wiki from a nonempty wiki with a dangling HEAD.
-	command := wikiGitCommand(ctx, dir, "ls-remote", "--", remoteURL)
+	command := wikiGitCommand(ctx, scratch, "ls-remote", "--", remoteURL)
+	// Git ignores a ceiling equal to its starting directory, so exclude its parent.
+	command.Env = append(command.Env, "GIT_CEILING_DIRECTORIES="+ceiling)
 	command.Stdout, command.Stderr = refs, diagnostics
-	err := command.Run()
+	err = command.Run()
 	if ctx.Err() != nil {
 		return "", classifyWikiAccess(ctx, ctx.Err())
 	}
