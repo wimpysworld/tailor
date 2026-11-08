@@ -29,7 +29,10 @@ func TestMeasureShellPolicy(t *testing.T) {
 		{"environment", ".shellcheckrc", "warning"},
 	} {
 		t.Run(tc.location+"/"+tc.name, func(t *testing.T) {
-			base := t.TempDir()
+			base, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
 			dir, home, xdg := filepath.Join(base, "project"), filepath.Join(base, "home"), filepath.Join(base, "xdg")
 			for _, path := range []string{dir, home, xdg} {
 				if err := os.Mkdir(path, 0o755); err != nil {
