@@ -8,9 +8,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 	"unicode"
 	"unicode/utf8"
 
@@ -119,12 +122,95 @@ func readWikiSnapshotGit(dir, remoteURL, baseline string) (*WikiSnapshot, error)
 }
 
 func recheckWikiHeadGit(remoteURL, expected string) error {
-	return withWikiRemote(remoteURL, func(_ context.Context, _ string, head string) error {
-		if head != expected {
-			return wikiSnapshotError(WikiChangedOutside, "", "wiki HEAD changed during adoption; review the current wiki and retry")
+	if !wikiObjectID.MatchString(expected) {
+		return wikiSnapshotError(WikiInspectionFailed, "", "wiki expected HEAD is invalid")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	temporary, err := os.MkdirTemp("", "tailor-wiki-check-")
+	if err != nil {
+		return fmt.Errorf("creating temporary wiki inspection directory: %w", err)
+	}
+	defer os.RemoveAll(temporary)
+	head, err := readWikiRemoteHead(ctx, temporary, remoteURL)
+	if err != nil {
+		return err
+	}
+	if head != expected {
+		return wikiSnapshotError(WikiChangedOutside, "", "wiki HEAD changed during adoption; review the current wiki and retry")
+	}
+	return nil
+}
+
+func readWikiRemoteHead(ctx context.Context, dir, remoteURL string) (string, error) {
+	refs := &wikiLimitedBuffer{limit: WikiSnapshotMaxTreeBytes}
+	diagnostics := &wikiLimitedBuffer{limit: 64 << 10}
+	// All refs distinguish an empty wiki from a nonempty wiki with a dangling HEAD.
+	command := wikiGitCommand(ctx, dir, "ls-remote", "--", remoteURL)
+	command.Stdout, command.Stderr = refs, diagnostics
+	err := command.Run()
+	if ctx.Err() != nil {
+		return "", classifyWikiAccess(ctx, ctx.Err())
+	}
+	if refs.exceeded || diagnostics.exceeded {
+		return "", wikiSnapshotError(WikiReadFailed, "", "wiki reference output exceeds its byte limit")
+	}
+	if err != nil {
+		if exitErr, ok := errors.AsType[*exec.ExitError](err); ok {
+			exitErr.Stderr = diagnostics.buffer.Bytes()
 		}
-		return nil
-	})
+		return "", classifyWikiAccess(ctx, err)
+	}
+	return parseWikiRemoteHead(refs.buffer.Bytes())
+}
+
+func parseWikiRemoteHead(refs []byte) (string, error) {
+	inspectionFailed := func() (string, error) {
+		return "", wikiSnapshotError(WikiInspectionFailed, "", "wiki default branch cannot be inspected; check the wiki repository HEAD")
+	}
+	if len(refs) > WikiSnapshotMaxTreeBytes {
+		return "", wikiSnapshotError(WikiReadFailed, "", "wiki reference output exceeds its byte limit")
+	}
+	if len(refs) == 0 {
+		return "", &WikiAccessError{Reason: WikiEmpty, State: "wiki has no commits"}
+	}
+	if refs[len(refs)-1] != '\n' {
+		return inspectionFailed()
+	}
+	head := ""
+	seen := make(map[string]bool)
+	for line := range bytes.SplitSeq(refs[:len(refs)-1], []byte{'\n'}) {
+		object, name, ok := bytes.Cut(line, []byte{'\t'})
+		ref := string(name)
+		if !ok || !wikiObjectID.Match(object) || !validWikiRemoteRef(ref) || seen[ref] {
+			return inspectionFailed()
+		}
+		seen[ref] = true
+		if ref == "HEAD" {
+			head = string(object)
+		}
+	}
+	if head == "" {
+		return inspectionFailed()
+	}
+	return head, nil
+}
+
+func validWikiRemoteRef(ref string) bool {
+	if ref == "HEAD" {
+		return true
+	}
+	ref = strings.TrimSuffix(ref, "^{}")
+	if !strings.HasPrefix(ref, "refs/") || strings.HasSuffix(ref, ".") || strings.Contains(ref, "..") || strings.Contains(ref, "@{") ||
+		strings.ContainsAny(ref, "~^:?*[\\") || strings.ContainsFunc(ref, func(r rune) bool { return r <= ' ' || r == 0x7f }) {
+		return false
+	}
+	for component := range strings.SplitSeq(ref, "/") {
+		if component == "" || strings.HasPrefix(component, ".") || strings.HasSuffix(component, ".lock") {
+			return false
+		}
+	}
+	return true
 }
 
 func wikiSnapshotError(reason WikiReadinessReason, path, format string, args ...any) error {

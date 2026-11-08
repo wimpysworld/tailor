@@ -3,6 +3,7 @@ package gh
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestReadWikiSnapshotFidelity(t *testing.T) {
@@ -161,6 +163,225 @@ func TestWikiSnapshotAvailabilityAndRecheck(t *testing.T) {
 	}
 	if got := wikiFixtureGit(t, remote, "show", "HEAD:Home.md"); got != "second" {
 		t.Fatalf("remote content changed: %q", got)
+	}
+}
+
+func TestWikiRemoteHeadMetadata(t *testing.T) {
+	head, other := strings.Repeat("a", 40), strings.Repeat("b", 40)
+	for _, tc := range []struct {
+		name, output, want string
+		reason             WikiReadinessReason
+	}{
+		{"matching HEAD", head + "\tHEAD\n" + head + "\trefs/heads/main\n", head, ""},
+		{"detached HEAD", head + "\tHEAD\n", head, ""},
+		{"exact HEAD only", other + "\trefs/heads/HEAD\n" + head + "\tHEAD\n", head, ""},
+		{"peeled tag", head + "\tHEAD\n" + other + "\trefs/tags/v1\n" + head + "\trefs/tags/v1^{}\n", head, ""},
+		{"internal trailing dot", head + "\tHEAD\n" + head + "\trefs/heads/release./main\n", head, ""},
+		{"final trailing dot", head + "\tHEAD\n" + head + "\trefs/heads/release/main.\n", "", WikiInspectionFailed},
+		{"empty", "", "", WikiEmpty},
+		{"dangling HEAD", head + "\trefs/heads/main\n", "", WikiInspectionFailed},
+		{"suffix is not HEAD", head + "\trefs/heads/HEAD\n", "", WikiInspectionFailed},
+		{"duplicate HEAD", head + "\tHEAD\n" + head + "\tHEAD\n", "", WikiInspectionFailed},
+		{"conflicting HEAD", head + "\tHEAD\n" + other + "\tHEAD\n", "", WikiInspectionFailed},
+		{"duplicate ref", head + "\tHEAD\n" + head + "\trefs/heads/main\n" + head + "\trefs/heads/main\n", "", WikiInspectionFailed},
+		{"short ID", "abc\tHEAD\n", "", WikiInspectionFailed},
+		{"uppercase ID", strings.Repeat("A", 40) + "\tHEAD\n", "", WikiInspectionFailed},
+		{"truncated", head + "\tHEAD", "", WikiInspectionFailed},
+		{"blank line", head + "\tHEAD\n\n", "", WikiInspectionFailed},
+		{"spaces", head + " HEAD\n", "", WikiInspectionFailed},
+		{"extra field", head + "\tHEAD\textra\n", "", WikiInspectionFailed},
+		{"symbolic record", "ref: refs/heads/main\tHEAD\n", "", WikiInspectionFailed},
+		{"unsafe ref", head + "\trefs/heads/../HEAD\n", "", WikiInspectionFailed},
+		{"control ref", head + "\trefs/heads/main\r\n", "", WikiInspectionFailed},
+		{"oversized", strings.Repeat("x", WikiSnapshotMaxTreeBytes+1), "", WikiReadFailed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := parseWikiRemoteHead([]byte(tc.output))
+			if got != tc.want {
+				t.Fatalf("HEAD=%q, want %q", got, tc.want)
+			}
+			if tc.reason == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			var access *WikiAccessError
+			var readiness *WikiReadinessError
+			if errors.As(err, &access) && access.Reason == tc.reason || errors.As(err, &readiness) && readiness.Reason == tc.reason {
+				return
+			}
+			t.Fatalf("error=%v, want reason %s", err, tc.reason)
+		})
+	}
+}
+
+func wikiMetadataGit(t *testing.T, script string) {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "git"), []byte("#!/bin/sh\n"+script), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func TestRecheckWikiHeadMetadataCommand(t *testing.T) {
+	head := strings.Repeat("a", 40)
+	log := filepath.Join(t.TempDir(), "command")
+	t.Setenv("TAILOR_TEST_WIKI_COMMAND", log)
+	t.Setenv("GIT_CONFIG_COUNT", "1")
+	t.Setenv("GIT_DIR", "/untrusted")
+	t.Setenv("SSH_AUTH_SOCK", "/untrusted")
+	t.Setenv("SSH_ASKPASS", "/untrusted")
+	wikiMetadataGit(t, `printf '%s\n' "$@" >> "$TAILOR_TEST_WIKI_COMMAND"
+printf '%s\n' "$HOME" "$GIT_TERMINAL_PROMPT" "$GIT_CONFIG_NOSYSTEM" "$GIT_CONFIG_GLOBAL" > "$TAILOR_TEST_WIKI_COMMAND.env"
+[ -z "${GIT_CONFIG_COUNT+x}${GIT_DIR+x}${SSH_AUTH_SOCK+x}${SSH_ASKPASS+x}" ] || exit 99
+printf '%s\tHEAD\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+`)
+	remote := "--untrusted-remote"
+	if err := recheckWikiHeadGit(remote, head); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	args := strings.Split(strings.TrimSuffix(string(data), "\n"), "\n")
+	if len(args) != 15 {
+		t.Fatalf("unexpected commands: %q", args)
+	}
+	temporary := args[11]
+	want := []string{"-c", "credential.helper=", "-c", "core.askPass=", "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.file.allow=always", "-C", temporary, "ls-remote", "--", remote}
+	if !reflect.DeepEqual(args, want) {
+		t.Fatalf("commands=%q, want %q", args, want)
+	}
+	if info, err := os.Lstat(temporary); !os.IsNotExist(err) {
+		t.Fatalf("temporary storage remains: %v, %v", info, err)
+	}
+	data, err = os.ReadFile(log + ".env")
+	if err != nil || string(data) != temporary+"\n0\n1\n"+os.DevNull+"\n" {
+		t.Fatalf("anonymous environment=%q, error=%v", data, err)
+	}
+	if err := recheckWikiHeadGit(remote, strings.Repeat("b", 40)); err == nil {
+		t.Fatal("changed HEAD accepted")
+	} else {
+		var readiness *WikiReadinessError
+		if !errors.As(err, &readiness) || readiness.Reason != WikiChangedOutside {
+			t.Fatalf("changed HEAD: %v", err)
+		}
+	}
+	before, err := os.ReadFile(log)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := recheckWikiHeadGit(remote, "HEAD^{commit}"); err == nil {
+		t.Fatal("invalid expected ID accepted")
+	}
+	after, err := os.ReadFile(log)
+	if err != nil || !bytes.Equal(before, after) {
+		t.Fatalf("invalid ID ran Git: %q, %v", after, err)
+	}
+}
+
+func TestWikiRemoteHeadFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name, script string
+		reason       WikiReadinessReason
+	}{
+		{"denied", "printf 'Authentication failed: secret' >&2; exit 1\n", WikiAccessDenied},
+		{"unknown", "printf 'Repository not found: secret' >&2; exit 1\n", WikiAccessUnknown},
+		{"network", "printf 'Could not resolve host: secret' >&2; exit 1\n", WikiReadFailed},
+		{"partial failure", "printf 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\tHEAD\\n'; exit 1\n", WikiReadFailed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wikiMetadataGit(t, tc.script)
+			_, err := readWikiRemoteHead(t.Context(), t.TempDir(), "fixture")
+			var access *WikiAccessError
+			if !errors.As(err, &access) || access.Reason != tc.reason || strings.Contains(err.Error(), "secret") {
+				t.Fatalf("error=%v, want %s without diagnostics", err, tc.reason)
+			}
+		})
+	}
+	t.Run("cancelled", func(t *testing.T) {
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		_, err := readWikiRemoteHead(ctx, t.TempDir(), "fixture")
+		var access *WikiAccessError
+		if !errors.As(err, &access) || access.Reason != WikiTimedOut {
+			t.Fatalf("cancelled query: %v", err)
+		}
+	})
+	t.Run("expired deadline", func(t *testing.T) {
+		ctx, cancel := context.WithDeadline(t.Context(), time.Now().Add(-time.Second))
+		defer cancel()
+		_, err := readWikiRemoteHead(ctx, t.TempDir(), "fixture")
+		var access *WikiAccessError
+		if !errors.As(err, &access) || access.Reason != WikiTimedOut {
+			t.Fatalf("expired query: %v", err)
+		}
+	})
+	t.Run("missing git", func(t *testing.T) {
+		t.Setenv("PATH", t.TempDir())
+		_, err := readWikiRemoteHead(t.Context(), t.TempDir(), "fixture")
+		var access *WikiAccessError
+		if !errors.As(err, &access) || access.Reason != WikiGitUnavailable {
+			t.Fatalf("missing git: %v", err)
+		}
+	})
+}
+
+func TestWikiRemoteHeadOutputLimits(t *testing.T) {
+	for _, stream := range []string{"stdout", "stderr"} {
+		t.Run(stream, func(t *testing.T) {
+			redirect := ""
+			if stream == "stderr" {
+				redirect = " >&2"
+			}
+			wikiMetadataGit(t, "i=0; while [ \"$i\" -lt 32769 ]; do printf '%0256d' 0"+redirect+"; i=$((i+1)); done\n")
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+			defer cancel()
+			_, err := readWikiRemoteHead(ctx, t.TempDir(), "fixture")
+			var readiness *WikiReadinessError
+			if !errors.As(err, &readiness) || readiness.Reason != WikiReadFailed || !strings.Contains(err.Error(), "byte limit") {
+				t.Fatalf("unbounded %s: %v", stream, err)
+			}
+		})
+	}
+}
+
+func TestRecheckWikiHeadDanglingAndUnsafeTransport(t *testing.T) {
+	remote := t.TempDir()
+	wikiFixtureGit(t, remote, "init", "-b", "main")
+	wikiFixtureWrite(t, remote, "Home.md", "page")
+	wikiFixtureGit(t, remote, "add", ".")
+	wikiFixtureGit(t, remote, "commit", "-m", "Wiki")
+	head := wikiFixtureGit(t, remote, "rev-parse", "HEAD")
+	wikiFixtureGit(t, remote, "symbolic-ref", "HEAD", "refs/heads/missing")
+	var readiness *WikiReadinessError
+	if err := recheckWikiHeadGit(remote, head); !errors.As(err, &readiness) || readiness.Reason != WikiInspectionFailed {
+		t.Fatalf("nonempty dangling HEAD: %v", err)
+	}
+	var access *WikiAccessError
+	if err := recheckWikiHeadGit(filepath.Join(t.TempDir(), "missing.git"), head); !errors.As(err, &access) || access.Reason == WikiEmpty {
+		t.Fatalf("missing remote classified as empty: %v", err)
+	}
+	marker := filepath.Join(t.TempDir(), "transport-ran")
+	t.Setenv("TAILOR_TEST_WIKI_TRANSPORT", marker)
+	helper := filepath.Join(t.TempDir(), "transport")
+	if err := os.WriteFile(helper, []byte("#!/bin/sh\nprintf forbidden > \"$TAILOR_TEST_WIKI_TRANSPORT\"\nexit 1\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", filepath.Dir(helper)+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if err := os.WriteFile(filepath.Join(filepath.Dir(helper), "ssh"), []byte("#!/bin/sh\nprintf forbidden > \"$TAILOR_TEST_WIKI_TRANSPORT\"\nexit 1\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	for _, remote := range []string{"ext::" + helper, "ssh://localhost/wiki.git", "git://localhost/wiki.git"} {
+		if err := recheckWikiHeadGit(remote, head); !errors.As(err, &access) || access.Reason != WikiReadFailed {
+			t.Fatalf("unsafe transport %q: %v", remote, err)
+		}
+		if _, err := os.Lstat(marker); !os.IsNotExist(err) {
+			t.Fatalf("unsafe transport ran: %v", err)
+		}
 	}
 }
 
@@ -344,6 +565,9 @@ func TestWikiSnapshotGitIsolation(t *testing.T) {
 	snapshot, err := ReadWikiSnapshot(t.TempDir(), remote, "")
 	if err != nil || len(snapshot.Files) != 1 {
 		t.Fatalf("configuration isolation failed: snapshot=%v, error=%v", snapshot, err)
+	}
+	if err := recheckWikiHeadGit(remote, snapshot.Head); err != nil {
+		t.Fatalf("recheck configuration isolation failed: %v", err)
 	}
 	command := wikiGitCommand(t.Context(), remote, "rev-parse", "HEAD")
 	for _, entry := range command.Env {
