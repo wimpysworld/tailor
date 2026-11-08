@@ -136,15 +136,17 @@ func TestProgressPromptBeforeActivation(t *testing.T) {
 			progress.Observe(StageEvent{ID: "wiki", Label: "Inspecting wiki", Phase: "start"})
 			generation := progress.generation
 			injected := errors.New("prompt failed")
+			activeDuringPrompt := false
 			err := progress.WithPaused(func() error {
-				if progress.timer != nil || progress.program != nil {
-					t.Fatal("progress active during prompt")
-				}
+				activeDuringPrompt = progress.timer != nil || progress.program != nil
 				if failed {
 					return injected
 				}
 				return nil
 			})
+			if activeDuringPrompt {
+				t.Fatal("progress active during prompt")
+			}
 			if errors.Is(err, injected) != failed || progress.timer == nil || progress.generation <= generation {
 				t.Fatalf("progress did not resume: %v", err)
 			}
