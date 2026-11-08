@@ -228,6 +228,18 @@ func wikiMetadataGit(t *testing.T, script string) {
 
 func TestRecheckWikiHeadMetadataCommand(t *testing.T) {
 	head := strings.Repeat("a", 40)
+	scratchRoot := t.TempDir()
+	canonicalScratchRoot, err := filepath.EvalSymlinks(scratchRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertScratchEmpty := func() {
+		t.Helper()
+		entries, err := os.ReadDir(scratchRoot)
+		if err != nil || len(entries) != 0 {
+			t.Fatalf("temporary storage remains: %v, %v", entries, err)
+		}
+	}
 	log := filepath.Join(t.TempDir(), "command")
 	t.Setenv("TAILOR_TEST_WIKI_COMMAND", log)
 	t.Setenv("GIT_CONFIG_COUNT", "1")
@@ -239,10 +251,12 @@ printf '%s\n' "$HOME" "$GIT_TERMINAL_PROMPT" "$GIT_CONFIG_NOSYSTEM" "$GIT_CONFIG
 [ -z "${GIT_CONFIG_COUNT+x}${GIT_DIR+x}${SSH_AUTH_SOCK+x}${SSH_ASKPASS+x}" ] || exit 99
 printf '%s\tHEAD\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 `)
+	t.Setenv("TMPDIR", scratchRoot)
 	remote := "--untrusted-remote"
 	if err := recheckWikiHeadGit(remote, head); err != nil {
 		t.Fatal(err)
 	}
+	assertScratchEmpty()
 	data, err := os.ReadFile(log)
 	if err != nil {
 		t.Fatal(err)
@@ -252,15 +266,15 @@ printf '%s\tHEAD\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 		t.Fatalf("unexpected commands: %q", args)
 	}
 	temporary := args[11]
+	if filepath.Dir(temporary) != canonicalScratchRoot {
+		t.Fatalf("temporary parent=%q, want %q", filepath.Dir(temporary), canonicalScratchRoot)
+	}
 	want := []string{"-c", "credential.helper=", "-c", "core.askPass=", "-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.file.allow=always", "-C", temporary, "ls-remote", "--", remote}
 	if !reflect.DeepEqual(args, want) {
 		t.Fatalf("commands=%q, want %q", args, want)
 	}
-	if info, err := os.Lstat(temporary); !os.IsNotExist(err) {
-		t.Fatalf("temporary storage remains: %v, %v", info, err)
-	}
 	data, err = os.ReadFile(log + ".env")
-	if err != nil || string(data) != temporary+"\n0\n1\n"+os.DevNull+"\n"+filepath.Dir(temporary)+"\n" {
+	if err != nil || string(data) != temporary+"\n0\n1\n"+os.DevNull+"\n"+canonicalScratchRoot+"\n" {
 		t.Fatalf("anonymous environment=%q, error=%v", data, err)
 	}
 	if err := recheckWikiHeadGit(remote, strings.Repeat("b", 40)); err == nil {
@@ -271,6 +285,7 @@ printf '%s\tHEAD\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 			t.Fatalf("changed HEAD: %v", err)
 		}
 	}
+	assertScratchEmpty()
 	before, err := os.ReadFile(log)
 	if err != nil {
 		t.Fatal(err)
@@ -278,6 +293,7 @@ printf '%s\tHEAD\n' 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 	if err := recheckWikiHeadGit(remote, "HEAD^{commit}"); err == nil {
 		t.Fatal("invalid expected ID accepted")
 	}
+	assertScratchEmpty()
 	after, err := os.ReadFile(log)
 	if err != nil || !bytes.Equal(before, after) {
 		t.Fatalf("invalid ID ran Git: %q, %v", after, err)
