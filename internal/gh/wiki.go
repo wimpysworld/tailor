@@ -61,6 +61,12 @@ func InspectWiki(dir, remoteURL, baseline string) error {
 var wikiSourceTrailer = regexp.MustCompile(`(?m)^Tailor-Wiki-Source: ([0-9a-f]{40})$`)
 
 func inspectWikiGit(dir, remoteURL, baseline string) error {
+	return withWikiRemote(remoteURL, func(ctx context.Context, remote, head string) error {
+		return inspectWikiClone(ctx, dir, remote, head, baseline)
+	})
+}
+
+func withWikiRemote(remoteURL string, inspect func(context.Context, string, string) error) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	temporary, err := os.MkdirTemp("", "tailor-wiki-check-")
@@ -69,21 +75,28 @@ func inspectWikiGit(dir, remoteURL, baseline string) error {
 	}
 	defer os.RemoveAll(temporary)
 	remote := filepath.Join(temporary, "wiki.git")
-	if _, err := wikiGit(ctx, temporary, "clone", "--bare", "--", remoteURL, remote); err != nil {
+	if _, err := wikiGit(ctx, temporary, "clone", "--bare", "--no-local", "--template=", "--", remoteURL, remote); err != nil {
 		return classifyWikiAccess(ctx, err)
 	}
-	head, err := wikiGit(ctx, remote, "rev-parse", "--verify", "HEAD")
+	head, err := wikiGit(ctx, remote, "rev-parse", "--verify", "HEAD^{commit}")
 	if err != nil {
+		if ctx.Err() != nil {
+			return classifyWikiAccess(ctx, err)
+		}
 		refs, refsErr := wikiGit(ctx, remote, "for-each-ref", "--format=%(refname)")
 		if refsErr == nil && len(bytes.TrimSpace(refs)) == 0 {
 			return &WikiAccessError{Reason: WikiEmpty, State: "wiki has no commits"}
 		}
 		return &WikiReadinessError{Reason: WikiInspectionFailed, Err: errors.New("wiki default branch cannot be inspected; check the wiki repository HEAD")}
 	}
+	return inspect(ctx, remote, strings.TrimSpace(string(head)))
+}
+
+func inspectWikiClone(ctx context.Context, dir, remote, head, baseline string) error {
 	if baseline == "" {
 		return &WikiReadinessError{Reason: WikiBaselineMissing, Err: errors.New("wiki exists but wiki/.tailor-wiki-base is missing; import the wiki before adoption")}
 	}
-	remoteTree, err := wikiGit(ctx, remote, "ls-tree", "-r", "-z", "HEAD")
+	remoteTree, err := wikiGit(ctx, remote, "ls-tree", "-r", "-z", head)
 	if err != nil {
 		return &WikiReadinessError{Reason: WikiInspectionFailed, Err: errors.New("wiki tree cannot be inspected")}
 	}
@@ -91,7 +104,7 @@ func inspectWikiGit(dir, remoteURL, baseline string) error {
 		return &WikiReadinessError{Reason: WikiUnsafeFile, Err: errors.New("wiki contains an unsafe file; review remote files before adoption")}
 	}
 	// A matching import baseline permits local edits but requires every remote file.
-	if strings.TrimSpace(string(head)) == baseline {
+	if head == baseline {
 		root, err := os.OpenRoot(dir)
 		if err != nil {
 			return err
@@ -113,7 +126,7 @@ func inspectWikiGit(dir, remoteURL, baseline string) error {
 		return nil
 	}
 	// A changed remote must match a published source tree from local HEAD's ancestry.
-	message, err := wikiGit(ctx, remote, "log", "-1", "--format=%B")
+	message, err := wikiGit(ctx, remote, "log", "-1", "--format=%B", head)
 	if err != nil {
 		return &WikiReadinessError{Reason: WikiInspectionFailed, Err: errors.New("wiki history cannot be inspected")}
 	}
@@ -188,13 +201,21 @@ func classifyWikiAccess(ctx context.Context, err error) error {
 
 // wikiGit isolates anonymous reads from user Git configuration, credentials and prompts.
 func wikiGit(ctx context.Context, dir string, args ...string) ([]byte, error) {
-	command := exec.CommandContext(ctx, "git", append([]string{"-c", "credential.helper=", "-c", "core.askPass=", "-C", dir}, args...)...) // #nosec G204 -- Fixed Git operations, separate arguments, no shell.
+	return wikiGitCommand(ctx, dir, args...).Output()
+}
+
+func wikiGitCommand(ctx context.Context, dir string, args ...string) *exec.Cmd {
+	command := exec.CommandContext(ctx, "git", append([]string{
+		"-c", "credential.helper=", "-c", "core.askPass=",
+		"-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "-c", "protocol.file.allow=always",
+		"-C", dir,
+	}, args...)...) // #nosec G204 -- Fixed Git operations, separate arguments, no shell.
 	command.WaitDelay = 2 * time.Second
 	for _, entry := range os.Environ() {
-		if !strings.HasPrefix(entry, "GIT_") {
+		if !strings.HasPrefix(entry, "GIT_") && !strings.HasPrefix(entry, "HOME=") && !strings.HasPrefix(entry, "SSH_AUTH_SOCK=") && !strings.HasPrefix(entry, "SSH_ASKPASS=") {
 			command.Env = append(command.Env, entry)
 		}
 	}
-	command.Env = append(command.Env, "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
-	return command.Output()
+	command.Env = append(command.Env, "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull, "HOME="+dir)
+	return command
 }

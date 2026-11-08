@@ -70,12 +70,17 @@ Review `.tailor.yml` and run `tailor baste` before `tailor alter`. The defaults 
 
 Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, and the licence. The swatch stage then publishes Dependabot, managed development files, and ordinary swatches. Pages files follow.
 
-Wiki setup has one earlier write: after local safety checks, Tailor enables a declared wiki before its readiness check. If readiness fails, no other changes follow. See [GitHub wiki](GitHub-wiki) for setup steps.
+Before normal alterations, Tailor can enable a declared public wiki and import its existing content with separate approval. Enablement can remain if you decline the import or a later check fails. A pending import blocks normal alterations. See [GitHub wiki](GitHub-wiki) for setup and recovery.
 
 ```bash
-tailor alter            # Apply changes
-tailor alter --recut    # Overwrite eligible always and first-fit swatches
+tailor alter               # Apply changes
+tailor alter --recut       # Overwrite eligible always and first-fit swatches
+tailor alter --adopt-wiki  # Approve the pinned wiki import without a prompt
 ```
+
+For a readable unadopted wiki, `alter` asks for one confirmation that defaults to no. Review the complete plan with `tailor baste --verbose`. Noninteractive runs never infer consent. `--adopt-wiki` approves the complete pinned import, including replacements with private backups. It does not approve other alterations, but those declared changes still follow after readiness passes. `--recut` is not import consent. `--local-only` rejects `--adopt-wiki`.
+
+Ready, adopted wiki content remains untouched, including dirty edits. The CLI never stages, commits or pushes wiki changes. Commit and push reviewed source changes through the normal project workflow to trigger publication.
 
 `--recut` overrides `first-fit` for ordinary swatches, but it still skips `never`. Existing `justfile`, `flake.nix`, and `.gitignore` roots, wiki starter pages, [static Pages starter files](GitHub-Pages#static-pages-starter), and regular `LICENSE` files are exempt. Ordinary `.gitignore` processing preserves an existing regular file or final symlink byte-for-byte under every mode. It does not read or hash the file, or follow the symlink.
 
@@ -103,13 +108,13 @@ Future `.gitignore` atomicity will cover one file only. It will not cover remote
 
 If a later step fails, completed local and repository changes remain. Tailor does not roll them back. Fix the reported error, then run `tailor baste` before you retry `tailor alter`.
 
-`alter` and `alter --recut` report a completed label after each successful change. Labels are `set`, `created`, `updated`, `removed`, `copied`, and `overwritten`.
+`alter` and `alter --recut` report a completed label after each successful change. Labels include `set`, `created`, `updated`, `removed`, `copied`, and `overwritten`. Wiki imports use `import` and `replace with backup`.
 
 A default merge, retired-entry cleanup, or security prerequisite normalisation in `.tailor.yml` reports `updated`. Security normalisation also shows a warning. A retired workflow file cleanup reports `removed`.
 
 ## `baste`
 
-`baste` previews the changes that `alter` will make. It makes no changes.
+`baste` previews the changes that `alter` will make. It makes no persistent changes and never prompts. Wiki inspection uses isolated temporary Git storage. For a readable unadopted wiki, it previews additions and replacements with backups. A disabled wiki produces conditional guidance until `alter` enables it. Readiness blockers alone do not fail the full preview.
 
 For Dependabot, `baste` distinguishes creation, complete-file replacement, unchanged owned content, preserved unmarked content, skipped management, and conflicts. It creates no file, directory, temporary file, or ownership record.
 
@@ -127,6 +132,8 @@ tailor baste
 | `would remove` | `removed` |
 | `would copy` | `copied` |
 | `would overwrite` | `overwritten` |
+| `would import` | `import` |
+| `would replace with backup` | `replace with backup` |
 
 In legacy plain output, `skipped` and `no change` use the same labels in all three commands. A skipped file shows its reason after the path.
 

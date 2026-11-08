@@ -25,6 +25,7 @@ type wikiRun struct {
 	entry         config.SwatchEntry
 	skipped       []RepoSettingResult
 	nextSteps     string
+	importPlan    *wikiImportPlan
 }
 
 func (p *wikiRun) didEnable() bool { return p != nil && p.enabledViaAPI }
@@ -32,6 +33,10 @@ func (p *wikiRun) didEnable() bool { return p != nil && p.enabledViaAPI }
 // preflightWiki checks workflow ownership and remote adoption before ordinary writes.
 // Enabling a public wiki is the sole permitted early write. DryRun reports readiness blockers and continues the preview.
 func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTarget, declared bool) (*wikiRun, error) {
+	return preflightWikiWithOptions(cfg, dir, mode, target, declared, Options{})
+}
+
+func preflightWikiWithOptions(cfg *config.Config, dir string, mode ApplyMode, target RepoTarget, declared bool, options Options) (*wikiRun, error) {
 	if !declared || cfg.Repository == nil || cfg.Repository.HasWiki == nil {
 		return nil, nil
 	}
@@ -71,7 +76,7 @@ func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTa
 			p.nextSteps = wikiPreviewGuidance(err, wikiURL, remoteURL, hasSource)
 			return p, nil
 		}
-		return nil, errors.New(wikiReadinessGuidance(err, wikiURL, remoteURL, hasSource))
+		return p, errors.New(wikiReadinessGuidance(err, wikiURL, remoteURL, hasSource))
 	}
 	p.content, err = swatch.Content(swatch.WikiDestination)
 	if err != nil {
@@ -118,31 +123,85 @@ func preflightWiki(cfg *config.Config, dir string, mode ApplyMode, target RepoTa
 		fmt.Fprintln(target.stderr(), "set: repository.has_wiki = true")
 		p.enabledViaAPI = true
 	}
-	if err := gh.InspectWiki(dir, remoteURL, baseline); err != nil {
+	readiness := gh.InspectWiki(dir, remoteURL, baseline)
+	pending, err := findWikiImport(dir, remoteURL)
+	if err != nil {
+		if mode == DryRun {
+			p.nextSteps = strings.TrimRight(err.Error(), "\n") + "\n"
+			return p, nil
+		}
+		return p, err
+	}
+	if readiness == nil && pending == nil {
+		return p, nil
+	}
+	if pending == nil && !wikiAdoptionCandidate(readiness) {
+		return blocked(readiness)
+	}
+	snapshot, err := gh.ReadWikiSnapshot(dir, remoteURL, baseline)
+	if err != nil {
 		return blocked(err)
 	}
+	if snapshot.Readiness != nil && !wikiAdoptionCandidate(snapshot.Readiness) {
+		return blocked(snapshot.Readiness)
+	}
+	if pending == nil && snapshot.Readiness == nil {
+		return p, nil
+	}
+	if pending != nil {
+		p.importPlan = pending
+		err = restoreWikiImport(dir, pending, snapshot)
+	} else {
+		p.importPlan, err = planWikiImport(dir, remoteURL, snapshot)
+	}
+	if err != nil {
+		if mode == DryRun {
+			p.nextSteps = strings.TrimRight(err.Error(), "\n") + "\n"
+			return p, nil
+		}
+		return p, err
+	}
+	if mode == DryRun {
+		p.nextSteps = "Review the wiki import preview. Run tailor alter for one confirmation, or tailor alter --adopt-wiki for scoped noninteractive consent.\n"
+		return p, nil
+	}
+	approved := options.AdoptWiki
+	if !approved && options.ConfirmWikiAdoption != nil {
+		approved, err = options.ConfirmWikiAdoption(p.importPlan.summary())
+		if err != nil {
+			return p, fmt.Errorf("confirming wiki adoption: %w", err)
+		}
+	}
+	if !approved {
+		return p, errors.New("wiki adoption was not approved; no wiki files changed. Review tailor baste, then use tailor alter --adopt-wiki for scoped noninteractive consent")
+	}
+	if err := applyWikiImport(dir, p.importPlan); err != nil {
+		return p, fmt.Errorf("wiki adoption stopped: %w", err)
+	}
 	return p, nil
+}
+
+func wikiAdoptionCandidate(err error) bool {
+	if err == nil {
+		return false
+	}
+	reason, _ := wikiReadinessDetails(err)
+	switch reason {
+	case gh.WikiBaselineMissing, gh.WikiChangedOutside, gh.WikiImportIncomplete, gh.WikiHistoryMissing:
+		return true
+	default:
+		return false
+	}
 }
 
 func wikiReadinessGuidance(err error, wikiURL, remoteURL string, hasSource bool) string {
 	return "wiki is not ready\n" + strings.TrimSuffix(wikiPreviewGuidance(err, wikiURL, remoteURL, hasSource), "\n")
 }
 
-func wikiImportGuidance(remoteURL string, hasSource bool) string {
-	guidance := fmt.Sprintf(`   Requires rsync. Run each command from the project root, stopping if a command fails.
-   Use an unused path for ../tailor-wiki-import.
-     git clone %s ../tailor-wiki-import
-`, remoteURL)
-	if hasSource {
-		guidance += `   Copy missing files without replacing local files:
-     rsync -a --ignore-existing --exclude=.git ../tailor-wiki-import/ wiki/
-     rsync -naci --exclude=.git ../tailor-wiki-import/ wiki/
-   Review the listed differences and merge changes before recording the imported version:
-`
-	} else {
-		guidance += "     rsync -a --exclude=.git ../tailor-wiki-import/ wiki/\n"
-	}
-	return guidance + "     git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base\n"
+func wikiImportGuidance(_ string, _ bool) string {
+	return "   Run tailor baste to inspect the import plan after the wiki can be read safely.\n" +
+		"   Run tailor alter for one confirmation, or use tailor alter --adopt-wiki for noninteractive consent.\n" +
+		"   Tailor preserves local-only files and backs up approved replacements in private Git metadata.\n"
 }
 
 func wikiPreviewGuidance(err error, wikiURL, remoteURL string, hasSource bool) string {
@@ -306,6 +365,9 @@ func checkWikiSource(root *os.Root) error {
 	if err := fs.WalkDir(root.FS(), "wiki", func(name string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
+		}
+		if name != swatch.WikiBaseline && strings.HasPrefix(strings.ToLower(path.Base(name)), ".tailor-wiki-") {
+			return fmt.Errorf("wiki source %q is reserved recovery data; retain it for review before retrying", name)
 		}
 		if strings.EqualFold(path.Base(name), ".git") || entry.Type()&os.ModeSymlink != 0 {
 			return fmt.Errorf("wiki source %q must not contain symlinks or git metadata", name)

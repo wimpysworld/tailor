@@ -1,6 +1,8 @@
 package gh
 
 import (
+	"errors"
+
 	"github.com/cli/go-gh/v2/pkg/api"
 	"github.com/cli/go-gh/v2/pkg/repository"
 )
@@ -10,8 +12,34 @@ import (
 // SetInspectWikiFunc replaces wiki inspection for tests and returns a restore function.
 func SetInspectWikiFunc(fn func(string, string, string) error) func() {
 	old := inspectWiki
+	oldRead, oldRecheck := readWikiSnapshot, recheckWikiHead
 	inspectWiki = fn
-	return func() { inspectWiki = old }
+	readWikiSnapshot = func(string, string, string) (*WikiSnapshot, error) {
+		return nil, errors.New("wiki snapshot test hook is required while inspection is overridden")
+	}
+	recheckWikiHead = func(string, string) error {
+		return errors.New("wiki HEAD test hook is required while inspection is overridden")
+	}
+	return func() {
+		inspectWiki = old
+		readWikiSnapshot, recheckWikiHead = oldRead, oldRecheck
+	}
+}
+
+// SetReadWikiSnapshotFunc replaces snapshot reads and returns a restore function.
+// Install this hook after SetInspectWikiFunc when a test needs both hooks.
+func SetReadWikiSnapshotFunc(fn func(string, string, string) (*WikiSnapshot, error)) func() {
+	old := readWikiSnapshot
+	readWikiSnapshot = fn
+	return func() { readWikiSnapshot = old }
+}
+
+// SetRecheckWikiHeadFunc replaces HEAD rechecks and returns a restore function.
+// Install this hook after SetInspectWikiFunc when a test needs both hooks.
+func SetRecheckWikiHeadFunc(fn func(string, string) error) func() {
+	old := recheckWikiHead
+	recheckWikiHead = fn
+	return func() { recheckWikiHead = old }
 }
 
 // SetTokenForHostFunc replaces the tokenForHost function for testing.
