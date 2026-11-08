@@ -91,6 +91,25 @@ func renderManagedQuality(cfg *config.Config, content []byte, registry []managed
 		body.Write(bytes.ReplaceAll(preflight, []byte("[[TAILOR_RUST_TOOLS]]"), []byte(tools)))
 	}
 	if operation == managedLint {
+		if cfg.JavaScriptEnabled() || cfg.ShellEnabled() {
+			preflight, err := managedQualityBody("source-preflight")
+			if err != nil {
+				return nil, err
+			}
+			tools := "git mktemp rm grep"
+			if cfg.JavaScriptEnabled() {
+				tools += " node oxlint prettier"
+			}
+			if cfg.ShellEnabled() {
+				tools += " shellcheck shfmt"
+			}
+			replacer := strings.NewReplacer(
+				"[[TAILOR_SOURCE_TOOLS]]", tools,
+				"[[TAILOR_JAVASCRIPT_ENABLED]]", fmt.Sprint(cfg.JavaScriptEnabled()),
+				"[[TAILOR_SHELL_ENABLED]]", fmt.Sprint(cfg.ShellEnabled()),
+			)
+			body.WriteString(replacer.Replace(string(preflight)))
+		}
 		workflows, err := managedQualityBody("workflows")
 		if err != nil {
 			return nil, err

@@ -74,6 +74,16 @@ func processSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 			return nil, err
 		}
 	}
+	javaScriptPolicies := make(map[string]JavaScriptPolicy)
+	for _, entry := range cfg.Swatches {
+		if cfg.SwatchActive(entry.Path) && entry.Alteration != swatch.Never {
+			policy, err := InspectJavaScriptPolicy(dir, entry.Path)
+			if err != nil {
+				return nil, err
+			}
+			javaScriptPolicies[entry.Path] = policy
+		}
+	}
 	results := make([]SwatchResult, 0, len(cfg.Swatches))
 	root, err := os.OpenRoot(dir)
 	if err != nil {
@@ -92,6 +102,11 @@ func processSwatches(cfg *config.Config, dir string, mode ApplyMode, tokens *Tok
 			continue
 		}
 		if entry.Path == configPath || entry.Path == swatch.PagesDestination || swatch.IsWiki(entry.Path) || swatch.IsPagesStarter(entry.Path) {
+			continue
+		}
+
+		if policy := javaScriptPolicies[entry.Path]; policy.Reason != "" {
+			results = append(results, SwatchResult{Path: entry.Path, Category: Skipped, Reason: SwatchReason(policy.Reason)})
 			continue
 		}
 
@@ -131,6 +146,10 @@ func processSwatch(root *os.Root, entry config.SwatchEntry, content []byte, mode
 	// Never mode skips unconditionally, regardless of apply mode or file existence.
 	if entry.Alteration == swatch.Never {
 		return SwatchResult{Path: entry.Path, Category: Skipped, Reason: SkipModeNever}, nil
+	}
+
+	if entry.Path == ".shellcheckrc" || entry.Path == ".editorconfig" {
+		return processShellStarter(root, entry, content, mode)
 	}
 
 	if entry.Path == ignoreRootPath {

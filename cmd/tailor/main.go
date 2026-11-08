@@ -349,6 +349,52 @@ func (m *MeasureCmd) Run() (runErr error) {
 			return fmt.Errorf("loading config: %w", err)
 		}
 		diff = measure.CheckConfigDiff(cfg, swatch.All())
+		for _, starter := range []struct {
+			enabled bool
+			names   []string
+			inspect func(string, string) (alter.ShellPolicy, error)
+		}{
+			{cfg.ShellEnabled(), []string{".shellcheckrc", ".editorconfig"}, alter.InspectShellPolicy},
+			{cfg.JavaScriptEnabled(), []string{".oxlintrc.json", ".prettierrc.json", ".prettierignore"}, func(dir, name string) (alter.ShellPolicy, error) {
+				policy, err := alter.InspectJavaScriptPolicy(dir, name)
+				return alter.ShellPolicy(policy), err
+			}},
+		} {
+			if !starter.enabled {
+				continue
+			}
+			for _, name := range starter.names {
+				skipped := false
+				for _, entry := range cfg.Swatches {
+					if entry.Path == name && entry.Alteration == swatch.Never {
+						skipped = true
+					}
+				}
+				if skipped {
+					continue
+				}
+				policy, err := starter.inspect(dir, name)
+				if err != nil {
+					policy.AdoptionRequired = true
+					policy.Reason = err.Error()
+				}
+				status := measure.Missing
+				if policy.Present || policy.Reason != "" {
+					status = measure.Present
+					filtered := diff[:0]
+					for _, finding := range diff {
+						if finding.Path != name || finding.Category != measure.NotConfigured {
+							filtered = append(filtered, finding)
+						}
+					}
+					diff = filtered
+				}
+				if policy.AdoptionRequired {
+					status = measure.Warning
+				}
+				health = append(health, measure.HealthResult{Path: name, Status: status, Detail: policy.Reason})
+			}
+		}
 		if cfg.PythonEnabled() {
 			for _, name := range []string{"ruff.toml", "pyrightconfig.json"} {
 				skipped := false

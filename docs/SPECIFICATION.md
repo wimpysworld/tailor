@@ -45,6 +45,11 @@ The `fit`, `alter`, and `baste` commands require a valid authentication token: a
 | `SUPPORT.md` | `SUPPORT.md` |
 | `flake.nix` | `flake.nix` |
 | `justfile` | `justfile` |
+| `.shellcheckrc` | `.shellcheckrc` |
+| `.editorconfig` | `.editorconfig` |
+| `.oxlintrc.json` | `.oxlintrc.json` |
+| `.prettierrc.json` | `.prettierrc.json` |
+| `.prettierignore` | `.prettierignore` |
 | `.golangci.yml` | `.golangci.yml` |
 | `.goreleaser.yaml` | `.goreleaser.yaml` |
 | `.github/workflows/build-go.yml` | `.github/workflows/build-go.yml` |
@@ -274,7 +279,7 @@ mcp:
 
 `mcp` must be a map. Its accepted keys are `blender` and `playwright`, each with a Boolean value. Tailor rejects null sections, null values, duplicate or unknown keys, and non-Boolean values. An empty `mcp: {}` mapping preserves the section but leaves both integrations undeclared.
 
-New configurations contain false declarations for `languages.go`, `languages.python`, `languages.rust`, `pages.enabled`, `mcp.blender`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
+New configurations contain false declarations for `languages.go`, `languages.python`, `languages.rust`, `languages.shell`, `languages.javascript`, `pages.enabled`, `mcp.blender`, and `mcp.playwright`. Default merging preserves an absent `mcp` section, an empty mapping, and explicit Boolean values. Configuration writes preserve each form across later runs.
 
 The declaration is independent of `pages`. Playwright can be true when Pages is false or absent. A true declaration provisions the Playwright package fragment and renders four MCP client starters from `fixedManagedMCPRegistry`. Pages publishing and the optional `just pages` preview remain separate. The registry also contains `blender-agent-bridge`. Each setting remains independently absent, false, or true.
 
@@ -299,14 +304,16 @@ Tailor uses one fixed internal registry for development roots, loaders, and frag
 | Go fragments | `just/go.just`, `nix/go.nix` |
 | Python fragments | `just/python.just`, `nix/python.nix` |
 | Rust fragments | `just/rust.just`, `nix/rust.nix` |
+| Shell fragments | `just/shell.just`, `nix/shell.nix` |
+| JavaScript fragments | `just/javascript.just`, `nix/javascript.nix` |
 | Pages fragments | `just/pages.just`, `nix/pages.nix` |
 | Playwright package fragment | `nix/playwright.nix` |
 | Blender package and support | `nix/blender.nix`, `nix/lib/blender.nix`, `nix/patches/blender-agent-bridge-local-glb.patch` |
 | Shared MCP client starters | `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.pi/mcp.json` |
 
-The ordinary default set contains 31 configured swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
+The registry contains 36 ordinary swatches. Fresh configurations with all languages disabled contain 25 active swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
 
-Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `build`, `test`, and `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Python, Rust, Pages, Blender, and Playwright package declarations have this exact lifecycle:
+Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `build`, `test`, and `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Python, Rust, Shell, JavaScript, Pages, Blender, and Playwright package declarations have this exact lifecycle:
 
 | Declaration | Fragment action |
 | --- | --- |
@@ -336,7 +343,7 @@ The `.envrc` starter keeps `nix_direnv_manual_reload` and registers `watch_file`
 
 The generated root requires Just 1.23.0 or later and owns the sole `default` recipe. The core provides exactly three quality commands: `build`, `test`, and `lint`. It also keeps the operational `setup` and `release` commands. Call `tailor alter`, `tailor baste`, and `tailor measure` directly, without Just wrappers. Pages owns `pages`. `just/go.just` is an empty compatibility import with no recipes.
 
-Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go, Python, and Rust are the supported quality ecosystems. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
+Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go, Python, Rust, Shell, and unified JavaScript/TypeScript are the supported quality ecosystems. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
 
 A `never` mode for `justfile` or `.golangci.yml` does not disable Go bodies selected by `languages.go: true`. Remove old quality recipes and aliases from preserved roots and project fragments before loader adoption. Move project-specific quality work into the optional scripts below. Retained marked Go fragments with legacy quality recipes require explicit Go enablement for migration, or manual removal of those recipes. Do not rename legacy helpers into another quality API. Release remains independent of language declarations and keeps its existing local tag flow.
 
@@ -349,6 +356,8 @@ Graphics package selection and component runtime library prepends apply on all L
 The component packages are `pkg-config`, `git`, `curl`, and `jq`, plus Linux-only `vulkan-loader`, `intel-media-driver`, and `vpl-gpu-rt`. Its library paths are oneVPL, Intel media, then Vulkan, after the host path and before existing entries. Unset-only defaults select oneVPL libraries, system DRI or Intel DRI fallback, and sorted readable system Vulkan ICD manifests through linked driver directories. Preserve explicit empty values and custom values for `ONEVPL_SEARCH_PATH`, `LIBVA_DRIVERS_PATH`, and `VK_DRIVER_FILES`. Do not inspect hardware vendors or set `LIBVA_DRIVER_NAME`.
 
 The Nix loader returns only a package list. It passes the existing `pkgs` set to each fragment and does not add inputs, change outputs, or update the lock file. This packages-only guarantee covers packages available through the existing flake inputs. The Go fragment supplies Go, golangci-lint, govulncheck, GoReleaser, gocyclo, goperf, and Staticcheck. Staticcheck uses the caller's Go and has a `2026.2.2` floor. Package versions at or above that floor retain the caller's source and overrides, including forks. Older versions use the pinned upstream fallback. The Playwright fragment supplies `playwright-mcp` with Chromium only. It excludes Firefox, WebKit, and the Chromium headless shell.
+
+Shell and JavaScript follow the Go tool-ownership pattern: Nix supplies fixed tools and the shared Just core runs checks and corrections. The Shell package fragment supplies ShellCheck and shfmt. The JavaScript package fragment supplies Node.js, Oxlint, and Prettier from the caller's `pkgs`. Both fragments remain list-valued and add no inputs, lock changes, hooks, or installers.
 
 The Go body of `build` uses `go list` and both `go build` commands under the same `GOOS`, `GOARCH`, `GOFLAGS`, and build-tag environment. It validates all packages without writing an executable in the project root. A library-only module succeeds without creating `bin/`. For executable packages, it rejects duplicate Go output names, a symlinked `bin`, and symlink, directory, or special-file output destinations before compilation. It builds and validates every package in a temporary directory before it publishes any executable. Publication replaces existing regular `bin/<name>` executables and rechecks the destinations first. Output names follow Go directory builds, including `.exe` for Windows and the parent name for semantic `/v2` or later import paths.
 
@@ -389,7 +398,7 @@ To add Android, replace `ebitengine: true` with `ebitengine: {enabled: true, and
 
 Android accepts only a mapping with the required Boolean `enabled`. Enabling Android accepts the Android SDK licence terms. Only the dedicated shell imports a private SDK package set with scoped licence acceptance and an Android-only unfree predicate. Global Nix settings remain unchanged. Android uses fixed platform `"35"`, build-tools `"35.0.0"`, and NDK `"28.2.13676358"`. There are no desktop, web, assets, delivery, licence, or version switches. Default shells do not evaluate the SDK, even when Android is enabled. Unsupported package attributes or versions fail rather than silently omit tools. Different versions require a project-owned shell.
 
-The four owned destinations are `nix/go-ebitengine.nix`, `nix/lib/go-ebitengine-runtime.nix`, `nix/hooks/go-ebitengine.nix`, and optional `nix/shells/go-ebitengine-android.nix`. Support and shell kinds never enter automatic package or hook loaders. Missing support files leave the desktop hook inactive. An incomplete Android shell fails with reconciliation guidance. Existing ownership, symlink, preflight, preview, and protected-root rules apply. The ordinary swatch count is 31. No quality body, setup body, or Just alias is added.
+The four owned destinations are `nix/go-ebitengine.nix`, `nix/lib/go-ebitengine-runtime.nix`, `nix/hooks/go-ebitengine.nix`, and optional `nix/shells/go-ebitengine-android.nix`. Support and shell kinds never enter automatic package or hook loaders. Missing support files leave the desktop hook inactive. An incomplete Android shell fails with reconciliation guidance. Existing ownership, symlink, preflight, preview, and protected-root rules apply. The ordinary swatch count is 36. No quality body, setup body, or Just alias is added.
 
 Base tools include Bash, GNU tools, Git, curl, gzip, zip, unzip, and `tailor-ebitenmobile`. Generic Go supplies Staticcheck. Linux adds nine ALSA, GL, and X11 client libraries, mesa-demos, pciutils, and Avahi. Runtime libraries enter `LD_LIBRARY_PATH` on all Linux hosts through the shared path helper. NixOS host drivers remain first. Brotli and miniserve are always included; the project must use its selected Go's `wasm_exec.js`. Common tools always include FFmpeg (`ffmpeg-headless`), ImageMagick, Vorbis tools, Git LFS, standalone `android-tools`, Node.js, Wrangler, Butler, OpenSSH, rsync, and OpenSSL. Python, NumPy, Pillow, Matplotlib, Blender, and Pyright are not included. Android SDK, NDK, JDK, and Gradle remain exclusive to the enabled Android shell. Engine pins and forks, asset content and processing, application recipes, signing, and deployment remain project-owned. Blender bridge support requires the separate `mcp.blender` declaration. Reusable tooling is supplied by Tailor rather than retained as a project default. Ebitengine does not enable ffmpeg-statigo.
 
@@ -413,20 +422,22 @@ Build runs `uv build --python "$project_python" --no-python-downloads`, never `u
 
 Audit uses a securely created temporary file and an exit cleanup trap. Export uses `uv export --locked --format requirements-txt --no-emit-project --no-hashes`. The selected Nix interpreter runs `-m pip_audit --requirement FILE --no-deps --disable-pip --strict`. Require identical `packaging.markers.default_environment()` maps for project and audit Python, including full Python versions, implementation, and platform fields. Probe the project interpreter with the managed `packaging` module without installing it in `.venv`. Reject mismatches before any quality command or environment sync and require an explicit `.venv` rebuild through setup. Coverage is the root package dependencies and default groups on the active platform, not every extra or platform. All export, collection, network, and vulnerability failures fail lint. Cache writes remain permitted.
 
-The canonical Ruff starter uses 88 columns, stable correctness rules, safe fixes, and runtime typing preservation. The type starter selects `standard` and `failOnWarnings: false`. Shared TOML-aware discovery checks root, ancestors, and nested policy files. Never shadow alternative Ruff or BasedPyright policies, including recut and `always`. Preserve Black and mypy policy, skip conflicting starters, and report adoption guidance. Quality requires explicit Ruff and BasedPyright policies and never substitutes recommended defaults. Ruff can use nested policies. The root BasedPyright invocation requires a root or ancestor policy and does not load nested policies. Preserve nested type policies and require manual root adoption before lint. Measure uses the same preservation discovery and reports equivalent policies as present, not as proof that root lint can use them. Project hooks run after successful workflows and lexical Go, Python, Rust bodies.
+The canonical Ruff starter uses 88 columns, stable correctness rules, safe fixes, and runtime typing preservation. The type starter selects `standard` and `failOnWarnings: false`. Shared TOML-aware discovery checks root, ancestors, and nested policy files. Never shadow alternative Ruff or BasedPyright policies, including recut and `always`. Preserve Black and mypy policy, skip conflicting starters, and report adoption guidance. Quality requires explicit Ruff and BasedPyright policies and never substitutes recommended defaults. Ruff can use nested policies. The root BasedPyright invocation requires a root or ancestor policy and does not load nested policies. Preserve nested type policies and require manual root adoption before lint. Measure uses the same preservation discovery and reports equivalent policies as present, not as proof that root lint can use them. Project hooks run after successful workflows and enabled ecosystem bodies in lexical capability order.
 
 ### Go ecosystem support
 
-The top-level `languages` section selects language-specific development support. Its supported keys are `go`, `python`, and `rust`:
+The top-level `languages` section selects language-specific development support. Its supported keys are `go`, `python`, `rust`, `shell`, `javascript`, and the `typescript` alias:
 
 ```yaml
 languages:
   go: true
 ```
 
-`languages` must be a map. It accepts Boolean `go`, `python`, and `rust` values, plus the Go mapping described below. Reject null sections, null values, unknown keys, and invalid types. An empty map leaves all languages unspecified. Internally, `Languages *LanguageSettings` and `Go *bool` preserve absent, false, and true states.
+`languages` must be a map. Each supported key accepts only a Boolean, except `go`, which also accepts the mapping below. Reject null sections, null values, duplicate keys, unknown keys, and invalid types. An empty map leaves all languages unspecified. Pointer fields preserve absent, false, and true states.
 
-New configurations contain `languages.go: false`. Default merging preserves an absent `languages` section or absent `go` key in existing configurations. It never infers language selection from source files or CodeQL settings. `code_scanning.languages` and `code_quality.languages` remain independent.
+`javascript` is canonical. `typescript` is an alternative spelling for the same capability, not a separate language state. Reject both keys in one mapping, regardless of their values, including equal values, false, null, or invalid types. Internally, one `JavaScript *bool` stores the normalised value. Separate metadata records the authored alias spelling. Both configuration writers preserve that spelling and never emit both keys. `Shell *bool` is independent.
+
+New configurations declare `go`, `python`, `rust`, `shell`, and `javascript` as false and omit `typescript`. Default merging preserves absent sections, empty maps, absent language keys, explicit values, and the authored JavaScript alias, including under `--recut`. It never adds `javascript` beside `typescript` or infers language selection from source files or CodeQL settings. `code_scanning.languages` and `code_quality.languages` remain independent.
 
 Explicit `languages.go: true` or `languages.go: {enabled: true}` activates `.golangci.yml`, `.goreleaser.yaml`, `.github/workflows/build-go.yml`, and `Dockerfile`. All four are development swatches with `first-fit` defaults. The registry contains these entries even when Go is inactive. Default merging appends missing entries only when the config swatch mode permits merging, without changing existing modes.
 
@@ -521,6 +532,113 @@ The builder workflow runs tests, coverage, lint checks, and govulncheck. The sec
 
 The Go release templates use GitHub-hosted runners and do not require Nix or GoReleaser Pro. The release job authenticates to GHCR with the existing GitHub token and grants `packages: write`. No extra secrets are required. The templates do not configure signing or external package repositories. Go support does not change Tailor's independent CodeQL default setup.
 
+### Shell and JavaScript ecosystem support
+
+`languages.shell: true` enables Shell support independently of other languages. Either `languages.javascript: true` or `languages.typescript: true` enables the same combined JavaScript and TypeScript support. Both spellings select identical tools, managed destinations, quality bodies, and lifecycle behaviour.
+
+True creates or updates owned fragments. False removes only owned fragments. Omission preserves fragments without inspection. Shell uses `just/shell.just` and `nix/shell.nix`. JavaScript uses `just/javascript.just` and `nix/javascript.nix`, including when the authored key is `typescript`. The Just fragments are empty compatibility imports. Existing protected roots and ownership checks follow the shared managed-file rules.
+
+Shell lint uses ShellCheck for checks and shfmt for formatting. JavaScript lint uses standalone Oxlint for JavaScript and TypeScript checks and Prettier for formatting. Check mode does not change source files. Correction applies formatter changes first, after source path validation, then runs the same checks once. Oxlint and ShellCheck do not run before formatting. Tailor never enables Oxlint fixes or typed checks. Missing tools and command failures stop later bodies and project scripts. Workflow lint still runs once, and enabled ecosystem bodies run in lexical capability order.
+
+Source discovery uses NUL-delimited Git paths, including untracked files and excluding Git-ignored files even when tracked. JavaScript selects `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`, `.mts`, and `.cts`. Shell selects `.sh`, `.bash`, and extensionless files with sh/bash shebangs, without requiring executable permission. Shell fragments without an extension or shebang and shell embedded in YAML require the project lint hook. Empty selections print scope guidance and do not invoke source tools.
+
+Both capabilities include authored sources in hidden directories and in `config` or `configs` directories. They exclude specific metadata, dependency, vendor, output, credential, and secret paths. Tool configuration filenames such as `.prettierrc.*`, `.eslintrc.*`, `.babelrc.*`, and `*.config.*` remain excluded, alongside generated and minified filenames and TypeScript declarations. Generated markers (`@generated`, `Code generated`, or `DO NOT EDIT`) exclude files only within leading header comments in the first 50 lines. Strings and comments after source code do not exclude files. Project ignore rules must cover other generated or sensitive outputs. Native tool ignores remain active. Oxlint uses `--deny-warnings` and permits a selection that its native ignores exclude completely. Each tool receives explicit source paths, never a whole-repository formatting request.
+
+Git submodule entries and untracked nested repository directories are skipped without recursion. A tracked regular source file replaced by a directory still fails validation. Source files must be regular files without symlinks. Their parents within the project must be directories without symlinks. Symlinked workspace ancestors outside the project are permitted. Missing tracked files are skipped.
+
+ShellCheck retains project rc policy without a blanket `-x`. shfmt uses only `--apply-ignore` with `-d` or `-w`. Existing EditorConfig settings remain project-owned, including any semantic formatting options that the project explicitly enables. Tailor adds no EditorConfig parser or command-line style override. The Shell starters below apply only to missing destinations. Prettier retains project configuration, including responsibility for local plugins. Alteration never evaluates configuration code. It parses only package metadata to detect existing policy keys. Lint preflight checks tool availability and source paths before workflow or ecosystem commands.
+
+Neither capability adds automatic build, test, setup, or release commands. Project-specific builds and tests use the existing optional project scripts. JavaScript support requires no npm dependencies, npm scripts, local ESLint installation, or TypeScript parser plugin. Tailor does not install packages, select package managers or lint backends, generate framework configuration, or automate typed lint and compiler checks. Existing project configuration remains project-owned. No target project migration is implicit.
+
+#### Shell policy starters
+
+`languages.shell: true` activates `.shellcheckrc` and `.editorconfig` as ordinary development swatches with `first-fit` defaults. False or omission preserves both files. Default merging adds their entries only with Shell enabled and preserves existing modes. Fresh language-disabled configurations still contain 25 active swatches.
+
+These starters create missing destinations only. Existing root files, including empty and comments-only files, stay byte-for-byte unchanged under `first-fit`, `always`, and `--recut`. Tailor never appends, merges, or rewrites them. `never` skips inspection and creation. Protected creation does not replace a destination that appears during publication.
+
+The `.shellcheckrc` starter contains exactly these comments, with a final newline:
+
+```ini
+# Keep the default checks and infer the dialect from each script.
+# Supply sourced files explicitly, or use -x in a project-specific hook.
+
+# Add only after checking that runtime source paths are script-relative:
+# source-path=SCRIPTDIR
+
+# Enable only after reviewing intentional conditional function calls:
+# enable=check-set-e-suppressed
+```
+
+The absence of active directives is intentional. The starter retains ShellCheck defaults and script dialect inference. It does not enable external sources, disable checks, or force Bash. Review the commented options per project before enabling them.
+
+A comments-only rc still shadows inherited policy. Inspection follows ShellCheck 0.11 native precedence: `.shellcheckrc`, then `shellcheckrc`, in the project directory and each ancestor. The first candidate wins. If none exists, Unix lookup checks `$HOME/.shellcheckrc`, then `$XDG_CONFIG_HOME/shellcheckrc`. An absent or relative XDG directory uses `$HOME/.config/shellcheckrc`. An inherited candidate prevents a competing root starter. Nested rc files remain untouched and are not searched. Non-empty `SHELLCHECK_OPTS`, unknown home paths, and unsupported Windows fallback lookup require manual verification before missing-root creation. Tailor never parses or executes rc directives.
+
+The `.editorconfig` starter contains exactly this Shell-only section, with a final newline:
+
+```ini
+[*.{sh,bash}]
+indent_style = space
+indent_size = 4
+switch_case_indent = true
+simplify = false
+minify = false
+```
+
+Four-space indentation is a personal style choice, not a correctness requirement. Use the supported shfmt key `switch_case_indent`, not the newer master key `case_indent`. The starter has no `root = true`, global `[*]` section, or forced dialect. Safe ancestor EditorConfig files do not block creation, so other-language settings continue to inherit. Existing shared EditorConfig files require manual review of the Shell section unless their bytes exactly match the starter. Tailor does not infer equivalent coverage from globs, section order, or `unset`. Add exact sections for extensionless scripts manually in project-owned configuration. Tailor creates no `.shfmtrc` and adds no shfmt style flags.
+
+Inspection checks only fixed root, ancestor, home, and XDG paths. It uses bounded no-follow reads of regular files up to 1 MiB. Symlinks, non-regular files, inaccessible paths, oversized files, and unsupported inspection produce manual-adoption warnings, never absence claims. `baste` remains read-only. `measure` reports inherited rc policy as present and unsafe or unverified policy as warnings, without misleading missing or not-configured findings. Presence establishes no runtime compatibility.
+
+Native lookup follows the [ShellCheck 0.11 manual](https://github.com/koalaman/shellcheck/blob/v0.11.0/shellcheck.1.md#rc-files) and its [implementation](https://github.com/koalaman/shellcheck/blob/v0.11.0/shellcheck.hs).
+
+#### JavaScript policy starters
+
+Either JavaScript spelling activates three ordinary development swatches with `first-fit` defaults: `.oxlintrc.json`, `.prettierrc.json`, and `.prettierignore`. False or omission makes these starters inactive without deleting existing files. Normal alterations preserve canonical files. Explicit `always` and `--recut` can replace canonical files unless inspection finds an alternate, conflicting, or unsafe policy.
+
+The Oxlint starter contains exactly:
+
+```json
+{
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": {"correctness": "error"}
+}
+```
+
+The Prettier starter records syntax defaults without selecting a parser. It omits `printWidth`, `tabWidth`, `useTabs`, and `endOfLine`. Existing EditorConfig width, indentation, and line-ending policy continues to apply. Without that policy, Prettier uses its defaults.
+
+```json
+{
+  "$schema": "https://www.schemastore.org/prettierrc.json",
+  "semi": true,
+  "singleQuote": false,
+  "trailingComma": "all",
+  "bracketSpacing": true,
+  "arrowParens": "always"
+}
+```
+
+The ignore starter contains these lines with a final newline:
+
+```text
+node_modules/
+vendor/
+third_party/
+third-party/
+generated/
+dist/
+build/
+coverage/
+*.min.*
+*.map
+```
+
+Inspection checks fixed filenames at the project root and ancestors only, never descendants. Alternative or inherited native Prettier filename variants and top-level `prettier` entries in `package.json` or `package.yaml` prevent competing configuration and ignore starters. A root canonical `.prettierrc.json` does not block creation or restoration of `.prettierignore`, including in the same alteration. Existing `.oxlintrc.json` policies prevent a competing Oxlint starter. `.oxlintrc.jsonc`, `oxlint.config.ts`, and `oxlint.config.mts` require manual adoption without claims about runtime acceptance. ESLint legacy or flat configurations, package `eslintConfig`, and Biome JSON or JSONC policies prevent all three starters and require manual adoption. Tailor never translates these policies or selects another backend. Native Oxlint and Prettier lint bodies remain enabled, so review policy before running lint.
+
+Inspection preserves symlinks, non-regular files, unreadable files, and unsupported or ambiguous metadata. Metadata reads are limited to 1 MiB. Read or parse failures produce manual-adoption warnings, never absence claims. Canonical JSON policy files need no rule validation. `baste` stays read-only. `measure` reports equivalent policies as present and adoption cases as warnings, suppressing misleading `not-configured` findings. Presence alone proves no policy or runtime compatibility.
+
+Projects can extend native configuration with browser, Node.js, or framework scopes. Tailor adds no universal globals, framework rules, typed checks, compiler checks, or npm dependencies. Build and test policy stays in project hooks. Editor configuration and Nix package policy remain project-owned.
+
+The baselines follow [Oxlint configuration](https://oxc.rs/docs/guide/usage/linter/config), [Oxlint plugins](https://oxc.rs/docs/guide/usage/linter/plugins), and Prettier [options](https://prettier.io/docs/options), [configuration](https://prettier.io/docs/configuration), and [ignores](https://prettier.io/docs/ignore).
+
 ### Rust ecosystem support
 
 Explicit `languages.rust: true` enables one root Cargo package or host-compatible workspace. False removes owned `just/rust.just` and `nix/rust.nix` fragments. Omission preserves them without inspection. The Just fragment is an empty compatibility import. New configurations declare false. Default merging and serialisation preserve omission and explicit values. Cargo files never activate Rust automatically.
@@ -548,7 +666,7 @@ The wiki publication job uses `ubuntu-slim` with an explicit 15-minute timeout, 
 
 `repository.has_wiki: true` activates four wiki swatches on public repositories. No separate config section or command exists. Every config that `fit` creates uses `has_wiki: false`, including for repositories with an enabled wiki. An omitted setting leaves wiki files unmanaged, even when default merging adds `false` during that run.
 
-The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Starter generation preserves existing destinations, including recut and an explicit `always` mode. An approved import can replace same-path files with backups. `never` skips starter creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 31 swatches.
+The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Starter generation preserves existing destinations, including recut and an explicit `always` mode. An approved import can replace same-path files with backups. `never` skips starter creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 34 swatches.
 
 Local safety preflight runs before writes. It rejects source symlinks, Git metadata, non-regular files and unsafe workflow destinations or parents through rooted filesystem access. Pages preflight also completes before wiki enablement. Tailor reads repository privacy, the current default branch and `has_wiki`. Known private repositories and projects without repository context skip wiki files. Unavailable or incomplete repository metadata blocks readiness.
 
@@ -749,6 +867,11 @@ Use an exclusive sibling temporary file, file sync, close, rename, and directory
 | `justfile` | `first-fit` |
 | `cubic.yaml` | `first-fit` |
 | `flake.nix` | `first-fit` |
+| `.shellcheckrc` (only when `languages.shell: true`) | `first-fit` |
+| `.editorconfig` (only when `languages.shell: true`) | `first-fit` |
+| `.oxlintrc.json` (JavaScript enabled through either spelling) | `first-fit` |
+| `.prettierrc.json` (JavaScript enabled through either spelling) | `first-fit` |
+| `.prettierignore` (JavaScript enabled through either spelling) | `first-fit` |
 | `.golangci.yml` (only when `languages.go: true`) | `first-fit` |
 | `.goreleaser.yaml` (only when `languages.go: true`) | `first-fit` |
 | `.github/workflows/build-go.yml` (only when `languages.go: true`) | `first-fit` |
@@ -782,6 +905,11 @@ Use an exclusive sibling temporary file, file sync, close, rename, and directory
 - `.envrc`
 - `flake.nix`
 - `justfile`
+- `.shellcheckrc`
+- `.editorconfig`
+- `.oxlintrc.json`
+- `.prettierrc.json`
+- `.prettierignore`
 - `ruff.toml`
 - `pyrightconfig.json`
 - `.golangci.yml`
@@ -891,7 +1019,7 @@ Creates a project directory and writes `.tailor.yml` from the embedded `swatches
 
 The defaults can disable an existing wiki, Code Quality and immutable releases, and replace an existing `Tailor` ruleset when `alter` applies them. Edit the generated config before `alter` to preserve different settings. Topics stay unmanaged because the embedded defaults omit them.
 
-The default swatch set contains 31 registered destinations:
+The default swatch set contains 36 registered destinations:
 
 - `.github/workflows/tailor-pages.yml`
 - `pages/index.html`
@@ -913,6 +1041,11 @@ The default swatch set contains 31 registered destinations:
 - `CONTRIBUTING.md`
 - `SUPPORT.md`
 - `justfile`
+- `.shellcheckrc`
+- `.editorconfig`
+- `.oxlintrc.json`
+- `.prettierrc.json`
+- `.prettierignore`
 - `ruff.toml`
 - `pyrightconfig.json`
 - `.golangci.yml`
@@ -1018,6 +1151,7 @@ Behaviour:
 - For `always` swatches other than `.tailor.yml`: compares the SHA-256 of the embedded swatch content against the on-disk file. Tailor overwrites the file if the hashes differ. For a token-bearing swatch configured as `always`, Tailor resolves `{{GITHUB_USERNAME}}`, `{{ADVISORY_URL}}`, or `{{SUPPORT_URL}}` before the comparison. The resolved content can produce `no change` when it matches the on-disk file. The token-bearing swatches are `.github/FUNDING.yml`, `SECURITY.md`, and `.github/ISSUE_TEMPLATE/config.yml`.
 - For `first-fit` swatches: copies only if the destination file does not exist; never overwrites. If the destination exists, the swatch is skipped entirely - no SHA-256 comparison is performed.
 - For `never` swatches: skips entirely. No file is written or compared.
+- Shell policy starters are protected exceptions: existing `.shellcheckrc` and `.editorconfig` files remain unchanged in every mode, including `--recut`. Inherited rc policy prevents a competing root starter.
 - For licences: if `.tailor.yml` contains a `license` key with a value other than `none`, and no `LICENSE` file exists on disk, fetches the licence text via the GitHub REST API (`GET /licenses/{id}`) and writes it to `LICENSE`. The text is written verbatim as returned by GitHub - no token substitution is performed. Always treated as `first-fit`; the on-disk `LICENSE` file is never overwritten. If the licence fetch fails (e.g. unrecognised licence identifier), `alter` exits with the API error.
 - For `.github/FUNDING.yml`: substitutes `{{GITHUB_USERNAME}}` before writing. `{{GITHUB_USERNAME}}` is resolved through `GET /user`. Tailor returns the API error if the request fails. The Sponsorships checkbox under Settings > General > Features is not exposed via the GitHub API. After alter places `.github/FUNDING.yml`, enable sponsorships manually in repository settings.
 - For `SECURITY.md`: substitutes `{{ADVISORY_URL}}` before writing. `{{ADVISORY_URL}}` is constructed at `alter` time as `https://github.com/<owner>/<name>/security/advisories/new` from the repository context (owner/name). If no GitHub repository context exists (e.g. a brand-new project with no remote), `{{ADVISORY_URL}}` is left unsubstituted in the written file. `alter` will resolve and substitute it on a subsequent run once the repository has a remote.
@@ -1304,7 +1438,7 @@ Behaviour:
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 
-The active configuration has 31 swatches and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
+The registry has 36 swatches, with 25 active in fresh language-disabled configurations, and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
 
 Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
 
@@ -1312,6 +1446,10 @@ Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT
 # Initially fitted by tailor on 2026-03-02
 languages:
   go: false
+  rust: false
+  python: false
+  shell: false
+  javascript: false
 
 license: BlueOak-1.0.0
 
@@ -1629,6 +1767,8 @@ Swatches are embedded in the tailor binary at build time from `swatches/`:
 
 ```
 swatches/
+├── .editorconfig
+├── .shellcheckrc
 ├── .envrc
 ├── .gitignore
 ├── .golangci.yml

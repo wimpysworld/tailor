@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/swatch"
+	"gopkg.in/yaml.v3"
 )
 
 func TestLanguagesStrictParsing(t *testing.T) {
@@ -21,7 +22,7 @@ func TestLanguagesStrictParsing(t *testing.T) {
 		{name: "null section", input: "languages: null\n", wantErr: "languages must be a mapping"},
 		{name: "list section", input: "languages: []\n", wantErr: "languages must be a mapping"},
 		{name: "scalar section", input: "languages: true\n", wantErr: "languages must be a mapping"},
-		{name: "unknown", input: "languages: {ruby: true}\n", wantErr: `unrecognised languages setting "ruby" in config; valid settings: go, rust, python`},
+		{name: "unknown", input: "languages: {ruby: true}\n", wantErr: `unrecognised languages setting "ruby" in config; valid settings: go, rust, python, shell, javascript, typescript`},
 		{name: "null", input: "languages: {go: null}\n", wantErr: "languages.go must be a bool"},
 		{name: "implicit null", input: "languages:\n  go:\n", wantErr: "languages.go must be a bool"},
 		{name: "quoted", input: "languages: {go: 'true'}\n", wantErr: "languages.go must be a bool"},
@@ -57,6 +58,176 @@ func TestLanguagesStrictParsing(t *testing.T) {
 				t.Fatalf("round trip languages = %#v, want %#v", reloaded.Languages, cfg.Languages)
 			}
 		})
+	}
+}
+
+func TestShellAndJavaScriptConfiguration(t *testing.T) {
+	for _, tt := range []struct {
+		name, input                           string
+		shellDeclared, shellEnabled           bool
+		javascriptDeclared, javascriptEnabled bool
+	}{
+		{name: "absent"},
+		{name: "empty", input: "languages: {}"},
+		{name: "existing Go", input: "languages: {go: true}"},
+		{name: "shell false", input: "languages: {shell: false}", shellDeclared: true},
+		{name: "shell true", input: "languages: {shell: true}", shellDeclared: true, shellEnabled: true},
+		{name: "javascript false", input: "languages: {javascript: false}", javascriptDeclared: true},
+		{name: "javascript true", input: "languages: {javascript: true}", javascriptDeclared: true, javascriptEnabled: true},
+		{name: "typescript false", input: "languages: {typescript: false}", javascriptDeclared: true},
+		{name: "typescript true", input: "languages: {typescript: true}", javascriptDeclared: true, javascriptEnabled: true},
+		{name: "independent shell", input: "languages: {shell: true, javascript: false}", shellDeclared: true, shellEnabled: true, javascriptDeclared: true},
+		{name: "independent alias", input: "languages: {shell: false, typescript: true}", shellDeclared: true, javascriptDeclared: true, javascriptEnabled: true},
+		{name: "Go mapping", input: "languages: {go: {enabled: true, cgo: false}, shell: true, javascript: true}", shellDeclared: true, shellEnabled: true, javascriptDeclared: true, javascriptEnabled: true},
+		{name: "Go mapping alias", input: "languages: {go: {enabled: false}, python: false, rust: true, shell: false, typescript: false}", shellDeclared: true, javascriptDeclared: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg, err := parseAndValidate([]byte("license: MIT\n"+tt.input+"\n"), "config")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cfg.ShellDeclared() != tt.shellDeclared || cfg.ShellEnabled() != tt.shellEnabled {
+				t.Fatalf("Shell state = %t, %t", cfg.ShellDeclared(), cfg.ShellEnabled())
+			}
+			if cfg.JavaScriptDeclared() != tt.javascriptDeclared || cfg.JavaScriptEnabled() != tt.javascriptEnabled {
+				t.Fatalf("JavaScript state = %t, %t", cfg.JavaScriptDeclared(), cfg.JavaScriptEnabled())
+			}
+			for _, name := range []string{".oxlintrc.json", ".prettierrc.json", ".prettierignore"} {
+				if cfg.SwatchActive(name) != tt.javascriptEnabled {
+					t.Fatalf("incorrect activation for %s", name)
+				}
+			}
+			for _, name := range []string{".shellcheckrc", ".editorconfig"} {
+				if cfg.SwatchActive(name) != tt.shellEnabled {
+					t.Fatalf("incorrect activation for %s", name)
+				}
+			}
+			if cfg.Languages != nil && (cfg.Languages.javaScriptYAMLKey() == "typescript") != strings.Contains(tt.input, "typescript:") {
+				t.Fatal("incorrect JavaScript spelling")
+			}
+			for range 2 {
+				before, err := yaml.Marshal(cfg.Languages)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := MergeDefaults(cfg); err != nil {
+					t.Fatal(err)
+				}
+				for _, name := range []string{".oxlintrc.json", ".prettierrc.json", ".prettierignore"} {
+					found := false
+					for _, entry := range cfg.Swatches {
+						if entry.Path == name {
+							found = true
+						}
+					}
+					if found != tt.javascriptEnabled {
+						t.Fatalf("incorrect merged entry for %s", name)
+					}
+				}
+				for _, name := range []string{".shellcheckrc", ".editorconfig"} {
+					found := false
+					for _, entry := range cfg.Swatches {
+						if entry.Path == name {
+							found = true
+							if entry.Alteration != swatch.FirstFit {
+								t.Fatalf("incorrect default mode for %s", name)
+							}
+						}
+					}
+					if found != tt.shellEnabled {
+						t.Fatalf("incorrect merged entry for %s", name)
+					}
+				}
+				after, err := yaml.Marshal(cfg.Languages)
+				if err != nil || string(before) != string(after) {
+					t.Fatalf("merge changed languages: %s -> %s (%v)", before, after, err)
+				}
+				if cfg.Languages != nil {
+					var decoded LanguageSettings
+					if err := yaml.Unmarshal(after, &decoded); err != nil {
+						t.Fatal(err)
+					}
+					if !reflect.DeepEqual(cfg.Languages, &decoded) {
+						t.Fatalf("MarshalYAML changed languages: got %+v, want %+v", decoded, cfg.Languages)
+					}
+				}
+				dir := t.TempDir()
+				if err := Write(dir, cfg, "2026-10-21", "Refitted"); err != nil {
+					t.Fatal(err)
+				}
+				loaded, err := Load(dir)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if !reflect.DeepEqual(cfg.Languages, loaded.Languages) {
+					t.Fatalf("Write changed languages: got %+v, want %+v", loaded.Languages, cfg.Languages)
+				}
+				cfg = loaded
+			}
+		})
+	}
+}
+
+func TestIsolatedShellAndJavaScriptWrite(t *testing.T) {
+	for _, key := range []string{"shell", "javascript", "typescript"} {
+		for _, value := range []string{"true", "false"} {
+			t.Run(key+"/"+value, func(t *testing.T) {
+				cfg, err := parseAndValidate([]byte("license: MIT\nlanguages: {"+key+": "+value+"}\n"), "config")
+				if err != nil {
+					t.Fatal(err)
+				}
+				dir := t.TempDir()
+				if err := Write(dir, cfg, "2026-10-21", "Refitted"); err != nil {
+					t.Fatal(err)
+				}
+				loaded, err := Load(dir)
+				if err != nil || !reflect.DeepEqual(cfg.Languages, loaded.Languages) {
+					t.Fatalf("isolated language changed after Write and Load: %v", err)
+				}
+			})
+		}
+	}
+}
+
+func TestShellAndJavaScriptStrictParsing(t *testing.T) {
+	for _, key := range []string{"shell", "javascript", "typescript"} {
+		for _, value := range []string{"null", "", "'true'", "yes", "1", "[]", "{}", "{enabled: true}", "{unknown: true}"} {
+			t.Run(key+"/"+value, func(t *testing.T) {
+				_, err := parseAndValidate([]byte("languages: {"+key+": "+value+"}\n"), "config")
+				if err == nil || !strings.Contains(err.Error(), "languages."+key+" must be a bool") {
+					t.Fatalf("error = %v, want strict Boolean error", err)
+				}
+			})
+		}
+		t.Run(key+"/duplicate", func(t *testing.T) {
+			_, err := parseAndValidate([]byte("languages: {"+key+": true, "+key+": false}\n"), "config")
+			if err == nil || !strings.Contains(err.Error(), "already defined") {
+				t.Fatalf("error = %v, want duplicate key error", err)
+			}
+		})
+	}
+	for _, first := range []string{"javascript", "typescript"} {
+		second := "javascript"
+		if first == second {
+			second = "typescript"
+		}
+		for _, left := range []string{"true", "false", "null", "'true'"} {
+			for _, right := range []string{"true", "false", "null", "{}"} {
+				t.Run(first+"/"+left+"/"+right, func(t *testing.T) {
+					_, err := parseAndValidate([]byte("languages: {"+first+": "+left+", "+second+": "+right+"}\n"), "config")
+					if err == nil || !strings.Contains(err.Error(), "languages.javascript and languages.typescript cannot both be declared") {
+						t.Fatalf("error = %v, want alias conflict", err)
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestShellAndJavaScriptNilConfig(t *testing.T) {
+	var cfg *Config
+	if cfg.ShellDeclared() || cfg.ShellEnabled() || cfg.JavaScriptDeclared() || cfg.JavaScriptEnabled() {
+		t.Fatal("nil config declares a language")
 	}
 }
 

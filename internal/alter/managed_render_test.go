@@ -71,8 +71,8 @@ func TestManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 			t.Errorf("managed template %q lacks its ownership marker", entry.Path)
 		}
 	}
-	if len(managed) != 31 {
-		t.Fatalf("managed=%d, want 31", len(managed))
+	if len(managed) != 35 {
+		t.Fatalf("managed=%d, want 35", len(managed))
 	}
 
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(name string, entry fs.DirEntry, err error) error {

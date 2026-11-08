@@ -6,6 +6,8 @@ languages:
   go: false
   rust: false
   python: false
+  shell: false
+  javascript: false
 
 # Model Context Protocol integrations are opt-in.
 # true creates or updates the owned Nix fragment and creates missing MCP
@@ -270,6 +272,21 @@ swatches:
   # but never rewrites an existing root.
   # If an existing root lacks the loader import, add: import 'just/loader.just'
   - path: justfile
+    alteration: first-fit
+
+  - path: .shellcheckrc
+    alteration: first-fit
+
+  - path: .editorconfig
+    alteration: first-fit
+
+  - path: .oxlintrc.json
+    alteration: first-fit
+
+  - path: .prettierrc.json
+    alteration: first-fit
+
+  - path: .prettierignore
     alteration: first-fit
 
   - path: ruff.toml

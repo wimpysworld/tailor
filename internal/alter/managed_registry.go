@@ -23,6 +23,8 @@ const (
 	managedCapabilityPython
 	managedCapabilityGoEbitengine
 	managedCapabilityGoEbitengineAndroid
+	managedCapabilityJavaScript
+	managedCapabilityShell
 )
 
 type managedPolicy uint8
@@ -111,6 +113,10 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "nix/python.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPython},
 		{Path: "just/rust.just", Policy: managedPolicyFragment, Capability: managedCapabilityRust, BuildBody: "build-rust", TestBody: "test-rust", LintBody: "lint-rust"},
 		{Path: "nix/rust.nix", Policy: managedPolicyFragment, Capability: managedCapabilityRust},
+		{Path: "just/javascript.just", Policy: managedPolicyFragment, Capability: managedCapabilityJavaScript, LintBody: "lint-javascript"},
+		{Path: "nix/javascript.nix", Policy: managedPolicyFragment, Capability: managedCapabilityJavaScript},
+		{Path: "just/shell.just", Policy: managedPolicyFragment, Capability: managedCapabilityShell, LintBody: "lint-shell"},
+		{Path: "nix/shell.nix", Policy: managedPolicyFragment, Capability: managedCapabilityShell},
 		{Path: "just/go-ffmpeg-statigo.just", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, SetupBody: "go-ffmpeg-statigo"},
 		{Path: "nix/go-ffmpeg-statigo.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo},
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
@@ -211,11 +217,15 @@ func validateManagedPath(name string) error {
 }
 
 func (capability managedCapability) validDeclaration() bool {
-	return capability == managedCapabilityBlender || capability == managedCapabilityPython || capability == managedCapabilityGoEbitengine || capability == managedCapabilityGoEbitengineAndroid || capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
+	return capability == managedCapabilityJavaScript || capability == managedCapabilityShell || capability == managedCapabilityBlender || capability == managedCapabilityPython || capability == managedCapabilityGoEbitengine || capability == managedCapabilityGoEbitengineAndroid || capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
 }
 
 func (capability managedCapability) canonicalName() string {
 	switch capability {
+	case managedCapabilityJavaScript:
+		return "javascript"
+	case managedCapabilityShell:
+		return "shell"
 	case managedCapabilityGoEbitengine:
 		return "go-ebitengine"
 	case managedCapabilityGoEbitengineAndroid:
@@ -318,6 +328,10 @@ func managedRootBootstrapEnabled(cfg *config.Config, destination string) (bool, 
 
 func managedCapabilityState(cfg *config.Config, capability managedCapability) (declared, enabled bool) {
 	switch capability {
+	case managedCapabilityJavaScript:
+		return cfg.JavaScriptDeclared(), cfg.JavaScriptEnabled()
+	case managedCapabilityShell:
+		return cfg.ShellDeclared(), cfg.ShellEnabled()
 	case managedCapabilityPython:
 		return cfg.PythonDeclared(), cfg.PythonEnabled()
 	case managedCapabilityRust:

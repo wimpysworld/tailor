@@ -9,12 +9,16 @@ import (
 
 // LanguageSettings controls the language-specific swatches. Nil fields leave the language undeclared.
 type LanguageSettings struct {
-	Go     *bool `yaml:"-"`
-	Rust   *bool `yaml:"rust,omitempty"`
-	Python *bool `yaml:"python,omitempty"`
+	Go         *bool `yaml:"-"`
+	Rust       *bool `yaml:"rust,omitempty"`
+	Python     *bool `yaml:"python,omitempty"`
+	Shell      *bool `yaml:"shell,omitempty"`
+	JavaScript *bool `yaml:"-"`
 	// GoOptions is non-nil for the mapping form, even when all options are absent.
 	// Go holds the enabled value in both forms for compatibility with existing callers.
 	GoOptions *GoOptions `yaml:"-"`
+
+	javaScriptKey string
 }
 
 // GoOptions holds optional settings from a languages.go mapping.
@@ -37,14 +41,38 @@ func (languages *LanguageSettings) UnmarshalYAML(node *yaml.Node) error {
 	extra := make(map[string]any)
 	for i := 0; i < len(node.Content); i += 2 {
 		key := node.Content[i]
-		if key.Tag != "!!str" || (key.Value != "go" && key.Value != "rust" && key.Value != "python") {
+		if key.Tag != "!!str" || (key.Value != "go" && key.Value != "rust" && key.Value != "python" && key.Value != "shell" && key.Value != "javascript" && key.Value != "typescript") {
 			extra[key.Value] = nil
 		}
 	}
-	if err := rejectExtra("languages", extra, []string{"go", "rust", "python"}); err != nil {
+	if err := rejectExtra("languages", extra, []string{"go", "rust", "python", "shell", "javascript", "typescript"}); err != nil {
 		return err
 	}
+	_, javascript := fields["javascript"]
+	_, typescript := fields["typescript"]
+	if javascript && typescript {
+		return fmt.Errorf("languages.javascript and languages.typescript cannot both be declared")
+	}
 	*languages = LanguageSettings{}
+	if typescript {
+		languages.javaScriptKey = "typescript"
+	}
+	for _, field := range []struct {
+		key   string
+		value **bool
+	}{
+		{"shell", &languages.Shell},
+		{languages.javaScriptYAMLKey(), &languages.JavaScript},
+	} {
+		if value, ok := fields[field.key]; ok {
+			if value.Kind != yaml.ScalarNode || value.Tag != "!!bool" {
+				return fmt.Errorf("languages.%s must be a bool", field.key)
+			}
+			if err := value.Decode(field.value); err != nil {
+				return err
+			}
+		}
+	}
 	if pythonNode, ok := fields["python"]; ok {
 		if pythonNode.Kind != yaml.ScalarNode || pythonNode.Tag != "!!bool" {
 			return fmt.Errorf("languages.python must be a bool")
@@ -125,24 +153,53 @@ func (languages *LanguageSettings) UnmarshalYAML(node *yaml.Node) error {
 
 // MarshalYAML preserves Boolean and mapping forms, including omitted options.
 func (languages LanguageSettings) MarshalYAML() (any, error) {
+	var goValue any
+	if languages.Go != nil {
+		goValue = languages.Go
+	}
 	if languages.GoOptions != nil {
 		if languages.Go == nil {
 			return nil, fmt.Errorf("languages.go.enabled is required")
 		}
-		return struct {
-			Go     any   `yaml:"go"`
-			Rust   *bool `yaml:"rust,omitempty"`
-			Python *bool `yaml:"python,omitempty"`
-		}{Python: languages.Python, Rust: languages.Rust, Go: struct {
+		goValue = struct {
 			Enabled    bool `yaml:"enabled"`
 			*GoOptions `yaml:",inline"`
-		}{Enabled: *languages.Go, GoOptions: languages.GoOptions}}, nil
+		}{Enabled: *languages.Go, GoOptions: languages.GoOptions}
+	}
+	javascript := make(map[string]*bool)
+	if languages.JavaScript != nil {
+		javascript[languages.javaScriptYAMLKey()] = languages.JavaScript
 	}
 	return struct {
-		Go     *bool `yaml:"go,omitempty"`
-		Rust   *bool `yaml:"rust,omitempty"`
-		Python *bool `yaml:"python,omitempty"`
-	}{Go: languages.Go, Rust: languages.Rust, Python: languages.Python}, nil
+		Go         any              `yaml:"go,omitempty"`
+		Rust       *bool            `yaml:"rust,omitempty"`
+		Python     *bool            `yaml:"python,omitempty"`
+		Shell      *bool            `yaml:"shell,omitempty"`
+		JavaScript map[string]*bool `yaml:",inline"`
+	}{Go: goValue, Rust: languages.Rust, Python: languages.Python, Shell: languages.Shell, JavaScript: javascript}, nil
+}
+
+func (languages LanguageSettings) javaScriptYAMLKey() string {
+	if languages.javaScriptKey == "typescript" {
+		return "typescript"
+	}
+	return "javascript"
+}
+
+func (cfg *Config) ShellDeclared() bool {
+	return cfg != nil && cfg.Languages != nil && cfg.Languages.Shell != nil
+}
+
+func (cfg *Config) ShellEnabled() bool {
+	return cfg.ShellDeclared() && *cfg.Languages.Shell
+}
+
+func (cfg *Config) JavaScriptDeclared() bool {
+	return cfg != nil && cfg.Languages != nil && cfg.Languages.JavaScript != nil
+}
+
+func (cfg *Config) JavaScriptEnabled() bool {
+	return cfg.JavaScriptDeclared() && *cfg.Languages.JavaScript
 }
 
 func (cfg *Config) PythonDeclared() bool {
@@ -214,6 +271,10 @@ func (cfg *Config) FFmpegStatigoEnabled() bool {
 // SwatchActive applies the language opt-in requirement, not Pages or wiki readiness checks.
 func (cfg *Config) SwatchActive(path string) bool {
 	switch path {
+	case ".shellcheckrc", ".editorconfig":
+		return cfg.ShellEnabled()
+	case ".oxlintrc.json", ".prettierrc.json", ".prettierignore":
+		return cfg.JavaScriptEnabled()
 	case "ruff.toml", "pyrightconfig.json":
 		return cfg.PythonEnabled()
 	case ".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", "Dockerfile":
