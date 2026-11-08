@@ -133,9 +133,13 @@ func TestWikiAdoptionPreviewLineBoundary(t *testing.T) {
 		case r.Method == http.MethodGet && r.URL.Path == "/user":
 			fmt.Fprint(w, `{"login":"testuser"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo":
-			fmt.Fprint(w, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
+			fmt.Fprint(w, `{"private":false,"has_wiki":true,"default_branch":"main","permissions":{"admin":true},"security_and_analysis":{}}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/actions/permissions/workflow":
 			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
+		case r.Method == http.MethodGet && (r.URL.Path == "/repos/testowner/testrepo/private-vulnerability-reporting" || r.URL.Path == "/repos/testowner/testrepo/automated-security-fixes"):
+			fmt.Fprint(w, `{"enabled":false}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/vulnerability-alerts":
+			w.WriteHeader(http.StatusNotFound)
 		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusInternalServerError)
