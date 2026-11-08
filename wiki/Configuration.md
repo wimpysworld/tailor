@@ -316,7 +316,7 @@ languages:
   go: true
 ```
 
-Go is opt-in. New configs use `false`. Existing configs without this setting remain unchanged, including during default merging. Tailor accepts `go`, `python`, and `rust` language keys. Python and Rust accept only Boolean values. Go also accepts the mapping above. Null values and unknown language keys are errors. CodeQL language settings do not enable these swatches.
+Go is opt-in. New configs use `false`. Existing configs without this setting remain unchanged, including during default merging. Tailor accepts `go`, `python`, `rust`, `shell`, and `javascript` (or its mutually exclusive `typescript` alias) language keys. All except Go accept only Boolean values. Go also accepts the mapping above. Null values and unknown language keys are errors. CodeQL language settings do not enable these swatches.
 
 | Swatch | Purpose | Default mode |
 |---|---|---|
