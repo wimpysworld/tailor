@@ -238,15 +238,23 @@ func TestReadWikiSnapshotRejectsUnsafeRemote(t *testing.T) {
 				head := wikiFixtureGit(t, remote, "rev-parse", "HEAD")
 				wikiFixtureGit(t, remote, "update-index", "--add", "--cacheinfo", "160000,"+head+",submodule")
 			case "Home.md":
-				wikiFixtureWrite(t, remote, name, "upper")
-				wikiFixtureWrite(t, remote, "home.md", "lower")
+				// Create case-distinct paths without case-sensitive filesystem writes.
+				blob := wikiFixtureGit(t, remote, "rev-parse", "HEAD:page.md")
+				for _, path := range []string{"Home.md", "home.md"} {
+					wikiFixtureGit(t, remote, "update-index", "--add", "--cacheinfo", "100644,"+blob+","+path)
+				}
 			default:
 				wikiFixtureWrite(t, remote, name, "reserved")
 			}
-			if name != "submodule" {
+			if name != "submodule" && name != "Home.md" {
 				wikiFixtureGit(t, remote, "add", ".")
 			}
 			wikiFixtureGit(t, remote, "commit", "-m", "Unsafe")
+			if name == "Home.md" {
+				if paths := wikiFixtureGit(t, remote, "ls-tree", "--name-only", "HEAD"); paths != "Home.md\nhome.md\npage.md" {
+					t.Fatalf("case-collision fixture paths=%q", paths)
+				}
+			}
 			snapshot, err := ReadWikiSnapshot(t.TempDir(), remote, "")
 			var readiness *WikiReadinessError
 			if snapshot != nil || !errors.As(err, &readiness) || readiness.Reason != WikiUnsafeFile {
