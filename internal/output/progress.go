@@ -79,6 +79,8 @@ func (m ProgressModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.spinner, cmd = m.spinner.Update(msg)
 			return m, cmd
 		}
+	case progressPrompt:
+		return m, tea.Exec(promptCommand{run: msg.run}, func(err error) tea.Msg { msg.done <- err; return nil })
 	case stopProgress:
 		return m, tea.Quit
 	}
@@ -160,11 +162,11 @@ func (p *Progress) Observe(event StageEvent) {
 	if p.stopped {
 		return
 	}
+	p.stage = event
 	if p.program != nil {
 		p.program.Send(event)
 		return
 	}
-	p.stage = event
 	p.generation++
 	if p.timer != nil {
 		p.timer.Stop()
@@ -204,6 +206,49 @@ func (p *Progress) WarningWriter(fallback io.Writer) io.Writer {
 		p.program.Printf("%s", data)
 		return len(data), nil
 	})
+}
+
+type progressPrompt struct {
+	run  func() error
+	done chan error
+}
+
+type promptCommand struct{ run func() error }
+
+func (c promptCommand) Run() error        { return c.run() }
+func (promptCommand) SetStdin(io.Reader)  {}
+func (promptCommand) SetStdout(io.Writer) {}
+func (promptCommand) SetStderr(io.Writer) {}
+
+// WithPaused gives a prompt exclusive terminal access, then restores progress.
+func (p *Progress) WithPaused(run func() error) error {
+	if p == nil {
+		return run()
+	}
+	p.mu.Lock()
+	p.generation++
+	if p.timer != nil {
+		p.timer.Stop()
+		p.timer = nil
+	}
+	program, stage := p.program, p.stage
+	var err error
+	if program != nil && !p.stopped {
+		done := make(chan error, 1)
+		program.Send(progressPrompt{run: run, done: done})
+		select {
+		case err = <-done:
+		case <-p.done:
+			err = fmt.Errorf("progress stopped before confirmation")
+		}
+	} else {
+		err = run()
+	}
+	p.mu.Unlock()
+	if program == nil {
+		p.Observe(stage)
+	}
+	return err
 }
 
 type writerFunc func([]byte) (int, error)

@@ -1,6 +1,7 @@
 package output
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -66,6 +67,86 @@ func TestFastProgressDoesNotNegotiateTerminal(t *testing.T) {
 				if !strings.Contains(got, want) {
 					t.Fatalf("missing %q: %q", want, got)
 				}
+			}
+		})
+	}
+}
+
+func TestProgressPromptPTYHelper(t *testing.T) {
+	mode := os.Getenv("TAILOR_PROMPT_PROGRESS_HELPER")
+	if mode == "" {
+		return
+	}
+	progress := New(os.Stdout, os.Stderr, Auto, WithColor(ColorNever), WithVerbose(true)).StartProgress()
+	if progress == nil || !progress.config.animate {
+		t.Fatal("verbose disabled progress")
+	}
+	defer progress.Stop()
+	progress.Observe(StageEvent{ID: "wiki", Label: "Inspecting wiki", Phase: "start"})
+	progress.activate(progress.generation)
+	program := progress.program
+	injected := errors.New("prompt input failed")
+	approved := false
+	err := progress.WithPaused(func() error {
+		fmt.Fprintln(os.Stderr, "PROMPT START")
+		fmt.Fprintln(os.Stderr, "Approve only this wiki import? [y/N]")
+		approved = mode == "approved"
+		fmt.Fprintln(os.Stderr, "PROMPT END")
+		if mode == "failed" {
+			return injected
+		}
+		return nil
+	})
+	if errors.Is(err, injected) != (mode == "failed") || approved != (mode == "approved") {
+		t.Fatalf("approved=%t err=%v", approved, err)
+	}
+	if progress.program != program || progress.stopped {
+		t.Fatal("prompt stopped or replaced progress")
+	}
+	progress.Observe(StageEvent{ID: "continued", Label: "Progress after prompt", Phase: "start"})
+	// A second handoff waits for the resumed event loop without a timer.
+	if err := progress.WithPaused(func() error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+	progress.Stop()
+	fmt.Fprintln(os.Stderr, "HANDOFF COMPLETE")
+}
+
+func TestProgressPromptTerminalHandoff(t *testing.T) {
+	for _, mode := range []string{"approved", "declined", "failed"} {
+		t.Run(mode, func(t *testing.T) {
+			got := testutil.RunPTY(t, "TestProgressPromptPTYHelper", "", "TAILOR_PROMPT_PROGRESS_HELPER="+mode)
+			before, rest, found := strings.Cut(got, "PROMPT START")
+			prompt, after, ended := strings.Cut(rest, "PROMPT END")
+			if !found || !ended || !strings.Contains(before, "\x1b[?25h") || !strings.Contains(after, "\x1b[?25l") {
+				t.Fatalf("terminal was not released and restored: %q", got)
+			}
+			if strings.Contains(prompt, "\x1b") || strings.Count(got, "[y/N]") != 1 || !strings.Contains(after, "HANDOFF COMPLETE") {
+				t.Fatalf("progress interfered with confirmation: %q", got)
+			}
+		})
+	}
+}
+
+func TestProgressPromptBeforeActivation(t *testing.T) {
+	for _, failed := range []bool{false, true} {
+		t.Run(fmt.Sprint(failed), func(t *testing.T) {
+			progress := StartProgress(io.Discard)
+			defer progress.Stop()
+			progress.Observe(StageEvent{ID: "wiki", Label: "Inspecting wiki", Phase: "start"})
+			generation := progress.generation
+			injected := errors.New("prompt failed")
+			err := progress.WithPaused(func() error {
+				if progress.timer != nil || progress.program != nil {
+					t.Fatal("progress active during prompt")
+				}
+				if failed {
+					return injected
+				}
+				return nil
+			})
+			if errors.Is(err, injected) != failed || progress.timer == nil || progress.generation <= generation {
+				t.Fatalf("progress did not resume: %v", err)
 			}
 		})
 	}

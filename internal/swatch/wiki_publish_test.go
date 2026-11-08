@@ -221,6 +221,35 @@ func (f *wikiPublisherFixture) requirePublish() {
 	}
 }
 
+func TestWikiPublisherRejectsRecoveryArtifacts(t *testing.T) {
+	for _, name := range []string{".tailor-wiki-tmp-abandoned", "nested/.tailor-wiki-tmp-abandoned", ".TAILOR-WIKI-backup"} {
+		t.Run(name, func(t *testing.T) {
+			f := newWikiPublisherFixture(t)
+			filename := filepath.Join(f.source, "wiki", name)
+			f.write(filename, "private recovery payload")
+			f.commit()
+			before := f.git(f.remote, "rev-parse", "HEAD")
+			if output, err := f.publish(""); err == nil || !strings.Contains(output, "reserved wiki recovery data") {
+				t.Fatalf("publisher accepted recovery data: %v %s", err, output)
+			}
+			if after := f.git(f.remote, "rev-parse", "HEAD"); after != before {
+				t.Fatal("publisher changed remote")
+			}
+			data, err := os.ReadFile(filename)
+			if err != nil || string(data) != "private recovery payload" {
+				t.Fatal("publisher changed retained artifact")
+			}
+			// A missing worktree file must not bypass the committed-tree check.
+			if err := os.Rename(filename, filepath.Join(f.root, "retained")); err != nil {
+				t.Fatal(err)
+			}
+			if output, err := f.publish(""); err == nil || !strings.Contains(output, "reserved wiki recovery data") {
+				t.Fatalf("publisher accepted committed recovery data: %v %s", err, output)
+			}
+		})
+	}
+}
+
 func TestWikiPublisherAdoptionAndUpdates(t *testing.T) {
 	f := newWikiPublisherFixture(t)
 	f.requirePublish()

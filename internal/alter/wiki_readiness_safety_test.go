@@ -99,6 +99,9 @@ func TestWikiReadinessEnabledBlockerAndEnablementFailure(t *testing.T) {
 				probes++
 				return errors.New("wiki exists but wiki/.tailor-wiki-base is missing; import the wiki before adoption")
 			}))
+			t.Cleanup(gh.SetReadWikiSnapshotFunc(func(string, string, string) (*gh.WikiSnapshot, error) {
+				return &gh.WikiSnapshot{Head: strings.Repeat("a", 40), Files: []gh.WikiFile{{Path: "Home.md", Mode: 0o644, Content: []byte("page")}}, Readiness: &gh.WikiReadinessError{Reason: gh.WikiBaselineMissing, Err: errors.New("missing baseline")}}, nil
+			}))
 			dir := t.TempDir()
 			writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\nrepository:\n  has_wiki: true\n  description: changed\nswatches:\n  - path: .gitignore\n    alteration: always\n"))
 			writeOnDisk(t, dir, ".github/workflows/tailor.yml", []byte("retired"))
@@ -110,7 +113,7 @@ func TestWikiReadinessEnabledBlockerAndEnablementFailure(t *testing.T) {
 			var stdout, stderr strings.Builder
 			err := alter.Run(loadTestConfig(t, dir), dir, mode, testutil.NewTestClient(t, server), &stdout, &stderr)
 			if tc.preview {
-				if err != nil || !strings.Contains(stdout.String(), "Tailor needs an imported copy of the wiki in wiki/.") {
+				if err != nil || !strings.Contains(stdout.String(), "--adopt-wiki") {
 					t.Fatalf("preview error=%v stdout=%q", err, stdout.String())
 				}
 				for _, want := range []string{"repository.description", ".gitignore", "would remove", swatch.WikiDestination} {
@@ -118,7 +121,7 @@ func TestWikiReadinessEnabledBlockerAndEnablementFailure(t *testing.T) {
 						t.Errorf("preview lacks %q: %s", want, stdout.String())
 					}
 				}
-			} else if err == nil || !strings.Contains(err.Error(), "wiki is not ready") {
+			} else if err == nil || (tc.enabled && !strings.Contains(err.Error(), "--adopt-wiki")) || (!tc.enabled && !strings.Contains(err.Error(), "wiki is not ready")) {
 				t.Fatalf("readiness did not block: %v", err)
 			}
 			if tc.enabled {

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/alecthomas/kong"
@@ -17,6 +20,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 	"github.com/wimpysworld/tailor/internal/output"
 	"github.com/wimpysworld/tailor/internal/swatch"
+	"github.com/wimpysworld/tailor/internal/termtext"
+	"golang.org/x/term"
 )
 
 // version is set at release time by GoReleaser via -X main.version.
@@ -147,6 +152,7 @@ func projectName(path string) string {
 // AlterCmd applies configured swatches and GitHub settings to the current project.
 type AlterCmd struct {
 	Recut     bool     `help:"Overwrite existing first-fit swatches and merge missing .tailor.yml defaults (never swatches and the licence stay untouched)." name:"recut"`
+	AdoptWiki bool     `help:"Approve the pinned wiki import, including listed replacements with private backups. Does not approve other alterations."`
 	LocalOnly bool     `help:"Refresh only explicitly selected existing owned files without authentication or network access."`
 	Path      []string `help:"Existing owned destination to refresh (repeatable; requires --local-only)."`
 	Directory string   `help:"Project directory (requires --local-only)."`
@@ -158,6 +164,9 @@ type AlterCmd struct {
 // Run executes the alter command.
 func (a *AlterCmd) Run() error {
 	if a.LocalOnly {
+		if a.AdoptWiki {
+			return fmt.Errorf("--adopt-wiki cannot be used with --local-only")
+		}
 		if a.Recut {
 			return fmt.Errorf("local-only alteration does not support --recut")
 		}
@@ -170,7 +179,59 @@ func (a *AlterCmd) Run() error {
 	if a.Recut {
 		mode = alter.Recut
 	}
-	return runAlterWithPolicy(mode, a.output, a.stdout, a.stderr)
+	policy := a.output
+	if policy == nil {
+		policy = output.New(a.stdout, a.stderr, output.Auto)
+	}
+	options := alter.Options{AdoptWiki: a.AdoptWiki}
+	options.ConfirmWikiAdoption = func(plan alter.WikiAdoptionPlan) (bool, error) {
+		interactive := wikiPromptInteractive(os.Stdin, policy.Stderr())
+		return confirmWikiAdoption(os.Stdin, policy.Stderr(), interactive, plan)
+	}
+	return runAlterWithOptions(mode, policy, a.stdout, a.stderr, options)
+}
+
+func wikiPromptInteractive(input *os.File, stderr io.Writer) bool {
+	return term.IsTerminal(int(input.Fd())) && wikiTerminalWriter(stderr) && os.Getenv("CI") == ""
+}
+
+func wikiTerminalWriter(writer io.Writer) bool {
+	file, ok := writer.(*os.File)
+	return ok && term.IsTerminal(int(file.Fd()))
+}
+
+func confirmWikiAdoption(input io.Reader, stderr io.Writer, interactive bool, plan alter.WikiAdoptionPlan) (bool, error) {
+	if !interactive {
+		return false, nil
+	}
+	fmt.Fprintf(stderr, "Wiki import at %s: %d additions, %d replacements, %d identical files, %d backups.\n", termtext.EscapeControlText(plan.Head), len(plan.Additions), len(plan.Replacements), len(plan.Identical), len(plan.Backups))
+	for _, group := range []struct {
+		label string
+		files []string
+	}{{"add", plan.Additions}, {"replace and back up", plan.Replacements}} {
+		for _, name := range group.files[:min(5, len(group.files))] {
+			fmt.Fprintf(stderr, "  %s: %s\n", group.label, termtext.EscapeControlText(name))
+		}
+		if len(group.files) > 5 {
+			fmt.Fprintf(stderr, "  %s: %d more files\n", group.label, len(group.files)-5)
+		}
+	}
+	fmt.Fprintln(stderr, "Approval covers all files in these counts. Run tailor baste --verbose for the full plan.")
+	if plan.RecoveryPath != "" {
+		fmt.Fprintf(stderr, "Recovery state: %s\n", termtext.EscapeControlText(plan.RecoveryPath))
+	} else {
+		fmt.Fprintln(stderr, "Backups stay in this worktree's private Git metadata under tailor/wiki-imports/.")
+	}
+	fmt.Fprint(stderr, "Approve only this wiki import? [y/N] ")
+	answer, err := bufio.NewReader(io.LimitReader(input, 1024)).ReadString('\n')
+	if errors.Is(err, io.EOF) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	return answer == "y" || answer == "yes", nil
 }
 
 // BasteCmd previews what alter would do without making any changes.
@@ -190,7 +251,11 @@ func runAlter(mode alter.ApplyMode, stdout, stderr io.Writer) error {
 	return runAlterWithPolicy(mode, output.New(stdout, stderr, output.Plain), stdout, stderr)
 }
 
-func runAlterWithPolicy(mode alter.ApplyMode, policy *output.Policy, stdout, stderr io.Writer) (runErr error) {
+func runAlterWithPolicy(mode alter.ApplyMode, policy *output.Policy, stdout, stderr io.Writer) error {
+	return runAlterWithOptions(mode, policy, stdout, stderr, alter.Options{})
+}
+
+func runAlterWithOptions(mode alter.ApplyMode, policy *output.Policy, stdout, stderr io.Writer, options alter.Options) (runErr error) {
 	if policy == nil {
 		policy = output.New(stdout, stderr, output.Auto)
 	}
@@ -231,7 +296,14 @@ func runAlterWithPolicy(mode alter.ApplyMode, policy *output.Policy, stdout, std
 
 	observe(output.StageEvent{ID: "preflight", Label: "Command prepared", Phase: "complete"})
 	stderr = progress.WarningWriter(stderr)
-	report, err := alter.Execute(cfg, dir, mode, nil, stderr, alter.Options{Observer: observe})
+	options.Observer = observe
+	if confirm := options.ConfirmWikiAdoption; confirm != nil {
+		options.ConfirmWikiAdoption = func(plan alter.WikiAdoptionPlan) (approved bool, err error) {
+			err = progress.WithPaused(func() error { var promptErr error; approved, promptErr = confirm(plan); return promptErr })
+			return approved, err
+		}
+	}
+	report, err := alter.Execute(cfg, dir, mode, nil, stderr, options)
 	progress.Stop()
 	policy.Print(report.Document, report.Plain)
 	return err

@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -285,7 +284,7 @@ func TestWikiGuidanceByReadinessState(t *testing.T) {
 					t.Errorf("guidance lacks %q: %s", want, got)
 				}
 			}
-			if strings.Contains(got, "git clone "+remoteURL) != tc.wantImport {
+			if strings.Contains(got, "--adopt-wiki") != tc.wantImport {
 				t.Errorf("import guidance mismatch: %s", got)
 			}
 			if strings.Contains(strings.ToLower(got), "create and save") != tc.wantPage || strings.Contains(got, wikiURL) != tc.wantPage {
@@ -419,105 +418,19 @@ func TestWikiBaselineTypedReason(t *testing.T) {
 	}
 }
 
-func TestWikiImportCopyCommands(t *testing.T) {
-	if _, err := exec.LookPath("rsync"); err != nil {
-		t.Skipf("copy guidance requires rsync: %v", err)
-	}
+func TestWikiImportConsentGuidance(t *testing.T) {
 	for _, existing := range []bool{false, true} {
-		t.Run(fmt.Sprintf("existing=%t", existing), func(t *testing.T) {
-			guidance := wikiImportGuidance("https://github.com/owner/repo.wiki.git", existing)
-			for _, forbidden := range []string{"&&", ";", "|", "$", "if [", "mkdir", "mktemp", "printf", "cp -a"} {
-				if strings.Contains(guidance, forbidden) {
-					t.Fatalf("guidance contains %q: %s", forbidden, guidance)
-				}
+		guidance := wikiImportGuidance("https://github.com/owner/repo.wiki.git", existing)
+		for _, want := range []string{"tailor baste", "tailor alter --adopt-wiki", "local-only files", "private Git metadata"} {
+			if !strings.Contains(guidance, want) {
+				t.Fatalf("guidance lacks %q: %s", want, guidance)
 			}
-			root := t.TempDir()
-			project := filepath.Join(root, "project")
-			if err := os.Mkdir(project, 0o755); err != nil {
-				t.Fatal(err)
+		}
+		for _, forbidden := range []string{"rsync", "git clone", "rev-parse", "> wiki/"} {
+			if strings.Contains(guidance, forbidden) {
+				t.Fatalf("unsafe manual instruction: %s", guidance)
 			}
-			write := func(name, content string) {
-				t.Helper()
-				filename := filepath.Join(root, name)
-				if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
-					t.Fatal(err)
-				}
-				if err := os.WriteFile(filename, []byte(content), 0o644); err != nil {
-					t.Fatal(err)
-				}
-			}
-			for name, content := range map[string]string{
-				"Home.md": "remote", ".hidden": "hidden", "nested/Guide.md": "guide", ".git/config": "metadata",
-			} {
-				write("tailor-wiki-import/"+name, content)
-			}
-			if existing {
-				write("project/wiki/Home.md", "local!")
-				write("project/wiki/Local.md", "local only")
-				write("project/wiki/.tailor-wiki-base", "old baseline")
-				remoteInfo, err := os.Stat(filepath.Join(root, "tailor-wiki-import/Home.md"))
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := os.Chtimes(filepath.Join(project, "wiki/Home.md"), remoteInfo.ModTime(), remoteInfo.ModTime()); err != nil {
-					t.Fatal(err)
-				}
-			}
-			var comparison string
-			commands := 0
-			for line := range strings.SplitSeq(guidance, "\n") {
-				if !strings.HasPrefix(line, "     ") {
-					continue
-				}
-				commands++
-				args := strings.Fields(line)
-				if args[0] != "rsync" {
-					continue
-				}
-				cmd := exec.CommandContext(t.Context(), "rsync", args[1:]...) // #nosec G204 -- Arguments come from fixed guidance with a literal test URL.
-				cmd.Dir = project
-				output, err := cmd.CombinedOutput()
-				if err != nil {
-					t.Fatalf("command failed: %v\n%s", err, output)
-				}
-				if args[1] == "-naci" {
-					comparison = string(output)
-				}
-			}
-			wantCommands := 3
-			if existing {
-				wantCommands = 4
-			}
-			if commands != wantCommands {
-				t.Fatalf("command count = %d, want %d", commands, wantCommands)
-			}
-			check := func(name, want string) {
-				t.Helper()
-				got, err := os.ReadFile(filepath.Join(root, name))
-				if err != nil || string(got) != want {
-					t.Fatalf("%s = %q, %v; want %q", name, got, err, want)
-				}
-			}
-			if existing {
-				check("project/wiki/Home.md", "local!")
-				if !strings.Contains(comparison, "Home.md") || strings.Contains(comparison, "Guide.md") {
-					t.Fatalf("comparison did not isolate remaining conflicts: %s", comparison)
-				}
-			} else {
-				check("project/wiki/Home.md", "remote")
-			}
-			check("project/wiki/.hidden", "hidden")
-			check("project/wiki/nested/Guide.md", "guide")
-			if _, err := os.Stat(filepath.Join(project, "wiki/.git")); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("copy included .git: %v", err)
-			}
-			if existing {
-				check("project/wiki/Local.md", "local only")
-				check("project/wiki/.tailor-wiki-base", "old baseline")
-			} else if _, err := os.Stat(filepath.Join(project, "wiki/.tailor-wiki-base")); !errors.Is(err, os.ErrNotExist) {
-				t.Fatalf("copy recorded the baseline before review: %v", err)
-			}
-		})
+		}
 	}
 }
 
@@ -546,7 +459,7 @@ func TestWikiImportGuidanceUsesLocalSourceState(t *testing.T) {
 					}
 					guidance = err.Error()
 				}
-				if strings.Contains(guidance, "--ignore-existing") != existing {
+				if !strings.Contains(guidance, "--adopt-wiki") {
 					t.Fatalf("wrong guidance for existing=%t: %s", existing, guidance)
 				}
 			})

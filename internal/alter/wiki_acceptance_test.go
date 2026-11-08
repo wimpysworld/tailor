@@ -65,6 +65,14 @@ func TestWikiEnablementStopsBeforeOtherWrites(t *testing.T) {
 
 func TestWikiDisabledPreviewIncludesBlockerAndOtherChanges(t *testing.T) {
 	s, client := newPagesAcceptanceAPI(t)
+	t.Cleanup(gh.SetReadWikiSnapshotFunc(func(string, string, string) (*gh.WikiSnapshot, error) {
+		t.Error("disabled preview read a remote snapshot")
+		return nil, errors.New("unexpected")
+	}))
+	t.Cleanup(gh.SetRecheckWikiHeadFunc(func(string, string) error {
+		t.Error("disabled preview rechecked remote HEAD")
+		return errors.New("unexpected")
+	}))
 	t.Cleanup(gh.SetInspectWikiFunc(func(string, string, string) error {
 		t.Error("disabled preview inspected remote wiki")
 		return errors.New("unexpected")
@@ -93,11 +101,9 @@ func TestWikiDisabledPreviewIncludesBlockerAndOtherChanges(t *testing.T) {
    https://github.com/testowner/testrepo/wiki
 
 3. If Tailor asks you to import the wiki:
-   Requires rsync. Run each command from the project root, stopping if a command fails.
-   Use an unused path for ../tailor-wiki-import.
-     git clone https://github.com/testowner/testrepo.wiki.git ../tailor-wiki-import
-     rsync -a --exclude=.git ../tailor-wiki-import/ wiki/
-     git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base
+   Run tailor baste to inspect the import plan after the wiki can be read safely.
+   Run tailor alter for one confirmation, or use tailor alter --adopt-wiki for noninteractive consent.
+   Tailor preserves local-only files and backs up approved replacements in private Git metadata.
 
 4. Run tailor baste again. When the wiki checks pass, run tailor alter.
 `

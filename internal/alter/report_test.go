@@ -411,7 +411,7 @@ func TestWikiGuidanceKeepsCommandsAndAppendOrder(t *testing.T) {
 	wiki := wikiPreviewGuidance(&gh.WikiReadinessError{Reason: gh.WikiBaselineMissing}, "https://github.com/owner/repo/wiki", "https://github.com/owner/repo.wiki.git", true)
 	appendGuidance(&report, wiki, output.GuidanceRequired)
 	if !strings.Contains(report.Plain, wiki) {
-		t.Fatal("legacy wiki guidance changed")
+		t.Fatal("plain report lost wiki guidance")
 	}
 	if len(report.Document.Guidance) != 4 {
 		t.Fatalf("guidance blocks = %#v", report.Document.Guidance)
@@ -424,14 +424,14 @@ func TestWikiGuidanceKeepsCommandsAndAppendOrder(t *testing.T) {
 	for _, width := range []int{60, 80} {
 		got := output.New(nil, nil, output.Auto, output.WithWidth(width)).Render(report.Document)
 		last := -1
-		for _, text := range []string{"Verify the preserved justfile.", "Optional: adopt", "Use `tailor baste --verbose`", "Next steps:", "1. Import the wiki:", "     git clone https://github.com/owner/repo.wiki.git ../tailor-wiki-import", "     rsync -a --ignore-existing --exclude=.git ../tailor-wiki-import/ wiki/", "     rsync -naci --exclude=.git ../tailor-wiki-import/ wiki/", "     git -C ../tailor-wiki-import rev-parse HEAD > wiki/.tailor-wiki-base", "2. Run `tailor baste` again."} {
-			index := strings.Index(got, text)
+		for _, text := range []string{"Verify the preserved justfile.", "Optional: adopt", "Use `tailor baste --verbose`", "Next steps:", "1. Import the wiki:", "Run tailor baste to inspect the import plan after the wiki can be read safely.", "Run tailor alter for one confirmation, or use tailor alter --adopt-wiki for noninteractive consent.", "Tailor preserves local-only files and backs up approved replacements in private Git metadata.", "2. Run `tailor baste` again."} {
+			index := strings.Index(strings.Join(strings.Fields(got), " "), text)
 			if index <= last {
 				t.Fatalf("width %d: missing or out-of-order %q:\n%s", width, text, got)
 			}
 			last = index
 		}
-		if strings.Contains(got, "Review the preview") || strings.Contains(got, "1. Next steps:") {
+		if strings.Contains(got, "Review the preview") || strings.Contains(got, "1. Next steps:") || strings.Contains(got, "rsync") || strings.Contains(got, "git clone") {
 			t.Fatalf("nested numbering or unsafe final advice:\n%s", got)
 		}
 	}

@@ -99,6 +99,12 @@ jobs:
               for name in directories + files:
                   path = Path(directory) / name
                   mode = path.lstat().st_mode
+                  if (
+                      name.lower().startswith(".tailor-wiki-")
+                      and path != wiki / baseline_name
+                  ):
+                      stop("wiki publication stopped: "
+                           "retain reserved wiki recovery data for review")
                   if name.lower() == ".git" or not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)):
                       stop("wiki publication stopped: wiki/ contains an unsafe file")
 
@@ -155,6 +161,12 @@ jobs:
                       if not entry:
                           continue
                       metadata, name = entry.split(b"\t", 1)
+                      if name != baseline_name.encode() and any(
+                          part.startswith(b".tailor-wiki-")
+                          for part in name.lower().split(b"/")
+                      ):
+                          stop("wiki publication stopped: source commit "
+                               "contains reserved wiki recovery data")
                       if metadata.split()[0] not in (b"100644", b"100755") or b".git" in name.lower().split(b"/"):
                           stop("wiki publication stopped: source commit contains an unsafe wiki file")
                   index_env = dict(environment, GIT_INDEX_FILE=str(temporary / "index"), GIT_WORK_TREE=str(remote))

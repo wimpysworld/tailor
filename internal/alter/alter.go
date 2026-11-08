@@ -35,7 +35,11 @@ func stageLabel(mode ApplyMode, dryRun, mutation string) string {
 }
 
 // Options configures typed execution events.
-type Options struct{ Observer func(output.StageEvent) }
+type Options struct {
+	Observer            func(output.StageEvent)
+	AdoptWiki           bool
+	ConfirmWikiAdoption func(WikiAdoptionPlan) (bool, error)
+}
 
 func (o Options) stage(id, label, phase string) {
 	if o.Observer != nil {
@@ -86,14 +90,19 @@ func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *ap
 	var dependabot dependabotPlan
 	context := ""
 	wikiGuidance := ""
+	var wiki *wikiRun
 	partial := func(err error) (Report, error) {
 		allSwatches := append(append([]SwatchResult{}, swatchResults...), retiredResults...)
 		report := buildReport(command, context, repoResults, labelResults, variableResults, allSwatches, mode)
 		appendManagedReporting(&report, cfg, managedResults, dir)
 		appendDependabotReporting(&report, dependabot, dependabotResults)
 		appendGuidance(&report, wikiGuidance, output.GuidanceRequired)
+		appendWikiImportReporting(&report, wiki, mode)
 		options.stageError(err)
 		return report, err
+	}
+	if options.AdoptWiki && !mode.ShouldWrite() {
+		return partial(errors.New("--adopt-wiki is only supported by alter"))
 	}
 	options.stage("config", stageLabel(mode, "Checking configuration", "Preparing configuration"), "start")
 	wikiDeclared := cfg.Repository != nil && cfg.Repository.HasWiki != nil
@@ -177,7 +186,7 @@ func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *ap
 	if err := preflightWikiWrites(cfg, dir, wikiDeclared, &tokens, managedExclusions); err != nil {
 		return partial(err)
 	}
-	wiki, err := preflightWiki(cfg, dir, mode, target, wikiDeclared)
+	wiki, err = preflightWikiWithOptions(cfg, dir, mode, target, wikiDeclared, options)
 	if err != nil {
 		return partial(err)
 	}
@@ -312,6 +321,7 @@ func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *ap
 	if wiki != nil {
 		appendGuidance(&report, wiki.nextSteps, output.GuidanceRequired)
 	}
+	appendWikiImportReporting(&report, wiki, mode)
 	options.stage("complete", "Complete", "complete")
 	return report, nil
 }
