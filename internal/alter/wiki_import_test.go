@@ -386,6 +386,120 @@ func TestWikiImportRetainsAbandonedPublicationTemps(t *testing.T) {
 	}
 }
 
+func TestWikiImportInitialJournalFailure(t *testing.T) {
+	for _, phase := range []string{"write", "sync", "rename"} {
+		t.Run(phase, func(t *testing.T) {
+			dir := wikiImportProject(t)
+			snapshot := wikiImportSnapshot()
+			wikiImportHooks(t, snapshot)
+			wikiTestWrite(t, dir, "wiki/Home.md", "original")
+			plan, err := planWikiImport(dir, "remote", snapshot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			injected := errors.New("initial journal failed")
+			var location string
+			hook := func(name string) error {
+				if name == "journal.json" {
+					location = plan.location
+					return injected
+				}
+				return nil
+			}
+			switch phase {
+			case "write":
+				plan.hooks.beforeTempWrite = hook
+			case "sync":
+				plan.hooks.beforeTempSync = hook
+			case "rename":
+				plan.hooks.beforeRename = hook
+			}
+			if err := applyWikiImport(dir, plan); !errors.Is(err, injected) {
+				t.Fatalf("initial failure: %v", err)
+			}
+			if location == "" || plan.location != "" {
+				t.Fatalf("transaction location not cleared: before=%q after=%q", location, plan.location)
+			}
+			if _, err := os.Lstat(location); !errors.Is(err, fs.ErrNotExist) {
+				t.Fatalf("empty transaction retained: %v", err)
+			}
+			if pending, err := findWikiImport(dir, "remote"); err != nil || pending != nil {
+				t.Fatalf("failed initial save blocks retry: pending=%+v err=%v", pending, err)
+			}
+			data, err := os.ReadFile(filepath.Join(dir, "wiki/Home.md"))
+			if err != nil || string(data) != "original" {
+				t.Fatalf("destination changed: %q, %v", data, err)
+			}
+			if _, err := os.Stat(filepath.Join(dir, swatch.WikiBaseline)); !errors.Is(err, fs.ErrNotExist) {
+				t.Fatal("baseline installed after failed initial save")
+			}
+			plan.hooks = managedApplyHooks{}
+			if err := applyWikiImport(dir, plan); err != nil || !plan.Complete {
+				t.Fatalf("retry failed: complete=%t err=%v", plan.Complete, err)
+			}
+			data, err = os.ReadFile(filepath.Join(plan.location, "backup/0"))
+			if err != nil || string(data) != "original" {
+				t.Fatalf("retry lost original backup: %q, %v", data, err)
+			}
+		})
+	}
+}
+
+func TestWikiImportInitialJournalFailurePreservesState(t *testing.T) {
+	for _, kind := range []string{"unknown file", "changed directory"} {
+		t.Run(kind, func(t *testing.T) {
+			dir := wikiImportProject(t)
+			plan, err := planWikiImport(dir, "remote", wikiImportSnapshot())
+			if err != nil {
+				t.Fatal(err)
+			}
+			injected := errors.New("initial journal failed")
+			var location string
+			var retained fs.FileInfo
+			plan.hooks.beforeTempWrite = func(name string) error {
+				if name != "journal.json" {
+					return nil
+				}
+				location = plan.location
+				if kind == "unknown file" {
+					wikiTestWrite(t, location, "unknown", "retain me")
+				} else {
+					if err := os.Rename(location, location+".kept"); err != nil {
+						t.Fatal(err)
+					}
+					if err := os.Mkdir(location, 0o700); err != nil {
+						t.Fatal(err)
+					}
+				}
+				retained, err = os.Lstat(location)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return injected
+			}
+			err = stageWikiImport(dir, plan)
+			if !errors.Is(err, injected) || location == "" || !strings.Contains(err.Error(), location) || plan.location != location {
+				t.Fatalf("failure lost error or location: location=%q plan=%q err=%v", location, plan.location, err)
+			}
+			current, err := os.Lstat(location)
+			if err != nil || !os.SameFile(retained, current) {
+				t.Fatalf("transaction entry changed: %v", err)
+			}
+			if kind == "unknown file" {
+				data, err := os.ReadFile(filepath.Join(location, "unknown"))
+				if err != nil || string(data) != "retain me" {
+					t.Fatalf("unknown file changed: %q, %v", data, err)
+				}
+			} else if _, err := os.Stat(location + ".kept"); err != nil {
+				t.Fatalf("original transaction removed: %v", err)
+			}
+			if _, err := findWikiImport(dir, "remote"); err == nil {
+				t.Fatal("retained state did not block adoption")
+			}
+		})
+	}
+}
+
 func TestWikiImportStagingResume(t *testing.T) {
 	for _, failAt := range []string{"journal sync", "source/0", "backup/0", "source/1", "source/3", "prepared journal"} {
 		t.Run(failAt, func(t *testing.T) {

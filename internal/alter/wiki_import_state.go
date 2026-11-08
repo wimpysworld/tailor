@@ -279,6 +279,22 @@ func stageWikiImport(dir string, p *wikiImportPlan) error {
 	defer transaction.Close()
 	if newImport {
 		if err := saveWikiJournal(transaction, p); err != nil {
+			_, journalErr := transaction.Lstat("journal.json")
+			if !errors.Is(journalErr, fs.ErrNotExist) {
+				return fmt.Errorf("saving initial wiki journal at %q: %w", p.location, errors.Join(err, journalErr))
+			}
+			opened, openedErr := transaction.Stat(".")
+			current, currentErr := root.Lstat(name)
+			var cleanupErr error
+			if openedErr != nil || currentErr != nil || !current.IsDir() || !os.SameFile(opened, current) {
+				cleanupErr = errors.Join(errors.New("wiki recovery directory changed before cleanup"), openedErr, currentErr)
+			} else {
+				cleanupErr = root.Remove(name)
+			}
+			if cleanupErr != nil {
+				return fmt.Errorf("initial wiki journal failed; retain recovery state at %q: %w", p.location, errors.Join(err, cleanupErr))
+			}
+			p.location = ""
 			return err
 		}
 	}
