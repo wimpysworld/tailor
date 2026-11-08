@@ -127,7 +127,7 @@ func preflightWikiWithOptions(cfg *config.Config, dir string, mode ApplyMode, ta
 	pending, err := findWikiImport(dir, remoteURL)
 	if err != nil {
 		if mode == DryRun {
-			p.nextSteps = err.Error()
+			p.nextSteps = strings.TrimRight(err.Error(), "\n") + "\n"
 			return p, nil
 		}
 		return p, err
@@ -156,13 +156,13 @@ func preflightWikiWithOptions(cfg *config.Config, dir string, mode ApplyMode, ta
 	}
 	if err != nil {
 		if mode == DryRun {
-			p.nextSteps = err.Error()
+			p.nextSteps = strings.TrimRight(err.Error(), "\n") + "\n"
 			return p, nil
 		}
 		return p, err
 	}
 	if mode == DryRun {
-		p.nextSteps = "Review the wiki import preview. Run tailor alter for one confirmation, or tailor alter --adopt-wiki for scoped noninteractive consent."
+		p.nextSteps = "Review the wiki import preview. Run tailor alter for one confirmation, or tailor alter --adopt-wiki for scoped noninteractive consent.\n"
 		return p, nil
 	}
 	approved := options.AdoptWiki

@@ -313,9 +313,9 @@ func appendWikiImportReporting(report *Report, p *wikiRun, mode ApplyMode) {
 			report.Plain += fmt.Sprintf("%s%s: %s\n", prefix, action, termtext.EscapeControlText(f.Path))
 		}
 		if plan.location != "" {
-			text := fmt.Sprintf("Wiki recovery state and backups: %q. Keep these files. Resume the pinned import with tailor alter --adopt-wiki.", plan.location)
+			text := fmt.Sprintf("Wiki recovery state and backups: %q. Keep these files. Resume the pinned import with tailor alter --adopt-wiki.\n", plan.location)
 			if plan.Complete {
-				text = fmt.Sprintf("Wiki adoption completed. Backups remain at %q.", plan.location)
+				text = fmt.Sprintf("Wiki adoption completed. Backups remain at %q.\n", plan.location)
 			}
 			appendGuidance(report, text, output.GuidanceRequired)
 		}
