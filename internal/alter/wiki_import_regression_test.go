@@ -146,7 +146,11 @@ func TestWikiImportNonGitPreview(t *testing.T) {
 func TestWikiImportMovedCheckout(t *testing.T) {
 	for _, complete := range []bool{true, false} {
 		t.Run(fmt.Sprintf("complete=%t", complete), func(t *testing.T) {
-			dir := wikiImportProject(t)
+			// Exercise temporary roots that use a symlink alias, as on macOS.
+			dir := filepath.Join(t.TempDir(), "checkout")
+			if err := os.Symlink(wikiImportProject(t), dir); err != nil {
+				t.Fatal(err)
+			}
 			wikiTestWrite(t, dir, "wiki/Home.md", "original local bytes\n")
 			snapshot := wikiImportSnapshot()
 			wikiImportHooks(t, snapshot)
@@ -164,6 +168,10 @@ func TestWikiImportMovedCheckout(t *testing.T) {
 			p, err := preflightWikiWithOptions(wikiTestConfig(new(true)), dir, Apply, target, true, Options{AdoptWiki: true})
 			if (err == nil) != complete || p.importPlan == nil || p.importPlan.Complete != complete {
 				t.Fatalf("initial import: plan=%+v err=%v", p, err)
+			}
+			dir, err = filepath.EvalSymlinks(dir)
+			if err != nil {
+				t.Fatal(err)
 			}
 			location, err := filepath.Rel(dir, p.importPlan.location)
 			if err != nil {
