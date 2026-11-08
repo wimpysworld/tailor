@@ -43,7 +43,7 @@ source_generated() {
             comment="${comment%%\*/*}"
             block=false
         fi
-        if [[ "${comment,,}" =~ ${marker} ]]; then return 0; fi
+        if grep -Eiq -- "${marker}" <<< "${comment}"; then return 0; fi
         if [[ "${remainder}" == *[![:space:]]* ]]; then break; fi
     done < "$1"
     return 1

@@ -234,16 +234,27 @@ func TestSourceGeneratedHeaders(t *testing.T) {
 		{"line.js", "// Code generated. DO NOT EDIT.\nexport const value = 1;\n", true},
 		{"block.js", "/*\n * @generated\n */\nexport const value = 1;\n", true},
 		{"no-newline.js", "// @generated", true},
+		{"long-comment.js", "// @generated " + strings.Repeat("header ", 100000) + "\n", true},
+		{"mixed-case.js", "// CoDe GeNeRaTeD\nexport const value = 1;\n", true},
+		{"mixed-block.js", "/* @GeNeRaTeD */\nexport const value = 1;\n", true},
+		{"mixed-shell.sh", "#!/bin/sh\n# dO nOt EdIt\necho hello\n", true},
+		{"line-50.js", strings.Repeat("// header\n", 49) + "// @generated\n", true},
+		{"line-51.js", strings.Repeat("// header\n", 50) + "// @generated\n", false},
 		{"script.sh", "#!/bin/sh\n#DO NOT EDIT\necho hello\n", true},
 		{"late.sh", "#!/bin/sh\necho hello\n# @generated\n", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			root, bin, log := sourceFixture(t, "javascript: true, shell: true")
 			writeManagedTestFile(t, root, tc.name, []byte(tc.body))
+			writeManagedTestFile(t, root, "control.js", []byte("// Authored source\nexport const value = 1;\n"))
 			if output, err := qualityRun(t, root, bin, log, "", "lint", "correct"); err != nil {
 				t.Fatalf("lint: %v %s", err, output)
 			}
-			selected := strings.Contains(strings.Join(sourceCalls(t, log), "\x00"), "./"+tc.name)
+			calls := "\x00" + strings.Join(sourceCalls(t, log), "\x00") + "\x00"
+			if !strings.Contains(calls, "\x00./control.js\x00") {
+				t.Fatalf("eligible control did not reach tools: %q", calls)
+			}
+			selected := strings.Contains(calls, "\x00./"+tc.name+"\x00")
 			if selected == tc.generated {
 				t.Fatalf("selected = %v, generated = %v", selected, tc.generated)
 			}
