@@ -442,6 +442,7 @@ func (m *MeasureCmd) Run() (runErr error) {
 		}
 	}
 
+	health = measure.SortHealthResults(health)
 	progress.Observe(output.StageEvent{ID: "measure", Label: "Local files measured", Phase: "complete"})
 	progress.Stop()
 	doc := measureDocument(filepath.Base(dir), health, diff, hasConfig)

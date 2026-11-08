@@ -178,10 +178,10 @@ func CheckHealth(dir string) []HealthResult {
 		defer root.Close()
 	}
 
-	var missing, warning, present []HealthResult
+	var results []HealthResult
 	for _, p := range paths {
 		if !isRegularFile(root, p) {
-			missing = append(missing, HealthResult{Path: p, Status: Missing})
+			results = append(results, HealthResult{Path: p, Status: Missing})
 			continue
 		}
 		if p == swatch.LicenseDestination {
@@ -192,7 +192,7 @@ func CheckHealth(dir string) []HealthResult {
 				if errors.Is(err, errLicenceTooLarge) {
 					detail = "(not inspected: exceeds 1 MiB)"
 				}
-				warning = append(warning, HealthResult{
+				results = append(results, HealthResult{
 					Path:   p,
 					Status: Warning,
 					Detail: detail,
@@ -200,7 +200,7 @@ func CheckHealth(dir string) []HealthResult {
 				continue
 			}
 			if hasUnresolvedPlaceholders(data) {
-				warning = append(warning, HealthResult{
+				results = append(results, HealthResult{
 					Path:   p,
 					Status: Warning,
 					Detail: "(contains unresolved placeholders)",
@@ -208,18 +208,27 @@ func CheckHealth(dir string) []HealthResult {
 				continue
 			}
 		}
-		present = append(present, HealthResult{Path: p, Status: Present})
+		results = append(results, HealthResult{Path: p, Status: Present})
 	}
 
 	// README.md is a local diagnostic, not a swatch. Warn when absent.
 	if !isRegularFile(root, readmeFile) {
-		warning = append(warning, HealthResult{
+		results = append(results, HealthResult{
 			Path:   readmeFile,
 			Status: Warning,
 			Detail: "(not managed by tailor)",
 		})
 	}
 
+	return SortHealthResults(results)
+}
+
+// SortHealthResults groups results by status and sorts each group by path.
+func SortHealthResults(results []HealthResult) []HealthResult {
+	groups := make(map[HealthStatus][]HealthResult)
+	for _, result := range results {
+		groups[result.Status] = append(groups[result.Status], result)
+	}
 	return concatSortedByPath(func(r HealthResult) string { return r.Path },
-		missing, warning, present)
+		groups[Missing], groups[Warning], groups[Present])
 }
