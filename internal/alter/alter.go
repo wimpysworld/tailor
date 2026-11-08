@@ -126,8 +126,24 @@ func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *ap
 	if err := preflightIgnoreRoot(cfg, dir); err != nil {
 		return partial(err)
 	}
+	javaScriptWarnings := make(map[string]bool)
 	for _, entry := range cfg.Swatches {
 		if cfg.SwatchActive(entry.Path) && entry.Alteration != swatch.Never {
+			policy, err := InspectJavaScriptPolicy(dir, entry.Path)
+			if err != nil {
+				return partial(err)
+			}
+			if policy.AdoptionRequired && !javaScriptWarnings[policy.Reason] {
+				fmt.Fprintln(stderr, "warning: "+policy.Reason)
+				javaScriptWarnings[policy.Reason] = true
+			}
+			shellPolicy, err := InspectShellPolicy(dir, entry.Path)
+			if err != nil {
+				return partial(err)
+			}
+			if shellPolicy.AdoptionRequired {
+				fmt.Fprintln(stderr, "warning: "+shellPolicy.Reason)
+			}
 			if _, err := PythonPolicyReason(dir, entry.Path); err != nil {
 				return partial(err)
 			}

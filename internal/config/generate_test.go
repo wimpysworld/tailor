@@ -41,6 +41,15 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 		t.Fatal("Languages is nil, want explicit defaults")
 	}
 	testutil.AssertPtrEqual(t, got.Languages.Go, new(false), "languages.go")
+	testutil.AssertPtrEqual(t, got.Languages.Shell, new(false), "languages.shell")
+	testutil.AssertPtrEqual(t, got.Languages.JavaScript, new(false), "languages.javascript")
+	languages, err := yaml.Marshal(got.Languages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(languages), "javascript: false") || strings.Contains(string(languages), "typescript:") {
+		t.Fatalf("default JavaScript spelling: %s", languages)
+	}
 	if got.MCP == nil {
 		t.Fatal("MCP is nil, want explicit defaults")
 	}

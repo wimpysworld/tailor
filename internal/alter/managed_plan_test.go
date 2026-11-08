@@ -29,6 +29,8 @@ func TestFixedManagedRegistry(t *testing.T) {
 		"nix/go-ebitengine.nix", "nix/lib/go-ebitengine-runtime.nix", "nix/hooks/go-ebitengine.nix", "nix/shells/go-ebitengine-android.nix",
 		"just/python.just", "nix/python.nix",
 		"just/rust.just", "nix/rust.nix",
+		"just/javascript.just", "nix/javascript.nix",
+		"just/shell.just", "nix/shell.nix",
 		"just/go-ffmpeg-statigo.just", "nix/go-ffmpeg-statigo.nix",
 		"just/pages.just", "nix/pages.nix", "nix/playwright.nix", "nix/blender.nix", "nix/lib/blender.nix", "nix/patches/blender-agent-bridge-local-glb.patch",
 		".mcp.json", ".codex/config.toml", "opencode.json", ".pi/mcp.json",
@@ -46,6 +48,12 @@ func TestFixedManagedRegistry(t *testing.T) {
 		}
 		if entry.Path == "just/rust.just" {
 			wantBuildBody, wantLintBody, wantTestBody = "build-rust", "lint-rust", "test-rust"
+		}
+		if entry.Path == "just/javascript.just" {
+			wantLintBody = "lint-javascript"
+		}
+		if entry.Path == "just/shell.just" {
+			wantLintBody = "lint-shell"
 		}
 		if entry.BuildBody != wantBuildBody {
 			t.Errorf("fixedManagedRegistry() build recipe for %q = %q, want %q", entry.Path, entry.BuildBody, wantBuildBody)

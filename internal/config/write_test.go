@@ -21,6 +21,8 @@ languages:
   go: false
   rust: false
   python: false
+  shell: false
+  javascript: false
 
 # Model Context Protocol integrations are opt-in.
 mcp:

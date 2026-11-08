@@ -38,6 +38,8 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 		registered[p] = true
 	}
 	private := map[string]bool{
+		"just/javascript.just": false, "nix/javascript.nix": false, "quality/lint-javascript.sh": false,
+		"just/shell.just": false, "nix/shell.nix": false, "quality/lint-shell.sh": false, "quality/source-preflight.sh": false,
 		"just/python.just": false, "nix/python.nix": false, "setup/python.sh": false,
 		"quality/build-python.sh": false, "quality/test-python.sh": false, "quality/lint-python.sh": false, "quality/python-preflight.sh": false, "quality/python-preflight.py": false,
 		"nix/go-ebitengine.nix": false, "nix/hooks/go-ebitengine.nix": false, "nix/lib/go-ebitengine-runtime.nix": false, "nix/shells/go-ebitengine-android.nix": false,
