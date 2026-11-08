@@ -45,7 +45,7 @@ The import preserves binary bytes and executable modes. Local-only files and ide
 
 ## Wiki without pages
 
-GitHub creates the wiki repository only when you save the first page. Until then, Tailor reports that the wiki has no pages. This does not stop the run. `alter` creates the starter pages in `wiki/` and the workflow, then applies the other declared changes.
+GitHub creates the wiki repository only when you save the first page. Until then, Tailor reports that the wiki has no pages. This does not stop the run. `alter` creates missing starter pages in `wiki/` and the workflow when their alteration modes permit it, then applies the other declared changes. The `never` mode skips starter pages and requires an existing compatible workflow.
 
 1. Create and save the first page at `https://github.com/OWNER/REPO/wiki`. Use the exact repository URL that Tailor reports. You can use the content of `wiki/Home.md`.
 2. Run `tailor alter` again. It imports the new page automatically.

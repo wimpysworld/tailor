@@ -80,7 +80,7 @@ Wiki publishing works only on public repositories.
 2. Run `tailor baste --verbose` and read the wiki guidance.
 3. When the remote wiki has content, show the import plan from `tailor baste --verbose` with the rest of the preview.
 4. Run `tailor alter` after the user approves. When the wiki is disabled, `alter` enables it first. When the wiki has content, `alter` imports it automatically.
-5. When the wiki has no pages, `alter` still creates the starter pages and the workflow and applies the other changes. The user then creates and saves the first page in a browser at the repository's exact `https://github.com/<owner>/<repo>/wiki` URL. Then run `tailor alter` again to import it.
+5. When the wiki has no pages, `alter` still creates missing starter pages and the workflow when their alteration modes permit it, and applies the other changes. `never` skips the starter pages and requires an existing compatible workflow. The user then creates and saves the first page in a browser at the repository's exact `https://github.com/<owner>/<repo>/wiki` URL. Then run `tailor alter` again to import it.
 6. Tailor preserves existing local `wiki/` pages and backs up any file that an import replaces.
 7. Commit `wiki/`, `wiki/.tailor-wiki-base`, and `.github/workflows/tailor-wiki.yml`. Push to the default branch, then check the workflow run.
 
