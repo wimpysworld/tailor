@@ -1774,6 +1774,9 @@ swatches/
 ├── .golangci.yml
 ├── .goreleaser.yaml
 ├── .mcp.json
+├── .oxlintrc.json
+├── .prettierrc.json
+├── .prettierignore
 ├── Dockerfile
 ├── cubic.yaml
 ├── CODE_OF_CONDUCT.md
@@ -1793,10 +1796,14 @@ swatches/
 │   ├── loader.just
 │   ├── tailor.just
 │   ├── go.just
+│   ├── javascript.just
+│   ├── shell.just
 │   └── pages.just
 ├── nix/
 │   ├── loader.nix
 │   ├── go.nix
+│   ├── javascript.nix
+│   ├── shell.nix
 │   ├── pages.nix
 │   └── playwright.nix
 ├── .github/
@@ -1817,6 +1824,10 @@ swatches/
 │   ├── static.yml
 │   ├── hugo.yml
 │   └── jekyll.yml
+├── quality/
+│   ├── lint-javascript.sh
+│   ├── lint-shell.sh
+│   └── source-preflight.sh
 └── .tailor.yml
 ```
 
