@@ -256,6 +256,9 @@ func TestShellUnsafePolicy(t *testing.T) {
 				continue
 			}
 			for _, kind := range []string{"symlink", "live-link", "directory", "fifo", "unreadable", "oversized", "linked-parent", "blocked-parent", "inaccessible-parent"} {
+				if location != "xdg" && (kind == "linked-parent" || kind == "blocked-parent" || kind == "inaccessible-parent") {
+					continue
+				}
 				t.Run(destination+"/"+location+"/"+kind, func(t *testing.T) {
 					root, home, xdg := shellTestEnvironment(t)
 					dir, name := root, destination
@@ -268,9 +271,6 @@ func TestShellUnsafePolicy(t *testing.T) {
 						dir, name = xdg, "shellcheckrc"
 					}
 					if kind == "linked-parent" || kind == "blocked-parent" || kind == "inaccessible-parent" {
-						if location != "xdg" {
-							return
-						}
 						t.Setenv("XDG_CONFIG_HOME", filepath.Join(xdg, "parent"))
 						switch kind {
 						case "linked-parent":
