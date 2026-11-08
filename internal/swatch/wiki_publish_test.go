@@ -632,3 +632,19 @@ func TestWikiPublisherSkipsWikiWithoutPages(t *testing.T) {
 		})
 	}
 }
+
+// A non-file baseline is corrupt recovery state, so an empty wiki must not hide it.
+func TestWikiPublisherRefusesBaselineDirectoryForEmptyWiki(t *testing.T) {
+	f := newWikiPublisherFixture(t)
+	baseline := filepath.Join(f.source, "wiki", ".tailor-wiki-base")
+	if err := os.Remove(baseline); err != nil {
+		t.Fatal(err)
+	}
+	f.write(filepath.Join(baseline, "Home.md"), "Directory baseline\n")
+	f.commit()
+	f.git(f.remote, "update-ref", "-d", "refs/heads/handbook")
+	output, err := f.publish("")
+	if err == nil || !strings.Contains(output, "wiki/.tailor-wiki-base must be a regular file") {
+		t.Fatalf("baseline directory did not stop publication: %v\n%s", err, output)
+	}
+}
