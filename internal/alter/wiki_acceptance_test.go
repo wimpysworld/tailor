@@ -35,14 +35,14 @@ func TestWikiConflictBlocksAllWrites(t *testing.T) {
 	}
 }
 
-func TestWikiEnablementStopsBeforeOtherWrites(t *testing.T) {
+// GitHub answers "not found" for an enabled public wiki without pages, so the run continues with guidance.
+func TestWikiEnablementContinuesWhenWikiIsEmpty(t *testing.T) {
 	for _, mode := range []alter.ApplyMode{alter.Apply, alter.Recut} {
 		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			s, client := newPagesAcceptanceAPI(t)
 			dir := t.TempDir()
-			writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\nrepository:\n  has_wiki: true\n  description: changed\nswatches:\n  - path: .tailor.yml\n    alteration: always\n"))
+			writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\nrepository:\n  has_wiki: true\n  description: changed\nswatches:\n  - path: wiki/Home.md\n    alteration: first-fit\n"))
 			writeOnDisk(t, dir, ".github/workflows/tailor.yml", []byte("retired"))
-			before := pagesAcceptanceSnapshot(t, dir)
 			called := false
 			t.Cleanup(gh.SetInspectWikiFunc(func(_, remote, baseline string) error {
 				called = true
@@ -52,18 +52,32 @@ func TestWikiEnablementStopsBeforeOtherWrites(t *testing.T) {
 				if remote != "https://github.com/testowner/testrepo.wiki.git" || baseline != "" {
 					t.Fatalf("remote=%q baseline=%q", remote, baseline)
 				}
-				return &gh.WikiAccessError{State: "wiki has no commits"}
+				return &gh.WikiAccessError{Reason: gh.WikiAccessUnknown, State: "wiki remote is unavailable; it is not possible to distinguish a missing wiki from denied access"}
 			}))
 			var stdout, stderr strings.Builder
 			err := alter.Run(loadTestConfig(t, dir), dir, mode, client, &stdout, &stderr)
-			if !called || err == nil || !strings.Contains(err.Error(), "https://github.com/testowner/testrepo/wiki") || !strings.Contains(err.Error(), "Create and save") {
+			if !called || err != nil {
 				t.Fatalf("called=%t error=%v", called, err)
 			}
-			if stderr.String() != "set: repository.has_wiki = true\n" {
-				t.Fatalf("enablement output=%q", stderr.String())
+			for _, want := range []string{"The wiki has no pages.", "Create and save the first page at:\n   https://github.com/testowner/testrepo/wiki"} {
+				if !strings.Contains(stdout.String(), want) {
+					t.Errorf("output lacks %q: %s", want, stdout.String())
+				}
 			}
-			if len(s.writes) != 1 || !reflect.DeepEqual(before, pagesAcceptanceSnapshot(t, dir)) {
-				t.Fatal("readiness blocker allowed other writes")
+			if strings.Contains(stdout.String(), "wiki is not ready") || strings.Count(stderr.String(), "set: repository.has_wiki = true\n") != 1 {
+				t.Fatalf("stdout=%q stderr=%q", stdout.String(), stderr.String())
+			}
+			if len(s.writes) != 2 || s.writes[1].Method != http.MethodPatch || !strings.Contains(s.writes[1].Body, `"description":"changed"`) {
+				t.Fatalf("other declared settings were not applied: %v", s.writes)
+			}
+			after := pagesAcceptanceSnapshot(t, dir)
+			for _, name := range []string{"wiki/Home.md", swatch.WikiDestination} {
+				if _, ok := after[name]; !ok {
+					t.Errorf("%s was not created", name)
+				}
+			}
+			if _, ok := after[".github/workflows/tailor.yml"]; ok {
+				t.Error("retired workflow was not removed")
 			}
 		})
 	}
@@ -99,19 +113,14 @@ func TestWikiDisabledPreviewIncludesBlockerAndOtherChanges(t *testing.T) {
 			t.Errorf("preview lacks %q: %s", want, stdout.String())
 		}
 	}
-	wantNextSteps := `The wiki is off. Other changes will wait until it is ready.
+	wantNextSteps := `The wiki is off. tailor alter will turn it on.
 
 1. Run: tailor alter
+   Tailor imports existing wiki pages automatically.
 
-2. If the wiki has no pages, create and save one at:
+2. If the wiki has no pages, create and save the first page at:
    https://github.com/testowner/testrepo/wiki
-
-3. If Tailor asks you to import the wiki:
-   Run tailor baste to inspect the import plan after the wiki can be read safely.
-   Run tailor alter for one confirmation, or use tailor alter --adopt-wiki for noninteractive consent.
-   Tailor preserves local-only files and backs up approved replacements in private Git metadata.
-
-4. Run tailor baste again. When the wiki checks pass, run tailor alter.
+   Then run tailor alter again.
 `
 	if nextSteps != wantNextSteps {
 		t.Errorf("next steps mismatch:\ngot:\n%s\nwant:\n%s", nextSteps, wantNextSteps)
@@ -159,7 +168,7 @@ func TestWikiAdoptionPreviewLineBoundary(t *testing.T) {
 	dir := t.TempDir()
 	writeOnDisk(t, dir, ".tailor.yml", []byte("license: none\nrepository:\n  has_wiki: true\nswatches:\n  - path: wiki/Home.md\n    alteration: first-fit\n"))
 	before := pagesAcceptanceSnapshot(t, dir)
-	const guidance = "Review the wiki import preview. Run tailor alter for one confirmation, or tailor alter --adopt-wiki for scoped noninteractive consent."
+	const guidance = "Review the wiki import preview. tailor alter imports the wiki automatically."
 	const boundary = guidance + "\nwould import: wiki/Home.md\n"
 	var legacy strings.Builder
 	if err := alter.Run(loadTestConfig(t, dir), dir, alter.DryRun, client, &legacy, io.Discard); err != nil {
@@ -214,11 +223,11 @@ func TestWikiAdoptionPreviewLineBoundary(t *testing.T) {
 		}
 		return nil
 	}))
-	report, err = alter.Execute(loadTestConfig(t, dir), dir, alter.Apply, client, io.Discard, alter.Options{AdoptWiki: true})
+	report, err = alter.Execute(loadTestConfig(t, dir), dir, alter.Apply, client, io.Discard, alter.Options{})
 	if err == nil || !strings.Contains(err.Error(), "remote changed before baseline") {
 		t.Fatalf("expected interrupted import, got %v", err)
 	}
-	const recoveryEnd = "Resume the pinned import with tailor alter --adopt-wiki.\n"
+	const recoveryEnd = "Run tailor alter to resume the pinned import.\n"
 	if !strings.HasSuffix(report.Plain, recoveryEnd) {
 		t.Fatalf("recovery guidance lacks one final newline: %q", report.Plain)
 	}
@@ -237,7 +246,7 @@ func TestWikiAdoptionPreviewLineBoundary(t *testing.T) {
 		t.Fatalf("failed resume guidance has incorrect boundaries: %q", report.Plain)
 	}
 	head = strings.Repeat("a", 40)
-	report, err = alter.Execute(loadTestConfig(t, dir), dir, alter.Apply, client, io.Discard, alter.Options{AdoptWiki: true})
+	report, err = alter.Execute(loadTestConfig(t, dir), dir, alter.Apply, client, io.Discard, alter.Options{})
 	if err != nil {
 		t.Fatal(err)
 	}

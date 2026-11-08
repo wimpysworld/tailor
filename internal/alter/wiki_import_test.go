@@ -65,8 +65,18 @@ func TestWikiImportExactDataAndBackups(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := plan.summary(); len(got.Replacements) != 2 || len(got.Additions) != 2 || len(got.Backups) != 2 {
-		t.Fatalf("plan: %+v", got)
+	replacements, additions := 0, 0
+	for _, f := range plan.Files {
+		switch {
+		case f.Before == f.After:
+		case f.Before.Exists:
+			replacements++
+		default:
+			additions++
+		}
+	}
+	if replacements != 2 || additions != 2 {
+		t.Fatalf("plan: %+v", plan.Files)
 	}
 	if err := applyWikiImport(dir, plan); err != nil {
 		t.Fatal(err)
@@ -103,46 +113,46 @@ func TestWikiImportExactDataAndBackups(t *testing.T) {
 	}
 }
 
-func TestWikiImportConsentAndPreview(t *testing.T) {
-	for _, tc := range []struct {
-		name            string
-		mode            ApplyMode
-		consent, answer bool
-		wantCalls       int
-		wantError       bool
-	}{
-		{"preview", DryRun, false, true, 0, false}, {"no callback approval", Apply, false, false, 1, true}, {"yes", Apply, false, true, 1, false}, {"flag", Apply, true, false, 0, false}, {"recut is not consent", Recut, false, false, 1, true},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
+// An existing wiki imports without a prompt or flag. Recut changes nothing about the import.
+func TestWikiImportAutomaticAndPreview(t *testing.T) {
+	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
+		t.Run(fmt.Sprint(mode), func(t *testing.T) {
 			dir := wikiImportProject(t)
 			snapshot := wikiImportSnapshot()
 			wikiImportHooks(t, snapshot)
 			target, _ := wikiTestTarget(t, 200, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
-			calls := 0
-			p, err := preflightWikiWithOptions(wikiTestConfig(new(true)), dir, tc.mode, target, true, Options{AdoptWiki: tc.consent, ConfirmWikiAdoption: func(plan WikiAdoptionPlan) (bool, error) {
-				calls++
-				if plan.Head != snapshot.Head || len(plan.Additions) != 4 {
-					t.Fatalf("incomplete plan: %+v", plan)
-				}
-				return tc.answer, nil
-			}})
-			if (err != nil) != tc.wantError || calls != tc.wantCalls {
-				t.Fatalf("calls=%d err=%v", calls, err)
+			p, err := preflightWiki(wikiTestConfig(new(true)), dir, mode, target, true)
+			if err != nil || p.importPlan == nil || p.importPlan.Head != snapshot.Head || len(p.importPlan.Files) != 4 {
+				t.Fatalf("plan=%+v err=%v", p, err)
 			}
-			if tc.mode == DryRun || tc.wantError {
+			if mode == DryRun {
 				if _, err := os.Stat(filepath.Join(dir, "wiki")); !errors.Is(err, fs.ErrNotExist) {
-					t.Fatal("unapproved import wrote wiki")
+					t.Fatal("preview wrote wiki")
 				}
 				if _, err := os.Stat(filepath.Join(dir, ".git/tailor")); !errors.Is(err, fs.ErrNotExist) {
-					t.Fatal("preview or decline wrote state")
+					t.Fatal("preview wrote state")
 				}
-			}
-			if tc.mode == DryRun {
+				if !strings.Contains(p.nextSteps, "imports the wiki automatically") {
+					t.Fatalf("preview guidance: %q", p.nextSteps)
+				}
 				report := Report{}
 				appendWikiImportReporting(&report, p, DryRun)
 				if len(report.Document.Items) != 4 || !strings.Contains(report.Plain, "would import") {
 					t.Fatalf("preview: %+v", report)
 				}
+				return
+			}
+			if !p.importPlan.Complete {
+				t.Fatal("automatic import did not complete")
+			}
+			for _, f := range snapshot.Files {
+				data, err := os.ReadFile(filepath.Join(dir, "wiki", f.Path))
+				if err != nil || !bytes.Equal(data, f.Content) {
+					t.Fatalf("file %s: %q %v", f.Path, data, err)
+				}
+			}
+			if _, err := os.Stat(filepath.Join(dir, swatch.WikiBaseline)); err != nil {
+				t.Fatalf("baseline missing after import: %v", err)
 			}
 		})
 	}
@@ -153,7 +163,7 @@ func TestWikiImportPreservesReadyDirtyFiles(t *testing.T) {
 	wikiTestWrite(t, dir, "wiki/Home.md", "dirty local")
 	t.Cleanup(gh.SetInspectWikiFunc(func(string, string, string) error { return nil }))
 	target, _ := wikiTestTarget(t, 200, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
-	p, err := preflightWikiWithOptions(wikiTestConfig(new(true)), dir, Apply, target, true, Options{AdoptWiki: true, ConfirmWikiAdoption: func(WikiAdoptionPlan) (bool, error) { t.Fatal("prompted ready wiki"); return false, nil }})
+	p, err := preflightWiki(wikiTestConfig(new(true)), dir, Apply, target, true)
 	if err != nil || p.importPlan != nil {
 		t.Fatalf("ready import: %v", err)
 	}
@@ -548,7 +558,7 @@ func TestWikiImportStagingResume(t *testing.T) {
 			if err := restoreWikiImport(dir, pending, snapshot); err != nil {
 				t.Fatal(err)
 			}
-			if !pending.summary().Resume {
+			if pending.location == "" {
 				t.Fatal("incomplete staging not reported as resume")
 			}
 			// Restoring for a preview must not prepare missing files or alter the journal.

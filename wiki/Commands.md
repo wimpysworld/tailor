@@ -70,15 +70,14 @@ Review `.tailor.yml` and run `tailor baste` before `tailor alter`. The defaults 
 
 Reads `.tailor.yml` in the current directory. It applies repository settings, immutable releases, Actions policy, code scanning, Code Quality, the ruleset, labels, variables, Pages, wiki files, and the licence. The swatch stage then publishes Dependabot, managed development files, and ordinary swatches. Pages files follow.
 
-Before normal alterations, Tailor can enable a declared public wiki and import its existing content with separate approval. Enablement can remain if you decline the import or a later check fails. A pending import blocks normal alterations. See [GitHub wiki](GitHub-wiki) for setup and recovery.
+Before normal alterations, Tailor enables a declared public wiki and imports its existing content automatically. Enablement remains if a later check fails. A wiki without pages does not block normal alterations. See [GitHub wiki](GitHub-wiki) for setup and recovery.
 
 ```bash
 tailor alter               # Apply changes
 tailor alter --recut       # Overwrite eligible always and first-fit swatches
-tailor alter --adopt-wiki  # Approve the pinned wiki import without a prompt
 ```
 
-For a readable unadopted wiki, `alter` asks for one confirmation that defaults to no. Review the complete plan with `tailor baste --verbose`. Noninteractive runs never infer consent. `--adopt-wiki` approves the complete pinned import, including replacements with private backups. It does not approve other alterations, but those declared changes still follow after readiness passes. `--recut` is not import consent. `--local-only` rejects `--adopt-wiki`.
+For a readable unadopted wiki, `alter` imports the complete pinned wiki automatically, including replacements with private backups. Review the plan first with `tailor baste --verbose` if you want to. `--adopt-wiki` is no longer required. `alter` accepts it for compatibility, and it has no effect. `--local-only` rejects `--adopt-wiki`.
 
 Ready, adopted wiki content remains untouched, including dirty edits. The CLI never stages, commits or pushes wiki changes. Commit and push reviewed source changes through the normal project workflow to trigger publication.
 
@@ -114,7 +113,7 @@ A default merge, retired-entry cleanup, or security prerequisite normalisation i
 
 ## `baste`
 
-`baste` previews the changes that `alter` will make. It makes no persistent changes and never prompts. Wiki inspection uses isolated temporary Git storage. For a readable unadopted wiki, it previews additions and replacements with backups. A disabled wiki produces conditional guidance until `alter` enables it. Readiness blockers alone do not fail the full preview.
+`baste` previews the changes that `alter` will make. It makes no persistent changes and never prompts. Wiki inspection uses isolated temporary Git storage. For a readable unadopted wiki, it previews additions and replacements with backups. For a wiki without pages, it reports the browser step for the first page. A disabled wiki produces guidance until `alter` enables it. Readiness blockers alone do not fail the full preview.
 
 For Dependabot, `baste` distinguishes creation, complete-file replacement, unchanged owned content, preserved unmarked content, skipped management, and conflicts. It creates no file, directory, temporary file, or ownership record.
 

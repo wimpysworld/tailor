@@ -51,22 +51,18 @@ func TestWikiImportConflictBlocks(t *testing.T) {
 				}
 				wikiImportHooks(t, snapshot)
 				target, _ := wikiTestTarget(t, 200, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
-				calls := 0
-				p, err := preflightWikiWithOptions(wikiTestConfig(new(true)), dir, Apply, target, true, Options{ConfirmWikiAdoption: func(WikiAdoptionPlan) (bool, error) {
-					calls++
-					return true, nil
-				}})
+				p, err := preflightWiki(wikiTestConfig(new(true)), dir, Apply, target, true)
 				if tc.blocked {
-					if err == nil || !strings.Contains(err.Error(), "unresolved conflict") || calls != 0 {
-						t.Fatalf("blocked import: calls=%d err=%v", calls, err)
+					if err == nil || !strings.Contains(err.Error(), "unresolved conflict") {
+						t.Fatalf("blocked import: err=%v", err)
 					}
 					if _, err := os.Stat(filepath.Join(dir, ".git/tailor")); !errors.Is(err, fs.ErrNotExist) {
 						t.Fatal("blocked import wrote recovery state")
 					}
 					return
 				}
-				if err != nil || calls != 1 || p.importPlan == nil || !p.importPlan.Complete {
-					t.Fatalf("valid import: calls=%d plan=%+v err=%v", calls, p, err)
+				if err != nil || p.importPlan == nil || !p.importPlan.Complete {
+					t.Fatalf("valid import: plan=%+v err=%v", p, err)
 				}
 				data, err := os.ReadFile(filepath.Join(dir, name))
 				if err != nil || !bytes.Equal(data, []byte(tc.content)) {
@@ -103,25 +99,21 @@ func TestWikiImportUnmergedIndex(t *testing.T) {
 				t.Setenv("GIT_INDEX_FILE", filepath.Join(t.TempDir(), "ignored-index"))
 				wikiImportHooks(t, wikiImportSnapshot())
 				target, _ := wikiTestTarget(t, 200, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
-				calls := 0
-				p, err := preflightWikiWithOptions(wikiTestConfig(new(true)), dir, mode, target, true, Options{ConfirmWikiAdoption: func(WikiAdoptionPlan) (bool, error) {
-					calls++
-					return true, nil
-				}})
+				p, err := preflightWiki(wikiTestConfig(new(true)), dir, mode, target, true)
 				blocked := strings.HasPrefix(name, "wiki/")
 				if blocked {
 					message := p.nextSteps
 					if err != nil {
 						message = err.Error()
 					}
-					if calls != 0 || !strings.Contains(message, "unmerged Git index") || p.importPlan != nil {
-						t.Fatalf("index conflict not blocked: calls=%d plan=%+v err=%v", calls, p, err)
+					if !strings.Contains(message, "unmerged Git index") || p.importPlan != nil {
+						t.Fatalf("index conflict not blocked: plan=%+v err=%v", p, err)
 					}
 					if _, err := os.Stat(filepath.Join(dir, ".git/tailor")); !errors.Is(err, fs.ErrNotExist) {
 						t.Fatal("blocked import wrote recovery state")
 					}
-				} else if err != nil || p.importPlan == nil || mode == Apply && calls != 1 {
-					t.Fatalf("unrelated conflict blocked import: calls=%d plan=%+v err=%v", calls, p, err)
+				} else if err != nil || p.importPlan == nil || mode == Apply && !p.importPlan.Complete {
+					t.Fatalf("unrelated conflict blocked import: plan=%+v err=%v", p, err)
 				}
 				after, err := os.ReadFile(index)
 				if err != nil || !bytes.Equal(before, after) {
@@ -137,7 +129,7 @@ func TestWikiImportNonGitPreview(t *testing.T) {
 	wikiTestWrite(t, dir, "wiki/Local.md", "Title\n=======\n")
 	wikiImportHooks(t, wikiImportSnapshot())
 	target, _ := wikiTestTarget(t, 200, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
-	p, err := preflightWikiWithOptions(wikiTestConfig(new(true)), dir, DryRun, target, true, Options{})
+	p, err := preflightWiki(wikiTestConfig(new(true)), dir, DryRun, target, true)
 	if err != nil || p.importPlan == nil {
 		t.Fatalf("non-Git preview: plan=%+v err=%v", p, err)
 	}
@@ -165,7 +157,7 @@ func TestWikiImportMovedCheckout(t *testing.T) {
 				}))
 			}
 			target, _ := wikiTestTarget(t, 200, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
-			p, err := preflightWikiWithOptions(wikiTestConfig(new(true)), dir, Apply, target, true, Options{AdoptWiki: true})
+			p, err := preflightWiki(wikiTestConfig(new(true)), dir, Apply, target, true)
 			if (err == nil) != complete || p.importPlan == nil || p.importPlan.Complete != complete {
 				t.Fatalf("initial import: plan=%+v err=%v", p, err)
 			}
@@ -203,10 +195,7 @@ func TestWikiImportMovedCheckout(t *testing.T) {
 				t.Fatal("moved checkout attempted reimport")
 				return nil, nil
 			}))
-			p, err = preflightWikiWithOptions(wikiTestConfig(new(true)), moved, Apply, target, true, Options{ConfirmWikiAdoption: func(WikiAdoptionPlan) (bool, error) {
-				t.Fatal("moved checkout prompted")
-				return false, nil
-			}})
+			p, err = preflightWiki(wikiTestConfig(new(true)), moved, Apply, target, true)
 			if complete {
 				if err != nil || p.importPlan != nil {
 					t.Fatalf("completed checkout blocked: %v", err)

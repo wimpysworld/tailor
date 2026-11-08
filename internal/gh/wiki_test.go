@@ -235,3 +235,40 @@ func TestSafeWikiTree(t *testing.T) {
 		}
 	}
 }
+
+// GitHub serves no Git repository for an enabled public wiki until its first page exists.
+func TestWikiNotFoundClassificationUsesMetadata(t *testing.T) {
+	confirmed := WikiRepository{Public: true, Enabled: true}
+	for _, tc := range []struct {
+		name, stderr string
+		repository   WikiRepository
+		reason       WikiReadinessReason
+	}{
+		{"not found with confirmed metadata", "remote: Repository not found.", confirmed, WikiEmpty},
+		{"credential prompt with confirmed metadata", "fatal: could not read Username for 'https://github.com': terminal prompts disabled", confirmed, WikiEmpty},
+		{"not found without metadata", "remote: Repository not found.", WikiRepository{}, WikiAccessUnknown},
+		{"not found for a private repository", "remote: Repository not found.", WikiRepository{Enabled: true}, WikiAccessUnknown},
+		{"not found for a disabled wiki", "remote: Repository not found.", WikiRepository{Public: true}, WikiAccessUnknown},
+		{"denied with confirmed metadata", "fatal: Authentication failed", confirmed, WikiAccessDenied},
+		{"network with confirmed metadata", "fatal: Could not resolve host: github.com", confirmed, WikiReadFailed},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			wikiMetadataGit(t, fmt.Sprintf("printf '%%s\\n' %q >&2; exit 128\n", tc.stderr))
+			for name, err := range map[string]error{
+				"inspect": InspectWiki(t.TempDir(), "https://github.com/owner/project.wiki.git", "", tc.repository),
+				"snapshot": func() error {
+					snapshot, err := ReadWikiSnapshot(t.TempDir(), "https://github.com/owner/project.wiki.git", "", tc.repository)
+					if snapshot != nil {
+						t.Fatal("unavailable wiki returned a snapshot")
+					}
+					return err
+				}(),
+			} {
+				var access *WikiAccessError
+				if !errors.As(err, &access) || access.Reason != tc.reason {
+					t.Fatalf("%s: error=%v, want %s", name, err, tc.reason)
+				}
+			}
+		})
+	}
+}

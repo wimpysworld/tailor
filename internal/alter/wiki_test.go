@@ -284,7 +284,7 @@ func TestWikiGuidanceByReadinessState(t *testing.T) {
 					t.Errorf("guidance lacks %q: %s", want, got)
 				}
 			}
-			if strings.Contains(got, "--adopt-wiki") != tc.wantImport {
+			if strings.Contains(got, "imports the wiki automatically") != tc.wantImport {
 				t.Errorf("import guidance mismatch: %s", got)
 			}
 			if strings.Contains(strings.ToLower(got), "create and save") != tc.wantPage || strings.Contains(got, wikiURL) != tc.wantPage {
@@ -418,10 +418,10 @@ func TestWikiBaselineTypedReason(t *testing.T) {
 	}
 }
 
-func TestWikiImportConsentGuidance(t *testing.T) {
+func TestWikiImportGuidance(t *testing.T) {
 	for _, existing := range []bool{false, true} {
 		guidance := wikiImportGuidance("https://github.com/owner/repo.wiki.git", existing)
-		for _, want := range []string{"tailor baste", "tailor alter --adopt-wiki", "local-only files", "private Git metadata"} {
+		for _, want := range []string{"tailor baste", "Tailor imports the wiki automatically", "local-only files", "private Git metadata"} {
 			if !strings.Contains(guidance, want) {
 				t.Fatalf("guidance lacks %q: %s", want, guidance)
 			}
@@ -459,10 +459,62 @@ func TestWikiImportGuidanceUsesLocalSourceState(t *testing.T) {
 					}
 					guidance = err.Error()
 				}
-				if !strings.Contains(guidance, "--adopt-wiki") {
+				if !strings.Contains(guidance, "imports the wiki automatically") {
 					t.Fatalf("wrong guidance for existing=%t: %s", existing, guidance)
 				}
 			})
 		}
+	}
+}
+
+// An enabled public wiki without pages answers "not found"; it must not block the other alterations.
+func TestWikiEmptyEnabledWikiDoesNotBlock(t *testing.T) {
+	t.Cleanup(gh.SetInspectWikiFunc(func(string, string, string) error {
+		return &gh.WikiAccessError{Reason: gh.WikiAccessUnknown, State: "wiki remote is unavailable; it is not possible to distinguish a missing wiki from denied access"}
+	}))
+	for _, mode := range []ApplyMode{DryRun, Apply, Recut} {
+		t.Run(fmt.Sprint(mode), func(t *testing.T) {
+			dir := t.TempDir()
+			cfg := wikiTestConfig(new(true))
+			target, _ := wikiTestTarget(t, 200, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
+			p, err := preflightWiki(cfg, dir, mode, target, true)
+			if err != nil || p.importPlan != nil {
+				t.Fatalf("plan=%+v err=%v", p, err)
+			}
+			for _, want := range []string{"The wiki has no pages.", "https://github.com/owner/repo/wiki", "Tailor imports the wiki automatically."} {
+				if !strings.Contains(p.nextSteps, want) {
+					t.Fatalf("guidance lacks %q: %s", want, p.nextSteps)
+				}
+			}
+			if strings.Contains(p.nextSteps, "Other changes will wait") {
+				t.Fatalf("empty wiki guidance blocks: %s", p.nextSteps)
+			}
+			_, results, err := processWiki(cfg, dir, mode, p)
+			if err != nil || len(results) != 4 {
+				t.Fatalf("results=%v err=%v", results, err)
+			}
+			_, err = os.Stat(filepath.Join(dir, swatch.WikiDestination))
+			if mode == DryRun != os.IsNotExist(err) {
+				t.Fatalf("workflow state for mode %v: %v", mode, err)
+			}
+		})
+	}
+}
+
+// Private repositories and unconfirmed metadata keep their previous behaviour.
+func TestWikiEmptyRequiresConfirmedPublicMetadata(t *testing.T) {
+	t.Cleanup(gh.SetInspectWikiFunc(func(string, string, string) error {
+		return &gh.WikiAccessError{Reason: gh.WikiAccessUnknown, State: "wiki remote is unavailable; it is not possible to distinguish a missing wiki from denied access"}
+	}))
+	target, _ := wikiTestTarget(t, 200, `{"private":true,"has_wiki":true,"default_branch":"main"}`)
+	if p, err := preflightWiki(wikiTestConfig(new(true)), t.TempDir(), Apply, target, true); err != nil || len(p.skipped) != 1 {
+		t.Fatalf("private repository: plan=%+v err=%v", p, err)
+	}
+	if p, err := preflightWiki(wikiTestConfig(new(true)), t.TempDir(), Apply, RepoTarget{}, true); err != nil || len(p.skipped) != 1 {
+		t.Fatalf("no repository: plan=%+v err=%v", p, err)
+	}
+	target, _ = wikiTestTarget(t, 200, `{"private":false,"has_wiki":true}`)
+	if _, err := preflightWiki(wikiTestConfig(new(true)), t.TempDir(), Apply, target, true); err == nil || !strings.Contains(err.Error(), "wiki is not ready") {
+		t.Fatalf("incomplete metadata did not block: %v", err)
 	}
 }

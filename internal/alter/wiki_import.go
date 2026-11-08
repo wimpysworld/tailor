@@ -18,17 +18,6 @@ import (
 	"github.com/wimpysworld/tailor/internal/termtext"
 )
 
-// WikiAdoptionPlan describes the complete, pinned import covered by one approval.
-type WikiAdoptionPlan struct {
-	Head         string
-	Additions    []string
-	Replacements []string
-	Identical    []string
-	Backups      []string
-	RecoveryPath string
-	Resume       bool
-}
-
 type wikiFileState struct {
 	Exists bool
 	Mode   fs.FileMode
@@ -265,22 +254,6 @@ func wikiConflictState(line []byte, state int) int {
 	}
 }
 
-func (p *wikiImportPlan) summary() WikiAdoptionPlan {
-	s := WikiAdoptionPlan{Head: p.Head, RecoveryPath: p.location, Resume: p.location != ""}
-	for _, f := range p.Files {
-		switch {
-		case f.Before == f.After:
-			s.Identical = append(s.Identical, f.Path)
-		case f.Before.Exists:
-			s.Replacements = append(s.Replacements, f.Path)
-			s.Backups = append(s.Backups, f.Path)
-		default:
-			s.Additions = append(s.Additions, f.Path)
-		}
-	}
-	return s
-}
-
 func appendWikiImportReporting(report *Report, p *wikiRun, mode ApplyMode) {
 	if p == nil {
 		return
@@ -313,7 +286,7 @@ func appendWikiImportReporting(report *Report, p *wikiRun, mode ApplyMode) {
 			report.Plain += fmt.Sprintf("%s%s: %s\n", prefix, action, termtext.EscapeControlText(f.Path))
 		}
 		if plan.location != "" {
-			text := fmt.Sprintf("Wiki recovery state and backups: %q. Keep these files. Resume the pinned import with tailor alter --adopt-wiki.\n", plan.location)
+			text := fmt.Sprintf("Wiki recovery state and backups: %q. Keep these files. Run tailor alter to resume the pinned import.\n", plan.location)
 			if plan.Complete {
 				text = fmt.Sprintf("Wiki adoption completed. Backups remain at %q.\n", plan.location)
 			}
