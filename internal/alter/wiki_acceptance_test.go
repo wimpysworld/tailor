@@ -134,6 +134,8 @@ func TestWikiAdoptionPreviewLineBoundary(t *testing.T) {
 			fmt.Fprint(w, `{"login":"testuser"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo":
 			fmt.Fprint(w, `{"private":false,"has_wiki":true,"default_branch":"main"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/repos/testowner/testrepo/actions/permissions/workflow":
+			fmt.Fprint(w, `{"default_workflow_permissions":"read","can_approve_pull_request_reviews":false}`)
 		default:
 			t.Errorf("unexpected request: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusInternalServerError)
