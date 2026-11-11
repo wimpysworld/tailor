@@ -39,7 +39,8 @@ Requires [`bin`](https://github.com/marcosnils/bin). Tailor releases publish bar
 ### Homebrew
 
 ```bash
-brew install wimpysworld/tap/tailor
+brew tap wimpysworld/haberdasher https://brew.wimpys.world/tap.git
+brew install --cask wimpysworld/haberdasher/tailor
 ```
 
 ### Nix
