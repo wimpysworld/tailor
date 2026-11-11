@@ -52,7 +52,11 @@ release:
     ```
     Requires [`bin`](https://github.com/marcosnils/bin).
 
-    **Homebrew**: `brew install wimpysworld/tap/tailor`
+    **Homebrew** (macOS):
+    ```shell
+    brew tap wimpysworld/haberdasher https://brew.wimpys.world/tap.git
+    brew install --cask wimpysworld/haberdasher/tailor
+    ```
 
     **Nix**: `nix run github:wimpysworld/tailor`
 
@@ -74,17 +78,6 @@ nfpms:
       - rpm
       - apk
       - archlinux
-
-homebrew_casks:
-  - ids:
-      - compressed
-    repository:
-      owner: wimpysworld
-      name: homebrew-tap
-      token: "{{ .Env.TAP_GITHUB_TOKEN }}"
-    description: "Ready-to-wear project templates for GitHub repositories."
-    homepage: https://github.com/wimpysworld/tailor
-    license: BlueOak-1.0.0
 
 aurs:
   - ids:
