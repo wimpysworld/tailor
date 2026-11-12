@@ -515,12 +515,13 @@ func publishWikiFile(root *os.Root, name string, data []byte, mode fs.FileMode, 
 		return false, err
 	}
 	tempOpen := true
+	removeFailed := false
 	defer func() {
 		if tempOpen {
 			retErr = errors.Join(retErr, temp.Close())
 		}
 		if tempName != "" {
-			if err := parent.Remove(tempName); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			if err := parent.Remove(tempName); err != nil && !errors.Is(err, fs.ErrNotExist) && !removeFailed {
 				retErr = errors.Join(retErr, err)
 			}
 		}
@@ -574,7 +575,7 @@ func publishWikiFile(root *os.Root, name string, data []byte, mode fs.FileMode, 
 			return false, err
 		}
 		if err := parent.Remove(tempName); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			tempName = ""
+			removeFailed = true
 			return true, err
 		}
 	} else if err := parent.Rename(tempName, path.Base(name)); err != nil {
