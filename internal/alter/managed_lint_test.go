@@ -126,11 +126,11 @@ func TestManagedLintWorkflowGateStructure(t *testing.T) {
 }
 
 func TestManagedLintInvalidWorkflowFails(t *testing.T) {
-	just := managedLintExecutable(t)
 	actionlint, err := exec.LookPath("actionlint")
 	if err != nil {
 		t.Skip("actionlint is unavailable; workflow structure and stubbed failure propagation are checked independently")
 	}
+	just := managedLintExecutable(t)
 	root := t.TempDir()
 	writeManagedLintFixture(t, root, renderSelectedManagedFiles(t, managedRenderConfig(false, nil)))
 	writeManagedTestFile(t, root, ".github/workflows/ci.yml", []byte("invalid: [\n"))
