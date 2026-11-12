@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -80,6 +81,9 @@ func TestFitNewDirectoryDefaultConfig(t *testing.T) {
 }
 
 func TestFitPlainOutputPreservesPathControls(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("newline in directory path requires unix")
+	}
 	fakeNoRepoAuth(t)
 
 	dir := filepath.Join(t.TempDir(), "safe\ninjected")
@@ -98,6 +102,9 @@ func TestFitPlainOutputPreservesPathControls(t *testing.T) {
 }
 
 func TestFitRichOutputEscapesPathControls(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("newline in directory path requires unix")
+	}
 	fakeNoRepoAuth(t)
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("NO_COLOR", "1")
@@ -505,7 +512,7 @@ func TestMeasurePythonPolicyDestination(t *testing.T) {
 					}
 				default:
 					if err := os.Symlink(target, path); err != nil {
-						t.Fatal(err)
+						t.Skipf("Symlink unavailable: %v", err)
 					}
 				}
 				before, _ := os.Lstat(path)
@@ -553,7 +560,10 @@ func TestMeasurePythonPolicyDestination(t *testing.T) {
 }
 
 func TestMeasurePythonPolicyInspectionError(t *testing.T) {
-	dir := t.TempDir()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Mkdir(filepath.Join(dir, "nested"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -577,8 +587,7 @@ func TestMeasurePythonPolicyInspectionError(t *testing.T) {
 		fmt.Sprintf("%-16s%s", "missing:", "LICENSE"),
 		fmt.Sprintf("%-16s%s", "warning:", "ruff.toml"),
 		fmt.Sprintf("%-16s%s", "warning:", "pyrightconfig.json"),
-		"reading Python policy",
-		filepath.Join(dir, "nested", "pyproject.toml"),
+		fmt.Sprintf("reading Python policy %q", filepath.Join(dir, "nested", "pyproject.toml")),
 		"not-configured:",
 	} {
 		if !strings.Contains(stdout.String(), want) {

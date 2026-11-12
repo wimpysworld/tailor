@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -40,6 +41,9 @@ func evaluateManagedPlatformHooks(t *testing.T, cfg *config.Config, linux, x86 b
 }
 
 func TestManagedHookEvaluationExcludesStderr(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell hooks require unix")
+	}
 	root := t.TempDir()
 	writeManagedRenderFixture(t, root, "nix", []byte("#!/bin/sh\nprintf 'export CGO_ENABLED=1\\n'\nprintf 'exit 37\\n' >&2\n"))
 	if err := os.Chmod(filepath.Join(root, "nix"), 0o755); err != nil {
@@ -52,6 +56,9 @@ func TestManagedHookEvaluationExcludesStderr(t *testing.T) {
 }
 
 func TestManagedHookRuntime(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell hooks require unix")
+	}
 	for _, x86 := range []bool{true, false} {
 		t.Run("x86="+strconv.FormatBool(x86), func(t *testing.T) {
 			testManagedHookRuntime(t, x86)
@@ -209,6 +216,9 @@ func TestManagedFFmpegPlatforms(t *testing.T) {
 }
 
 func TestManagedHookCGOAndPlatform(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell hooks require unix")
+	}
 	for _, policy := range []*bool{nil, new(false), new(true)} {
 		cfg := &config.Config{Languages: &config.LanguageSettings{Go: new(true), GoOptions: &config.GoOptions{CGO: policy}}}
 		hook := evaluateManagedHooks(t, cfg, false)

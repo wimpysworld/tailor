@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -397,8 +398,10 @@ func TestWriteCreatesFile(t *testing.T) {
 	if info.IsDir() {
 		t.Error(".tailor.yml is a directory, want file")
 	}
-	if got, want := info.Mode().Perm(), os.FileMode(0o644); got != want {
-		t.Errorf(".tailor.yml permissions = %v, want %v", got, want)
+	if runtime.GOOS != "windows" {
+		if got, want := info.Mode().Perm(), os.FileMode(0o644); got != want {
+			t.Errorf(".tailor.yml permissions = %v, want %v", got, want)
+		}
 	}
 }
 
@@ -430,12 +433,14 @@ func TestWriteReplacesExistingConfig(t *testing.T) {
 		t.Errorf(".tailor.yml does not contain replacement content:\n%s", written)
 	}
 
-	info, err := os.Stat(configFile)
-	if err != nil {
-		t.Fatalf("Stat: %v", err)
-	}
-	if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
-		t.Errorf(".tailor.yml permissions = %v, want preserved %v", got, want)
+	if runtime.GOOS != "windows" {
+		info, err := os.Stat(configFile)
+		if err != nil {
+			t.Fatalf("Stat: %v", err)
+		}
+		if got, want := info.Mode().Perm(), os.FileMode(0o600); got != want {
+			t.Errorf(".tailor.yml permissions = %v, want preserved %v", got, want)
+		}
 	}
 }
 

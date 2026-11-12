@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -94,6 +95,9 @@ type wikiPublisherFixture struct {
 
 func newWikiPublisherFixture(t *testing.T) *wikiPublisherFixture {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX wiki publisher script tests do not run on Windows")
+	}
 	for _, program := range []string{"git", "python3"} {
 		if _, err := exec.LookPath(program); err != nil {
 			t.Skip(program + " is required for offline publisher tests")

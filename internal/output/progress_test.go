@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -49,6 +50,9 @@ func TestFastProgressPTYHelper(t *testing.T) {
 }
 
 func TestFastProgressDoesNotNegotiateTerminal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty requires unix")
+	}
 	for _, mode := range []string{"complete", "error", "stop", "idle", "probe-control"} {
 		t.Run(mode, func(t *testing.T) {
 			got := testutil.RunPTY(t, "TestFastProgressPTYHelper", "", "TAILOR_FAST_PROGRESS_HELPER="+mode)
@@ -113,6 +117,9 @@ func TestProgressPromptPTYHelper(t *testing.T) {
 }
 
 func TestProgressPromptTerminalHandoff(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty requires unix")
+	}
 	for _, mode := range []string{"approved", "declined", "failed"} {
 		t.Run(mode, func(t *testing.T) {
 			got := testutil.RunPTY(t, "TestProgressPromptPTYHelper", "", "TAILOR_PROMPT_PROGRESS_HELPER="+mode)

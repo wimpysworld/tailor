@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -61,6 +62,9 @@ func TestMeasureCompleteHealthOrder(t *testing.T) {
 			want := map[string]string{"LICENSE": "warning", "README.md": "warning", ".oxlintrc.json": "missing", ".prettierignore": "missing"}
 			for _, name := range []string{".shellcheckrc", ".editorconfig", ".prettierrc.json", "ruff.toml", "pyrightconfig.json"} {
 				want[name] = "missing"
+			}
+			if runtime.GOOS == "windows" {
+				want[".shellcheckrc"] = "warning"
 			}
 			if mixed {
 				want[".shellcheckrc"] = "present"

@@ -125,7 +125,7 @@ func inspectShellPolicyFile(path string) (bool, []byte, string) {
 	if err != nil || !info.Mode().IsRegular() || info.Mode().Perm()&0o444 == 0 {
 		return false, nil, "cannot safely inspect a readable regular file"
 	}
-	content, cause := readManagedInspection(base, name)
+	content, cause := readManagedInspection(base, filepath.ToSlash(name))
 	return true, content, cause
 }
 

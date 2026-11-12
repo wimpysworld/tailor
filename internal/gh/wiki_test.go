@@ -7,13 +7,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 func wikiFixtureGit(t *testing.T, dir string, args ...string) string {
 	t.Helper()
-	command := exec.CommandContext(t.Context(), "git", append([]string{"-C", dir}, args...)...) // #nosec G204 -- Isolated local Git fixtures.
+	command := exec.CommandContext(t.Context(), "git", append([]string{"-c", "core.autocrlf=false", "-C", dir}, args...)...) // #nosec G204 -- Isolated local Git fixtures.
 	command.Env = append(os.Environ(), "GIT_AUTHOR_NAME=Test", "GIT_AUTHOR_EMAIL=test@example.com", "GIT_COMMITTER_NAME=Test", "GIT_COMMITTER_EMAIL=test@example.com")
 	output, err := command.CombinedOutput()
 	if err != nil {
@@ -151,10 +152,16 @@ func TestInspectWikiFileReadinessReasons(t *testing.T) {
 			remote := t.TempDir()
 			wikiFixtureGit(t, remote, "init", "-b", "main")
 			if tc.symlink {
+				if runtime.GOOS == "windows" {
+					t.Skip("POSIX Git symlink staging is unsupported on Windows")
+				}
 				if err := os.Symlink("Home.md", filepath.Join(remote, tc.file)); err != nil {
 					t.Fatal(err)
 				}
 			} else {
+				if runtime.GOOS == "windows" && strings.ContainsAny(tc.file, `:"`) {
+					t.Skip("filenames with colons or quotes are unsupported on Windows")
+				}
 				wikiFixtureWrite(t, remote, tc.file, "page")
 			}
 			wikiFixtureGit(t, remote, "add", ".")
@@ -175,6 +182,9 @@ func TestInspectWikiFileReadinessReasons(t *testing.T) {
 func TestInspectWikiSourceTreeReadinessReasons(t *testing.T) {
 	for _, unsafe := range []bool{false, true} {
 		t.Run(fmt.Sprintf("unsafe=%t", unsafe), func(t *testing.T) {
+			if unsafe && runtime.GOOS == "windows" {
+				t.Skip("POSIX Git symlink staging is unsupported on Windows")
+			}
 			dir, remote := t.TempDir(), t.TempDir()
 			for _, root := range []string{dir, remote} {
 				wikiFixtureGit(t, root, "init", "-b", "main")

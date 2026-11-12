@@ -12,6 +12,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/gh"
 )
 
+var unlockWikiImport = func(*os.File) error { return nil }
+
 func applyWikiImport(dir string, p *wikiImportPlan) error {
 	gitDir, _, err := wikiGitDirectory(dir)
 	if err != nil {
@@ -35,6 +37,7 @@ func applyWikiImport(dir string, p *wikiImportPlan) error {
 	if err := lockWikiImport(lock); err != nil {
 		return fmt.Errorf("another wiki import is active: %w", err)
 	}
+	defer func() { _ = unlockWikiImport(lock) }()
 	pending, err := findWikiImport(dir, p.Remote)
 	if err != nil {
 		return err
@@ -87,11 +90,11 @@ func applyWikiImport(dir string, p *wikiImportPlan) error {
 		if err != nil {
 			return err
 		}
-		if current == file.After {
+		if sameWikiFileState(current, file.After) {
 			file.Installed = true
 			continue
 		}
-		if current != file.Before || file.Installed {
+		if !sameWikiFileState(current, file.Before) || file.Installed {
 			return fmt.Errorf("wiki destination %q changed; recovery data is at %q", file.Path, p.location)
 		}
 		if err := createWikiImportParents(root, p, path.Dir(file.Path)); err != nil {
@@ -151,7 +154,7 @@ func recheckWikiImport(root *os.Root, p *wikiImportPlan, installed bool) error {
 			if err != nil {
 				return err
 			}
-			if state != f.After {
+			if !sameWikiFileState(state, f.After) {
 				return fmt.Errorf("wiki import verification failed for %q", f.Path)
 			}
 		}
@@ -166,7 +169,7 @@ func recheckWikiImportDestination(root *os.Root, p *wikiImportPlan, f wikiImport
 			return err
 		}
 		expected := p.identities[name]
-		if (current == nil) != (expected == nil) || current != nil && (!os.SameFile(current, expected) || current.Mode() != expected.Mode()) {
+		if (current == nil) != (expected == nil) || current != nil && (!os.SameFile(current, expected) || effectiveWikiMode(current.Mode()) != effectiveWikiMode(expected.Mode())) {
 			return fmt.Errorf("wiki destination or parent %q changed after planning", name)
 		}
 		if name == "." {
@@ -177,11 +180,11 @@ func recheckWikiImportDestination(root *os.Root, p *wikiImportPlan, f wikiImport
 	if err != nil {
 		return err
 	}
-	if f.Installed || p.Prepared && state == f.After {
-		if state != f.After {
+	if f.Installed || p.Prepared && sameWikiFileState(state, f.After) {
+		if !sameWikiFileState(state, f.After) {
 			return fmt.Errorf("wiki destination %q changed after import", f.Path)
 		}
-	} else if state != f.Before {
+	} else if !sameWikiFileState(state, f.Before) {
 		return fmt.Errorf("wiki destination %q changed after planning", f.Path)
 	}
 	return nil

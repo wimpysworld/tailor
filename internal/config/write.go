@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"reflect"
+	"runtime"
 	"slices"
 	"strings"
 	"text/template"
@@ -640,9 +641,11 @@ func Write(dir string, cfg *Config, date string, verb string) (retErr error) {
 	if err != nil {
 		return fmt.Errorf("opening config directory: %w", err)
 	}
-	if err := rootDir.Sync(); err != nil {
-		_ = rootDir.Close()
-		return fmt.Errorf("syncing config directory: %w", err)
+	if runtime.GOOS != "windows" {
+		if err := rootDir.Sync(); err != nil {
+			_ = rootDir.Close()
+			return fmt.Errorf("syncing config directory: %w", err)
+		}
 	}
 	if err := rootDir.Close(); err != nil {
 		return fmt.Errorf("closing config directory: %w", err)

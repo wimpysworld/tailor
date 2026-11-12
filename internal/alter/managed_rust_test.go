@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -13,6 +14,9 @@ import (
 
 func rustFixture(t *testing.T, goEnabled bool) (string, string, string) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("managed just recipes require unix shell")
+	}
 	root, bin, log := qualityFixture(t, goEnabled)
 	cfg := managedRenderConfig(goEnabled, nil)
 	if cfg.Languages == nil {

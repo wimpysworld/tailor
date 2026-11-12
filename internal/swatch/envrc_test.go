@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -17,6 +18,9 @@ func TestEnvrcWatches(t *testing.T) {
 	}
 	if string(own) != string(content) {
 		t.Fatal("repository .envrc differs from its swatch")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell and direnv watch tests do not run on Windows")
 	}
 	for _, program := range []string{"bash", "direnv"} {
 		if _, err := exec.LookPath(program); err != nil {
@@ -89,6 +93,9 @@ func TestEnvrcWatches(t *testing.T) {
 }
 
 func TestEnvrcWatchOrder(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell watch tests do not run on Windows")
+	}
 	t.Setenv("BASH_ENV", os.DevNull)
 	dir := t.TempDir()
 	content := mustSwatchContent(t, ".envrc")
@@ -115,6 +122,9 @@ func TestEnvrcWatchOrder(t *testing.T) {
 }
 
 func TestEnvrcNixDirenvCache(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell nix-direnv tests do not run on Windows")
+	}
 	source := os.Getenv("TAILOR_TEST_NIX_DIRENV")
 	if source == "" {
 		t.Skip("TAILOR_TEST_NIX_DIRENV must name an installed nix-direnv direnvrc")

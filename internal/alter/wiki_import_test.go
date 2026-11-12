@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -87,7 +88,7 @@ func TestWikiImportExactDataAndBackups(t *testing.T) {
 	for _, f := range snapshot.Files {
 		data, err := os.ReadFile(filepath.Join(dir, "wiki", f.Path))
 		info, statErr := os.Stat(filepath.Join(dir, "wiki", f.Path))
-		if err != nil || statErr != nil || !bytes.Equal(data, f.Content) || info.Mode() != f.Mode {
+		if err != nil || statErr != nil || !bytes.Equal(data, f.Content) || effectiveWikiMode(info.Mode()) != effectiveWikiMode(f.Mode) {
 			t.Fatalf("file %s: %q %v %v", f.Path, data, err, statErr)
 		}
 	}
@@ -99,7 +100,7 @@ func TestWikiImportExactDataAndBackups(t *testing.T) {
 		if f.Before.Exists {
 			data, err := os.ReadFile(filepath.Join(plan.location, "backup", strconv.Itoa(i)))
 			info, statErr := os.Stat(filepath.Join(plan.location, "backup", strconv.Itoa(i)))
-			if err != nil || statErr != nil || wikiState(data, info.Mode()) != f.Before {
+			if err != nil || statErr != nil || !sameWikiFileState(wikiState(data, info.Mode()), f.Before) {
 				t.Fatalf("backup: %q %v %v", data, err, statErr)
 			}
 		}
@@ -228,6 +229,9 @@ func TestWikiImportRemoteRaceAndResume(t *testing.T) {
 func TestWikiImportInterruptedStateRejectsEditsAndTampering(t *testing.T) {
 	for _, kind := range []string{"local bytes", "local mode", "parent symlink", "source bytes", "backup bytes", "journal path", "journal identity", "journal symlink", "remote"} {
 		t.Run(kind, func(t *testing.T) {
+			if runtime.GOOS == "windows" && kind == "local mode" {
+				t.Skip("POSIX permission bits require unix")
+			}
 			dir := wikiImportProject(t)
 			snapshot := wikiImportSnapshot()
 			wikiImportHooks(t, snapshot)
@@ -259,9 +263,7 @@ func TestWikiImportInterruptedStateRejectsEditsAndTampering(t *testing.T) {
 				if err := os.Rename(filepath.Join(dir, "wiki/nested"), filepath.Join(dir, "kept")); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.Symlink(filepath.Join(dir, "kept"), filepath.Join(dir, "wiki/nested")); err != nil {
-					t.Fatal(err)
-				}
+				managedSymlinkOrSkip(t, filepath.Join(dir, "kept"), filepath.Join(dir, "wiki/nested"))
 			case "source bytes":
 				wikiTestWrite(t, plan.location, "source/0", "tampered")
 			case "backup bytes":
@@ -285,9 +287,7 @@ func TestWikiImportInterruptedStateRejectsEditsAndTampering(t *testing.T) {
 				if err := os.Rename(filename, filename+".kept"); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.Symlink(filename+".kept", filename); err != nil {
-					t.Fatal(err)
-				}
+				managedSymlinkOrSkip(t, filename+".kept", filename)
 			case "remote":
 				snapshot.Head = strings.Repeat("c", 40)
 			}
@@ -323,9 +323,7 @@ func TestWikiImportUnsafePlans(t *testing.T) {
 			case "collision":
 				wikiTestWrite(t, dir, "wiki/nested", "file")
 			case "local symlink":
-				if err := os.Symlink(t.TempDir(), filepath.Join(dir, "wiki")); err != nil {
-					t.Fatal(err)
-				}
+				managedSymlinkOrSkip(t, t.TempDir(), filepath.Join(dir, "wiki"))
 			case "local reserved":
 				wikiTestWrite(t, dir, "wiki/.tailor-wiki-state", "user data")
 			case "local case collision":
@@ -458,6 +456,9 @@ func TestWikiImportInitialJournalFailure(t *testing.T) {
 func TestWikiImportInitialJournalFailurePreservesState(t *testing.T) {
 	for _, kind := range []string{"unknown file", "changed directory"} {
 		t.Run(kind, func(t *testing.T) {
+			if runtime.GOOS == "windows" && kind == "changed directory" {
+				t.Skip("renaming an open directory handle requires unix")
+			}
 			dir := wikiImportProject(t)
 			plan, err := planWikiImport(dir, "remote", wikiImportSnapshot())
 			if err != nil {
@@ -589,6 +590,9 @@ func TestWikiImportStagingResume(t *testing.T) {
 func TestWikiImportIncompleteStagingRejectsChanges(t *testing.T) {
 	for _, kind := range []string{"source bytes", "source mode", "backup bytes", "backup mode", "local bytes", "local mode", "local after", "snapshot bytes", "remote", "orphan backup", "missing journal", "late local edit", "late stored edit"} {
 		t.Run(kind, func(t *testing.T) {
+			if runtime.GOOS == "windows" && strings.HasSuffix(kind, " mode") {
+				t.Skip("POSIX permission bits require unix")
+			}
 			dir := wikiImportProject(t)
 			snapshot := wikiImportSnapshot()
 			wikiImportHooks(t, snapshot)
@@ -686,7 +690,7 @@ func TestWikiImportDestinationWriteFailures(t *testing.T) {
 						}
 						data, err := os.ReadFile(filepath.Join(plan.location, "backup", strconv.Itoa(i)))
 						info, statErr := os.Stat(filepath.Join(plan.location, "backup", strconv.Itoa(i)))
-						if err != nil || statErr != nil || wikiState(data, info.Mode()) != f.Before {
+						if err != nil || statErr != nil || !sameWikiFileState(wikiState(data, info.Mode()), f.Before) {
 							t.Fatal("destination write without verified backup")
 						}
 					}

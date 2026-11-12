@@ -9,7 +9,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/alter"
@@ -255,9 +254,7 @@ func TestProcessLicenceWarningForNonRegularEntry(t *testing.T) {
 		{
 			name: "special file",
 			setup: func(t *testing.T, dir string) {
-				if err := syscall.Mkfifo(filepath.Join(dir, "LICENSE"), 0o644); err != nil {
-					t.Skipf("mkfifo unavailable: %v", err)
-				}
+				testMkfifo(t, filepath.Join(dir, "LICENSE"))
 			},
 		},
 	}
@@ -434,9 +431,7 @@ func TestProcessLicenceDestinationPolicy(t *testing.T) {
 		{
 			name: "special file rejected",
 			setup: func(t *testing.T, dir string) {
-				if err := syscall.Mkfifo(filepath.Join(dir, "LICENSE"), 0o644); err != nil {
-					t.Skipf("mkfifo unavailable: %v", err)
-				}
+				testMkfifo(t, filepath.Join(dir, "LICENSE"))
 			},
 			wantErr: `licence destination "LICENSE" is not a regular file`,
 		},

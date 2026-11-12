@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -114,6 +115,9 @@ func TestRepoContextAtReturnsEnterpriseHost(t *testing.T) {
 }
 
 func TestRepoContextAtResolvesSSHAlias(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX ssh stub test does not run on Windows")
+	}
 	configureGitHubHost(t)
 	binDir := t.TempDir()
 	sshPath := filepath.Join(binDir, "ssh")

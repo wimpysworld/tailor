@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -42,6 +43,9 @@ func TestManagedMCPProviderSchemas(t *testing.T) {
 }
 
 func TestManagedMCPLaunchArguments(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell MCP launch stubs require unix")
+	}
 	launches := loadManagedMCPLaunches(t)
 	bin := filepath.Join(t.TempDir(), "bin")
 	stub := filepath.Join(bin, "playwright-mcp")

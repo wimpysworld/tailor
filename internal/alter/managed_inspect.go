@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -36,7 +37,7 @@ func readManagedInspection(dir, name string) ([]byte, string) {
 	if dir == "" {
 		return nil, "the project directory was not supplied"
 	}
-	if !filepath.IsLocal(name) || filepath.Clean(name) != name {
+	if strings.Contains(name, "\\") || !filepath.IsLocal(name) || path.Clean(name) != name {
 		return nil, "the path is not a local clean path"
 	}
 	root, err := os.OpenRoot(dir)
@@ -45,9 +46,9 @@ func readManagedInspection(dir, name string) ([]byte, string) {
 	}
 	defer func() { _ = root.Close() }()
 	current := ""
-	parts := strings.Split(filepath.ToSlash(name), "/")
+	parts := strings.Split(name, "/")
 	for index, part := range parts {
-		current = filepath.Join(current, part)
+		current = path.Join(current, part)
 		info, err := root.Lstat(current)
 		if errors.Is(err, os.ErrNotExist) {
 			return nil, "the file or a parent is absent"
@@ -197,15 +198,15 @@ func inspectManagedJust(content []byte) managedSetupInspection {
 			if end < 0 {
 				return unknownManagedSetup("a Just import is incomplete")
 			}
-			path := rest[1 : end+1]
-			if strings.ContainsAny(path, "\\\n\r") {
+			importPath := rest[1 : end+1]
+			if strings.ContainsAny(importPath, "\\\n\r") {
 				return unknownManagedSetup("a Just import uses an escaped path")
 			}
 			tail := strings.TrimSpace(rest[end+2:])
 			if tail != "" && !strings.HasPrefix(tail, "#") {
 				return unknownManagedSetup("a Just import has an unsupported expression")
 			}
-			if path == "just/loader.just" || path == "./just/loader.just" {
+			if importPath == "just/loader.just" || importPath == "./just/loader.just" {
 				present = true
 			} else {
 				composition = "another Just import can provide the loader"
