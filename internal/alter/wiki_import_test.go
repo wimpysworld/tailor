@@ -486,10 +486,11 @@ func TestWikiImportInitialJournalFailurePreservesState(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				_ = os.SameFile(retained, retained)
 				return injected
 			}
 			err = stageWikiImport(dir, plan)
-			if !errors.Is(err, injected) || location == "" || !strings.Contains(err.Error(), location) || plan.location != location {
+			if !errors.Is(err, injected) || location == "" || !strings.Contains(err.Error(), strconv.Quote(location)) || plan.location != location {
 				t.Fatalf("failure lost error or location: location=%q plan=%q err=%v", location, plan.location, err)
 			}
 			current, err := os.Lstat(location)
@@ -555,6 +556,7 @@ func TestWikiImportStagingResume(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
+				_ = os.SameFile(staged, staged)
 			}
 			if err := restoreWikiImport(dir, pending, snapshot); err != nil {
 				t.Fatal(err)

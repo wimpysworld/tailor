@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -476,6 +477,9 @@ func managedSymlinkOrSkip(t *testing.T, target, name string) {
 
 func managedFIFOOrSkip(t *testing.T, name string) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX FIFOs require unix")
+	}
 	if err := exec.CommandContext(t.Context(), "mkfifo", name).Run(); err != nil {
 		t.Skipf("mkfifo unavailable: %v", err)
 	}

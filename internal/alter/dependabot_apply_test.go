@@ -758,16 +758,25 @@ func writeDependabotTestFile(t *testing.T, dir, name string, content []byte) {
 
 func replaceDependabotTestFile(t *testing.T, dir, name string, content []byte) {
 	t.Helper()
-	full := filepath.Join(dir, filepath.FromSlash(name))
-	original, err := os.Lstat(full)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := root.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	original, err := root.Lstat(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := filepath.Join(dir, filepath.FromSlash(name))
 	if err := os.Rename(full, full+".retained"); err != nil {
 		t.Fatal(err)
 	}
 	writeDependabotTestFile(t, dir, name, content)
-	replacement, err := os.Lstat(full)
+	replacement, err := root.Lstat(name)
 	if err != nil {
 		t.Fatal(err)
 	}

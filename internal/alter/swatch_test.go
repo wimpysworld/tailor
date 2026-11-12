@@ -3,7 +3,6 @@ package alter_test
 import (
 	"bytes"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -45,13 +44,6 @@ func symlinkOrSkip(t *testing.T, oldname, newname string) {
 	t.Helper()
 	if err := os.Symlink(oldname, newname); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
-	}
-}
-
-func mkfifoOrSkip(t *testing.T, path string) {
-	t.Helper()
-	if err := exec.CommandContext(t.Context(), "mkfifo", path).Run(); err != nil {
-		t.Skipf("mkfifo unavailable: %v", err)
 	}
 }
 
@@ -209,7 +201,7 @@ func TestSwatchRejectsNonRegularDestination(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			dir := t.TempDir()
 			path := filepath.Join(dir, ".gitignore")
-			mkfifoOrSkip(t, path)
+			testMkfifo(t, path)
 
 			cfg := newConfig(entry(".gitignore", test.alteration))
 			_, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, test.mode, &alter.TokenContext{})
