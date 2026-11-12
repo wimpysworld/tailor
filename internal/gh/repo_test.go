@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/cli/go-gh/v2/pkg/repository"
@@ -117,7 +118,12 @@ func TestRepoContextAtResolvesSSHAlias(t *testing.T) {
 	configureGitHubHost(t)
 	binDir := t.TempDir()
 	sshPath := filepath.Join(binDir, "ssh")
-	if err := os.WriteFile(sshPath, []byte("#!/bin/sh\nprintf 'hostname github.com\\n'\n"), 0o755); err != nil {
+	sshStub := "#!/bin/sh\nprintf 'hostname github.com\\n'\n"
+	if runtime.GOOS == "windows" {
+		sshPath = filepath.Join(binDir, "ssh.cmd")
+		sshStub = "@echo off\r\necho hostname github.com\r\n"
+	}
+	if err := os.WriteFile(sshPath, []byte(sshStub), 0o755); err != nil {
 		t.Fatalf("writing fake ssh: %v", err)
 	}
 	t.Setenv("PATH", binDir+string(os.PathListSeparator)+os.Getenv("PATH"))

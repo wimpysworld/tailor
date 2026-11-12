@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,9 @@ func TestVerboseProgressPTYHelper(t *testing.T) {
 }
 
 func TestVerboseProgressPTY(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty requires unix")
+	}
 	for _, noProgress := range []bool{false, true} {
 		t.Run(boolDigit(noProgress), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)

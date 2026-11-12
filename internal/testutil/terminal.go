@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"syscall"
 	"testing"
@@ -17,6 +18,9 @@ import (
 // The acknowledgement uses a separate pipe so terminal input stays in cooked mode.
 func WaitForPTYProbeEcho(t *testing.T) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("pty requires unix")
+	}
 	if err := syscall.SetNonblock(3, true); err != nil {
 		t.Fatal(err)
 	}
@@ -42,6 +46,9 @@ func WaitForPTYProbeEcho(t *testing.T) {
 // when the child leaves input in cooked mode.
 func RunPTY(t *testing.T, helper, dir string, env ...string) string {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("pty requires unix")
+	}
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, os.Args[0], "-test.run=^"+helper+"$") //nolint:gosec

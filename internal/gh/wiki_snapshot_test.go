@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -219,6 +220,9 @@ func TestWikiRemoteHeadMetadata(t *testing.T) {
 
 func wikiMetadataGit(t *testing.T, script string) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell git stub tests do not run on Windows")
+	}
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, "git"), []byte("#!/bin/sh\n"+script), 0o700); err != nil {
 		t.Fatal(err)
@@ -535,6 +539,9 @@ func TestReadWikiSnapshotRejectsUnsafeRemote(t *testing.T) {
 			wikiFixtureGit(t, remote, "commit", "-m", "Initial")
 			switch name {
 			case "link":
+				if runtime.GOOS == "windows" {
+					t.Skip("POSIX Git symlink staging is unsupported on Windows")
+				}
 				if err := os.Symlink("page.md", filepath.Join(remote, name)); err != nil {
 					t.Fatal(err)
 				}

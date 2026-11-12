@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -165,6 +166,9 @@ func TestLoadRejectsConfigSpecialFile(t *testing.T) {
 }
 
 func TestLoadRejectsConfigFIFONonBlocking(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX FIFOs require unix")
+	}
 	if _, err := exec.LookPath("mkfifo"); err != nil {
 		t.Skipf("mkfifo unavailable: %v", err)
 	}

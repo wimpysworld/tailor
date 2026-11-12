@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -37,11 +38,17 @@ func wikiGitDirectory(dir string) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("locating private wiki recovery storage: %w", err)
 	}
+	out = strings.ReplaceAll(out, "\r\n", "\n")
 	lines := strings.Split(strings.TrimSuffix(out, "\n"), "\n")
-	if len(lines) != 2 || !filepath.IsAbs(lines[0]) || filepath.Clean(lines[1]) != project {
+	if len(lines) != 2 {
 		return "", "", errors.New("wiki adoption requires the Git worktree root")
 	}
-	gitDir := filepath.Clean(lines[0])
+	gitPath := filepath.FromSlash(lines[0])
+	topLevel := filepath.Clean(filepath.FromSlash(lines[1]))
+	if !filepath.IsAbs(gitPath) || topLevel != project {
+		return "", "", errors.New("wiki adoption requires the Git worktree root")
+	}
+	gitDir := filepath.Clean(gitPath)
 	clean, err := filepath.EvalSymlinks(gitDir)
 	if err != nil || clean != gitDir {
 		return "", "", errors.New("wiki Git metadata path contains a symlink")
@@ -112,7 +119,7 @@ func wikiStateRoot(gitDir string, create bool) (*os.Root, error) {
 		if err != nil {
 			return nil, err
 		}
-		if !info.IsDir() || info.Mode().Perm()&0o077 != 0 {
+		if !isPrivateWikiDir(info, false) {
 			return nil, fmt.Errorf("wiki recovery directory %q must be private", name)
 		}
 	}
@@ -185,7 +192,7 @@ func loadWikiJournal(root *os.Root) (*wikiImportPlan, error) {
 	if err != nil {
 		return nil, err
 	}
-	if !info.Mode().IsRegular() || info.Mode().Perm() != 0o600 || info.Size() > wikiJournalLimit {
+	if !isPrivateWikiFile(info) || info.Size() > wikiJournalLimit {
 		return nil, errors.New("unsafe wiki import journal")
 	}
 	f, err := openManagedInspectionFile(root, "journal.json")
@@ -363,7 +370,7 @@ func restoreWikiImport(dir string, p *wikiImportPlan, snapshot *gh.WikiSnapshot)
 			return errors.New("wiki recovery plan differs from the pinned snapshot")
 		}
 		current := fresh.Files[i].Before
-		if !p.Prepared && (f.Installed || current != f.Before) || p.Prepared && current != f.After && (f.Installed || current != f.Before) {
+		if !p.Prepared && (f.Installed || !sameWikiFileState(current, f.Before)) || p.Prepared && !sameWikiFileState(current, f.After) && (f.Installed || !sameWikiFileState(current, f.Before)) {
 			return fmt.Errorf("wiki file %q changed after the import stopped; keep recovery data at %q", f.Path, p.location)
 		}
 		source, err := restoreWikiStoredData(root, "source/"+strconv.Itoa(i), wikiSourceState(f.After), fresh.source[i], !p.Prepared)
@@ -404,7 +411,7 @@ func checkWikiStoredEntries(root *os.Root, p *wikiImportPlan) error {
 		if err != nil {
 			return err
 		}
-		if !info.IsDir() || info.Mode().Perm() != 0o700 {
+		if !isPrivateWikiDir(info, true) {
 			return fmt.Errorf("wiki recovery directory %q must be private", name)
 		}
 		directory, err := root.Open(name)
@@ -430,13 +437,38 @@ func checkWikiStoredEntries(root *os.Root, p *wikiImportPlan) error {
 	return nil
 }
 
+func isPrivateWikiDir(info fs.FileInfo, exact bool) bool {
+	if !info.IsDir() {
+		return false
+	}
+	perm := info.Mode().Perm()
+	if runtime.GOOS == "windows" {
+		return perm == 0o777 || perm == 0o555
+	}
+	if exact {
+		return perm == 0o700
+	}
+	return perm&0o077 == 0
+}
+
+func isPrivateWikiFile(info fs.FileInfo) bool {
+	if !info.Mode().IsRegular() {
+		return false
+	}
+	perm := info.Mode().Perm()
+	if runtime.GOOS == "windows" {
+		return perm == 0o666 || perm == 0o444
+	}
+	return perm == 0o600
+}
+
 func prepareWikiStoredData(root *os.Root, name string, data []byte, expected wikiFileState, p *wikiImportPlan) error {
 	state, _, _, err := readWikiImportFile(root, name)
 	if err != nil {
 		return err
 	}
 	if state.Exists {
-		if state != expected {
+		if !sameWikiFileState(state, expected) {
 			return fmt.Errorf("wiki recovery data %q changed", name)
 		}
 		return syncManagedDirectory(root, name, p.hooks)
@@ -461,7 +493,7 @@ func restoreWikiStoredData(root *os.Root, name string, expected wikiFileState, f
 	if !state.Exists && allowMissing && wikiState(fallback, expected.Mode) == expected {
 		return fallback, nil
 	}
-	if state != expected {
+	if !sameWikiFileState(state, expected) {
 		return nil, fmt.Errorf("wiki recovery data %q changed", name)
 	}
 	return data, nil
@@ -482,10 +514,16 @@ func publishWikiFile(root *os.Root, name string, data []byte, mode fs.FileMode, 
 	if err != nil {
 		return false, err
 	}
+	tempOpen := true
+	removeFailed := false
 	defer func() {
-		retErr = errors.Join(retErr, temp.Close())
-		if err := parent.Remove(tempName); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			retErr = errors.Join(retErr, err)
+		if tempOpen {
+			retErr = errors.Join(retErr, temp.Close())
+		}
+		if tempName != "" {
+			if err := parent.Remove(tempName); err != nil && !errors.Is(err, fs.ErrNotExist) && !removeFailed {
+				retErr = errors.Join(retErr, err)
+			}
 		}
 	}()
 	if err := runManagedHook(hooks.beforeTempWrite, name); err != nil {
@@ -503,6 +541,14 @@ func publishWikiFile(root *os.Root, name string, data []byte, mode fs.FileMode, 
 	if err := temp.Sync(); err != nil {
 		return false, err
 	}
+	if err := runManagedHook(hooks.beforeTempClose, name); err != nil {
+		return false, err
+	}
+	if err := temp.Close(); err != nil {
+		tempOpen = false
+		return false, err
+	}
+	tempOpen = false
 	if err := runManagedHook(hooks.beforeRename, name); err != nil {
 		return false, err
 	}
@@ -525,12 +571,16 @@ func publishWikiFile(root *os.Root, name string, data []byte, mode fs.FileMode, 
 		return false, err
 	}
 	if noClobber {
-		err = parent.Link(tempName, path.Base(name))
-	} else {
-		err = parent.Rename(tempName, path.Base(name))
-	}
-	if err != nil {
+		if err := parent.Link(tempName, path.Base(name)); err != nil {
+			return false, err
+		}
+		if err := parent.Remove(tempName); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			removeFailed = true
+			return true, err
+		}
+	} else if err := parent.Rename(tempName, path.Base(name)); err != nil {
 		return false, err
 	}
+	tempName = ""
 	return true, syncManagedDirectory(parent, path.Base(name), hooks)
 }

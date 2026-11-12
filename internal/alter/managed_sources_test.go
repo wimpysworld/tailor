@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,6 +19,9 @@ import (
 
 func sourceFixture(t *testing.T, declaration string) (string, string, string) {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("managed just recipes require unix shell")
+	}
 	root, bin := testTempDir(t), testTempDir(t)
 	log := filepath.Join(bin, "calls")
 	cfg := managedRenderConfig(false, nil)

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -209,6 +210,9 @@ func TestJavaScriptPolicyAncestorsAndMetadata(t *testing.T) {
 func TestJavaScriptUnsafePolicy(t *testing.T) {
 	for _, kind := range []string{"symlink", "directory", "unreadable", "ambiguous"} {
 		t.Run(kind, func(t *testing.T) {
+			if kind == "unreadable" && runtime.GOOS == "windows" {
+				t.Skip("chmod 0 does not clear read permissions on Windows")
+			}
 			root := testTempDir(t)
 			path := filepath.Join(root, ".prettierrc.json")
 			switch kind {

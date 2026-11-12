@@ -354,9 +354,11 @@ func TestManagedCGOExport(t *testing.T) {
 			if bytes.Contains(files["just/tailor.just"], []byte("[[TAILOR_")) {
 				t.Fatal("unresolved core placeholder")
 			}
+			just := managedLintExecutable(t)
 			root, bin, log := qualityFixture(t, true)
 			writeManagedTestFile(t, root, "just/tailor.just", files["just/tailor.just"])
-			format := exec.CommandContext(t.Context(), "just", "--unstable", "--fmt", "--check", "-f", "just/tailor.just")
+			// #nosec G204 -- The executable and temporary fixture are controlled by this test.
+			format := exec.CommandContext(t.Context(), just, "--unstable", "--fmt", "--check", "-f", "just/tailor.just")
 			format.Dir = root
 			if output, err := format.CombinedOutput(); err != nil {
 				t.Fatalf("core formatting: %v\n%s", err, output)

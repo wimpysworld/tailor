@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -129,6 +130,7 @@ func TestManagedLintInvalidWorkflowFails(t *testing.T) {
 	if err != nil {
 		t.Skip("actionlint is unavailable; workflow structure and stubbed failure propagation are checked independently")
 	}
+	just := managedLintExecutable(t)
 	root := t.TempDir()
 	writeManagedLintFixture(t, root, renderSelectedManagedFiles(t, managedRenderConfig(false, nil)))
 	writeManagedTestFile(t, root, ".github/workflows/ci.yml", []byte("invalid: [\n"))
@@ -143,7 +145,7 @@ func TestManagedLintInvalidWorkflowFails(t *testing.T) {
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("git init: %v\n%s", err, output)
 	}
-	output, err := runManagedLint(t, managedLintExecutable(t), root, "lint", bin, filepath.Join(root, "lint.log"), nil)
+	output, err := runManagedLint(t, just, root, "lint", bin, filepath.Join(root, "lint.log"), nil)
 	if err == nil || !strings.Contains(string(output), "syntax-check") {
 		t.Fatalf("invalid workflow output = %q, error = %v, want YAML syntax failure", output, err)
 	}
@@ -155,9 +157,7 @@ func TestCanonicalManagedLintCallsResolvesDirectoryAliases(t *testing.T) {
 		t.Fatal(err)
 	}
 	alias := filepath.Join(t.TempDir(), "project-alias")
-	if err := os.Symlink(root, alias); err != nil {
-		t.Fatal(err)
-	}
+	managedSymlinkOrSkip(t, root, alias)
 
 	got := canonicalManagedLintCalls(t, []string{"actionlint|" + alias + "|0|"})
 	want := canonicalManagedLintCalls(t, []string{"actionlint|" + root + "|0|"})
@@ -268,6 +268,9 @@ func TestManagedLintAbsentGoRemainsCallableButLeavesAggregate(t *testing.T) {
 
 func managedLintExecutable(t *testing.T) string {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("managed just recipes require unix shell")
+	}
 	just, err := exec.LookPath("just")
 	if err != nil {
 		t.Fatalf("required Just executable is unavailable: %v", err)

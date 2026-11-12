@@ -75,16 +75,23 @@ jobs:
           - ubuntu-24.04-arm
           - macos-15-intel
           - macos-15
+          - windows-2025
+          - windows-11-arm
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
     steps:
+      - name: Configure Git line endings
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
       - name: Install Nix
-        if: runner.os != 'macOS' || runner.arch != 'X64'
+        if: >-
+          runner.os != 'Windows'
+          && (runner.os != 'macOS' || runner.arch != 'X64')
         uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
       - name: Install Nix on Intel macOS
         if: runner.os == 'macOS' && runner.arch == 'X64'
@@ -106,7 +113,9 @@ jobs:
           echo "/nix/var/nix/profiles/default/bin" >> "$GITHUB_PATH"
           echo "$HOME/.nix-profile/bin" >> "$GITHUB_PATH"
       - name: Install just
-        if: runner.os != 'macOS' || runner.arch != 'X64'
+        if: >-
+          runner.os != 'Windows'
+          && (runner.os != 'macOS' || runner.arch != 'X64')
         run: nix profile add --inputs-from . --no-write-lock-file nixpkgs#just
       - name: Install just on Intel macOS
         if: runner.os == 'macOS' && runner.arch == 'X64'
@@ -138,13 +147,28 @@ jobs:
           test -d "$source"
           echo "TAILOR_BLENDER_TEST_SOURCE=$source" >> "$GITHUB_ENV"
       - name: Test
+        if: runner.os != 'Windows'
         env:
           TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS: "1"
         run: just test
+      - name: Vet (Windows)
+        if: runner.os == 'Windows'
+        run: go vet ./...
+      - name: Test (Windows)
+        if: runner.os == 'Windows'
+        run: go test ./...
       - name: Build tailor
+        if: runner.os != 'Windows'
         run: go build -o tailor ./cmd/tailor
+      - name: Build tailor (Windows)
+        if: runner.os == 'Windows'
+        run: go build -o tailor.exe ./cmd/tailor
       - name: Measure
+        if: runner.os != 'Windows'
         run: ./tailor measure
+      - name: Measure (Windows)
+        if: runner.os == 'Windows'
+        run: ./tailor.exe measure
       - name: Test container
         if: runner.os == 'Linux'
         run: |
@@ -224,7 +248,9 @@ jobs:
     permissions: {}
     steps:
       - name: Check results
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        if: >-
+          contains(needs.*.result, 'failure')
+          || contains(needs.*.result, 'cancelled')
         run: exit 1
 
   snapshot:

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
@@ -104,7 +105,9 @@ func (creation *dependabotParentCreation) publish(root *os.Root, name string, pe
 		if published {
 			return
 		}
-		retErr = errors.Join(retErr, temporaryRoot.Close())
+		if temporaryRoot != nil {
+			retErr = errors.Join(retErr, temporaryRoot.Close())
+		}
 		current, statErr := root.Lstat(temporary)
 		if statErr == nil && os.SameFile(temporaryInfo, current) {
 			retErr = errors.Join(retErr, root.Remove(temporary))
@@ -135,6 +138,13 @@ func (creation *dependabotParentCreation) publish(root *os.Root, name string, pe
 	if err != nil || !os.SameFile(temporaryInfo, current) {
 		return false, dependabotConflict("the private destination parent changed before publication")
 	}
+	if runtime.GOOS == "windows" {
+		closeErr := temporaryRoot.Close()
+		temporaryRoot = nil
+		if closeErr != nil {
+			return false, fmt.Errorf("closing private Dependabot parent %q before publication: %w", temporary, closeErr)
+		}
+	}
 	if err := publishDirectoryNoReplace(rootDirectory, temporary, creation.path); err != nil {
 		if _, destinationErr := root.Lstat(creation.path); destinationErr == nil {
 			return false, dependabotConflict("the destination parent appeared during protected creation")
@@ -142,13 +152,35 @@ func (creation *dependabotParentCreation) publish(root *os.Root, name string, pe
 		return false, fmt.Errorf("publishing protected Dependabot parent %q: %w", creation.path, err)
 	}
 	published = true
-	creation.parent = &dependabotCreatedParent{identity: temporaryInfo, root: temporaryRoot}
 
 	finalInfo, err := root.Lstat(creation.path)
 	if err != nil || !os.SameFile(temporaryInfo, finalInfo) {
+		if temporaryRoot != nil {
+			retErr = errors.Join(retErr, temporaryRoot.Close())
+		}
 		return false, dependabotConflict("the published destination parent identity changed")
 	}
+	if temporaryRoot == nil {
+		temporaryRoot, err = reopenPublishedDependabotParent(root, creation.path, temporaryInfo)
+		if err != nil {
+			return false, err
+		}
+	}
+	creation.parent = &dependabotCreatedParent{identity: temporaryInfo, root: temporaryRoot}
 	return true, nil
+}
+
+func reopenPublishedDependabotParent(root *os.Root, name string, expected os.FileInfo) (*os.Root, error) {
+	publishedRoot, err := root.OpenRoot(name)
+	if err != nil {
+		return nil, dependabotConflict("the published destination parent identity changed")
+	}
+	publishedInfo, err := publishedRoot.Stat(".")
+	if err != nil || !publishedInfo.IsDir() || !os.SameFile(expected, publishedInfo) {
+		_ = publishedRoot.Close()
+		return nil, dependabotConflict("the published destination parent identity changed")
+	}
+	return publishedRoot, nil
 }
 
 func (creation *dependabotParentCreation) observe(path string, identity os.FileInfo, created bool) error {

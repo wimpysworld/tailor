@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"runtime"
 )
 
 type managedApplyHooks struct {
@@ -155,12 +156,14 @@ func syncManagedDirectory(root *os.Root, destination string, hooks managedApplyH
 	if err != nil {
 		return fmt.Errorf("opening directory for managed destination %q: %w", destination, err)
 	}
-	if err := directory.Sync(); err != nil {
-		closeErr := directory.Close()
-		return errors.Join(
-			fmt.Errorf("syncing directory for managed destination %q: %w", destination, err),
-			wrapManagedDirectoryCloseError(destination, closeErr),
-		)
+	if runtime.GOOS != "windows" {
+		if err := directory.Sync(); err != nil {
+			closeErr := directory.Close()
+			return errors.Join(
+				fmt.Errorf("syncing directory for managed destination %q: %w", destination, err),
+				wrapManagedDirectoryCloseError(destination, closeErr),
+			)
+		}
 	}
 	if err := directory.Close(); err != nil {
 		return fmt.Errorf("closing directory for managed destination %q: %w", destination, err)

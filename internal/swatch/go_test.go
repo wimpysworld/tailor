@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"text/template"
@@ -313,6 +314,9 @@ func TestRenderGoReleaseRequiresRuntimeRepository(t *testing.T) {
 	}
 	if len(release.Before.Hooks) != 1 {
 		t.Fatal("expected a runtime repository check")
+	}
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX shell hook test does not run on Windows")
 	}
 	for _, test := range []struct {
 		repository, owner string

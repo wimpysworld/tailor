@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 	"testing/synctest"
@@ -29,6 +30,9 @@ func TestMeasurePTYHelper(t *testing.T) {
 }
 
 func TestMeasurePTYDoesNotNegotiateTerminal(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty requires unix")
+	}
 	got := testutil.RunPTY(t, "TestMeasurePTYHelper", t.TempDir(), "TAILOR_MEASURE_PTY_HELPER=1")
 	for _, unwanted := range []string{"\x1b[?2026", "\x1b[?2027", "^[[?", "\x1b[?25"} {
 		if strings.Contains(got, unwanted) {

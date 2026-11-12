@@ -4,11 +4,15 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
 
 func TestPythonImportIsolation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX Python preflight stubs require unix")
+	}
 	python, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("Python 3.11+ with packaging is required")
@@ -71,6 +75,9 @@ func TestPythonImportIsolation(t *testing.T) {
 }
 
 func TestPythonMetadata(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX Python preflight stubs require unix")
+	}
 	python, err := exec.LookPath("python3")
 	if err != nil {
 		t.Skip("Python 3.11+ with packaging is required for metadata tests")

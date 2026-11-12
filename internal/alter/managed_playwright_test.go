@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -126,7 +127,9 @@ func TestManagedPlaywrightAbsentDoesNotInspectReservedPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 	managedSymlinkOrSkip(t, t.TempDir(), filepath.Join(dir, ".codex"))
-	managedFIFOOrSkip(t, filepath.Join(dir, "opencode.json"))
+	if runtime.GOOS != "windows" {
+		managedFIFOOrSkip(t, filepath.Join(dir, "opencode.json"))
+	}
 	writeManagedTestFile(t, dir, "nix/playwright.nix", []byte("unowned\n"))
 	before := snapshotManagedTree(t, dir)
 

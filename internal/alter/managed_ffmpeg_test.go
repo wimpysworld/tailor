@@ -92,6 +92,7 @@ func TestManagedFFmpegLifecycle(t *testing.T) {
 }
 
 func TestManagedCGOCommands(t *testing.T) {
+	just := managedLintExecutable(t)
 	for _, test := range []struct {
 		name   string
 		policy *bool
@@ -126,7 +127,7 @@ func TestManagedCGOCommands(t *testing.T) {
 			}
 			for _, recipe := range []string{"lint", "build", "test", "other"} {
 				// #nosec G204 -- The executable and recipe are fixed test tools in an isolated fixture.
-				cmd := exec.CommandContext(t.Context(), managedLintExecutable(t), "--justfile", filepath.Join(root, "justfile"), recipe)
+				cmd := exec.CommandContext(t.Context(), just, "--justfile", filepath.Join(root, "justfile"), recipe)
 				cmd.Dir = root
 				cmd.Env = append(managedEnvironmentWithout("BASH_ENV", "ENV", "PATH", "CGO_ENABLED", "CALLS"), "PATH="+bin+":"+os.Getenv("PATH"), "CGO_ENABLED=inherited", "CALLS="+log)
 				if output, err := cmd.CombinedOutput(); err != nil {
@@ -154,6 +155,7 @@ func TestManagedCGOCommands(t *testing.T) {
 }
 
 func TestManagedFFmpegSetupStubbed(t *testing.T) {
+	just := managedLintExecutable(t)
 	for _, scenario := range []string{"update", "current", "init", "no-tag", "fetch-failure", "download-failure", "source", "fallback", "checkout-failure", "config-failure", "untagged", "fallback-non-v", "fallback-no-tag", "api-failure", "fallback-api-failure", "jq-failure"} {
 		t.Run(scenario, func(t *testing.T) {
 			root := testTempDir(t)
@@ -217,7 +219,7 @@ if [ "$SCENARIO" = no-tag ]; then echo null; else echo v1.2.3; fi`,
 				}
 			}
 			// #nosec G204 -- The executable is a test tool and setup uses only isolated stubs.
-			cmd := exec.CommandContext(t.Context(), managedLintExecutable(t), "--justfile", filepath.Join(root, "justfile"), "setup")
+			cmd := exec.CommandContext(t.Context(), just, "--justfile", filepath.Join(root, "justfile"), "setup")
 			cmd.Dir = root
 			cmd.Env = []string{"PATH=" + bin, "CALLS=" + log, "SCENARIO=" + scenario, "CGO_ENABLED=0", "HOME=" + root}
 			output, err := cmd.CombinedOutput()

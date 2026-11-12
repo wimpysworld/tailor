@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -96,7 +97,7 @@ func TestApplyManagedFilesPreservesRegularFileBeforeRename(t *testing.T) {
 			if statErr != nil {
 				t.Fatalf("stat destination: %v", statErr)
 			}
-			if info.Mode().Perm() != 0o600 {
+			if runtime.GOOS != "windows" && info.Mode().Perm() != 0o600 {
 				t.Fatalf("destination mode = %v, want 0600", info.Mode().Perm())
 			}
 			matches, globErr := filepath.Glob(filepath.Join(dir, "just", "loader.just.tmp-*"))
@@ -108,6 +109,9 @@ func TestApplyManagedFilesPreservesRegularFileBeforeRename(t *testing.T) {
 }
 
 func TestApplyManagedFilesPreservesRegularPermissions(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("POSIX permission bits require unix")
+	}
 	dir := t.TempDir()
 	const destination = "just/loader.just"
 	writeManagedTestFile(t, dir, destination, managedContent(destination, "old"))

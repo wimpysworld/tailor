@@ -11,6 +11,7 @@ builds:
     goos:
       - linux
       - darwin
+      - windows
     goarch:
       - amd64
       - arm64
@@ -26,6 +27,10 @@ archives:
   - id: compressed
     formats:
       - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - none
     name_template: "tailor_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 checksum:
@@ -56,6 +61,13 @@ release:
     ```shell
     brew tap wimpysworld/haberdasher https://brew.wimpys.world/tap.git
     brew install --cask wimpysworld/haberdasher/tailor
+    ```
+
+    **Scoop** (Windows):
+    ```powershell
+    scoop bucket add haberdasher `
+      https://scoop.wimpys.world/wimpysworld/haberdasher.git
+    scoop install haberdasher/tailor
     ```
 
     **Nix**: `nix run github:wimpysworld/tailor`

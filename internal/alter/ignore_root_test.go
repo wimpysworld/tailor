@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
@@ -45,9 +44,7 @@ func symlinkOrSkip(t *testing.T, oldname, newname string) {
 
 func mkfifoOrSkip(t *testing.T, path string) {
 	t.Helper()
-	if err := exec.CommandContext(t.Context(), "mkfifo", path).Run(); err != nil {
-		t.Skipf("mkfifo unavailable: %v", err)
-	}
+	managedFIFOOrSkip(t, path)
 }
 
 func TestIgnoreRootPreservesExistingBytes(t *testing.T) {

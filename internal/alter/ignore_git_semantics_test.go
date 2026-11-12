@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -117,6 +118,13 @@ func TestGitIgnoreSemantics(t *testing.T) {
 
 	for _, fixture := range fixtures {
 		t.Run(fixture.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" {
+				for _, path := range fixture.paths {
+					if strings.Contains(path, ":") {
+						t.Skip("colon in filename is invalid on Windows")
+					}
+				}
+			}
 			repo, env := newGitIgnoreRepository(t)
 			for path, content := range fixture.files {
 				writeOnDisk(t, repo, path, []byte(content))

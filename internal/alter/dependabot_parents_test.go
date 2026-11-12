@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/wimpysworld/tailor/internal/swatch"
@@ -82,6 +83,9 @@ func TestDependabotParentCreationDoesNotReplaceConcurrentDestination(t *testing.
 }
 
 func TestDependabotParentCreationRejectsTrackedParentDrift(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("renaming an open directory handle requires unix")
+	}
 	for _, tc := range []struct {
 		name        string
 		replacement func(*testing.T, string)
@@ -166,6 +170,9 @@ func TestDependabotParentCreationRejectsTrackedParentDrift(t *testing.T) {
 }
 
 func TestApplyDependabotPlanRejectsReplacedTrackedParent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("renaming an open directory handle requires unix")
+	}
 	dir := t.TempDir()
 	plan := mustPrepareDependabotPlan(t, dir, dependabotTestConfig(swatch.FirstFit, true, false))
 	creation := newDependabotParentCreation(plan)

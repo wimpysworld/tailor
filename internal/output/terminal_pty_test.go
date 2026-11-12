@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -32,6 +33,9 @@ func TestTerminalReportPTYHelper(t *testing.T) {
 
 // Optional captures go outside the repository. The same PTY flow runs without captures.
 func TestTerminalReportPTY(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty requires unix")
+	}
 	for _, width := range []int{60, 80, 100} {
 		for _, verbose := range []bool{false, true} {
 			for _, palette := range []string{"dark", "light", "mono"} {

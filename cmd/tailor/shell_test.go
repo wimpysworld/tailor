@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -29,6 +30,13 @@ func TestMeasureShellPolicy(t *testing.T) {
 		{"environment", ".shellcheckrc", "warning"},
 	} {
 		t.Run(tc.location+"/"+tc.name, func(t *testing.T) {
+			if runtime.GOOS == "windows" && (tc.location == "home" || tc.location == "xdg") {
+				t.Skip("unix home and xdg lookup requires unix")
+			}
+			status := tc.status
+			if runtime.GOOS == "windows" && tc.location == "missing" && tc.name == ".shellcheckrc" {
+				status = "warning"
+			}
 			base, err := filepath.EvalSymlinks(t.TempDir())
 			if err != nil {
 				t.Fatal(err)
@@ -76,13 +84,13 @@ func TestMeasureShellPolicy(t *testing.T) {
 			if err := cmd.Run(); err != nil {
 				t.Fatal(err)
 			}
-			want := fmt.Sprintf("%-16s%s", tc.status+":", tc.name)
+			want := fmt.Sprintf("%-16s%s", status+":", tc.name)
 			if !strings.Contains(stdout.String(), want) {
 				t.Fatalf("missing %q:\n%s", want, stdout.String())
 			}
-			if tc.status != "missing" {
-				for _, status := range []string{"missing", "not-configured", "present", "warning"} {
-					if status != tc.status && strings.Contains(stdout.String(), fmt.Sprintf("%-16s%s", status+":", tc.name)) {
+			if status != "missing" {
+				for _, other := range []string{"missing", "not-configured", "present", "warning"} {
+					if other != status && strings.Contains(stdout.String(), fmt.Sprintf("%-16s%s", other+":", tc.name)) {
 						t.Fatalf("misleading status:\n%s", stdout.String())
 					}
 				}

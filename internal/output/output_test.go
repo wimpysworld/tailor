@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -206,6 +207,9 @@ func TestPTYProgressHelper(t *testing.T) {
 }
 
 func TestProgressOnOperatingSystemPTY(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty requires unix")
+	}
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	// os.Args[0] is the current test binary, not external input.

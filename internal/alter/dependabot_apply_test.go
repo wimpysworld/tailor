@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -115,6 +116,9 @@ func TestPrepareDependabotExecutionChecksOpenedIdentityBeforeReading(t *testing.
 }
 
 func TestPrepareDependabotExecutionRejectsFIFOReplacementWithoutBlocking(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("named pipes on filesystem paths require unix")
+	}
 	dir := t.TempDir()
 	writeDependabotTestFile(t, dir, dependabotPath, []byte("original\n"))
 	replacement := filepath.Join(dir, "replacement.fifo")
@@ -175,6 +179,9 @@ func TestPrepareDependabotExecutionChecksAlternateBeforeDestinationContent(t *te
 					t.Fatal(err)
 				}
 			case "special":
+				if runtime.GOOS == "windows" {
+					t.Skip("named pipes on filesystem paths require unix")
+				}
 				managedFIFOOrSkip(t, alternate)
 			case "symlink":
 				if err := os.Symlink(filepath.Join(dir, filepath.FromSlash(dependabotPath)), alternate); err != nil {
@@ -215,6 +222,9 @@ func TestPrepareDependabotExecutionRejectsUnsafeDestinationAndParentTypes(t *tes
 			}
 		}},
 		{name: "destination special", setup: func(t *testing.T, dir string) {
+			if runtime.GOOS == "windows" {
+				t.Skip("named pipes on filesystem paths require unix")
+			}
 			if err := os.MkdirAll(filepath.Join(dir, ".github"), 0o755); err != nil {
 				t.Fatal(err)
 			}
@@ -463,6 +473,9 @@ func TestApplyDependabotPlanCleansTempsAfterPublicationHookFailures(t *testing.T
 }
 
 func TestApplyDependabotPlanCleansTempFromRenamedParent(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("renaming an open directory handle requires unix")
+	}
 	dir := t.TempDir()
 	parent := filepath.Join(dir, ".github")
 	if err := os.Mkdir(parent, 0o755); err != nil {
@@ -504,6 +517,9 @@ func TestApplyDependabotPlanCleansTempFromRenamedParent(t *testing.T) {
 }
 
 func TestApplyDependabotPlanCleansTempThroughTrackedParentHandle(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("renaming an open directory handle requires unix")
+	}
 	dir := t.TempDir()
 	plan := mustPrepareDependabotPlan(t, dir, dependabotTestConfig(swatch.FirstFit, true, true))
 	creation := newDependabotParentCreation(plan)
@@ -742,16 +758,25 @@ func writeDependabotTestFile(t *testing.T, dir, name string, content []byte) {
 
 func replaceDependabotTestFile(t *testing.T, dir, name string, content []byte) {
 	t.Helper()
-	full := filepath.Join(dir, filepath.FromSlash(name))
-	original, err := os.Lstat(full)
+	root, err := os.OpenRoot(dir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	defer func() {
+		if err := root.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+	original, err := root.Lstat(name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	full := filepath.Join(dir, filepath.FromSlash(name))
 	if err := os.Rename(full, full+".retained"); err != nil {
 		t.Fatal(err)
 	}
 	writeDependabotTestFile(t, dir, name, content)
-	replacement, err := os.Lstat(full)
+	replacement, err := root.Lstat(name)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -771,7 +796,7 @@ func assertDependabotFile(t *testing.T, dir string, content []byte, mode os.File
 	if err != nil {
 		t.Fatal(err)
 	}
-	if info.Mode().Perm() != mode {
+	if runtime.GOOS != "windows" && info.Mode().Perm() != mode {
 		t.Fatalf("destination mode = %v, want %v", info.Mode().Perm(), mode)
 	}
 }

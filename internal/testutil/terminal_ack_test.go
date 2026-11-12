@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -24,6 +25,9 @@ func TestPTYAcknowledgementHelper(t *testing.T) {
 }
 
 func TestPTYAcknowledgement(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty requires unix")
+	}
 	for _, mode := range []string{"probes", "legacy"} {
 		t.Run(mode, func(t *testing.T) {
 			got := RunPTY(t, "TestPTYAcknowledgementHelper", "", "TAILOR_PTY_ACK_HELPER="+mode)
@@ -43,6 +47,9 @@ func TestPTYAcknowledgement(t *testing.T) {
 }
 
 func TestPTYAcknowledgementTimeout(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("pty requires unix")
+	}
 	ctx, cancel := context.WithTimeout(t.Context(), 7*time.Second)
 	defer cancel()
 	ackRead, ackWrite, err := os.Pipe()

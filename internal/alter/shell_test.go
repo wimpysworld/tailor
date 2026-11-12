@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -56,7 +57,7 @@ func TestShellStarterLifecycle(t *testing.T) {
 					}
 					for _, result := range results {
 						want := WouldCopy
-						if existing || alteration == swatch.Never {
+						if existing || alteration == swatch.Never || (runtime.GOOS == "windows" && result.Path == ".shellcheckrc") {
 							want = Skipped
 						}
 						if result.Category != want {
@@ -67,6 +68,11 @@ func TestShellStarterLifecycle(t *testing.T) {
 							want, _ := swatch.Content(result.Path)
 							if err != nil || string(body) != string(want) {
 								t.Fatalf("starter=%q error=%v", body, err)
+							}
+						}
+						if want == Skipped && !existing {
+							if _, err := os.Lstat(filepath.Join(root, result.Path)); !os.IsNotExist(err) {
+								t.Fatalf("created skipped starter %s: %v", result.Path, err)
 							}
 						}
 					}
@@ -82,6 +88,9 @@ func TestShellStarterLifecycle(t *testing.T) {
 func TestShellStarterWorkspaceAlias(t *testing.T) {
 	for _, caller := range []string{"workspace-alias", "project-alias", "logical-pwd"} {
 		t.Run(caller, func(t *testing.T) {
+			if runtime.GOOS == "windows" && caller == "logical-pwd" {
+				t.Skip("logical PWD resolution requires unix")
+			}
 			project, _, _ := shellTestEnvironment(t)
 			alias := filepath.Join(testTempDir(t), "workspace-alias")
 			target := filepath.Dir(project)
@@ -104,7 +113,11 @@ func TestShellStarterWorkspaceAlias(t *testing.T) {
 			cfg := shellStarterConfig(swatch.FirstFit)
 			for _, entry := range cfg.Swatches {
 				realPolicy, err := InspectShellPolicy(project, entry.Path)
-				if err != nil || realPolicy != (ShellPolicy{}) {
+				wantPolicy := ShellPolicy{}
+				if runtime.GOOS == "windows" && entry.Path == ".shellcheckrc" {
+					wantPolicy = shellPolicyWarning(entry.Path, "native rc lookup needs manual verification on Windows or with SHELLCHECK_OPTS")
+				}
+				if err != nil || realPolicy != wantPolicy {
 					t.Fatalf("real policy=%+v error=%v", realPolicy, err)
 				}
 				aliasPolicy, err := InspectShellPolicy(alias, entry.Path)
@@ -119,7 +132,11 @@ func TestShellStarterWorkspaceAlias(t *testing.T) {
 					t.Fatalf("results=%v error=%v", results, err)
 				}
 				for _, result := range results {
-					if result.Category != WouldCopy {
+					want := WouldCopy
+					if runtime.GOOS == "windows" && result.Path == ".shellcheckrc" {
+						want = Skipped
+					}
+					if result.Category != want {
 						t.Fatalf("result=%+v", result)
 					}
 				}
@@ -132,6 +149,15 @@ func TestShellStarterWorkspaceAlias(t *testing.T) {
 				t.Fatalf("results=%v error=%v", results, err)
 			}
 			for _, result := range results {
+				if runtime.GOOS == "windows" && result.Path == ".shellcheckrc" {
+					if result.Category != Skipped {
+						t.Fatalf("result=%+v", result)
+					}
+					if _, err := os.Lstat(filepath.Join(project, result.Path)); !os.IsNotExist(err) {
+						t.Fatalf("created %s on Windows: %v", result.Path, err)
+					}
+					continue
+				}
 				body, err := os.ReadFile(filepath.Join(project, result.Path))
 				want, _ := swatch.Content(result.Path)
 				if result.Category != WouldCopy || err != nil || string(body) != string(want) {
@@ -199,6 +225,9 @@ func TestShellPolicyWorkspaceAliasPreservesPolicy(t *testing.T) {
 func TestShellPolicyNativePrecedence(t *testing.T) {
 	for _, location := range []string{"root-dot", "root-plain", "ancestor-dot", "ancestor-plain", "home", "xdg", "default-xdg", "relative-xdg"} {
 		t.Run(location, func(t *testing.T) {
+			if runtime.GOOS == "windows" && (location == "home" || strings.HasSuffix(location, "xdg")) {
+				t.Skip("unix home and xdg lookup requires unix")
+			}
 			root, home, xdg := shellTestEnvironment(t)
 			paths := []string{
 				filepath.Join(root, ".shellcheckrc"), filepath.Join(root, "shellcheckrc"),
@@ -260,6 +289,16 @@ func TestShellUnsafePolicy(t *testing.T) {
 					continue
 				}
 				t.Run(destination+"/"+location+"/"+kind, func(t *testing.T) {
+					if runtime.GOOS == "windows" {
+						switch {
+						case location == "home" || location == "xdg":
+							t.Skip("unix home and xdg lookup requires unix")
+						case kind == "fifo":
+							t.Skip("POSIX FIFOs require unix")
+						case kind == "unreadable" || kind == "inaccessible-parent":
+							t.Skip("chmod 0 does not clear read or search permissions on Windows")
+						}
+					}
 					root, home, xdg := shellTestEnvironment(t)
 					dir, name := root, destination
 					switch location {
@@ -369,7 +408,11 @@ func TestShellPolicyBoundaries(t *testing.T) {
 	writeManagedTestFile(t, root, "nested/.shellcheckrc", []byte("$(touch SHOULD_NOT_EXIST)\n"))
 	for _, name := range []string{".shellcheckrc", ".editorconfig"} {
 		policy, err := InspectShellPolicy(root, name)
-		if err != nil || policy != (ShellPolicy{}) {
+		want := ShellPolicy{}
+		if runtime.GOOS == "windows" && name == ".shellcheckrc" {
+			want = shellPolicyWarning(name, "native rc lookup needs manual verification on Windows or with SHELLCHECK_OPTS")
+		}
+		if err != nil || policy != want {
 			t.Fatalf("%s: %+v %v", name, policy, err)
 		}
 	}
@@ -378,6 +421,12 @@ func TestShellPolicyBoundaries(t *testing.T) {
 	}
 	for _, name := range []string{".shellcheckrc", ".editorconfig"} {
 		policy, err := InspectShellPolicy(root, name)
+		if runtime.GOOS == "windows" && name == ".shellcheckrc" {
+			if err != nil || !policy.AdoptionRequired || policy.Present {
+				t.Fatalf("%s: %+v %v", name, policy, err)
+			}
+			continue
+		}
 		if err != nil || policy.AdoptionRequired || !policy.Present {
 			t.Fatalf("%s: %+v %v", name, policy, err)
 		}

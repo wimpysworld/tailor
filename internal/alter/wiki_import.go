@@ -9,6 +9,7 @@ import (
 	"io/fs"
 	"os"
 	"path"
+	"runtime"
 	"slices"
 	"strings"
 
@@ -49,6 +50,32 @@ type wikiImportPlan struct {
 
 func wikiState(data []byte, mode fs.FileMode) wikiFileState {
 	return wikiFileState{Exists: true, Mode: mode, Hash: fmt.Sprintf("%x", sha256.Sum256(data))}
+}
+
+func effectiveWikiMode(mode fs.FileMode) fs.FileMode {
+	if runtime.GOOS != "windows" {
+		return mode
+	}
+	if mode.IsDir() {
+		if mode&0o200 == 0 {
+			return fs.ModeDir | 0o555
+		}
+		return fs.ModeDir | 0o777
+	}
+	if mode.IsRegular() {
+		if mode&0o200 == 0 {
+			return 0o444
+		}
+		return 0o666
+	}
+	return mode
+}
+
+func sameWikiFileState(a, b wikiFileState) bool {
+	if runtime.GOOS != "windows" {
+		return a == b
+	}
+	return a.Exists == b.Exists && a.Hash == b.Hash && (!a.Exists || effectiveWikiMode(a.Mode) == effectiveWikiMode(b.Mode))
 }
 
 func readWikiImportFile(root *os.Root, name string) (wikiFileState, []byte, fs.FileInfo, error) {
@@ -265,7 +292,7 @@ func appendWikiImportReporting(report *Report, p *wikiRun, mode ApplyMode) {
 	if p.importPlan != nil {
 		plan := p.importPlan
 		for _, f := range plan.Files {
-			if f.Before == f.After {
+			if sameWikiFileState(f.Before, f.After) {
 				continue
 			}
 			outcome, action := output.Alteration, "import"
