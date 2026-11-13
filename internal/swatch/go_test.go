@@ -143,20 +143,21 @@ func TestRenderGoRelease(t *testing.T) {
 
 func TestRenderGoReleasePackagesAndContainers(t *testing.T) {
 	for _, test := range []struct {
-		name     string
-		binaries []string
-		suffixes []string
+		name                 string
+		binaries             []string
+		suffixes             []string
+		description, license string
 	}{
-		{name: "single", binaries: []string{"My_App"}, suffixes: []string{""}},
-		{name: "multiple", binaries: []string{"Server", "worker"}, suffixes: []string{"-server", "-worker"}},
-		{name: "collisions", binaries: []string{"My_App", "my-app", "my-app-2", "--MY__APP--"}, suffixes: []string{"-my-app", "-my-app-2", "-my-app-2-2", "-my-app-3"}},
+		{name: "single", binaries: []string{"My_App"}, suffixes: []string{""}, description: "Ready-to-wear project templates for GitHub repositories.", license: "BlueOak-1.0.0"},
+		{name: "multiple", binaries: []string{"Server", "worker"}, suffixes: []string{"-server", "-worker"}, description: `Quotes 'single' "double" {{ .Env.SECRET }}: # é`, license: "MIT"},
+		{name: "collisions", binaries: []string{"My_App", "my-app", "my-app-2", "--MY__APP--"}, suffixes: []string{"-my-app", "-my-app-2", "-my-app-2-2", "-my-app-3"}, license: "none"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			var builds []goproject.Build
 			for _, binary := range test.binaries {
 				builds = append(builds, goproject.Build{ID: binary, Binary: binary, Main: "./cmd/" + binary})
 			}
-			data, err := swatch.Render(swatch.GoReleaseDestination, swatch.Options{GoEnabled: true, Builds: builds})
+			data, err := swatch.Render(swatch.GoReleaseDestination, swatch.Options{GoEnabled: true, Builds: builds, Description: test.description, License: test.license})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -164,7 +165,7 @@ func TestRenderGoReleasePackagesAndContainers(t *testing.T) {
 				Nfpms []struct {
 					IDs, Formats                 []string
 					Maintainer, Homepage, Bindir string
-					License                      string
+					Description, License         string
 				}
 				Dockers []struct {
 					ID, Dockerfile               string
@@ -180,8 +181,23 @@ func TestRenderGoReleasePackagesAndContainers(t *testing.T) {
 				t.Fatalf("expected one package configuration and %d images: %#v", len(builds), release)
 			}
 			packages := release.Nfpms[0]
-			if !reflect.DeepEqual(packages.IDs, test.binaries) || !reflect.DeepEqual(packages.Formats, []string{"deb", "rpm", "apk"}) || packages.Bindir != "/usr/bin" || packages.License != "" {
+			if !reflect.DeepEqual(packages.IDs, test.binaries) || !reflect.DeepEqual(packages.Formats, []string{"deb", "rpm", "apk", "archlinux"}) || packages.Bindir != "/usr/bin" {
 				t.Fatalf("invalid package configuration: %#v", packages)
+			}
+			wantLicense := test.license
+			if wantLicense == "none" {
+				wantLicense = ""
+			}
+			if packages.License != wantLicense || bytes.Contains(data, []byte("license:")) != (wantLicense != "") || bytes.Contains(data, []byte("description:")) != (test.description != "") {
+				t.Fatalf("license or description = %q, %q", packages.License, packages.Description)
+			}
+			descriptionTemplate, err := template.New("description").Parse(packages.Description)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var description bytes.Buffer
+			if err := descriptionTemplate.Execute(&description, nil); err != nil || description.String() != test.description {
+				t.Fatalf("description renders as %q, want %q: %v", description.String(), test.description, err)
 			}
 			if packages.Maintainer != "{{ .Env.GITHUB_REPOSITORY_OWNER }}" || packages.Homepage != "https://github.com/{{ .Env.GITHUB_REPOSITORY }}" {
 				t.Fatalf("package metadata does not use the runtime repository: %#v", packages)

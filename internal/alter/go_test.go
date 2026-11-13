@@ -198,6 +198,9 @@ func TestGoSwatchModes(t *testing.T) {
 			writeOnDisk(t, dir, "go.mod", []byte("module example.com/demo\n\ngo 1.26\n"))
 			writeOnDisk(t, dir, "cmd/demo/main.go", []byte("package main\nfunc main() {}\n"))
 			cfg := goConfig(entry(".golangci.yml", swatch.FirstFit), entry(".goreleaser.yaml", swatch.FirstFit), entry("Dockerfile", swatch.FirstFit), entry(".github/workflows/build-go.yml", swatch.FirstFit))
+			description := "Demo tool"
+			cfg.License = "BlueOak-1.0.0"
+			cfg.Repository = &model.RepositorySettings{Description: &description}
 			results, err := alter.ProcessOrdinarySwatchesForTest(cfg, dir, mode, &alter.TokenContext{DefaultBranch: "trunk"})
 			if err != nil || len(results) != 4 {
 				t.Fatalf("results = %v, error = %v", results, err)
@@ -214,7 +217,7 @@ func TestGoSwatchModes(t *testing.T) {
 			}
 			assertGeneratedDockerfile(t, dir)
 			data, err = os.ReadFile(filepath.Join(dir, ".goreleaser.yaml"))
-			if err != nil || !bytes.Contains(data, []byte("./cmd/demo")) {
+			if err != nil || !bytes.Contains(data, []byte("./cmd/demo")) || !bytes.Contains(data, []byte("    description: \"Demo tool\"\n    license: \"BlueOak-1.0.0\"\n")) {
 				t.Fatalf("release config lacks discovered build: %s, %v", data, err)
 			}
 		})

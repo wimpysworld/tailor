@@ -21,9 +21,10 @@ nfpms:
   - id: packages
     ids: [[TAILOR_GO_PACKAGE_IDS]]
     package_name: '{{ $name := replace (tolower .ProjectName) "_" "-" }}{{ if or (not (filter $name "^[a-z0-9]")) (lt (len $name) 2) }}pkg-{{ end }}{{ $name }}'
-    formats: [deb, rpm, apk]
+    formats: [deb, rpm, apk, archlinux]
     file_name_template: '{{ .ConventionalFileName }}'
     maintainer: '{{ .Env.GITHUB_REPOSITORY_OWNER }}'
+[[TAILOR_GO_PACKAGE_METADATA]]
     homepage: 'https://github.com/{{ .Env.GITHUB_REPOSITORY }}'
     bindir: /usr/bin
 

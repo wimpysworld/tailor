@@ -8,6 +8,7 @@ import (
 
 	"github.com/wimpysworld/tailor"
 	"github.com/wimpysworld/tailor/internal/goproject"
+	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -31,6 +32,9 @@ type Options struct {
 	DefaultBranch string
 	// Builds lists the executables required to render the release configuration.
 	Builds []goproject.Build
+	// Description and License fill native package metadata. Empty values omit the field.
+	Description string
+	License     string
 }
 
 // Render resolves Go variants and placeholders without reading project files.
@@ -98,8 +102,37 @@ func Render(path string, options Options) ([]byte, error) {
 		data = bytes.ReplaceAll(data, []byte("[[TAILOR_GO_BUILDS]]"), []byte(strings.TrimSuffix(builds.String(), "\n")))
 		data = bytes.ReplaceAll(data, []byte("[[TAILOR_GO_PACKAGE_IDS]]"), []byte("["+strings.Join(packageIDs, ", ")+"]"))
 		data = bytes.ReplaceAll(data, []byte("[[TAILOR_GO_DOCKERS]]"), []byte(strings.TrimSuffix(dockers.String(), "\n")))
+		metadata, err := packageMetadata(options.Description, options.License)
+		if err != nil {
+			return nil, err
+		}
+		data = bytes.ReplaceAll(data, []byte("[[TAILOR_GO_PACKAGE_METADATA]]\n"), []byte(metadata))
 	}
 	return data, nil
+}
+
+// packageMetadata renders nFPM description and license lines as double-quoted YAML.
+// GoReleaser expands templates in descriptions, so text with "{{" becomes a template string literal.
+func packageMetadata(description, license string) (string, error) {
+	var lines strings.Builder
+	for _, field := range []struct{ key, value string }{{"description", description}, {"license", license}} {
+		value := strings.TrimSpace(field.value)
+		if value == "" || (field.key == "license" && value == "none") {
+			continue
+		}
+		if field.key == "description" && strings.Contains(value, "{{") {
+			value = "{{ " + strconv.Quote(value) + " }}"
+		}
+		var node yaml.Node
+		node.SetString(value)
+		node.Style = yaml.DoubleQuotedStyle
+		scalar, err := yaml.Marshal(&node)
+		if err != nil {
+			return "", fmt.Errorf("rendering package %s: %w", field.key, err)
+		}
+		fmt.Fprintf(&lines, "    %s: %s", field.key, scalar)
+	}
+	return lines.String(), nil
 }
 
 func renderGoWorkflowCGO(data []byte, enabled bool) ([]byte, error) {

@@ -54,6 +54,10 @@ func prepareGoSwatches(cfg *config.Config, dir string, mode ApplyMode, branch st
 	}
 	options := swatch.Options{GoDeclared: cfg.GoDeclared(), GoEnabled: cfg.GoEnabled(), GoCGO: cfg.EffectiveGoCGO(), DefaultBranch: branch}
 	if planned[".goreleaser.yaml"] {
+		options.License = cfg.License
+		if cfg.Repository != nil && cfg.Repository.Description != nil {
+			options.Description = *cfg.Repository.Description
+		}
 		options.Builds, err = goproject.Discover(dir)
 		if err != nil {
 			return nil, fmt.Errorf("preparing GoReleaser: %w", err)

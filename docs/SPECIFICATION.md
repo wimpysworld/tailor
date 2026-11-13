@@ -512,9 +512,11 @@ Library-only projects can retain `.golangci.yml` and set `.goreleaser.yaml`, `.g
 
 The default release configuration uses free GoReleaser features and disables CGO. It retains archives for Linux and macOS, each on amd64 and arm64.
 
-The nFPM configuration produces `deb`, `rpm`, and `apk` packages for Linux on amd64 and arm64. Each package includes all discovered executables. GitHub Releases contain the archives, native packages, and checksums.
+The nFPM configuration produces `deb`, `rpm`, `apk`, and `archlinux` packages for Linux on amd64 and arm64. Each package includes all discovered executables. GitHub Releases contain the archives, native packages, and checksums.
 
 The default package maintainer is `{{ .Env.GITHUB_REPOSITORY_OWNER }}`. Projects can replace `nfpms[].maintainer` with their maintainer's name and email address before publication.
+
+Tailor sets the package `description` from `repository.description` and the package `license` from `license` when it renders the release configuration. Tailor omits each field when its value is empty, and omits `license` when the value is `none`. Tailor quotes both values as YAML strings, and writes a description that contains `{{` as a GoReleaser template string literal.
 
 Each executable also produces one multi-platform GHCR image for Linux on amd64 and arm64. A single executable uses `ghcr.io/<owner>/<repo>`, in lowercase. Tailor replaces each `_` and `.` in the repository name with a hyphen. Tailor adds `image` before a leading hyphen and after a trailing hyphen. Other repository names remain unchanged apart from case.
 

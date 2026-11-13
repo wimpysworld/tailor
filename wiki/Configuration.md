@@ -330,7 +330,7 @@ The release configuration disables CGO and produces these outputs by default:
 | Output | Platforms | Contents or destination |
 |---|---|---|
 | Archives | Linux and macOS, amd64 and arm64 | All discovered executables, attached to GitHub Releases with checksums |
-| Native packages | Linux, amd64 and arm64 | `deb`, `rpm`, and `apk` packages with all discovered executables, attached to GitHub Releases |
+| Native packages | Linux, amd64 and arm64 | `deb`, `rpm`, `apk`, and `archlinux` packages with all discovered executables, attached to GitHub Releases |
 | Container images | Linux, amd64 and arm64 | One image per executable, published to GHCR |
 
 Pull requests and default-branch pushes produce downloadable archives, native packages, and checksums without publication. Snapshot jobs also build container images locally, but do not upload or push those images. Tags that match `v*.*.*` publish releases and versioned container images. Only stable releases update the container `latest` tag.
@@ -338,6 +338,8 @@ Pull requests and default-branch pushes produce downloadable archives, native pa
 The release job uses the existing GitHub token with `packages: write`. No extra secret, Nix environment, GoReleaser Pro licence, or signing setup is required.
 
 Native packages use `GITHUB_REPOSITORY_OWNER` as their default maintainer. Before publication, replace `nfpms[].maintainer` in `.goreleaser.yaml` with your project's maintainer name and email address.
+
+Native packages take their description from `repository.description` and their licence from `license` in `.tailor.yml`. Tailor writes both when it creates `.goreleaser.yaml`. When either value is empty, or `license` is `none`, Tailor omits that field. Some package repositories reject a package without a description or licence.
 
 A single executable uses `ghcr.io/<owner>/<repo>`, in lowercase. Tailor replaces each `_` and `.` in the repository name with a hyphen. Tailor adds `image` before a leading hyphen and after a trailing hyphen. For example, `Owner/my_app` becomes `ghcr.io/owner/my-app`, and `Owner/.app` becomes `ghcr.io/owner/image-app`.
 
