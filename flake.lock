@@ -7,17 +7,17 @@
         ]
       },
       "locked": {
-        "lastModified": 1794241228,
-        "narHash": "sha256-tEjFUbPH2CBto4C0A6ZkblkV0Ki/5uePrKIeNb1pErs=",
-        "owner": "wimpysworld",
-        "repo": "nix-packages",
-        "rev": "b2fe01a5d586866adddcbeb7447ddf2c0fb8be14",
-        "type": "github"
+        "lastModified": 1794492603,
+        "narHash": "sha256-AsmD7X6cFOTCmGcLX+Rx0hd5LQD8jF+lV2p7s2YnMr4=",
+        "ref": "refs/heads/main",
+        "rev": "6d4d99737fd14936e82155f3d6fe5e3cf0666f71",
+        "revCount": 1,
+        "type": "git",
+        "url": "https://nix.wimpys.world/packages.git"
       },
       "original": {
-        "owner": "wimpysworld",
-        "repo": "nix-packages",
-        "type": "github"
+        "type": "git",
+        "url": "https://nix.wimpys.world/packages.git"
       }
     },
     "nixpkgs": {

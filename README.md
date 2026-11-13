@@ -45,30 +45,40 @@ brew install --cask wimpysworld/haberdasher/tailor
 
 ### Nix
 
+Trust the signed binary cache at [nix.wimpys.world](https://nix.wimpys.world/), then run or install tailor:
+
 ```bash
-nix run github:wimpysworld/nix-packages#tailor -- --version
-nix profile install github:wimpysworld/nix-packages#tailor
+sudo tee -a /etc/nix/nix.conf > /dev/null <<'EOF'
+extra-substituters = https://nix.wimpys.world
+extra-trusted-public-keys = nix.wimpys.world-1:fphFHD2f+iEG5G81lFRgU84MB6N9ScHGFvB6D64tLmo=
+EOF
+nix run 'git+https://nix.wimpys.world/packages.git#tailor' -- --version
+nix profile add 'git+https://nix.wimpys.world/packages.git#tailor'
 ```
 
-To use tailor in a flake configuration, add `nix-packages` as an input:
+To use tailor in a NixOS or Home Manager flake, add the input and the cache:
 
 ```nix
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    wimpysworld-nix-packages = {
-      url = "github:wimpysworld/nix-packages";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    haberdasher.url = "git+https://nix.wimpys.world/packages.git";
   };
 }
+```
+
+```nix
+nix.settings = {
+  extra-substituters = [ "https://nix.wimpys.world" ];
+  extra-trusted-public-keys = [ "nix.wimpys.world-1:fphFHD2f+iEG5G81lFRgU84MB6N9ScHGFvB6D64tLmo=" ];
+};
 ```
 
 Then reference tailor in your packages:
 
 ```nix
 environment.systemPackages = [
-  inputs.wimpysworld-nix-packages.packages.${system}.tailor
+  inputs.haberdasher.packages.${system}.tailor
 ];
 ```
 
