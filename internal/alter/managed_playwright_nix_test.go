@@ -27,6 +27,13 @@ func TestManagedPlaywrightNixFixture(t *testing.T) {
 	root := managedPlaywrightNixFixture(t)
 	flakePath := "path:" + filepath.ToSlash(root)
 
+	// Lock the template's tailor input to this checkout, so the fixture needs
+	// neither the network nor a published latest tag.
+	lock := exec.CommandContext(t.Context(), nix, "flake", "lock", "--allow-dirty-locks", "--override-input", "tailor", "git+file://"+filepath.ToSlash(managedRepositoryRoot(t)), flakePath) // #nosec G204 -- The executable and isolated fixture are controlled by the test.
+	if output, err := lock.CombinedOutput(); err != nil {
+		t.Fatalf("nix flake lock: %v\n%s", err, output)
+	}
+
 	t.Run("evaluate declared systems", func(t *testing.T) {
 		check := exec.CommandContext(t.Context(), nix, "flake", "check", "--all-systems", "--no-build", "--no-write-lock-file", flakePath) // #nosec G204 -- The executable and isolated fixture are controlled by the test.
 		if output, err := check.CombinedOutput(); err != nil {
@@ -44,7 +51,7 @@ in
   declared = builtins.hasAttr system fixture.devShells;
 }`
 		hostCommand := exec.CommandContext(t.Context(), nix, "eval", "--impure", "--json", "--expr", hostExpression) // #nosec G204 -- The executable, expression, and isolated fixture are controlled by the test.
-		// The repository lock does not pin the template's tailor input, so Nix warns on stderr.
+		// Keep Nix warnings, such as a dirty checkout, out of the JSON on stdout.
 		var hostStderr bytes.Buffer
 		hostCommand.Stderr = &hostStderr
 		hostOutput, err := hostCommand.Output()
@@ -122,16 +129,21 @@ func managedPlaywrightNixFixture(t *testing.T) string {
 		}
 	}
 
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("locating repository flake.lock")
-	}
-	lock, err := os.ReadFile(filepath.Join(filepath.Dir(filename), "..", "..", "flake.lock"))
+	lock, err := os.ReadFile(filepath.Join(managedRepositoryRoot(t), "flake.lock"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	writeManagedRenderFixture(t, root, "flake.lock", lock)
 	return root
+}
+
+func managedRepositoryRoot(t *testing.T) string {
+	t.Helper()
+	_, filename, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("locating the repository root")
+	}
+	return filepath.Join(filepath.Dir(filename), "..", "..")
 }
 
 func assertManagedPlaywrightClosure(t *testing.T, nix, packagePath string) {
