@@ -9,6 +9,8 @@ import (
 const (
 	managedNixAndroidOutput = "import ./nix/shells/go-ebitengine-android.nix { inherit pkgs ; }"
 	managedNixBlenderOutput = "( import ./nix/lib/blender.nix { inherit pkgs ; } ) .extension"
+	managedNixPackageGuard  = "builtins.pathExists ./nix/package.nix"
+	managedNixPackageOutput = "{ { package.pname } = package ; default = package ; }"
 )
 
 type managedNixInspection struct {
@@ -239,16 +241,21 @@ func managedNixOutputAttrs(tokens []string) (map[string][]string, bool) {
 		if end < 0 {
 			return nil, false
 		}
-		set, ok := managedNixAttrs(tokens[1:end])
-		if !ok {
-			return nil, false
-		}
-		if predicate != nil {
-			switch managedNixOptionalAttrs(predicate, set) {
-			case managedSetupMissing:
-				set = nil
-			case managedSetupUnknown:
+		var set map[string][]string
+		// The generated project package hook names its output from the derivation pname.
+		if strings.Join(predicate, " ") != managedNixPackageGuard || strings.Join(tokens[:end+1], " ") != managedNixPackageOutput {
+			var ok bool
+			set, ok = managedNixAttrs(tokens[1:end])
+			if !ok {
 				return nil, false
+			}
+			if predicate != nil {
+				switch managedNixOptionalAttrs(predicate, set) {
+				case managedSetupMissing:
+					set = nil
+				case managedSetupUnknown:
+					return nil, false
+				}
 			}
 		}
 		for name, value := range set {

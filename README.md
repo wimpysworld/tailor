@@ -52,8 +52,8 @@ sudo tee -a /etc/nix/nix.conf > /dev/null <<'EOF'
 extra-substituters = https://nix.wimpys.world
 extra-trusted-public-keys = nix.wimpys.world-1:fphFHD2f+iEG5G81lFRgU84MB6N9ScHGFvB6D64tLmo=
 EOF
-nix run 'git+https://nix.wimpys.world/packages.git#tailor' -- --version
-nix profile add 'git+https://nix.wimpys.world/packages.git#tailor'
+nix run github:wimpysworld/tailor/latest -- --version
+nix profile add github:wimpysworld/tailor/latest
 ```
 
 To use tailor in a NixOS or Home Manager flake, add the input and the cache:
@@ -62,10 +62,12 @@ To use tailor in a NixOS or Home Manager flake, add the input and the cache:
 {
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    haberdasher.url = "git+https://nix.wimpys.world/packages.git";
+    tailor.url = "github:wimpysworld/tailor/latest";
   };
 }
 ```
+
+The `latest` tag points at the newest release. Do not set `tailor.inputs.nixpkgs.follows`, because it stops cache hits.
 
 ```nix
 nix.settings = {
@@ -78,7 +80,7 @@ Then reference tailor in your packages:
 
 ```nix
 environment.systemPackages = [
-  inputs.haberdasher.packages.${system}.tailor
+  inputs.tailor.packages.${system}.tailor
 ];
 ```
 

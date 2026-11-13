@@ -489,3 +489,54 @@ func writeManagedRenderFixture(t *testing.T, root, name string, content []byte) 
 		t.Fatal(err)
 	}
 }
+
+func TestManagedGeneratedFlakeProjectPackageOutput(t *testing.T) {
+	nix := requireManagedExecutable(t, "nix")
+	content, err := swatch.Content("flake.nix")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, present := range []bool{true, false} {
+		t.Run(strconv.FormatBool(present), func(t *testing.T) {
+			root := t.TempDir()
+			writeManagedRenderFixture(t, root, "flake.nix", content)
+			if present {
+				// The package fails if the root uses another package set or flake.
+				writeManagedRenderFixture(t, root, "nix/package.nix", []byte(`{ pkgs, self }: assert pkgs.marker == "caller override" && self.marker == "self"; { pname = "demo"; }`))
+			}
+			writeManagedRenderFixture(t, root, "pkgs/default.nix", []byte(`{ system }: {
+  marker = "caller override";
+  lib.optionalAttrs = condition: attrs: if condition then attrs else {};
+}`))
+			expression := `let
+  flake = import ` + strconv.Quote(filepath.Join(root, "flake.nix")) + `;
+  outputs = flake.outputs {
+    self = { marker = "self"; };
+    nixpkgs = {
+      outPath = ` + strconv.Quote(filepath.Join(root, "pkgs")) + `;
+      lib.genAttrs = names: f: builtins.listToAttrs (map (name: { inherit name; value = f name; }) names);
+    };
+    tailor = {};
+  };
+in builtins.mapAttrs (system: builtins.mapAttrs (name: package: package.pname)) outputs.packages`
+			command := exec.CommandContext(t.Context(), nix, "eval", "--offline", "--impure", "--json", "--expr", expression) // #nosec G204 -- The executable and isolated fixture are controlled by the test.
+			output, err := command.CombinedOutput()
+			if err != nil {
+				t.Fatalf("evaluate generated flake packages: %v\n%s", err, output)
+			}
+			var packages map[string]map[string]string
+			if err := json.Unmarshal(output, &packages); err != nil {
+				t.Fatal(err)
+			}
+			want := map[string]string{}
+			if present {
+				want = map[string]string{"demo": "demo", "default": "demo"}
+			}
+			for _, system := range []string{"x86_64-linux", "aarch64-linux", "aarch64-darwin"} {
+				if !reflect.DeepEqual(packages[system], want) {
+					t.Fatalf("packages for %s = %v, want %v", system, packages[system], want)
+				}
+			}
+		})
+	}
+}

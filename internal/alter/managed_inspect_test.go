@@ -365,6 +365,8 @@ func TestManagedNixOptionalAttrsComposition(t *testing.T) {
 		{"active duplicate", `{ android = ` + managedNixAndroidOutput + `; } // pkgs.lib.optionalAttrs (true) { android = other; }`, managedSetupUnknown},
 		{"unknown override", `{ android = ` + managedNixAndroidOutput + `; } // pkgs.lib.optionalAttrs (enabled) { android = other; }`, managedSetupUnknown},
 		{"unrelated guarded output", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix) { android = ` + managedNixAndroidOutput + `; }`, managedSetupUnknown},
+		{"altered package hook", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/package.nix) { ${package.pname} = other; } // { android = ` + managedNixAndroidOutput + `; }`, managedSetupUnknown},
+		{"generated package hook", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/package.nix) { ${package.pname} = package; default = package; } // { android = ` + managedNixAndroidOutput + `; }`, managedSetupPresent},
 		{"extra guarded output", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix) { blender-agent-bridge-extension = ` + managedNixBlenderOutput + `; android = ` + managedNixAndroidOutput + `; }`, managedSetupUnknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

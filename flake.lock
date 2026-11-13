@@ -1,25 +1,5 @@
 {
   "nodes": {
-    "nix-packages": {
-      "inputs": {
-        "nixpkgs": [
-          "nixpkgs"
-        ]
-      },
-      "locked": {
-        "lastModified": 1794492603,
-        "narHash": "sha256-AsmD7X6cFOTCmGcLX+Rx0hd5LQD8jF+lV2p7s2YnMr4=",
-        "ref": "refs/heads/main",
-        "rev": "6d4d99737fd14936e82155f3d6fe5e3cf0666f71",
-        "revCount": 1,
-        "type": "git",
-        "url": "https://nix.wimpys.world/packages.git"
-      },
-      "original": {
-        "type": "git",
-        "url": "https://nix.wimpys.world/packages.git"
-      }
-    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1793977579,
@@ -38,7 +18,6 @@
     },
     "root": {
       "inputs": {
-        "nix-packages": "nix-packages",
         "nixpkgs": "nixpkgs"
       }
     }

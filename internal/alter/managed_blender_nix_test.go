@@ -40,7 +40,8 @@ func TestManagedBlenderGeneratedFlakeExtensionOutput(t *testing.T) {
       outPath = ` + strconv.Quote(filepath.Join(root, "pkgs")) + `;
       lib.genAttrs = names: f: builtins.listToAttrs (map (name: { inherit name; value = f name; }) names);
     };
-    nix-packages = {};
+    self = {};
+    tailor = {};
   };
 in outputs.packages`
 			command := exec.CommandContext(t.Context(), nix, "eval", "--offline", "--impure", "--json", "--expr", expression) // #nosec G204 -- The executable and isolated fixture are controlled by the test.

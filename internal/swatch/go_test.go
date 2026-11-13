@@ -366,9 +366,9 @@ func TestGoWorkflowPackageAndContainerDelivery(t *testing.T) {
 			If          string
 			Permissions map[string]string
 			Steps       []struct {
-				Uses, Run string
-				With      map[string]string
-				Env       map[string]string
+				If, Uses, Run string
+				With          map[string]string
+				Env           map[string]string
 			}
 		}
 	}
@@ -377,8 +377,14 @@ func TestGoWorkflowPackageAndContainerDelivery(t *testing.T) {
 	}
 	for _, name := range []string{"snapshot", "release"} {
 		job := workflow.Jobs[name]
-		buildx, login, release, upload := -1, -1, -1, -1
+		buildx, login, release, upload, latest := -1, -1, -1, -1, -1
 		for index, step := range job.Steps {
+			if strings.Contains(step.Run, "refs/tags/latest") {
+				latest = index
+				if !strings.Contains(step.If, "!contains(github.ref_name, '-')") || !strings.Contains(step.Run, "git push --force origin refs/tags/latest") {
+					t.Fatal("the latest tag must move only for stable releases")
+				}
+			}
 			if strings.HasPrefix(step.Uses, "docker/setup-buildx-action@") {
 				buildx = index
 			}
@@ -410,7 +416,10 @@ func TestGoWorkflowPackageAndContainerDelivery(t *testing.T) {
 			if login < 0 || release <= login || job.Permissions["packages"] != "write" || !strings.Contains(job.If, "startsWith(github.ref, 'refs/tags/v')") {
 				t.Fatal("tag releases must authenticate and have package write permission")
 			}
-		} else if login >= 0 || job.Permissions["packages"] != "" || job.Permissions["contents"] != "read" || upload <= release {
+			if latest <= release || job.Permissions["contents"] != "write" {
+				t.Fatal("tag releases must move the latest tag after GoReleaser")
+			}
+		} else if latest >= 0 || login >= 0 || job.Permissions["packages"] != "" || job.Permissions["contents"] != "read" || upload <= release {
 			t.Fatal("snapshots must upload local artifacts without registry credentials or write permissions")
 		}
 	}

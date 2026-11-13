@@ -214,3 +214,10 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Move latest tag
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          git tag --force latest "${RELEASE_TAG}^{commit}"
+          git push --force origin refs/tags/latest

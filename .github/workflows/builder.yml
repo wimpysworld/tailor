@@ -334,6 +334,14 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           AUR_KEY: ${{ secrets.AUR_KEY }}
 
+      - name: Move latest tag
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          git tag --force latest "${RELEASE_TAG}^{commit}"
+          git push --force origin refs/tags/latest
+
       - name: Update Go Report Card
         if: ${{ !contains(github.ref_name, '-') }}
         run: curl -X POST -F "repo=github.com/$GITHUB_REPOSITORY" https://goreportcard.com/checks || true

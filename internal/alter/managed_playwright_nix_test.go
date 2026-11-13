@@ -16,8 +16,8 @@ import (
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
-// TestManagedPlaywrightNixFixture is opt-in because it resolves locked remote
-// flake inputs and builds or downloads the Playwright Chromium closure. Run
+// TestManagedPlaywrightNixFixture is opt-in because it resolves remote flake
+// inputs, including the template's unlocked tailor input, and builds or downloads the Playwright Chromium closure. Run
 // TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS=1 go test ./internal/alter -run TestManagedPlaywrightNixFixture -v.
 func TestManagedPlaywrightNixFixture(t *testing.T) {
 	if os.Getenv("TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS") != "1" {
@@ -44,9 +44,12 @@ in
   declared = builtins.hasAttr system fixture.devShells;
 }`
 		hostCommand := exec.CommandContext(t.Context(), nix, "eval", "--impure", "--json", "--expr", hostExpression) // #nosec G204 -- The executable, expression, and isolated fixture are controlled by the test.
-		hostOutput, err := hostCommand.CombinedOutput()
+		// The repository lock does not pin the template's tailor input, so Nix warns on stderr.
+		var hostStderr bytes.Buffer
+		hostCommand.Stderr = &hostStderr
+		hostOutput, err := hostCommand.Output()
 		if err != nil {
-			t.Fatalf("nix eval host system: %v\n%s", err, hostOutput)
+			t.Fatalf("nix eval host system: %v\n%s", err, hostStderr.Bytes())
 		}
 		var host struct {
 			System   string `json:"system"`
