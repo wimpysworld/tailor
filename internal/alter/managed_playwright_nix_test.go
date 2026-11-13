@@ -29,7 +29,7 @@ func TestManagedPlaywrightNixFixture(t *testing.T) {
 
 	// Lock the template's tailor input to this checkout, so the fixture needs
 	// neither the network nor a published latest tag.
-	lock := exec.CommandContext(t.Context(), nix, "flake", "lock", "--allow-dirty-locks", "--override-input", "tailor", "git+file://"+filepath.ToSlash(managedRepositoryRoot(t)), flakePath) // #nosec G204 -- The executable and isolated fixture are controlled by the test.
+	lock := exec.CommandContext(t.Context(), nix, "flake", "lock", "--allow-dirty-locks", "--override-input", "tailor", "git+file://"+filepath.ToSlash(managedRepositoryRoot(t))+"?shallow=1", flakePath) // #nosec G204 -- The executable and isolated fixture are controlled by the test.
 	if output, err := lock.CombinedOutput(); err != nil {
 		t.Fatalf("nix flake lock: %v\n%s", err, output)
 	}
