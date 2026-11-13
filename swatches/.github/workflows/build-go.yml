@@ -178,7 +178,8 @@ jobs:
         with:
           name: snapshot-${{ github.event.pull_request.number || github.sha }}
           path: |
-            dist/*.tar.gz
+            dist/*_linux_*/*
+            dist/*_darwin_*/*
             dist/*.deb
             dist/*.rpm
             dist/*.apk

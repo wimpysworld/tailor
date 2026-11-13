@@ -402,7 +402,7 @@ func TestGoWorkflowPackageAndContainerDelivery(t *testing.T) {
 			}
 			if strings.HasPrefix(step.Uses, "actions/upload-artifact@") {
 				upload = index
-				for _, artifact := range []string{"dist/*.tar.gz", "dist/*.deb", "dist/*.rpm", "dist/*.apk", "dist/*_checksums.txt"} {
+				for _, artifact := range []string{"dist/*_linux_*/*", "dist/*_darwin_*/*", "dist/*.deb", "dist/*.rpm", "dist/*.apk", "dist/*_checksums.txt"} {
 					if !strings.Contains(step.With["path"], artifact) {
 						t.Fatalf("snapshot uploads lack %s", artifact)
 					}

@@ -28,10 +28,13 @@ archives:
     formats:
       - tar.gz
     format_overrides:
+      - goos: darwin
+        formats:
+          - none
       - goos: windows
         formats:
           - none
-    name_template: "tailor_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "tailor_{{ .Version }}_{{ .Arch }}"
 
 checksum:
   name_template: "tailor_{{ .Version }}_checksums.txt"
@@ -85,6 +88,7 @@ nfpms:
     description: "Ready-to-wear project templates for GitHub repositories."
     homepage: https://github.com/wimpysworld/tailor
     license: BlueOak-1.0.0
+    file_name_template: "{{ .ConventionalFileName }}"
     formats:
       - deb
       - rpm
