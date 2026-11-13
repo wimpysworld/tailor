@@ -59,15 +59,15 @@ release:
 
     **Homebrew** (macOS):
     ```shell
-    brew tap wimpysworld/haberdasher https://brew.wimpys.world/tap.git
-    brew install --cask wimpysworld/haberdasher/tailor
+    brew tap wimpysworld/tap https://brew.wimpys.world/tap.git
+    brew install --cask wimpysworld/tap/tailor
     ```
 
     **Scoop** (Windows):
     ```powershell
-    scoop bucket add haberdasher `
-      https://scoop.wimpys.world/wimpysworld/haberdasher.git
-    scoop install haberdasher/tailor
+    scoop bucket add wimpysworld `
+      https://scoop.wimpys.world/wimpysworld/bucket.git
+    scoop install wimpysworld/tailor
     ```
 
     **Nix**: `nix run github:wimpysworld/tailor`
