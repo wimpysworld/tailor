@@ -10,6 +10,7 @@
     <title>Tailor · Ready-to-wear project templates</title>
     <link rel="icon" href="icon.svg" type="image/svg+xml">
     <script src="theme.js"></script>
+    <script src="copy.js" defer></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@digicreon/mucss@1.4.9/dist/mu.css">
     <link rel="stylesheet" href="style.css">
   </head>
@@ -110,47 +111,109 @@
       </section>
 
       <section id="install" class="install section-rule" aria-labelledby="install-title">
-        <div>
+        <div class="section-heading">
           <p class="eyebrow">Get started</p>
-          <h2 id="install-title">A better fit for<br>your next project.</h2>
-          <p>Install Tailor, then authenticate with <code>gh auth login</code> or set <code>GH_TOKEN</code> or <code>GITHUB_TOKEN</code>.</p>
-          <p>Prefer another package manager? Use bin, Nix, Docker, or a native Linux package.</p>
-          <div class="install-links">
-            <a class="text-link" href="https://github.com/wimpysworld/tailor#install">All install options <span class="octicon inline-icon link-external" aria-hidden="true"></span></a>
-            <a class="text-link" href="https://github.com/wimpysworld/tailor/releases/latest">Download a release <span class="octicon inline-icon link-external" aria-hidden="true"></span></a>
-          </div>
+          <h2 id="install-title">A better fit for your next project.</h2>
+          <p>Choose your platform. Each repository is signed and keeps Tailor up to date.</p>
         </div>
-        <div class="accordion install-options">
-          <details open>
-            <summary>Homebrew</summary>
-            <p>Install Tailor on macOS with Homebrew.</p>
-            <pre><code>brew tap wimpysworld/tap https://brew.wimpys.world/tap.git
-brew install --cask wimpysworld/tap/tailor</code></pre>
-          </details>
-          <details>
-            <summary>bin</summary>
-            <p>Install the bare release executable with <a href="https://github.com/marcosnils/bin">bin</a>.</p>
-            <pre><code>bin install github.com/wimpysworld/tailor</code></pre>
-          </details>
-          <details>
-            <summary>Nix</summary>
-            <p>Trust the signed binary cache at <a href="https://nix.wimpys.world/">nix.wimpys.world</a>, then run or install Tailor from the flake. In a flake input, do not set <code>follows</code> on <code>tailor</code>, because it stops cache hits.</p>
-            <pre><code>sudo tee -a /etc/nix/nix.conf &gt; /dev/null &lt;&lt;'EOF'
-extra-substituters = https://nix.wimpys.world
-extra-trusted-public-keys = nix.wimpys.world-1:fphFHD2f+iEG5G81lFRgU84MB6N9ScHGFvB6D64tLmo=
-EOF
-nix run github:wimpysworld/tailor/latest -- --version
-nix profile add github:wimpysworld/tailor/latest</code></pre>
-          </details>
-          <details>
-            <summary>Docker</summary>
-            <p>Run the container image from GitHub Container Registry.</p>
-            <pre><code>docker run --rm ghcr.io/wimpysworld/tailor --version</code></pre>
-          </details>
-          <details>
-            <summary>Native Linux packages</summary>
-            <p>Download a <code>.deb</code>, <code>.rpm</code>, <code>.apk</code>, or Arch Linux package from the <a href="https://github.com/wimpysworld/tailor/releases/latest">latest release</a>, or install <a href="https://aur.archlinux.org/packages/tailor-bin">tailor-bin</a> from the AUR.</p>
-          </details>
+        <!-- Install tiles: one per package repository, then one command tile for bin. -->
+        <ul class="install-grid">
+          <li class="install-pair">
+            <a class="install-tile" data-repo="apt" href="https://apt.wimpys.world/#tailor">
+              <img class="install-logo" src="https://apt.wimpys.world/logo.svg" alt="" width="36" height="36" decoding="async">
+              <span class="install-text">
+                <span class="install-platform">Linux</span>
+                <span class="install-name">Debian and Ubuntu</span>
+                <span class="install-host" translate="no">apt.wimpys.world</span>
+              </span>
+              <span class="octicon inline-icon arrow-up-right" aria-hidden="true"></span>
+            </a>
+          </li>
+          <li class="install-pair">
+            <a class="install-tile" data-repo="rpm" href="https://rpm.wimpys.world/#tailor">
+              <img class="install-logo" src="https://rpm.wimpys.world/logo.svg" alt="" width="36" height="36" decoding="async">
+              <span class="install-text">
+                <span class="install-platform">Linux</span>
+                <span class="install-name">Fedora and openSUSE</span>
+                <span class="install-host" translate="no">rpm.wimpys.world</span>
+              </span>
+              <span class="octicon inline-icon arrow-up-right" aria-hidden="true"></span>
+            </a>
+          </li>
+          <li class="install-pair">
+            <a class="install-tile" data-repo="pkg" href="https://pkg.wimpys.world/#tailor">
+              <img class="install-logo" src="https://pkg.wimpys.world/logo.svg" alt="" width="36" height="36" decoding="async">
+              <span class="install-text">
+                <span class="install-platform">Linux</span>
+                <span class="install-name">Arch Linux</span>
+                <span class="install-host" translate="no">pkg.wimpys.world</span>
+              </span>
+              <span class="octicon inline-icon arrow-up-right" aria-hidden="true"></span>
+            </a>
+          </li>
+          <li class="install-pair">
+            <a class="install-tile" data-repo="apk" href="https://apk.wimpys.world/#tailor">
+              <img class="install-logo" src="https://apk.wimpys.world/logo.svg" alt="" width="36" height="36" decoding="async">
+              <span class="install-text">
+                <span class="install-platform">Linux</span>
+                <span class="install-name">Alpine Linux</span>
+                <span class="install-host" translate="no">apk.wimpys.world</span>
+              </span>
+              <span class="octicon inline-icon arrow-up-right" aria-hidden="true"></span>
+            </a>
+          </li>
+          <li>
+            <a class="install-tile" data-repo="brew" href="https://brew.wimpys.world/#tailor">
+              <img class="install-logo" src="https://brew.wimpys.world/logo.svg" alt="" width="36" height="36" decoding="async">
+              <span class="install-text">
+                <span class="install-platform">macOS</span>
+                <span class="install-name">Homebrew</span>
+                <span class="install-host" translate="no">brew.wimpys.world</span>
+              </span>
+              <span class="octicon inline-icon arrow-up-right" aria-hidden="true"></span>
+            </a>
+          </li>
+          <li>
+            <a class="install-tile" data-repo="scoop" href="https://scoop.wimpys.world/#tailor">
+              <img class="install-logo" src="https://scoop.wimpys.world/logo.svg" alt="" width="36" height="36" decoding="async">
+              <span class="install-text">
+                <span class="install-platform">Windows</span>
+                <span class="install-name">Scoop</span>
+                <span class="install-host" translate="no">scoop.wimpys.world</span>
+              </span>
+              <span class="octicon inline-icon arrow-up-right" aria-hidden="true"></span>
+            </a>
+          </li>
+          <li>
+            <a class="install-tile" data-repo="nix" href="https://nix.wimpys.world/#tailor">
+              <img class="install-logo" src="https://nix.wimpys.world/logo.svg" alt="" width="36" height="36" decoding="async">
+              <span class="install-text">
+                <span class="install-platform">Nix</span>
+                <span class="install-name">Nix and NixOS</span>
+                <span class="install-host" translate="no">nix.wimpys.world</span>
+              </span>
+              <span class="octicon inline-icon arrow-up-right" aria-hidden="true"></span>
+            </a>
+          </li>
+          <li class="install-any">
+            <div class="install-tile install-command-tile">
+              <span class="octicon install-glyph terminal-icon" aria-hidden="true"></span>
+              <span class="install-text">
+                <span class="install-platform">Any platform</span>
+                <a class="install-name" href="https://github.com/marcosnils/bin" translate="no">bin</a>
+              </span>
+              <code class="install-command" id="bin-command" translate="no">bin install github.com/wimpysworld/tailor</code>
+              <button class="copy-button" type="button" data-copy="bin-command" aria-label="Copy the bin command" title="Copy" hidden>
+                <span class="octicon copy-icon" aria-hidden="true"></span>
+              </button>
+              <span class="visually-hidden" role="status"></span>
+            </div>
+          </li>
+        </ul>
+        <p class="install-note">Then authenticate with <code>gh auth login</code>, or set <code>GH_TOKEN</code> or <code>GITHUB_TOKEN</code>.</p>
+        <div class="install-links">
+          <a class="text-link" href="https://github.com/wimpysworld/tailor#install">All install options <span class="octicon inline-icon link-external" aria-hidden="true"></span></a>
+          <a class="text-link" href="https://github.com/wimpysworld/tailor/releases/latest">Download a release <span class="octicon inline-icon link-external" aria-hidden="true"></span></a>
         </div>
       </section>
     </main>

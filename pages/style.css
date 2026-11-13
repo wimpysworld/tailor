@@ -528,117 +528,263 @@ h3 {
 .workflow-note {
   margin-bottom: 0;
 }
-.install {
+.install-grid {
   display: grid;
-  grid-template-columns: 1fr 1.1fr;
-  gap: clamp(2rem, 4vw, 4rem);
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.75rem;
+  padding: 0;
+  margin: 2rem 0 1.5rem;
+  list-style: none;
 }
-#install > div:first-child {
-  align-self: start;
+/* Mid widths: Linux tiles two to a row, the other platforms three to a row. */
+@media (min-width: 744px) {
+  .install-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  .install-grid > li {
+    grid-column: span 2;
+  }
+  .install-grid > .install-pair {
+    grid-column: span 3;
+  }
+  .install-grid > .install-any {
+    grid-column: span 6;
+  }
 }
-.install p {
-  max-width: 30rem;
+@media (min-width: 744px) and (max-width: 999.98px) {
+  .install-tile > .arrow-up-right {
+    display: none;
+  }
 }
-.muted {
-  color: var(--mu-muted-color);
-  font-size: 0.875rem;
+@media (min-width: 1000px) {
+  .install-grid > li,
+  .install-grid > .install-pair {
+    grid-column: span 2;
+  }
+  .install-grid > .install-any {
+    grid-column: span 4;
+  }
 }
-.install-options {
-  align-self: start;
+.install-grid > li {
+  display: flex;
+  min-width: 0;
   margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* Each tile takes its tint from the brand colour of its repository logo. */
+.install-tile {
+  --tile-brand: var(--mu-primary);
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 0.9rem;
+  min-width: 0;
+  min-height: 5.75rem;
+  padding: 0.9rem 1.1rem;
+  border: 1px solid var(--mu-muted-border-color);
   border-radius: 0.75rem;
   background: var(--mu-card-background-color);
   box-shadow: var(--mu-card-box-shadow);
-  overflow: visible;
+  color: var(--mu-color);
+  text-decoration: none;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
 }
-.install-options details {
-  margin-block: 0;
+a.install-tile:is(:hover, :focus-visible) {
+  border-color: color-mix(in srgb, var(--tile-brand) 55%, var(--mu-muted-border-color));
+  background: color-mix(in srgb, var(--tile-brand) 8%, var(--mu-card-background-color));
+  color: var(--mu-color);
+  text-decoration: none;
 }
-.install-options details[open] {
-  padding-bottom: 1.1rem;
+a.install-tile:focus-visible {
+  outline-offset: 2px;
 }
-.install-options summary {
+/* The muted lines take the heading colour on the tint, to keep their contrast. */
+a.install-tile:is(:hover, :focus-visible) :is(.install-platform, .install-host) {
+  color: var(--mu-h2-color);
+}
+.install-tile[data-repo="apt"] {
+  --tile-brand: #e95420;
+}
+.install-tile[data-repo="rpm"] {
+  --tile-brand: #ee0000;
+}
+.install-tile[data-repo="pkg"] {
+  --tile-brand: #1793d1;
+}
+.install-tile[data-repo="apk"] {
+  --tile-brand: light-dark(#0d597f, #7fc0e3);
+}
+.install-tile[data-repo="brew"] {
+  --tile-brand: light-dark(#a8700f, #e2a843);
+}
+.install-tile[data-repo="scoop"] {
+  --tile-brand: light-dark(#d9488f, #f77fb5);
+}
+.install-tile[data-repo="nix"] {
+  --tile-brand: light-dark(#5277c3, #7ebae4);
+}
+.install-logo,
+.install-glyph {
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+}
+.install-glyph {
+  --icon: url("https://cdn.jsdelivr.net/npm/@primer/octicons@19.36.0/build/svg/terminal-24.svg");
+  color: var(--mu-muted-color);
+}
+.install-text {
   display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.9rem 1.15rem;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.3;
+}
+.install-platform {
+  color: var(--mu-muted-color);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+.install-name {
+  color: var(--mu-h2-color);
+  font-size: 1.02rem;
   font-weight: 650;
-}
-.install-options summary::after {
-  margin-left: auto;
-}
-.install-options details > :not(summary) {
-  margin-inline: 1.15rem;
-}
-.install-options pre {
-  border: 1px solid var(--mu-muted-border-color);
-  padding: 0.85rem 1rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.84rem;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.install-options pre:last-child {
-  margin-bottom: 0;
+.install-host {
+  margin-top: 0.1rem;
+  color: var(--mu-muted-color);
+  font-family: var(--mu-font-family-monospace);
+  font-size: 0.78rem;
+  overflow-wrap: anywhere;
 }
-.install-options pre code {
+.arrow-up-right {
+  --icon: url("https://cdn.jsdelivr.net/npm/@primer/octicons@19.36.0/build/svg/arrow-up-right-16.svg");
+}
+.install-tile > .arrow-up-right {
+  flex: 0 0 auto;
+  color: var(--mu-muted-color);
+  transition:
+    color 0.15s ease,
+    transform 0.15s ease;
+}
+a.install-tile:is(:hover, :focus-visible) > .arrow-up-right {
+  color: var(--tile-brand);
+  transform: translate(2px, -2px);
+}
+/* The command tile holds a command to copy, so only its name is a link. */
+.install-command-tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    "glyph text copy"
+    "command command command";
+  row-gap: 0.75rem;
+}
+.install-command-tile > .install-glyph {
+  grid-area: glyph;
+}
+.install-command-tile > .install-text {
+  grid-area: text;
+}
+.install-command-tile a.install-name {
+  align-self: flex-start;
+  text-decoration: underline;
+  text-decoration-color: var(--mu-muted-border-color);
+}
+.install-command-tile a.install-name:hover {
+  text-decoration-color: currentColor;
+}
+.install-command {
+  grid-area: command;
+  display: block;
+  min-width: 0;
+  padding: 0.6rem;
+  border: 1px solid var(--mu-muted-border-color);
+  border-radius: var(--mu-border-radius);
+  background: var(--mu-code-background-color);
+  color: var(--mu-code-color);
+  font-size: 0.7rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.copy-button {
+  grid-area: copy;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
   padding: 0;
+  margin: 0;
+  border: 1px solid var(--mu-muted-border-color);
+  border-radius: var(--mu-border-radius);
+  background: transparent;
+  color: var(--mu-muted-color);
+  box-shadow: none;
 }
-.install-options p {
+.copy-button:hover {
+  border-color: var(--mu-primary);
+  background: transparent;
+  color: var(--mu-primary);
+}
+.copy-button:focus-visible {
+  outline-offset: 2px;
+}
+.copy-button .octicon {
+  width: 16px;
+  height: 16px;
+}
+.copy-icon {
+  --icon: url("https://cdn.jsdelivr.net/npm/@primer/octicons@19.36.0/build/svg/copy-16.svg");
+}
+.copy-button[data-copied] {
+  border-color: var(--mu-success);
+  color: var(--mu-success);
+}
+.copy-button[data-copied] .copy-icon {
+  --icon: url("https://cdn.jsdelivr.net/npm/@primer/octicons@19.36.0/build/svg/check-16.svg");
+}
+@media (min-width: 744px) {
+  .install-command-tile {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+    grid-template-areas: "glyph text command copy";
+    column-gap: 0.9rem;
+  }
+  .install-command {
+    margin-left: 0.6rem;
+    padding-inline: 0.85rem;
+    font-size: 0.84rem;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .install-tile,
+  .install-tile > .arrow-up-right {
+    transition: none;
+  }
+  a.install-tile:is(:hover, :focus-visible) > .arrow-up-right {
+    transform: none;
+  }
+}
+.install-note {
   color: var(--mu-muted-color);
   font-size: 0.92rem;
-  margin-bottom: 0.55rem;
-}
-.install-options p:first-of-type {
-  margin-top: 0.75rem;
-}
-.install-options p:last-child {
   margin-bottom: 0;
 }
 .install-links {
   display: flex;
   gap: 1.5rem;
   flex-wrap: wrap;
-  margin-top: 1.25rem;
+  margin-top: 1rem;
 }
 .site-hero > *,
-.install > *,
 .steps > li {
   min-width: 0;
-}
-.install-options details > summary:focus-visible {
-  outline: 3px solid var(--mu-primary);
-  outline-offset: -3px;
-}
-/* Simple Icons 16.30.0, with the current theme's text colour. */
-.distro-icon {
-  display: inline-block;
-  width: 20px;
-  height: 20px;
-  margin-right: 0.25rem;
-  vertical-align: -0.2em;
-  background-color: currentColor;
-  -webkit-mask: var(--icon) center / contain no-repeat;
-  mask: var(--icon) center / contain no-repeat;
-}
-.debian-icon {
-  --icon: url("https://cdn.jsdelivr.net/npm/simple-icons@16.30.0/icons/debian.svg");
-}
-.ubuntu-icon {
-  --icon: url("https://cdn.jsdelivr.net/npm/simple-icons@16.30.0/icons/ubuntu.svg");
-}
-.fedora-icon {
-  --icon: url("https://cdn.jsdelivr.net/npm/simple-icons@16.30.0/icons/fedora.svg");
-}
-.opensuse-icon {
-  --icon: url("https://cdn.jsdelivr.net/npm/simple-icons@16.30.0/icons/opensuse.svg");
-}
-.alpine-icon {
-  --icon: url("https://cdn.jsdelivr.net/npm/simple-icons@16.30.0/icons/alpinelinux.svg");
-}
-.arch-icon {
-  --icon: url("https://cdn.jsdelivr.net/npm/simple-icons@16.30.0/icons/archlinux.svg");
 }
 .site-footer {
   border-top: 1px solid var(--mu-muted-border-color);
@@ -717,8 +863,7 @@ h3 {
     gap: 2rem;
     padding-block: 3.5rem;
   }
-  .features,
-  .install {
+  .features {
     gap: 2.5rem;
   }
 }
@@ -739,8 +884,7 @@ h3 {
     row-gap: 0.25rem;
   }
   .site-hero,
-  .features,
-  .install {
+  .features {
     grid-template-columns: 1fr;
     gap: 2.25rem;
   }
@@ -773,10 +917,6 @@ h3 {
   }
   .terminal pre {
     padding: 1rem;
-    font-size: 0.75rem;
-  }
-  .install-options pre {
-    padding: 0.8rem;
     font-size: 0.75rem;
   }
   .footer-links {

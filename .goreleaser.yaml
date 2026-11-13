@@ -54,30 +54,15 @@ release:
   footer: |
     ## Install
 
-    **bin** (any platform):
-    ```shell
-    bin install github.com/wimpysworld/tailor
-    ```
-    Requires [`bin`](https://github.com/marcosnils/bin).
-
-    **Homebrew** (macOS):
-    ```shell
-    brew tap wimpysworld/tap https://brew.wimpys.world/tap.git
-    brew install --cask wimpysworld/tap/tailor
-    ```
-
-    **Scoop** (Windows):
-    ```powershell
-    scoop bucket add wimpysworld `
-      https://scoop.wimpys.world/wimpysworld/bucket.git
-    scoop install wimpysworld/tailor
-    ```
-
-    **Nix**: `nix run github:wimpysworld/tailor`
-
-    **Docker**: `docker run --rm ghcr.io/wimpysworld/tailor --version`
-
-    **Native packages**: download `.deb`, `.rpm`, `.apk`, or Arch Linux packages from the assets above. AUR: [`tailor-bin`](https://aur.archlinux.org/packages/tailor-bin).
+    - Debian and Ubuntu: [apt.wimpys.world](https://apt.wimpys.world/#tailor)
+    - Fedora and openSUSE: [rpm.wimpys.world](https://rpm.wimpys.world/#tailor)
+    - Arch Linux: [pkg.wimpys.world](https://pkg.wimpys.world/#tailor)
+    - Alpine Linux: [apk.wimpys.world](https://apk.wimpys.world/#tailor)
+    - macOS (Homebrew): [brew.wimpys.world](https://brew.wimpys.world/#tailor)
+    - Windows (Scoop): [scoop.wimpys.world](https://scoop.wimpys.world/#tailor)
+    - Nix and NixOS: [nix.wimpys.world](https://nix.wimpys.world/#tailor)
+    - Any platform, with [bin](https://github.com/marcosnils/bin): `bin install github.com/wimpysworld/tailor`
+    - Container: `docker run --rm ghcr.io/wimpysworld/tailor --version`
 
     Tailor needs a GitHub authentication token. Set `GH_TOKEN` or `GITHUB_TOKEN`, or run `gh auth login` locally.
 

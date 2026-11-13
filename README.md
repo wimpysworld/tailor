@@ -27,74 +27,31 @@ Use it for solo projects or small teams that manage several repositories. Its em
 
 ## Install
 
-### bin
+| | Platform | Repository |
+| :-: | --- | --- |
+| <img src="https://apt.wimpys.world/logo.svg" width="32" height="32" alt=""> | Debian and Ubuntu | [apt.wimpys.world](https://apt.wimpys.world/#tailor) |
+| <img src="https://rpm.wimpys.world/logo.svg" width="32" height="32" alt=""> | Fedora and openSUSE | [rpm.wimpys.world](https://rpm.wimpys.world/#tailor) |
+| <img src="https://pkg.wimpys.world/logo.svg" width="32" height="32" alt=""> | Arch Linux | [pkg.wimpys.world](https://pkg.wimpys.world/#tailor) |
+| <img src="https://apk.wimpys.world/logo.svg" width="32" height="32" alt=""> | Alpine Linux | [apk.wimpys.world](https://apk.wimpys.world/#tailor) |
+| <img src="https://brew.wimpys.world/logo.svg" width="32" height="32" alt=""> | macOS (Homebrew) | [brew.wimpys.world](https://brew.wimpys.world/#tailor) |
+| <img src="https://scoop.wimpys.world/logo.svg" width="32" height="32" alt=""> | Windows (Scoop) | [scoop.wimpys.world](https://scoop.wimpys.world/#tailor) |
+| <img src="https://nix.wimpys.world/logo.svg" width="32" height="32" alt=""> | Nix and NixOS | [nix.wimpys.world](https://nix.wimpys.world/#tailor) |
 
-```bash
+Each repository is signed, and its page gives the setup steps and keeps Tailor up to date.
+
+### Any platform
+
+[bin](https://github.com/marcosnils/bin) installs and updates the release binary:
+
+```shell
 bin install github.com/wimpysworld/tailor
-bin update tailor
 ```
 
-Requires [`bin`](https://github.com/marcosnils/bin). Tailor releases publish bare executables, no archive extraction needed.
-
-### Homebrew
-
-```bash
-brew tap wimpysworld/tap https://brew.wimpys.world/tap.git
-brew install --cask wimpysworld/tap/tailor
-```
-
-### Nix
-
-Trust the signed binary cache at [nix.wimpys.world](https://nix.wimpys.world/), then run or install tailor:
-
-```bash
-sudo tee -a /etc/nix/nix.conf > /dev/null <<'EOF'
-extra-substituters = https://nix.wimpys.world
-extra-trusted-public-keys = nix.wimpys.world-1:fphFHD2f+iEG5G81lFRgU84MB6N9ScHGFvB6D64tLmo=
-EOF
-nix run github:wimpysworld/tailor/latest -- --version
-nix profile add github:wimpysworld/tailor/latest
-```
-
-To use tailor in a NixOS or Home Manager flake, add the input and the cache:
-
-```nix
-{
-  inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    tailor.url = "github:wimpysworld/tailor/latest";
-  };
-}
-```
-
-The `latest` tag points at the newest release. Do not set `tailor.inputs.nixpkgs.follows`, because it stops cache hits.
-
-```nix
-nix.settings = {
-  extra-substituters = [ "https://nix.wimpys.world" ];
-  extra-trusted-public-keys = [ "nix.wimpys.world-1:fphFHD2f+iEG5G81lFRgU84MB6N9ScHGFvB6D64tLmo=" ];
-};
-```
-
-Then reference tailor in your packages:
-
-```nix
-environment.systemPackages = [
-  inputs.tailor.packages.${system}.tailor
-];
-```
-
-Available for `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin`.
-
-### Docker
-
-```bash
-docker run --rm ghcr.io/wimpysworld/tailor --version
-```
+### Container
 
 Images are published to GHCR for `linux/amd64` and `linux/arm64`. Mount your project directory and pass a GitHub token:
 
-```bash
+```shell
 docker run --rm \
   --user "$(id -u):$(id -g)" \
   -v "$PWD":/work -w /work \
@@ -103,10 +60,6 @@ docker run --rm \
 ```
 
 The `--user` option uses your host identity for Git ownership checks and writes to the mounted checkout.
-
-### Native packages
-
-Releases include `.deb`, `.rpm`, `.apk`, and Arch Linux packages. Download the appropriate file from the [latest release](https://github.com/wimpysworld/tailor/releases/latest). Install it with your system package manager. The AUR package is [`tailor-bin`](https://aur.archlinux.org/packages/tailor-bin).
 
 ### Authentication
 
