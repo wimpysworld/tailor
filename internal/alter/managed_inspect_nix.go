@@ -9,8 +9,10 @@ import (
 const (
 	managedNixAndroidOutput = "import ./nix/shells/go-ebitengine-android.nix { inherit pkgs ; }"
 	managedNixBlenderOutput = "( import ./nix/lib/blender.nix { inherit pkgs ; } ) .extension"
-	managedNixPackageGuard  = "builtins.pathExists ./nix/package.nix"
-	managedNixPackageOutput = "{ { package.pname } = package ; default = package ; }"
+	managedNixPackageGuard  = "builtins.pathExists ./nix/package.nix && pkgs.lib.meta.availableOn pkgs.stdenv.hostPlatform package"
+	// Projects fitted before the platform guard keep the first-fit hook without it.
+	managedNixLegacyPackageGuard = "builtins.pathExists ./nix/package.nix"
+	managedNixPackageOutput      = "{ { package.pname } = package ; default = package ; }"
 )
 
 type managedNixInspection struct {
@@ -243,7 +245,8 @@ func managedNixOutputAttrs(tokens []string) (map[string][]string, bool) {
 		}
 		var set map[string][]string
 		// The generated project package hook names its output from the derivation pname.
-		if strings.Join(predicate, " ") != managedNixPackageGuard || strings.Join(tokens[:end+1], " ") != managedNixPackageOutput {
+		guard := strings.Join(predicate, " ")
+		if guard != managedNixPackageGuard && guard != managedNixLegacyPackageGuard || strings.Join(tokens[:end+1], " ") != managedNixPackageOutput {
 			var ok bool
 			set, ok = managedNixAttrs(tokens[1:end])
 			if !ok {

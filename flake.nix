@@ -49,11 +49,16 @@
           pkgs = import nixpkgs { inherit system; };
           package = import ./nix/package.nix { inherit pkgs self; };
         in
-        # Expose the project package under its pname and as the default package.
-        pkgs.lib.optionalAttrs (builtins.pathExists ./nix/package.nix) {
-          ${package.pname} = package;
-          default = package;
-        }
+        # Expose the project package under its pname and as the default package,
+        # only on systems that its meta.platforms allows.
+        pkgs.lib.optionalAttrs
+          (
+            builtins.pathExists ./nix/package.nix && pkgs.lib.meta.availableOn pkgs.stdenv.hostPlatform package
+          )
+          {
+            ${package.pname} = package;
+            default = package;
+          }
       );
     };
 }

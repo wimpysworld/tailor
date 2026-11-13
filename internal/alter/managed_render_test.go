@@ -496,17 +496,26 @@ func TestManagedGeneratedFlakeProjectPackageOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, present := range []bool{true, false} {
-		t.Run(strconv.FormatBool(present), func(t *testing.T) {
+	for _, tc := range []struct {
+		name, platforms string
+		present         bool
+	}{
+		{"absent", "", false},
+		{"present", "", true},
+		{"linux only", `meta.platforms = [ "x86_64-linux" "aarch64-linux" ];`, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			root := t.TempDir()
 			writeManagedRenderFixture(t, root, "flake.nix", content)
-			if present {
+			if tc.present {
 				// The package fails if the root uses another package set or flake.
-				writeManagedRenderFixture(t, root, "nix/package.nix", []byte(`{ pkgs, self }: assert pkgs.marker == "caller override" && self.marker == "self"; { pname = "demo"; }`))
+				writeManagedRenderFixture(t, root, "nix/package.nix", []byte(`{ pkgs, self }: assert pkgs.marker == "caller override" && self.marker == "self"; { pname = "demo"; `+tc.platforms+` }`))
 			}
 			writeManagedRenderFixture(t, root, "pkgs/default.nix", []byte(`{ system }: {
   marker = "caller override";
   lib.optionalAttrs = condition: attrs: if condition then attrs else {};
+  lib.meta.availableOn = platform: package: builtins.elem platform.system (package.meta.platforms or [ platform.system ]);
+  stdenv.hostPlatform.system = system;
 }`))
 			expression := `let
   flake = import ` + strconv.Quote(filepath.Join(root, "flake.nix")) + `;
@@ -528,11 +537,11 @@ in builtins.mapAttrs (system: builtins.mapAttrs (name: package: package.pname)) 
 			if err := json.Unmarshal(output, &packages); err != nil {
 				t.Fatal(err)
 			}
-			want := map[string]string{}
-			if present {
-				want = map[string]string{"demo": "demo", "default": "demo"}
-			}
 			for _, system := range []string{"x86_64-linux", "aarch64-linux", "aarch64-darwin"} {
+				want := map[string]string{}
+				if tc.present && (tc.platforms == "" || system != "aarch64-darwin") {
+					want = map[string]string{"demo": "demo", "default": "demo"}
+				}
 				if !reflect.DeepEqual(packages[system], want) {
 					t.Fatalf("packages for %s = %v, want %v", system, packages[system], want)
 				}

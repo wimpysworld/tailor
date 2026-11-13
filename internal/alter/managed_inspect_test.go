@@ -366,7 +366,9 @@ func TestManagedNixOptionalAttrsComposition(t *testing.T) {
 		{"unknown override", `{ android = ` + managedNixAndroidOutput + `; } // pkgs.lib.optionalAttrs (enabled) { android = other; }`, managedSetupUnknown},
 		{"unrelated guarded output", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix) { android = ` + managedNixAndroidOutput + `; }`, managedSetupUnknown},
 		{"altered package hook", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/package.nix) { ${package.pname} = other; } // { android = ` + managedNixAndroidOutput + `; }`, managedSetupUnknown},
-		{"generated package hook", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/package.nix) { ${package.pname} = package; default = package; } // { android = ` + managedNixAndroidOutput + `; }`, managedSetupPresent},
+		{"generated package hook", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/package.nix && pkgs.lib.meta.availableOn pkgs.stdenv.hostPlatform package) { ${package.pname} = package; default = package; } // { android = ` + managedNixAndroidOutput + `; }`, managedSetupPresent},
+		{"legacy package hook", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/package.nix) { ${package.pname} = package; default = package; } // { android = ` + managedNixAndroidOutput + `; }`, managedSetupPresent},
+		{"altered platform guard", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/package.nix && enabled) { ${package.pname} = package; default = package; } // { android = ` + managedNixAndroidOutput + `; }`, managedSetupUnknown},
 		{"extra guarded output", `pkgs.lib.optionalAttrs (builtins.pathExists ./nix/lib/blender.nix) { blender-agent-bridge-extension = ` + managedNixBlenderOutput + `; android = ` + managedNixAndroidOutput + `; }`, managedSetupUnknown},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
