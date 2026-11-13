@@ -55,7 +55,7 @@
             pname = "tailor";
             inherit version;
             src = ./.;
-            vendorHash = "sha256-GuGmFzx3p1k5b61NTVCFlkPz2M+Cd8cyCoop/w89gVU=";
+            vendorHash = "sha256-t4ipStCQXEPvB4/BYKbkt0Y4ikMbBG83ZtlCO7SZYrg=";
             subPackages = [ "cmd/tailor" ];
             ldflags = [
               "-s"
