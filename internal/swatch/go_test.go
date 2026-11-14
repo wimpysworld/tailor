@@ -400,6 +400,9 @@ func TestGoWorkflowPackageAndContainerDelivery(t *testing.T) {
 				if !strings.Contains(step.If, "!contains(github.ref_name, '-')") || !strings.Contains(step.Run, "git push --force origin refs/tags/latest") {
 					t.Fatal("the latest tag must move only for stable releases")
 				}
+				if !strings.Contains(step.Run, "> nix/version") || !strings.Contains(step.Run, "git tag --force latest HEAD") {
+					t.Fatal("the latest tag must name a commit that records the release version for Nix")
+				}
 			}
 			if strings.HasPrefix(step.Uses, "docker/setup-buildx-action@") {
 				buildx = index
