@@ -117,19 +117,25 @@ func TestRenderGoRelease(t *testing.T) {
 		t.Fatal(err)
 	}
 	var rendered struct {
+		Git struct {
+			IgnoreTags []string `yaml:"ignore_tags"`
+		}
 		Builds []struct {
-			ID, Main, Binary           string
-			Goos, Goarch, Env, Ldflags []string
+			ID, Main, Binary                  string
+			Goos, Goarch, Env, Flags, Ldflags []string
 		}
 	}
 	if err := yaml.Unmarshal(data, &rendered); err != nil {
 		t.Fatal(err)
 	}
+	if !reflect.DeepEqual(rendered.Git.IgnoreTags, []string{"latest"}) {
+		t.Fatalf("git.ignore_tags = %v, want [latest]", rendered.Git.IgnoreTags)
+	}
 	if len(rendered.Builds) != 2 {
 		t.Fatalf("builds = %v", rendered.Builds)
 	}
 	for index, build := range rendered.Builds {
-		if build.ID != builds[index].ID || build.Main != builds[index].Main || build.Binary != builds[index].Binary || len(build.Goos) != 2 || len(build.Goarch) != 2 || len(build.Env) != 1 || build.Env[0] != "CGO_ENABLED=0" {
+		if build.ID != builds[index].ID || build.Main != builds[index].Main || build.Binary != builds[index].Binary || len(build.Goos) != 2 || len(build.Goarch) != 2 || len(build.Env) != 1 || build.Env[0] != "CGO_ENABLED=0" || !reflect.DeepEqual(build.Flags, []string{"-trimpath"}) || !reflect.DeepEqual(build.Ldflags, []string{"-s -w -X main.version={{ .Version }}"}) {
 			t.Fatalf("invalid build: %#v", build)
 		}
 	}

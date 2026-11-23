@@ -78,7 +78,7 @@ func Render(path string, options Options) ([]byte, error) {
 		builds.WriteString("builds:\n")
 		dockers.WriteString("dockers_v2:\n")
 		for _, build := range options.Builds {
-			fmt.Fprintf(&builds, "  - id: %s\n    main: %s\n    binary: %s\n    env: [CGO_ENABLED=0]\n    goos: [linux, darwin]\n    goarch: [amd64, arm64]\n    ldflags: [-s -w]\n", strconv.Quote(build.ID), strconv.Quote(build.Main), strconv.Quote(build.Binary))
+			fmt.Fprintf(&builds, "  - id: %s\n    main: %s\n    binary: %s\n    env: [CGO_ENABLED=0]\n    goos: [linux, darwin]\n    goarch: [amd64, arm64]\n    flags: [-trimpath]\n    ldflags:\n      - \"-s -w -X main.version={{ .Version }}\"\n", strconv.Quote(build.ID), strconv.Quote(build.Main), strconv.Quote(build.Binary))
 			packageIDs = append(packageIDs, strconv.Quote(build.ID))
 			image := `ghcr.io/{{ tolower .Env.GITHUB_REPOSITORY_OWNER }}/{{ $name := replace (replace (tolower (index (split .Env.GITHUB_REPOSITORY "/") 1)) "_" "-") "." "-" }}{{ if not (filter $name "^[a-z0-9]") }}image{{ end }}{{ $name }}{{ if not (filter $name "[a-z0-9]$") }}image{{ end }}`
 			if len(options.Builds) > 1 {

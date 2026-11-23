@@ -3,6 +3,10 @@ version: 2
 
 project_name: tailor
 
+git:
+  ignore_tags:
+    - latest
+
 builds:
   - main: ./cmd/tailor
     binary: tailor
@@ -15,6 +19,8 @@ builds:
     goarch:
       - amd64
       - arm64
+    flags:
+      - -trimpath
     ldflags:
       - "-s -w -X main.version={{ .Version }}"
 

@@ -60,11 +60,13 @@ for package in "${main_packages[@]}"; do
     output_count=$((output_count + 1))
 done
 
+version="$(git describe --tags --match 'v*.*.*' --always --dirty 2>/dev/null || echo dev)"
+version="${version#v}"
 work="$(mktemp -d "${TMPDIR:-/tmp}/tailor-go-build.XXXXXX")"
 trap 'rm -rf "${work}"' EXIT
 mkdir "${work}/validate" "${work}/executables"
 go build -o "${work}/validate/" ./...
-go build -o "${work}/executables/" "${main_packages[@]}"
+go build -trimpath -ldflags "-s -w -X main.version=${version}" -o "${work}/executables/" "${main_packages[@]}"
 
 check_bin_directory
 mkdir -p bin
