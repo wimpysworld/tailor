@@ -152,6 +152,8 @@ The starter uses the default azure theme from µCSS 1.4.9 (`@digicreon/mucss@1.4
 
 One icon supplies the header, footer and favicon.
 
+`pages/icon.svg` is also the canonical project icon path across repositories, including repositories with Pages disabled, so `README.md` and Haberdasher package pages can reuse it consistently. Store a real, self-contained square (`1:1`) SVG with an explicit `viewBox` that reads clearly on both light and dark surfaces. Never use a symlink, because GitHub's Contents API returns symlink target text rather than file bytes and Windows checkouts break symlinks.
+
 Optional examples include a three-slide gallery, a screenshot with a caption, a YouTube video, store graphics and a native HTML FAQ. Edit or remove each example before publication. The gallery supports scrolling, swiping and keyboard links without automatic rotation. The video loads lazily and starts only when the visitor plays it.
 
 The store examples load official graphics from their publishers without download links. Keep the badges for your stores and wrap each image in a link to your product listing. Keep the original colours and proportions. The examples cover App Store, Google Play, Mac App Store, Microsoft Store, Snap Store, Flathub, Steam and itch.io.
