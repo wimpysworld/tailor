@@ -191,12 +191,16 @@ func buildDependabotPlan(plan dependabotPlan, changed dependabotOutcome, enabled
 		body = bodies.Enabled
 	}
 	marker := []byte(managedMarker(dependabotPath) + "\n")
-	if len(marker)+len(body) > dependabotMaxBytes {
+	if len(marker) > dependabotMaxBytes || len(body) > dependabotMaxBytes-len(marker) {
+		return dependabotPlan{}, dependabotConflict("the planned output exceeds 1048576 bytes")
+	}
+	totalLen := len(marker) + len(body)
+	if totalLen < 0 || totalLen > dependabotMaxBytes {
 		return dependabotPlan{}, dependabotConflict("the planned output exceeds 1048576 bytes")
 	}
 	plan.GoKnown = true
 	plan.GoEnabled = enabled
-	plan.Output = make([]byte, 0, len(marker)+len(body))
+	plan.Output = make([]byte, 0, totalLen)
 	plan.Output = append(plan.Output, marker...)
 	plan.Output = append(plan.Output, body...)
 	if changed == dependabotOutcomeReplace && bytes.Equal(plan.Snapshot.Destination.Content, plan.Output) {
