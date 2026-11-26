@@ -40,7 +40,10 @@ jobs:
             echo "No flake with a regular ${file}. Nothing to do."
             exit 0
           fi
-          mapfile -t hashes < <(
+          hashes=()
+          while IFS= read -r hash; do
+            hashes+=("${hash}")
+          done < <(
             grep -oE '^[[:space:]]*vendorHash[[:space:]]*=[[:space:]]*"sha256-[A-Za-z0-9+/]{43}=";' "${file}" \
               | grep -oE 'sha256-[A-Za-z0-9+/]{43}='
           )
@@ -66,7 +69,10 @@ jobs:
             })' 2>&1)
           set -e
           printf '%s\n' "${log}"
-          mapfile -t got < <(
+          got=()
+          while IFS= read -r hash; do
+            got+=("${hash}")
+          done < <(
             grep -oE 'got:[[:space:]]+sha256-[A-Za-z0-9+/]{43}=' <<< "${log}" \
               | grep -oE 'sha256-[A-Za-z0-9+/]{43}='
           )
@@ -110,7 +116,8 @@ jobs:
             exit 1
           fi
           # Base64 holds no character that sed treats as special here.
-          sed -i "s|\"${OLD}\"|\"${NEW}\"|" "${file}"
+          sed -i.orig "s|\"${OLD}\"|\"${NEW}\"|" "${file}"
+          rm -f -- "${file}.orig"
           # The marker lets Dependabot rebase over this commit.
           git -c user.name='github-actions[bot]' \
             -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \

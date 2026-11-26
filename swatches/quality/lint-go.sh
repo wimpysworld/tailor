@@ -67,7 +67,7 @@ check_vendor_hash() {
     fi
     while IFS= read -r line || [[ -n "${line}" ]]; do
         if [[ "${line}" =~ ${assignment} ]]; then
-            line="${line/"${value}"/"${computed}"}"
+            line="${line%%"${value}"*}${computed}${line#*"${value}"}"
         fi
         updated+="${line}"$'\n'
     done < "${file}"
