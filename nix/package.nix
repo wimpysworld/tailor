@@ -11,7 +11,7 @@ pkgs.buildGo126Module {
   pname = "tailor";
   inherit version;
   src = self;
-  vendorHash = "sha256-t4ipStCQXEPvB4/BYKbkt0Y4ikMbBG83ZtlCO7SZYrg=";
+  vendorHash = "sha256-Qn3XxM9KybGXE92RT26ldj+x8HIReXDGPBkAqv1NnNQ=";
   subPackages = [ "cmd/tailor" ];
   ldflags = [
     "-s"
