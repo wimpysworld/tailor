@@ -1,6 +1,6 @@
 # Managed by Tailor: nix/lib/go-ebitengine-runtime.nix
 { pkgs, ... }:
-pkgs.lib.optionals pkgs.stdenv.isLinux (
+pkgs.lib.optionals pkgs.stdenv.hostPlatform.isLinux (
   with pkgs;
   [
     alsa-lib

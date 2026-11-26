@@ -29,7 +29,7 @@ func evaluateManagedPlatformHooks(t *testing.T, cfg *config.Config, linux, x86 b
 			writeManagedRenderFixture(t, root, name, content)
 		}
 	}
-	expression := `let linux = ` + strconv.FormatBool(linux) + `; x86 = ` + strconv.FormatBool(x86) + `; pkgs = { stdenv.isLinux = linux; stdenv.hostPlatform.isx86_64 = x86; lib.optionalString = b: s: if b then s else ""; vulkan-loader = if linux then "/vulkan" else throw "Vulkan on Darwin"; intel-media-driver = if linux && x86 then "/intel" else throw "Intel on unsupported host"; vpl-gpu-rt = if linux && x86 then "/vpl" else throw "VPL on unsupported host"; }; in import ` + strconv.Quote(filepath.Join(root, "nix/hooks.nix")) + ` { inherit pkgs; }`
+	expression := `let linux = ` + strconv.FormatBool(linux) + `; x86 = ` + strconv.FormatBool(x86) + `; pkgs = { stdenv.hostPlatform.isLinux = linux; stdenv.hostPlatform.isx86_64 = x86; lib.optionalString = b: s: if b then s else ""; vulkan-loader = if linux then "/vulkan" else throw "Vulkan on Darwin"; intel-media-driver = if linux && x86 then "/intel" else throw "Intel on unsupported host"; vpl-gpu-rt = if linux && x86 then "/vpl" else throw "VPL on unsupported host"; }; in import ` + strconv.Quote(filepath.Join(root, "nix/hooks.nix")) + ` { inherit pkgs; }`
 	cmd := exec.CommandContext(t.Context(), nix, "eval", "--impure", "--raw", "--expr", expression)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
@@ -199,7 +199,7 @@ func TestManagedFFmpegPlatforms(t *testing.T) {
 		{"Darwin", false, true, `["pkg-config","git","curl","jq"]`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			expr := `let linux = ` + strconv.FormatBool(tc.linux) + `; x86 = ` + strconv.FormatBool(tc.x86) + `; pkgs = { stdenv.isLinux = linux; stdenv.hostPlatform.isx86_64 = x86; lib.optionals = b: xs: if b then xs else []; pkg-config = "pkg-config"; git = "git"; curl = "curl"; jq = "jq"; vulkan-loader = if linux then "vulkan" else throw "Vulkan on Darwin"; intel-media-driver = if linux && x86 then "intel" else throw "Intel on unsupported host"; vpl-gpu-rt = if linux && x86 then "vpl" else throw "VPL on unsupported host"; }; in import ` + strconv.Quote(filepath.Join(root, "ffmpeg.nix")) + ` { inherit pkgs; }`
+			expr := `let linux = ` + strconv.FormatBool(tc.linux) + `; x86 = ` + strconv.FormatBool(tc.x86) + `; pkgs = { stdenv.hostPlatform.isLinux = linux; stdenv.hostPlatform.isx86_64 = x86; lib.optionals = b: xs: if b then xs else []; pkg-config = "pkg-config"; git = "git"; curl = "curl"; jq = "jq"; vulkan-loader = if linux then "vulkan" else throw "Vulkan on Darwin"; intel-media-driver = if linux && x86 then "intel" else throw "Intel on unsupported host"; vpl-gpu-rt = if linux && x86 then "vpl" else throw "VPL on unsupported host"; }; in import ` + strconv.Quote(filepath.Join(root, "ffmpeg.nix")) + ` { inherit pkgs; }`
 			cmd := exec.CommandContext(t.Context(), nix, "eval", "--offline", "--impure", "--json", "--expr", expr)
 			var stderr strings.Builder
 			cmd.Stderr = &stderr

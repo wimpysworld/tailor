@@ -91,7 +91,7 @@ with pkgs;
   rsync
   openssl
 ]
-++ lib.optionals stdenv.isLinux (
+++ lib.optionals stdenv.hostPlatform.isLinux (
   runtime
   ++ [
     mesa-demos
