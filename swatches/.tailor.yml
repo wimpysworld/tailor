@@ -307,6 +307,11 @@ swatches:
   - path: .github/workflows/build-go.yml
     alteration: first-fit
 
+  # Fixes vendorHash in nix/package.nix on Dependabot Go pull requests.
+  # Approve the held workflow runs on the fix commit before merging.
+  - path: .github/workflows/tailor-vendor-hash.yml
+    alteration: always
+
   # Tailor never rewrites an existing root.
   # If its package list lacks the loader, add:
   # ++ import ./nix/loader.nix { inherit pkgs; }

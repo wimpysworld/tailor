@@ -21,10 +21,10 @@ func TestPagesStarterPathsMatchRegistry(t *testing.T) {
 	}
 }
 
-func TestAllReturns36Swatches(t *testing.T) {
+func TestAllReturns37Swatches(t *testing.T) {
 	all := swatch.All()
-	if len(all) != 36 {
-		t.Fatalf("All() returned %d swatches, want 36", len(all))
+	if len(all) != 37 {
+		t.Fatalf("All() returned %d swatches, want 37", len(all))
 	}
 }
 
@@ -70,6 +70,7 @@ func TestSwatchAttributes(t *testing.T) {
 		{swatch.GoReleaseDestination, swatch.FirstFit, swatch.Development},
 		{"Dockerfile", swatch.FirstFit, swatch.Development},
 		{swatch.GoWorkflowDestination, swatch.FirstFit, swatch.Development},
+		{swatch.GoVendorHashDestination, swatch.Always, swatch.Development},
 		{".github/FUNDING.yml", swatch.FirstFit, swatch.Health},
 		{".github/dependabot.yml", swatch.FirstFit, swatch.Health},
 		{".github/ISSUE_TEMPLATE/bug_report.yml", swatch.Always, swatch.Health},
@@ -175,8 +176,8 @@ func TestHealthSwatchesReturnsCorrectSubset(t *testing.T) {
 
 func TestPathsReturnsSortedList(t *testing.T) {
 	names := swatch.Paths()
-	if len(names) != 36 {
-		t.Fatalf("Paths() returned %d names, want 36", len(names))
+	if len(names) != 37 {
+		t.Fatalf("Paths() returned %d names, want 37", len(names))
 	}
 	for i := 1; i < len(names); i++ {
 		if names[i] < names[i-1] {

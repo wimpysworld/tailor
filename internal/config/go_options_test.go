@@ -61,7 +61,7 @@ func TestGoMappingOptions(t *testing.T) {
 						if err != nil || (cycle == 1 && changed) {
 							t.Fatalf("merge cycle %d = %t, %v", cycle, changed, err)
 						}
-						for _, path := range []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", "Dockerfile"} {
+						for _, path := range []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", ".github/workflows/tailor-vendor-hash.yml", "Dockerfile"} {
 							present := slices.ContainsFunc(cfg.Swatches, func(entry SwatchEntry) bool { return entry.Path == path })
 							if present != enabled || cfg.SwatchActive(path) != enabled {
 								t.Fatalf("mapping activation mismatch for %s", path)

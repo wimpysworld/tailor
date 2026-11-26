@@ -18,6 +18,8 @@ const (
 	GoReleaseDestination = ".goreleaser.yaml"
 	// GoWorkflowDestination is the Go builder workflow path.
 	GoWorkflowDestination = ".github/workflows/build-go.yml"
+	// GoVendorHashDestination is the Dependabot vendorHash fix workflow path.
+	GoVendorHashDestination = ".github/workflows/tailor-vendor-hash.yml"
 )
 
 // Options supplies language selection and local build discovery results to Render.

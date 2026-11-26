@@ -1,0 +1,119 @@
+name: Tailor vendorHash
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions: {}
+
+concurrency:
+  # The actor keeps the fix push from cancelling the run that made it.
+  group: tailor-vendor-hash-${{ github.event.pull_request.number }}-${{ github.actor }}
+  cancel-in-progress: true
+
+jobs:
+  compute:
+    name: Compute vendorHash
+    # The author and head repository checks stop fork runs. The actor check skips runs on the fix commit.
+    if: >-
+      github.event.pull_request.user.login == 'dependabot[bot]'
+      && github.actor == 'dependabot[bot]'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && startsWith(github.head_ref, 'dependabot/go_modules/')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    outputs:
+      old: ${{ steps.declared.outputs.old }}
+      new: ${{ steps.hash.outputs.new }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Find the declared vendorHash
+        id: declared
+        run: |
+          file=nix/package.nix
+          if [[ ! -f flake.nix || ! -f "${file}" || -L "${file}" ]]; then
+            echo "No flake with a regular ${file}. Nothing to do."
+            exit 0
+          fi
+          mapfile -t hashes < <(
+            grep -oE '^[[:space:]]*vendorHash[[:space:]]*=[[:space:]]*"sha256-[A-Za-z0-9+/]{43}=";' "${file}" \
+              | grep -oE 'sha256-[A-Za-z0-9+/]{43}='
+          )
+          if [[ "${#hashes[@]}" -ne 1 ]]; then
+            echo "${file} has no single literal vendorHash. Nothing to do."
+            exit 0
+          fi
+          echo "old=${hashes[0]}" >> "${GITHUB_OUTPUT}"
+      - name: Install Nix
+        if: steps.declared.outputs.old != ''
+        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+      - name: Compute the true vendorHash
+        id: hash
+        if: steps.declared.outputs.old != ''
+        run: |
+          # A fake hash forces the fixed-output build, so Nix reports the true hash.
+          set +e
+          # shellcheck disable=SC2016 # The single quotes keep the Nix interpolation from the shell.
+          log=$(nix build --no-link --impure --expr '
+            let flake = builtins.getFlake (toString ./.);
+            in flake.packages.${builtins.currentSystem}.default.goModules.overrideAttrs (_: {
+              outputHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+            })' 2>&1)
+          set -e
+          printf '%s\n' "${log}"
+          mapfile -t got < <(
+            grep -oE 'got:[[:space:]]+sha256-[A-Za-z0-9+/]{43}=' <<< "${log}" \
+              | grep -oE 'sha256-[A-Za-z0-9+/]{43}='
+          )
+          if [[ "${#got[@]}" -ne 1 ]]; then
+            echo "::error::Nix did not report exactly one vendor hash"
+            exit 1
+          fi
+          echo "new=${got[0]}" >> "${GITHUB_OUTPUT}"
+
+  push:
+    name: Push vendorHash
+    needs: compute
+    if: needs.compute.outputs.new != '' && needs.compute.outputs.new != needs.compute.outputs.old
+    runs-on: ubuntu-slim
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      # This job runs git, grep, and sed only. It never runs code from the pull request.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Commit and push the hash
+        env:
+          OLD: ${{ needs.compute.outputs.old }}
+          NEW: ${{ needs.compute.outputs.new }}
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          file=nix/package.nix
+          format='^sha256-[A-Za-z0-9+/]{43}=$'
+          if [[ ! "${OLD}" =~ ${format} || ! "${NEW}" =~ ${format} ]]; then
+            echo "::error::Unexpected hash format"
+            exit 1
+          fi
+          if [[ ! -f "${file}" || -L "${file}" ]]; then
+            echo "::error::${file} is not a regular file"
+            exit 1
+          fi
+          if [[ "$(grep -cF "\"${OLD}\"" "${file}")" -ne 1 ]]; then
+            echo "::error::${file} does not hold the old hash exactly once"
+            exit 1
+          fi
+          # Base64 holds no character that sed treats as special here.
+          sed -i "s|\"${OLD}\"|\"${NEW}\"|" "${file}"
+          # The marker lets Dependabot rebase over this commit.
+          git -c user.name='github-actions[bot]' \
+            -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
+            commit --message 'build(nix): update vendorHash' --message '[dependabot skip]' -- "${file}"
+          # A plain push fails when Dependabot moved the branch. The next run fixes the new head.
+          git push origin "HEAD:refs/heads/${HEAD_REF}"

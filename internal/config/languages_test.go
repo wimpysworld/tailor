@@ -232,7 +232,7 @@ func TestShellAndJavaScriptNilConfig(t *testing.T) {
 }
 
 func TestGoDefaultsAndMerge(t *testing.T) {
-	paths := []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", "Dockerfile"}
+	paths := []string{".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", ".github/workflows/tailor-vendor-hash.yml", "Dockerfile"}
 	defaults, err := DefaultConfig("MIT")
 	if err != nil {
 		t.Fatal(err)

@@ -22,7 +22,7 @@ Alternatively, use `tailor alter --recut` to regenerate the issue configuration.
 
 ## Managed development files
 
-Tailor manages Just and Nix loaders separately from ordinary swatches. The registry contains 36 ordinary entries. Fresh configurations with all languages disabled contain 25 active swatches. The `justfile` and `flake.nix` entries only control creation when those roots are missing.
+Tailor manages Just and Nix loaders separately from ordinary swatches. The registry contains 37 ordinary entries. Fresh configurations with all languages disabled contain 25 active swatches. The `justfile` and `flake.nix` entries only control creation when those roots are missing.
 
 Tailor preserves an existing `justfile` or `flake.nix` for every mode and when its swatch entry is omitted. Tailor reports that root as preserved and inspects supported syntax for missing setup or required manual verification. A missing root with mode `never` or an omitted entry stays missing and produces no root guidance. Connect an existing root only when the exact loader line is absent:
 
@@ -349,6 +349,7 @@ Go is opt-in. New configs use `false`. Existing configs without this setting rem
 | `.golangci.yml` | Go lint configuration | `first-fit` |
 | `.goreleaser.yaml` | Executable builds, archives, native packages, container images, and GitHub Releases | `first-fit` |
 | `.github/workflows/build-go.yml` | Tests, lint checks, a Nix package build when `flake.nix` and `nix/package.nix` exist, pull request snapshots, and releases from version tags | `first-fit` |
+| `.github/workflows/tailor-vendor-hash.yml` | Fixes `vendorHash` in `nix/package.nix` on Dependabot Go pull requests | `always` |
 | `Dockerfile` | Non-root container image for each executable | `first-fit` |
 
 The release configuration disables CGO and produces these outputs by default:
@@ -466,7 +467,7 @@ Optional project-owned scripts at `just/project/build.sh`, `just/project/test.sh
 
 Go commands, including `go mod vendor` in the `vendorHash` check, can download modules and write caches. Vulnerability checks can use the network. Setup and release remain separate operational commands. Benchmark and profile commands remain future work.
 
-Every generated Dependabot file contains GitHub Actions and Nix entries. Go true adds `gomod`; Go false omits it. For a missing file, an absent Go setting selects the Go-enabled variant for legacy compatibility.
+Every generated Dependabot file contains GitHub Actions and Nix entries. Go true adds `gomod`; Go false omits it. The `gomod` entry groups all modules into one weekly pull request, so open Go pull requests do not conflict on the `vendorHash` line. For a missing file, an absent Go setting selects the Go-enabled variant for legacy compatibility.
 
 Dependabot uses [whole-file ownership](https://github.com/wimpysworld/tailor/blob/main/docs/design/dependabot-ownership.md). The exact first line is:
 
@@ -485,6 +486,16 @@ Active management reports a conflict for `.github/dependabot.yaml`, unsafe paren
 Existing first-fit ordinary swatches stay unchanged after you enable Go. `tailor alter --recut` replaces all eligible first-fit ordinary swatches, not only Go files. `never` always preserves an ordinary swatch.
 
 Set Go to false to remove only the owned managed fragments and stop ordinary Go swatch processing. Remove the setting to leave managed fragments untouched. In both cases, Tailor preserves existing ordinary Go swatches, even with `--recut`. Existing builder workflows still run on GitHub.
+
+### Dependabot vendorHash fixes
+
+A Go module update changes the vendor hash, so the Nix build in `build-go.yml` fails on every Dependabot Go pull request. `.github/workflows/tailor-vendor-hash.yml` fixes this. It does nothing in a project without `flake.nix`, a regular `nix/package.nix`, and exactly one literal `vendorHash = "sha256-...";` line.
+
+The workflow runs on `pull_request`, never `pull_request_target`. It acts only on pull requests that `dependabot[bot]` opens from a `dependabot/go_modules/` branch in the same repository. A read-only job builds `.#default.goModules` with a fake hash and reads the true hash from the Nix error. A second job with `contents: write` replaces the exact old hash and pushes one commit to the Dependabot branch, without force. The commit message contains `[dependabot skip]`, so Dependabot can still rebase the pull request. The workflow uses only the built-in `GITHUB_TOKEN` and needs no secrets or GitHub App.
+
+GitHub holds the workflow runs for a commit pushed with `GITHUB_TOKEN`. Before you merge, open the pull request and select "Approve workflows to run". Then wait for the checks to pass. Merge automation, such as `gh-bot-merge`, must not merge a Dependabot pull request before the approved runs pass. If you approve the pull request before the fix commit arrives, `dismiss_stale_reviews_on_push` dismisses that review, so approve after the fix.
+
+Do not add the workflow's jobs to the ruleset's required status checks, because both jobs skip on most pull requests. The workflow skips a branch that a person pushed to. Use `just lint correct` there. To opt out, set the entry to `never`.
 
 ## MCP support
 
@@ -556,7 +567,7 @@ If the licence fetch fails, check the identifier and API access. Earlier changes
 
 ## Default swatch set
 
-Tailor embeds 36 ordinary default swatches. Fresh configurations with all languages disabled contain 25 active swatches. Managed loaders and fragments are a separate class and do not increase this count:
+Tailor embeds 37 ordinary default swatches. Fresh configurations with all languages disabled contain 25 active swatches. Managed loaders and fragments are a separate class and do not increase this count:
 
 | Swatch | Mode |
 |--------|------|
@@ -581,6 +592,7 @@ Tailor embeds 36 ordinary default swatches. Fresh configurations with all langua
 | `.golangci.yml` | `first-fit` (only when `languages.go: true`) |
 | `.goreleaser.yaml` | `first-fit` (only when `languages.go: true`) |
 | `.github/workflows/build-go.yml` | `first-fit` (only when `languages.go: true`) |
+| `.github/workflows/tailor-vendor-hash.yml` | `always` (only when `languages.go: true`) |
 | `Dockerfile` | `first-fit` (only when `languages.go: true`) |
 | `flake.nix` | `first-fit` |
 | `.gitignore` | `first-fit` |

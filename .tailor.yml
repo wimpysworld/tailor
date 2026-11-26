@@ -287,6 +287,9 @@ swatches:
   - path: .github/workflows/build-go.yml
     alteration: never
 
+  - path: .github/workflows/tailor-vendor-hash.yml
+    alteration: always
+
   - path: flake.nix
     alteration: first-fit
 

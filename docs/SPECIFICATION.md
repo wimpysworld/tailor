@@ -53,6 +53,7 @@ The `fit`, `alter`, and `baste` commands require a valid authentication token: a
 | `.golangci.yml` | `.golangci.yml` |
 | `.goreleaser.yaml` | `.goreleaser.yaml` |
 | `.github/workflows/build-go.yml` | `.github/workflows/build-go.yml` |
+| `.github/workflows/tailor-vendor-hash.yml` | `.github/workflows/tailor-vendor-hash.yml` |
 | `Dockerfile` | `Dockerfile` |
 | `cubic.yaml` | `cubic.yaml` |
 | `.github/FUNDING.yml` | `.github/FUNDING.yml` |
@@ -311,7 +312,7 @@ Tailor uses one fixed internal registry for development roots, loaders, and frag
 | Blender package and support | `nix/blender.nix`, `nix/lib/blender.nix`, `nix/patches/blender-agent-bridge-local-glb.patch` |
 | Shared MCP client starters | `.mcp.json`, `.codex/config.toml`, `opencode.json`, `.pi/mcp.json` |
 
-The registry contains 36 ordinary swatches. Fresh configurations with all languages disabled contain 25 active swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
+The registry contains 37 ordinary swatches. Fresh configurations with all languages disabled contain 25 active swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
 
 Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `build`, `test`, and `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Python, Rust, Shell, JavaScript, Pages, Blender, and Playwright package declarations have this exact lifecycle:
 
@@ -400,7 +401,7 @@ To add Android, replace `ebitengine: true` with `ebitengine: {enabled: true, and
 
 Android accepts only a mapping with the required Boolean `enabled`. Enabling Android accepts the Android SDK licence terms. Only the dedicated shell imports a private SDK package set with scoped licence acceptance and an Android-only unfree predicate. Global Nix settings remain unchanged. Android uses fixed platform `"35"`, build-tools `"35.0.0"`, and NDK `"28.2.13676358"`. There are no desktop, web, assets, delivery, licence, or version switches. Default shells do not evaluate the SDK, even when Android is enabled. Unsupported package attributes or versions fail rather than silently omit tools. Different versions require a project-owned shell.
 
-The four owned destinations are `nix/go-ebitengine.nix`, `nix/lib/go-ebitengine-runtime.nix`, `nix/hooks/go-ebitengine.nix`, and optional `nix/shells/go-ebitengine-android.nix`. Support and shell kinds never enter automatic package or hook loaders. Missing support files leave the desktop hook inactive. An incomplete Android shell fails with reconciliation guidance. Existing ownership, symlink, preflight, preview, and protected-root rules apply. The ordinary swatch count is 36. No quality body, setup body, or Just alias is added.
+The four owned destinations are `nix/go-ebitengine.nix`, `nix/lib/go-ebitengine-runtime.nix`, `nix/hooks/go-ebitengine.nix`, and optional `nix/shells/go-ebitengine-android.nix`. Support and shell kinds never enter automatic package or hook loaders. Missing support files leave the desktop hook inactive. An incomplete Android shell fails with reconciliation guidance. Existing ownership, symlink, preflight, preview, and protected-root rules apply. The ordinary swatch count is 37. No quality body, setup body, or Just alias is added.
 
 Base tools include Bash, GNU tools, Git, curl, gzip, zip, unzip, and `tailor-ebitenmobile`. Generic Go supplies Staticcheck. Linux adds nine ALSA, GL, and X11 client libraries, mesa-demos, pciutils, and Avahi. Runtime libraries enter `LD_LIBRARY_PATH` on all Linux hosts through the shared path helper. NixOS host drivers remain first. Brotli and miniserve are always included; the project must use its selected Go's `wasm_exec.js`. Common tools always include FFmpeg (`ffmpeg-headless`), ImageMagick, Vorbis tools, Git LFS, standalone `android-tools`, Node.js, Wrangler, Butler, OpenSSH, rsync, and OpenSSL. Python, NumPy, Pillow, Matplotlib, Blender, and Pyright are not included. Android SDK, NDK, JDK, and Gradle remain exclusive to the enabled Android shell. Engine pins and forks, asset content and processing, application recipes, signing, and deployment remain project-owned. Blender bridge support requires the separate `mcp.blender` declaration. Reusable tooling is supplied by Tailor rather than retained as a project default. Ebitengine does not enable ffmpeg-statigo.
 
@@ -441,9 +442,9 @@ languages:
 
 New configurations declare `go`, `python`, `rust`, `shell`, and `javascript` as false and omit `typescript`. Default merging preserves absent sections, empty maps, absent language keys, explicit values, and the authored JavaScript alias, including under `--recut`. It never adds `javascript` beside `typescript` or infers language selection from source files or CodeQL settings. `code_scanning.languages` and `code_quality.languages` remain independent.
 
-Explicit `languages.go: true` or `languages.go: {enabled: true}` activates `.golangci.yml`, `.goreleaser.yaml`, `.github/workflows/build-go.yml`, and `Dockerfile`. All four are development swatches with `first-fit` defaults. The registry contains these entries even when Go is inactive. Default merging appends missing entries only when the config swatch mode permits merging, without changing existing modes.
+Explicit `languages.go: true` or `languages.go: {enabled: true}` activates `.golangci.yml`, `.goreleaser.yaml`, `.github/workflows/build-go.yml`, `.github/workflows/tailor-vendor-hash.yml`, and `Dockerfile`. All five are development swatches. `.github/workflows/tailor-vendor-hash.yml` defaults to `always`, and the other four default to `first-fit`. The registry contains these entries even when Go is inactive. Default merging appends missing entries only when the config swatch mode permits merging, without changing existing modes.
 
-False or absent Go selection skips the four destinations without deletion or replacement, including with `--recut`. Existing workflows continue to run on GitHub. Disabling Go in Tailor does not disable a workflow. Active Go swatches use the ordinary `always`, `first-fit`, `never`, and `--recut` rules. Existing customised first-fit files remain unchanged during normal alterations.
+False or absent Go selection skips the five destinations without deletion or replacement, including with `--recut`. Existing workflows continue to run on GitHub. Disabling Go in Tailor does not disable a workflow. Active Go swatches use the ordinary `always`, `first-fit`, `never`, and `--recut` rules. Existing customised first-fit files remain unchanged during normal alterations.
 
 `languages.go` also accepts a mapping with required Boolean `enabled` and optional keys `cgo`, `ffmpeg-statigo`, and `ebitengine`. The `cgo` and `ffmpeg-statigo` values must be Booleans. The `ebitengine` value accepts a Boolean or the mapping described in [Ebitengine ecosystem support](#ebitengine-ecosystem-support). Reject unknown keys, nulls, and missing `enabled`. Preserve the authored form and omitted options during serialisation and default merging. Enabled ffmpeg-statigo requires enabled Go and rejects explicit `cgo: false`. Omitted CGO resolves to true for the component, otherwise no policy. Render the effective CGO policy once as a top-level `export CGO_ENABLED` in the always-managed `just/tailor.just`, never in per-ecosystem subshells or `just/go.just`. False exports `"0"` and true exports `"1"`. The export overrides the caller environment for all managed, imported, and root recipes and project scripts, including setup and source commands. Disabled Go or absent policy emits no export and leaves the caller environment unchanged. Keep the same policy in the Go shell hook for direct shell commands and in the Go builder workflow. Regenerate managed files after a policy change. Reload the development shell for direct shell commands. Just reads its export on each invocation and needs no shell reload. Do not change release or source discovery defaults, which remain `CGO_ENABLED=0`.
 
@@ -451,7 +452,7 @@ Component true reconciles owned Just, package-list, and hook fragments. Componen
 
 The typed setup operation provides one argument-free `setup` recipe. It inlines trusted embedded component shell bodies in lexical capability order, each in a separate Bash subshell. A failed component stops setup. `just/go-ffmpeg-statigo.just` is an empty owned compatibility import, with the same capability lifecycle as before. No public or private component setup recipe exists. Empty setup succeeds with guidance. No build, test, lint, shell entry, or Tailor command invokes setup. Setup does not invoke project quality scripts. Explicit `just setup` changes local Git configuration (`pull.ff=only`, `submodule.recurse=true`), initialises submodules, fetches and checks out the latest stable tag, removes old `lib/*/libffmpeg.a` archives when the tag changes, stages the submodule, and downloads libraries. These operations can use the network. Reject the ffmpeg-statigo source root. This is a consumer component, not support for cross-platform FFmpeg releases.
 
-Go selection also controls Dependabot and the managed Go fragments. Every generated Dependabot file contains `github-actions` and `nix`. Explicit true adds `gomod`; explicit false omits it. A missing file with an absent Go declaration uses the Go-enabled variant for legacy compatibility.
+Go selection also controls Dependabot and the managed Go fragments. Every generated Dependabot file contains `github-actions` and `nix`. Explicit true adds `gomod`; explicit false omits it. The `gomod` entry groups all modules into one pull request, so open Go pull requests do not conflict on the `vendorHash` line. A missing file with an absent Go declaration uses the Go-enabled variant for legacy compatibility.
 
 Dependabot uses [whole-file ownership](design/dependabot-ownership.md). An owned file starts with the exact first line `# Managed by Tailor: .github/dependabot.yml`, ending with LF or CRLF. The marker grants consent to complete-file replacement. A byte-order mark, leading blank line, partial marker, wrong path, extra text, or missing newline does not grant ownership. Matching unmarked canonical content also does not grant ownership.
 
@@ -537,6 +538,18 @@ The generated release configuration requires `GITHUB_REPOSITORY` and `GITHUB_REP
 The builder workflow runs tests, coverage, lint checks, and govulncheck. The security job runs one govulncheck scan, converts its JSON output to text to enforce findings, and converts the same output to SARIF when upload is allowed. Pull requests and default-branch pushes build GoReleaser snapshots and upload archives, native packages, and checksums without publication. Snapshot jobs build container images locally, but do not push images or include them in downloadable artifacts. Tags that match `v*.*.*` publish GitHub Releases and GHCR images. Default-branch handling must use the repository's default branch, not a fixed `main` or `master` branch.
 
 The Go release templates use GitHub-hosted runners and do not require GoReleaser Pro. When the project has `flake.nix` and `nix/package.nix`, the test job installs Nix on Linux and Apple Silicon runners and runs `nix build --no-link .#default`, so a stale `vendorHash` fails CI and the `Sentinel` job. The step is skipped on Intel macOS, and when the flake has no default package for the runner system. Projects without both files skip both Nix steps. The release job authenticates to GHCR with the existing GitHub token and grants `packages: write`. No extra secrets are required. The templates do not configure signing or external package repositories. Go support does not change Tailor's independent CodeQL default setup.
+
+#### Go vendorHash workflow
+
+`.github/workflows/tailor-vendor-hash.yml` fixes a stale `vendorHash` in `nix/package.nix` on Dependabot Go pull requests. It has no substitution tokens and defaults to `always`. A project that does not want it sets the entry to `never`.
+
+The workflow runs on `pull_request` events `opened`, `synchronize`, and `reopened`. It never uses `pull_request_target`. Both jobs act only when the pull request author is `dependabot[bot]`, the head repository is the base repository, the branch starts with `dependabot/go_modules/`, and the actor is `dependabot[bot]`. The actor check skips runs on the fix commit, so the workflow cannot loop.
+
+The top-level permissions are empty. The `compute` job has `contents: read`. It checks out the head commit without credentials and does nothing without `flake.nix`, a regular `nix/package.nix`, and exactly one literal `vendorHash = "sha256-...";` line. Otherwise it builds `.#default.goModules` with a fake `outputHash` and reads the true hash from the Nix mismatch error. This method uses the package's own `buildGoModule` settings, so it covers `proxyVendor`, `modRoot`, and `overrideModAttrs`.
+
+The `push` job runs only when the hashes differ. It has `contents: write` and runs no pull request code. It checks that both hashes are `sha256-` SRI values and that the old hash occurs exactly once, then replaces that exact string. It commits as `github-actions[bot]` with `[dependabot skip]` in the message, so Dependabot can still rebase over the commit. It pushes the head commit without force, so a branch that moved rejects the push. The workflow grants no `actions`, `pull-requests`, or `statuses` write and uses no secrets.
+
+The workflow uses only `GITHUB_TOKEN`. GitHub holds the `pull_request` runs for a commit pushed with that token until a user with write access selects "Approve workflows to run". Merge automation, such as `gh-bot-merge`, must not merge a Dependabot pull request before the approved runs pass. Do not add the workflow's jobs to `ruleset` required status checks, because both jobs skip on most pull requests.
 
 ### Shell and JavaScript ecosystem support
 
@@ -672,7 +685,7 @@ The wiki publication job uses `ubuntu-slim` with an explicit 15-minute timeout, 
 
 `repository.has_wiki: true` activates four wiki swatches on public repositories. No separate config section or command exists. Every config that `fit` creates uses `has_wiki: false`, including for repositories with an enabled wiki. An omitted setting leaves wiki files unmanaged, even when default merging adds `false` during that run.
 
-The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Starter generation preserves existing destinations, including recut and an explicit `always` mode. An automatic import can replace same-path files with backups. `never` skips starter creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 36 swatches.
+The fixed sources are `wiki/Home.md`, `wiki/_Sidebar.md` and `wiki/_Footer.md`, with `first-fit` defaults. Starter generation preserves existing destinations, including recut and an explicit `always` mode. An automatic import can replace same-path files with backups. `never` skips starter creation. `.github/workflows/tailor-wiki.yml` defaults to `always`, starts with `# Managed by Tailor: wiki`, and uses resolved-content comparison. A protected `first-fit` or `never` workflow must match the generated YAML semantics. An unmarked workflow blocks enabled setup before writes, including recut. The four paths are development swatches, excluded from generic processing and local health checks but included in config comparison. The registry contains 37 swatches.
 
 Local safety preflight runs before writes. It rejects source symlinks, Git metadata, non-regular files and unsafe workflow destinations or parents through rooted filesystem access. Pages preflight also completes before wiki enablement. Tailor reads repository privacy, the current default branch and `has_wiki`. Known private repositories and projects without repository context skip wiki files. Unavailable or incomplete repository metadata blocks readiness.
 
@@ -881,6 +894,7 @@ Use an exclusive sibling temporary file, file sync, close, rename, and directory
 | `.golangci.yml` (only when `languages.go: true`) | `first-fit` |
 | `.goreleaser.yaml` (only when `languages.go: true`) | `first-fit` |
 | `.github/workflows/build-go.yml` (only when `languages.go: true`) | `first-fit` |
+| `.github/workflows/tailor-vendor-hash.yml` (only when `languages.go: true`) | `always` |
 | `Dockerfile` (only when `languages.go: true`) | `first-fit` |
 | `.tailor.yml` | `always` |
 
@@ -921,6 +935,7 @@ Use an exclusive sibling temporary file, file sync, close, rename, and directory
 - `.golangci.yml`
 - `.goreleaser.yaml`
 - `.github/workflows/build-go.yml`
+- `.github/workflows/tailor-vendor-hash.yml`
 - `Dockerfile`
 - `cubic.yaml`
 - `.tailor.yml`
@@ -1027,7 +1042,7 @@ Creates a project directory and writes `.tailor.yml` from the embedded `swatches
 
 The defaults can disable an existing wiki, Code Quality and immutable releases, and replace an existing `Tailor` ruleset when `alter` applies them. Edit the generated config before `alter` to preserve different settings. Topics stay unmanaged because the embedded defaults omit them.
 
-The default swatch set contains 36 registered destinations:
+The default swatch set contains 37 registered destinations:
 
 - `.github/workflows/tailor-pages.yml`
 - `pages/index.html`
@@ -1059,6 +1074,7 @@ The default swatch set contains 36 registered destinations:
 - `.golangci.yml`
 - `.goreleaser.yaml`
 - `.github/workflows/build-go.yml`
+- `.github/workflows/tailor-vendor-hash.yml`
 - `Dockerfile`
 - `flake.nix`
 - `.gitignore`
@@ -1445,7 +1461,7 @@ Behaviour:
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 
-The registry has 36 swatches, with 25 active in fresh language-disabled configurations, and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
+The registry has 37 swatches, with 25 active in fresh language-disabled configurations, and three alteration modes: `always`, `first-fit`, and `never`. Two paths are retired migration entries: `.github/workflows/tailor-automerge.yml` and `.github/workflows/tailor.yml`. `alter` and `baste` remove every matching entry before strict path, duplicate-path, and mode validation. The historical `triggered` mode is accepted only on these removed entries. Retired paths are not active swatches. Tailor never adds them to a generated or refitted config.
 
 Default (with `--license=BlueOak-1.0.0`). The `license` key varies by flag (`MIT`, `Apache-2.0`, `none`, etc.) - the rest of the generated file is identical regardless of licence choice:
 
@@ -1709,6 +1725,9 @@ swatches:
   - path: .github/workflows/build-go.yml
     alteration: first-fit
 
+  - path: .github/workflows/tailor-vendor-hash.yml
+    alteration: always
+
   - path: Dockerfile
     alteration: first-fit
 
@@ -1816,7 +1835,8 @@ swatches/
 ├── .github/
 │   ├── dependabot.yml  # Go modules follow languages.go
 │   ├── workflows/
-│   │   └── build-go.yml
+│   │   ├── build-go.yml
+│   │   └── tailor-vendor-hash.yml
 │   ├── FUNDING.yml
 │   ├── ISSUE_TEMPLATE/
 │   │   ├── bug_report.yml

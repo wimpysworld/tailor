@@ -277,7 +277,7 @@ func (cfg *Config) SwatchActive(path string) bool {
 		return cfg.JavaScriptEnabled()
 	case "ruff.toml", "pyrightconfig.json":
 		return cfg.PythonEnabled()
-	case ".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", "Dockerfile":
+	case ".golangci.yml", ".goreleaser.yaml", ".github/workflows/build-go.yml", ".github/workflows/tailor-vendor-hash.yml", "Dockerfile":
 		return cfg.GoEnabled()
 	default:
 		return true
