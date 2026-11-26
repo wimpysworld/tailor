@@ -134,6 +134,8 @@ tailor/
 - Preserve existing target roots. Document manual hook composition with custom hooks last and the same overridden `pkgs` for both loaders.
 - Prepend component runtime libraries on all Linux hosts. Limit host-driver discovery to runtime `ID=nixos` unless `TAILOR_NIXOS_DRIVERS=0`.
 - Keep host drivers first. Default Vulkan ICD discovery in the core hook, independently of ffmpeg-statigo. Preserve explicit scalar values, including empty values.
+- Keep the managed Go `vendorHash` check read-only in check mode, with its temporary vendor directory outside the project. Skip it for absent, null, non-literal or `proxyVendor` hashes, or without `nix`.
+- Build the flake package in the Go builder workflow only when `flake.nix` and `nix/package.nix` exist.
 - Supply Staticcheck through generic Go. Build with the caller's Go and preserve sources and overrides at or above the managed floor.
 - Keep delivery tools in Ebitengine tooling, including Linux Avahi. Keep scientific Python libraries and the Blender application excluded.
 - Keep Android SDK consent scoped to its separate shell. Prioritise SDK tools and `jdk.home/bin`, and run shared hooks once.

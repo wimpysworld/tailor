@@ -83,6 +83,23 @@ jobs:
         run: go test ./...
       - name: Build
         run: go build ./...
+      - name: Install Nix
+        if: >-
+          hashFiles('flake.nix') != '' && hashFiles('nix/package.nix') != ''
+          && (runner.os != 'macOS' || runner.arch != 'X64')
+        uses: DeterminateSystems/nix-installer-action@3138316df39ed29be04236d7ffc686fa525866aa # v23
+      - name: Build Nix package
+        if: >-
+          hashFiles('flake.nix') != '' && hashFiles('nix/package.nix') != ''
+          && (runner.os != 'macOS' || runner.arch != 'X64')
+        run: |
+          system=$(nix eval --impure --raw --expr builtins.currentSystem)
+          available=$(nix eval .#packages --apply "packages: (packages.\"${system}\" or { }) ? default")
+          if [[ "${available}" == true ]]; then
+            nix build --no-link .#default
+          else
+            echo "The flake has no package for ${system}. Skipping the Nix build."
+          fi
 
   security:
 [[TAILOR_GO_JOB_GUARD]]

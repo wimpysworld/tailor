@@ -591,3 +591,44 @@ func TestGoWorkflowIsolationAndVulnerabilityChecks(t *testing.T) {
 		})
 	}
 }
+
+func TestGoWorkflowBuildsNixPackage(t *testing.T) {
+	data, err := swatch.Render(swatch.GoWorkflowDestination, swatch.Options{GoEnabled: true, DefaultBranch: "main"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var workflow struct {
+		Jobs map[string]struct {
+			Steps []struct{ Name, If, Uses, Run string }
+		}
+	}
+	if err := yaml.Unmarshal(data, &workflow); err != nil {
+		t.Fatal(err)
+	}
+	install, build := -1, -1
+	for index, step := range workflow.Jobs["test"].Steps {
+		switch step.Name {
+		case "Install Nix":
+			install = index
+			if !strings.HasPrefix(step.Uses, "DeterminateSystems/nix-installer-action@") {
+				t.Fatalf("Nix installer = %q", step.Uses)
+			}
+		case "Build Nix package":
+			build = index
+			if !strings.Contains(step.Run, "nix build --no-link .#default") || !strings.Contains(step.Run, "Skipping the Nix build") {
+				t.Fatalf("Nix build step = %q", step.Run)
+			}
+		default:
+			continue
+		}
+		condition := strings.Join(strings.Fields(step.If), " ")
+		for _, guard := range []string{"hashFiles('flake.nix') != ''", "hashFiles('nix/package.nix') != ''", "runner.os != 'macOS' || runner.arch != 'X64'"} {
+			if !strings.Contains(condition, guard) {
+				t.Errorf("%s lacks guard %q", step.Name, guard)
+			}
+		}
+	}
+	if install < 0 || build <= install {
+		t.Fatal("test job must install Nix before it builds the flake package")
+	}
+}

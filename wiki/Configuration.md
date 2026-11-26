@@ -348,7 +348,7 @@ Go is opt-in. New configs use `false`. Existing configs without this setting rem
 |---|---|---|
 | `.golangci.yml` | Go lint configuration | `first-fit` |
 | `.goreleaser.yaml` | Executable builds, archives, native packages, container images, and GitHub Releases | `first-fit` |
-| `.github/workflows/build-go.yml` | Tests, lint checks, pull request snapshots, and releases from version tags | `first-fit` |
+| `.github/workflows/build-go.yml` | Tests, lint checks, a Nix package build when `flake.nix` and `nix/package.nix` exist, pull request snapshots, and releases from version tags | `first-fit` |
 | `Dockerfile` | Non-root container image for each executable | `first-fit` |
 
 The release configuration disables CGO and produces these outputs by default:
@@ -458,11 +458,13 @@ The initial default uses Nyala's reviewed policy. It retains `G306` and three sc
 | `just lint` | Read-only checks, identical to `just lint check` |
 | `just lint correct` | Run core workflow lint, then tidy and format enabled ecosystems before their validation checks |
 
-Core workflow lint runs once before ecosystem checks, even when no language is enabled. For Go, subsequent checks run sequentially: `go mod tidy -diff`, `golangci-lint fmt --config .golangci.yml --diff`, `golangci-lint run --config .golangci.yml`, `govulncheck -show verbose ./...`, then diagnostic `gocyclo`. Each failure stops later commands. Lint does not run vet or tests. Test coverage stays in the console and creates no `coverage.out`. Lint rejects modes other than `check` and `correct` before any work.
+Core workflow lint runs once before ecosystem checks, even when no language is enabled. For Go, subsequent checks run sequentially: `go mod tidy -diff`, the `vendorHash` check, `golangci-lint fmt --config .golangci.yml --diff`, `golangci-lint run --config .golangci.yml`, `govulncheck -show verbose ./...`, then diagnostic `gocyclo`. Each failure stops later commands. Lint does not run vet or tests. Test coverage stays in the console and creates no `coverage.out`. Lint rejects modes other than `check` and `correct` before any work.
+
+The `vendorHash` check compares the literal `vendorHash` in the project-owned `nix/package.nix` with the hash of the Go module vendor directory. It runs `go mod vendor -o <tmpdir>` in a temporary directory outside the project, then `nix hash path --sri <tmpdir>`, and removes the temporary directory afterwards. Check mode is read-only. On a mismatch it fails and prints the file path, the declared hash, and the computed hash. `just lint correct` replaces the declared hash in place. The check is skipped with a message when `nix/package.nix` is absent, has no single literal `vendorHash`, sets `vendorHash = null`, sets `proxyVendor = true`, `modRoot`, or `overrideModAttrs`, or when `nix` is unavailable. `go mod vendor` reads the module cache and can download missing modules.
 
 Optional project-owned scripts at `just/project/build.sh`, `just/project/test.sh`, and `just/project/lint.sh` run with Bash after their managed commands succeed. Scripts run from the project root. The lint script receives `check` or `correct` as its first argument. Keep its check mode read-only. Missing scripts are skipped. Symlinks and non-regular scripts, or linked or non-directory parents, fail visibly. Tailor does not generate or overwrite these scripts. Do not expose alternative quality recipes through wrappers.
 
-Go commands can download modules and write caches. Vulnerability checks can use the network. Setup and release remain separate operational commands. Benchmark and profile commands remain future work.
+Go commands, including `go mod vendor` in the `vendorHash` check, can download modules and write caches. Vulnerability checks can use the network. Setup and release remain separate operational commands. Benchmark and profile commands remain future work.
 
 Every generated Dependabot file contains GitHub Actions and Nix entries. Go true adds `gomod`; Go false omits it. For a missing file, an absent Go setting selects the Go-enabled variant for legacy compatibility.
 
