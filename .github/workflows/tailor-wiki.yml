@@ -89,9 +89,11 @@ jobs:
           baseline_name = ".tailor-wiki-base"
           instructions = (
               "wiki publication stopped: import the wiki before publication. "
-              "If needed, create its first page in GitHub. Clone the wiki, copy all its "
-              "files except .git into wiki/, and save the clone's git rev-parse HEAD "
-              "output in wiki/.tailor-wiki-base. Commit and push the imported files."
+              "Run tailor alter to import the wiki, then commit and push the imported files."
+          )
+          empty = (
+              "wiki has no pages; skipping publication. Create and save the first page "
+              "in GitHub, then run tailor alter to import the wiki."
           )
           if wiki.is_symlink() or not wiki.is_dir():
               stop("wiki publication stopped: wiki/ must be a regular directory")
@@ -99,6 +101,12 @@ jobs:
               for name in directories + files:
                   path = Path(directory) / name
                   mode = path.lstat().st_mode
+                  if (
+                      name.lower().startswith(".tailor-wiki-")
+                      and path != wiki / baseline_name
+                  ):
+                      stop("wiki publication stopped: "
+                           "retain reserved wiki recovery data for review")
                   if name.lower() == ".git" or not (stat.S_ISDIR(mode) or stat.S_ISREG(mode)):
                       stop("wiki publication stopped: wiki/ contains an unsafe file")
 
@@ -108,11 +116,13 @@ jobs:
           if git(source, "rev-parse", "HEAD").decode().strip() != source_sha:
               stop("wiki publication stopped: checkout does not match the source commit")
           baseline_path = wiki / baseline_name
-          if not baseline_path.is_file():
-              stop(instructions)
-          baseline = git(source, "show", source_sha + ":wiki/" + baseline_name).decode().strip()
-          if not re.fullmatch(r"[0-9a-f]{40}", baseline):
-              stop("wiki publication stopped: wiki/.tailor-wiki-base must contain a full commit ID")
+          baseline = None
+          if baseline_path.exists() and not baseline_path.is_file():
+              stop("wiki publication stopped: wiki/.tailor-wiki-base must be a regular file")
+          if baseline_path.is_file():
+              baseline = git(source, "show", source_sha + ":wiki/" + baseline_name).decode().strip()
+              if not re.fullmatch(r"[0-9a-f]{40}", baseline):
+                  stop("wiki publication stopped: wiki/.tailor-wiki-base must contain a full commit ID")
 
           with tempfile.TemporaryDirectory(prefix="tailor-wiki-") as temporary:
               temporary = Path(temporary)
@@ -133,7 +143,11 @@ jobs:
                   ["git", "-c", "credential.helper=", "clone", "--bare", "--", remote_url, str(remote)],
                   env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
               )
+              # GitHub answers "not found" for a public, enabled wiki until its first page exists.
               if result.returncode:
+                  if b"not found" in result.stderr.lower():
+                      print(empty)
+                      raise SystemExit(0)
                   stop(instructions + " The wiki remote is unavailable.")
               remote_ref = git(remote, "symbolic-ref", "HEAD").decode().strip()
               if not remote_ref.startswith("refs/heads/"):
@@ -143,8 +157,13 @@ jobs:
                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
               )
               if result.returncode:
+                  if not git(remote, "for-each-ref", "--format=%(refname)").strip():
+                      print(empty)
+                      raise SystemExit(0)
                   stop(instructions)
               remote_sha = result.stdout.decode().strip()
+              if baseline is None:
+                  stop(instructions)
 
               # Transfer source objects without changing the wiki branch or its history.
               git(remote, "fetch", "--no-tags", str(source), source_sha)
@@ -155,6 +174,12 @@ jobs:
                       if not entry:
                           continue
                       metadata, name = entry.split(b"\t", 1)
+                      if name != baseline_name.encode() and any(
+                          part.startswith(b".tailor-wiki-")
+                          for part in name.lower().split(b"/")
+                      ):
+                          stop("wiki publication stopped: source commit "
+                               "contains reserved wiki recovery data")
                       if metadata.split()[0] not in (b"100644", b"100755") or b".git" in name.lower().split(b"/"):
                           stop("wiki publication stopped: source commit contains an unsafe wiki file")
                   index_env = dict(environment, GIT_INDEX_FILE=str(temporary / "index"), GIT_WORK_TREE=str(remote))
