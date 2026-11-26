@@ -314,6 +314,8 @@ Tailor uses one fixed internal registry for development roots, loaders, and frag
 
 The registry contains 37 ordinary swatches. Fresh configurations with all languages disabled contain 25 active swatches. The `justfile` and `flake.nix` entries control only missing-root creation. Managed templates are a separate class and add no swatch entries.
 
+The `flake.nix` starter has only the `nixpkgs` input. It does not add Tailor as a flake input or put the `tailor` package in the development shell, so a Tailor release cannot break a project's shell. Maintainers install Tailor outside the project. Existing roots keep any Tailor input until the maintainer removes the `tailor.url` input, the `tailor` output argument, and the package line by hand, then runs `nix flake lock`.
+
 Tailor reconciles both loaders and `just/tailor.just` on every `baste`, `alter`, and `alter --recut` run. The fixed Just loader does not change. Tailor renders the `build`, `test`, and `lint` dependencies from the current reconciliation plan, not by parsing live configuration when Just runs. The Go, Python, Rust, Shell, JavaScript, Pages, Blender, and Playwright package declarations have this exact lifecycle:
 
 | Declaration | Fragment action |

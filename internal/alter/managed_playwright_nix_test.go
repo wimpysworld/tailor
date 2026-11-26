@@ -17,7 +17,7 @@ import (
 )
 
 // TestManagedPlaywrightNixFixture is opt-in because it resolves remote flake
-// inputs, including the template's unlocked tailor input, and builds or downloads the Playwright Chromium closure. Run
+// inputs and builds or downloads the Playwright Chromium closure. Run
 // TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS=1 go test ./internal/alter -run TestManagedPlaywrightNixFixture -v.
 func TestManagedPlaywrightNixFixture(t *testing.T) {
 	if os.Getenv("TAILOR_TEST_PLAYWRIGHT_NIX_BUILDS") != "1" {
@@ -27,9 +27,7 @@ func TestManagedPlaywrightNixFixture(t *testing.T) {
 	root := managedPlaywrightNixFixture(t)
 	flakePath := "path:" + filepath.ToSlash(root)
 
-	// Lock the template's tailor input to this checkout, so the fixture needs
-	// neither the network nor a published latest tag.
-	lock := exec.CommandContext(t.Context(), nix, "flake", "lock", "--allow-dirty-locks", "--override-input", "tailor", "git+file://"+filepath.ToSlash(managedRepositoryRoot(t))+"?shallow=1", flakePath) // #nosec G204 -- The executable and isolated fixture are controlled by the test.
+	lock := exec.CommandContext(t.Context(), nix, "flake", "lock", "--allow-dirty-locks", flakePath) // #nosec G204 -- The executable and isolated fixture are controlled by the test.
 	if output, err := lock.CombinedOutput(); err != nil {
 		t.Fatalf("nix flake lock: %v\n%s", err, output)
 	}

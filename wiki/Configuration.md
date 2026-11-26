@@ -38,6 +38,8 @@ When the package loader is absent, add this expression to the existing Nix packa
 
 The Nix loader adds package lists only. It can use packages from the existing `pkgs` set, but it does not add flake inputs or change outputs. The one exception is the pinned ntrecord release binary, which `nix/ntrecord.nix` fetches with a fixed hash. Review and add new Nix files and owned patches to Git, because Nix flakes exclude untracked files. Tailor does not inspect or stage the Git index.
 
+New `flake.nix` roots do not include Tailor. Install Tailor once, for example with Home Manager, instead of in each project's development shell. A bad Tailor release then cannot break the shell of every project. To remove Tailor from an existing root, delete the `tailor.url` input, the `tailor` output argument, and the line that adds the `tailor` package. Then run `nix flake lock` and `nix-direnv-reload`.
+
 Tailor always reconciles `just/loader.just`, `nix/loader.nix`, `just/tailor.just`, and the `nix/ntrecord.nix` [terminal recording](#terminal-recordings) fragment. The fixed loader does not read `.tailor.yml` when Just runs. The generated `build`, `test`, and `lint` dependencies come from the last successful Tailor reconciliation. Go, Python, Rust, Shell, JavaScript, Pages, Blender, and Playwright use their capability declarations:
 
 | Declaration | Managed fragment action |
