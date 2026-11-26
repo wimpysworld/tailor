@@ -169,6 +169,11 @@ jobs:
       - name: Measure (Windows)
         if: runner.os == 'Windows'
         run: ./tailor.exe measure
+      - name: Build Nix package
+        if: >-
+          runner.os != 'Windows'
+          && (runner.os != 'macOS' || runner.arch != 'X64')
+        run: nix build --no-link .#tailor
       - name: Test container
         if: runner.os == 'Linux'
         run: |
