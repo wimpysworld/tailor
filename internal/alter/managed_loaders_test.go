@@ -1,7 +1,6 @@
 package alter
 
 import (
-	"bytes"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -245,13 +244,12 @@ func TestManagedPagesRecipeUsesCustomBuiltPathAndStubMiniserve(t *testing.T) {
 			writeManagedExecutable(t, miniserve, "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$TAILOR_MINISERVE_ARGS\"\n")
 			settings := &model.PagesSettings{Enabled: new(true), Generator: &tc.generator, Path: new("custom site")}
 			rendered := renderSelectedManagedFiles(t, managedRenderConfig(false, settings))
-			stubManagedMiniserve(t, rendered, miniserve)
 			writeManagedJustFixture(t, root, rendered)
 			writeManagedTestFile(t, root, filepath.ToSlash(filepath.Join(tc.preview, "index.html")), []byte("built\n"))
 
 			command := exec.CommandContext(t.Context(), just, "--justfile", "justfile", "pages") // #nosec G204 -- The executable and fixture are controlled by the test.
 			command.Dir = root
-			command.Env = append(managedEnvironmentWithout("TAILOR_MINISERVE_ARGS"), "TAILOR_MINISERVE_ARGS="+argsFile)
+			command.Env = append(managedMiniserveEnvironment(filepath.Dir(miniserve), "TAILOR_MINISERVE_ARGS"), "TAILOR_MINISERVE_ARGS="+argsFile)
 			if output, err := command.CombinedOutput(); err != nil {
 				t.Fatalf("just pages: %v\n%s", err, output)
 			}
@@ -284,12 +282,11 @@ func TestManagedPagesRecipeRejectsMissingNonStaticBuild(t *testing.T) {
 			writeManagedExecutable(t, miniserve, "#!/bin/sh\ntouch \"$TAILOR_MINISERVE_CALLED\"\n")
 			settings := &model.PagesSettings{Enabled: new(true), Generator: &tc.generator, Path: new("custom site")}
 			rendered := renderSelectedManagedFiles(t, managedRenderConfig(false, settings))
-			stubManagedMiniserve(t, rendered, miniserve)
 			writeManagedJustFixture(t, root, rendered)
 
 			command := exec.CommandContext(t.Context(), just, "--justfile", "justfile", "pages") // #nosec G204 -- The executable and fixture are controlled by the test.
 			command.Dir = root
-			command.Env = append(managedEnvironmentWithout("TAILOR_MINISERVE_CALLED"), "TAILOR_MINISERVE_CALLED="+called)
+			command.Env = append(managedMiniserveEnvironment(filepath.Dir(miniserve), "TAILOR_MINISERVE_CALLED"), "TAILOR_MINISERVE_CALLED="+called)
 			output, err := command.CombinedOutput()
 			if err == nil {
 				t.Fatalf("just pages succeeded without a built %s site", tc.generator)
@@ -301,6 +298,34 @@ func TestManagedPagesRecipeRejectsMissingNonStaticBuild(t *testing.T) {
 				t.Fatalf("miniserve ran for a missing build: %v", err)
 			}
 		})
+	}
+}
+
+func TestManagedPagesRecipeRejectsMissingMiniserve(t *testing.T) {
+	just := requireManagedExecutable(t, "just")
+	bash := requireManagedExecutable(t, "bash")
+	root := t.TempDir()
+	bin := filepath.Join(root, "bin")
+	if err := os.MkdirAll(bin, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(bash, filepath.Join(bin, "bash")); err != nil {
+		t.Fatal(err)
+	}
+	rendered := renderSelectedManagedFiles(t, managedRenderConfig(false, &model.PagesSettings{Enabled: new(true)}))
+	writeManagedJustFixture(t, root, rendered)
+
+	command := exec.CommandContext(t.Context(), just, "--justfile", "justfile", "pages") // #nosec G204 -- The executable and fixture are controlled by the test.
+	command.Dir = root
+	command.Env = append(managedEnvironmentWithout("PATH", "BASH_ENV"), "PATH="+bin)
+	output, err := command.CombinedOutput()
+	if err == nil {
+		t.Fatalf("just pages succeeded without miniserve on PATH\n%s", output)
+	}
+	for _, want := range []string{"Error: miniserve is not on PATH.", "nix develop", "nix flake update <input>", "nix-direnv-reload", "nix/pages.nix"} {
+		if !strings.Contains(string(output), want) {
+			t.Fatalf("missing-miniserve output = %q, want %q", output, want)
+		}
 	}
 }
 
@@ -443,14 +468,8 @@ func managedNixFlakeList(t *testing.T, nix, root, installable string) []string {
 	return values
 }
 
-func stubManagedMiniserve(t *testing.T, rendered managedRenderedFiles, executable string) {
-	t.Helper()
-	const command = "    miniserve "
-	content := rendered["just/pages.just"]
-	if bytes.Count(content, []byte(command)) != 1 {
-		t.Fatalf("Pages recipe contains %d miniserve commands, want 1", bytes.Count(content, []byte(command)))
-	}
-	rendered["just/pages.just"] = bytes.Replace(content, []byte(command), []byte("    "+strconv.Quote(executable)+" "), 1)
+func managedMiniserveEnvironment(bin string, names ...string) []string {
+	return append(managedEnvironmentWithout(append(names, "PATH", "BASH_ENV")...), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 }
 
 func writeManagedJustFixture(t *testing.T, root string, rendered managedRenderedFiles) {

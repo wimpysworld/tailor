@@ -42,7 +42,7 @@ Tailor reports blocked actions without bypassing the policy or changing reposito
 
 ## Local preview
 
-When `pages.enabled` is true, Tailor adds the `just pages` recipe and miniserve package. The recipe binds only to `http://127.0.0.1:18473`.
+When `pages.enabled` is true, Tailor adds the `just pages` recipe and miniserve package. The recipe binds only to `http://127.0.0.1:18473`. When `miniserve` is not on `PATH`, the recipe stops and suggests `nix develop`, `nix-direnv-reload`, or `git add` for an untracked Nix file.
 
 | Generator | Preview directory | Required file |
 | --- | --- | --- |
