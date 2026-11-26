@@ -157,7 +157,7 @@ func renderManagedLoader(destination string, content []byte, registry []managedR
 				imports = append(imports, "import? "+strconv.Quote(path.Base(entry.Path)))
 			}
 		case "nix/loader.nix":
-			if entry.Policy == managedPolicyFragment && entry.NixKind == managedNixList {
+			if (entry.Policy == managedPolicyCore || entry.Policy == managedPolicyFragment) && entry.NixKind == managedNixList {
 				name := path.Base(entry.Path)
 				imports = append(imports, renderManagedNixImport(name, "[ ]", "    "))
 			}

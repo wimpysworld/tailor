@@ -359,10 +359,11 @@ func TestRunBaste(t *testing.T) {
 		"would copy:                          nix/hooks.nix\n" +
 		"would copy:                          nix/hooks/core.nix\n" +
 		"would copy:                          nix/loader.nix\n" +
+		"would copy:                          nix/ntrecord.nix\n" +
 		"skipped:                             .envrc (first-fit, exists)\n" +
 		"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 		"skipped:                             .github/pull_request_template.md (mode never)\n" +
-		"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/hooks.nix`, `nix/hooks/core.nix`, `nix/loader.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n"
+		"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/hooks.nix`, `nix/hooks/core.nix`, `nix/loader.nix`, `nix/ntrecord.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n"
 	if stdout.String() != want {
 		t.Errorf("stdout =\n%s\nwant:\n%s", stdout.String(), want)
 	}
@@ -388,10 +389,11 @@ func TestRunAlter(t *testing.T) {
 		"copied:                              nix/hooks.nix\n" +
 		"copied:                              nix/hooks/core.nix\n" +
 		"copied:                              nix/loader.nix\n" +
+		"copied:                              nix/ntrecord.nix\n" +
 		"skipped:                             .envrc (first-fit, exists)\n" +
 		"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 		"skipped:                             .github/pull_request_template.md (mode never)\n" +
-		"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/hooks.nix`, `nix/hooks/core.nix`, `nix/loader.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n"
+		"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/hooks.nix`, `nix/hooks/core.nix`, `nix/loader.nix`, `nix/ntrecord.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n"
 	if stdout.String() != want {
 		t.Errorf("stdout =\n%s\nwant:\n%s", stdout.String(), want)
 	}
@@ -415,10 +417,11 @@ func TestRunAlterRecut(t *testing.T) {
 		"copied:                              nix/hooks.nix\n" +
 		"copied:                              nix/hooks/core.nix\n" +
 		"copied:                              nix/loader.nix\n" +
+		"copied:                              nix/ntrecord.nix\n" +
 		"overwritten:                         .envrc\n" +
 		"skipped:                             .github/dependabot.yml (not configured or mode never)\n" +
 		"skipped:                             .github/pull_request_template.md (mode never)\n" +
-		"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/hooks.nix`, `nix/hooks/core.nix`, `nix/loader.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n"
+		"Optional: review and add new Nix files to Git before using the development shell, because Nix flakes exclude untracked files: `nix/hooks.nix`, `nix/hooks/core.nix`, `nix/loader.nix`, `nix/ntrecord.nix`. Keep normal shell, direnv, SDK, extension, and client approvals.\n"
 	if stdout.String() != want {
 		t.Errorf("stdout =\n%s\nwant:\n%s", stdout.String(), want)
 	}

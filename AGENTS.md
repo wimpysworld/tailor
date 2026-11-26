@@ -129,6 +129,8 @@ tailor/
 - Accept Boolean `languages.go` or a mapping with required `enabled` and optional Boolean `cgo` and `ffmpeg-statigo`.
 - Use `EffectiveGoCGO()` for development policy. Keep release generation and source discovery at `CGO_ENABLED=0`.
 - Keep `nix/loader.nix` list-valued and hook strings in typed `nix/hooks.nix` imports. Run helpers first and the core host prepend last.
+- Always select core `nix/ntrecord.nix`, with no config key. It wraps the pinned ntrecord binary with static Fira Code and Nerd symbol fallback, and adds recording tools. Ship no recording recipes.
+- Set `XDG_DATA_HOME` for ntrecord only inside its wrapper. Omit ntrecord on unsupported systems instead of failing the shell.
 - Preserve existing target roots. Document manual hook composition with custom hooks last and the same overridden `pkgs` for both loaders.
 - Prepend component runtime libraries on all Linux hosts. Limit host-driver discovery to runtime `ID=nixos` unless `TAILOR_NIXOS_DRIVERS=0`.
 - Keep host drivers first. Default Vulkan ICD discovery in the core hook, independently of ffmpeg-statigo. Preserve explicit scalar values, including empty values.

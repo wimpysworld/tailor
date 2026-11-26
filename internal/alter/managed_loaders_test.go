@@ -84,7 +84,7 @@ func TestManagedNixLoaderEvaluatesRelativePackageLists(t *testing.T) {
 			rendered := renderSelectedManagedFiles(t, managedRenderConfig(tc.goOn, pages))
 			root := filepath.Join(t.TempDir(), "nested", "project")
 			for name, content := range rendered {
-				if strings.HasPrefix(name, "nix/") {
+				if stubbedManagedNixFixture(name) {
 					writeManagedRenderFixture(t, root, name, content)
 				}
 			}

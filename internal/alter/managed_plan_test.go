@@ -24,7 +24,7 @@ func TestFixedManagedRegistry(t *testing.T) {
 	}
 	want := []string{
 		"justfile", "flake.nix",
-		"just/loader.just", "nix/loader.nix", "nix/hooks.nix", "nix/hooks/core.nix", "nix/hooks/go.nix", "nix/hooks/go-ffmpeg-statigo.nix", "just/tailor.just",
+		"just/loader.just", "nix/loader.nix", "nix/hooks.nix", "nix/hooks/core.nix", "nix/hooks/go.nix", "nix/hooks/go-ffmpeg-statigo.nix", "just/tailor.just", "nix/ntrecord.nix",
 		"just/go.just", "nix/go.nix",
 		"nix/go-ebitengine.nix", "nix/lib/go-ebitengine-runtime.nix", "nix/hooks/go-ebitengine.nix", "nix/shells/go-ebitengine-android.nix",
 		"just/python.just", "nix/python.nix",
@@ -195,6 +195,7 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 				"nix/loader.nix":   true,
 				"just/tailor.just": true,
 				"nix/hooks.nix":    true, "nix/hooks/core.nix": true,
+				"nix/ntrecord.nix": true,
 			},
 		},
 		{
@@ -207,6 +208,7 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 				"nix/loader.nix":   true,
 				"just/tailor.just": true,
 				"nix/hooks.nix":    true, "nix/hooks/core.nix": true,
+				"nix/ntrecord.nix": true,
 			},
 		},
 		{
@@ -221,6 +223,7 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 				"nix/loader.nix":   true,
 				"just/tailor.just": true,
 				"nix/hooks.nix":    true, "nix/hooks/core.nix": true,
+				"nix/ntrecord.nix": true,
 				"nix/hooks/go.nix": false, "nix/hooks/go-ffmpeg-statigo.nix": false,
 				"just/go.just":                false,
 				"just/go-ffmpeg-statigo.just": false,
@@ -247,6 +250,7 @@ func TestSelectManagedFilesHonoursDeclarationsAndRootModes(t *testing.T) {
 				"justfile": true, "flake.nix": true,
 				"just/loader.just": true, "nix/loader.nix": true, "just/tailor.just": true,
 				"nix/hooks.nix": true, "nix/hooks/core.nix": true,
+				"nix/ntrecord.nix": true,
 				"nix/hooks/go.nix": true,
 				"just/go.just":     true, "nix/go.nix": true,
 				"just/pages.just": true, "nix/pages.nix": true,

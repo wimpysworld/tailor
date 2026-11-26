@@ -146,6 +146,7 @@ var managedCoreAcceptancePaths = []string{
 	"just/loader.just",
 	"just/tailor.just",
 	"nix/loader.nix",
+	"nix/ntrecord.nix",
 }
 
 var managedCoreAndPagesAcceptancePaths = []string{
@@ -153,6 +154,7 @@ var managedCoreAndPagesAcceptancePaths = []string{
 	"just/loader.just",
 	"just/tailor.just",
 	"nix/loader.nix",
+	"nix/ntrecord.nix",
 	"just/pages.just",
 	"nix/pages.nix",
 }

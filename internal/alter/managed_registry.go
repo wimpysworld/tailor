@@ -103,6 +103,7 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "nix/hooks/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo, NixKind: managedNixHook},
 		{Path: "nix/hooks/go-ffmpeg-statigo.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo, NixKind: managedNixHook},
 		{Path: "just/tailor.just", Policy: managedPolicyCore},
+		{Path: "nix/ntrecord.nix", Policy: managedPolicyCore},
 		{Path: "just/go.just", Policy: managedPolicyFragment, Capability: managedCapabilityGo, BuildBody: "build-go", TestBody: "test-go", LintBody: "lint-go"},
 		{Path: "nix/go.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGo},
 		{Path: "nix/go-ebitengine.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoEbitengine},

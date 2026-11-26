@@ -36,9 +36,9 @@ When the package loader is absent, add this expression to the existing Nix packa
 ++ import ./nix/loader.nix { inherit pkgs; }
 ```
 
-The Nix loader adds package lists only. It can use packages from the existing `pkgs` set, but it does not add flake inputs or change outputs. Review and add new Nix files and owned patches to Git, because Nix flakes exclude untracked files. Tailor does not inspect or stage the Git index.
+The Nix loader adds package lists only. It can use packages from the existing `pkgs` set, but it does not add flake inputs or change outputs. The one exception is the pinned ntrecord release binary, which `nix/ntrecord.nix` fetches with a fixed hash. Review and add new Nix files and owned patches to Git, because Nix flakes exclude untracked files. Tailor does not inspect or stage the Git index.
 
-Tailor always reconciles `just/loader.just`, `nix/loader.nix`, and `just/tailor.just`. The fixed loader does not read `.tailor.yml` when Just runs. The generated `build`, `test`, and `lint` dependencies come from the last successful Tailor reconciliation. Go, Python, Rust, Shell, JavaScript, Pages, Blender, and Playwright use their capability declarations:
+Tailor always reconciles `just/loader.just`, `nix/loader.nix`, `just/tailor.just`, and the `nix/ntrecord.nix` [terminal recording](#terminal-recordings) fragment. The fixed loader does not read `.tailor.yml` when Just runs. The generated `build`, `test`, and `lint` dependencies come from the last successful Tailor reconciliation. Go, Python, Rust, Shell, JavaScript, Pages, Blender, and Playwright use their capability declarations:
 
 | Declaration | Managed fragment action |
 | --- | --- |
@@ -106,6 +106,32 @@ The helper functions run first, component hooks run next, and the core host hook
 Component runtime libraries enter `LD_LIBRARY_PATH` on all Linux hosts. Only host-driver discovery requires runtime `/etc/os-release` to contain `ID=nixos`. Tailor parses this file without sourcing it. Set `TAILOR_NIXOS_DRIVERS=0` to disable host-driver discovery, not component runtime paths or CGO policy. Darwin receives neither Linux packages nor graphics hooks.
 
 The FFmpeg component adds `vulkan-loader`, `intel-media-driver`, and `vpl-gpu-rt` on Linux. Its library order is oneVPL, Intel media, then Vulkan. On NixOS, it defaults `ONEVPL_SEARCH_PATH` to the oneVPL library directory and `LIBVA_DRIVERS_PATH` to system DRI or Intel DRI fallback. The core hook defaults `VK_DRIVER_FILES` to sorted, readable host ICD manifests, including files under linked driver directories. This core default also applies to Ebitengine without ffmpeg-statigo. These defaults apply only to unset variables. Explicit empty values and user choices remain unchanged. Tailor neither detects GPU vendors nor forces `LIBVA_DRIVER_NAME`.
+
+### Terminal recordings
+
+Every managed development shell includes `nix/ntrecord.nix`. This fragment has no configuration key. It supplies these tools:
+
+| Tool | Use |
+| --- | --- |
+| `ntrecord` | Records VHS-style tapes to GIF, MP4, WebM, text, or PNG frames. |
+| `ffmpeg` (`ffmpeg-headless`) | Converts recordings, for example to animated WebP. |
+| `gifsicle`, `gifski` | Optimise and encode GIFs. |
+| `oxipng` | Optimises PNG frames and screenshots. |
+
+ntrecord is a pinned release binary for `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`, and `aarch64-darwin`. On other systems the shell omits ntrecord and keeps the other tools.
+
+A wrapper gives ntrecord its fonts. Use `Set FontFamily "Fira Code"` in tapes. Nerd Font symbols, such as Powerline separators and file icons, fall back to Symbols Nerd Font, then DejaVu. The wrapper sets `XDG_DATA_HOME` for the ntrecord process only, not for the shell. Set `NTRECORD_FONT_PATH` to replace the fallback font directories.
+
+Tailor ships no recording recipes. Add your own recipe or script. Run ntrecord without direnv variables, so the recorded shell does not reload the environment, then convert the result:
+
+```bash
+env -u DIRENV_DIR -u DIRENV_FILE -u DIRENV_DIFF -u DIRENV_WATCHES \
+  -u PROMPT_COMMAND -u BASH_ENV \
+  ntrecord demo.tape
+ffmpeg -y -v error -i .demo.mp4 -c:v libwebp_anim -lossless 1 -loop 0 pages/demo.webp
+```
+
+If a preserved `flake.nix` already builds its own ntrecord derivation and font wrapper, remove both. Keep the `nix/loader.nix` import, which now supplies ntrecord.
 
 ## Python support
 

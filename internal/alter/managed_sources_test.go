@@ -436,7 +436,7 @@ func TestSourceNixPackages(t *testing.T) {
 	cfg := &config.Config{Languages: &config.LanguageSettings{JavaScript: new(true), Shell: new(true)}}
 	root := t.TempDir()
 	for name, content := range renderSelectedManagedFiles(t, cfg) {
-		if strings.HasPrefix(name, "nix/") {
+		if stubbedManagedNixFixture(name) {
 			writeManagedTestFile(t, root, name, content)
 		}
 	}

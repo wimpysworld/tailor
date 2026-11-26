@@ -612,9 +612,9 @@ swatches: []
 
 func expectedManagedHooks(output string) string {
 	for _, prefix := range []string{"would copy:                          ", "copied:                              ", "no change:                           "} {
-		output = strings.ReplaceAll(output, prefix+"nix/loader.nix\n", prefix+"nix/hooks.nix\n"+prefix+"nix/hooks/core.nix\n"+prefix+"nix/loader.nix\n")
+		output = strings.ReplaceAll(output, prefix+"nix/loader.nix\n", prefix+"nix/hooks.nix\n"+prefix+"nix/hooks/core.nix\n"+prefix+"nix/loader.nix\n"+prefix+"nix/ntrecord.nix\n")
 	}
-	return strings.ReplaceAll(output, "files: `nix/loader.nix`", "files: `nix/hooks.nix`, `nix/hooks/core.nix`, `nix/loader.nix`")
+	return strings.ReplaceAll(output, "files: `nix/loader.nix`", "files: `nix/hooks.nix`, `nix/hooks/core.nix`, `nix/loader.nix`, `nix/ntrecord.nix`")
 }
 
 func TestAlterRunOutputByMode(t *testing.T) {

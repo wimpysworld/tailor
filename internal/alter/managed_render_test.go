@@ -71,8 +71,8 @@ func TestManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 			t.Errorf("managed template %q lacks its ownership marker", entry.Path)
 		}
 	}
-	if len(managed) != 35 {
-		t.Fatalf("managed=%d, want 35", len(managed))
+	if len(managed) != 36 {
+		t.Fatalf("managed=%d, want 36", len(managed))
 	}
 
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(name string, entry fs.DirEntry, err error) error {
@@ -151,7 +151,7 @@ func TestManagedLoadersUseRegistryFragments(t *testing.T) {
 		}
 	}
 	nixLoader := string(baseline["nix/loader.nix"])
-	for _, name := range []string{"go.nix", "pages.nix", "playwright.nix"} {
+	for _, name := range []string{"ntrecord.nix", "go.nix", "pages.nix", "playwright.nix"} {
 		if !strings.Contains(nixLoader, "builtins.pathExists ./"+name) || !strings.Contains(nixLoader, "import ./"+name) {
 			t.Errorf("Nix loader lacks relative optional import for %s", name)
 		}
@@ -397,7 +397,7 @@ func TestManagedNixFragmentsReturnPackageLists(t *testing.T) {
 			rendered := renderSelectedManagedFiles(t, managedRenderConfig(tt.goOn, tt.pages))
 			dir := t.TempDir()
 			for name, content := range rendered {
-				if strings.HasPrefix(name, "nix/") {
+				if stubbedManagedNixFixture(name) {
 					writeManagedRenderFixture(t, dir, name, content)
 				}
 			}
@@ -476,6 +476,12 @@ func renderSelectedManagedFiles(t *testing.T, cfg *config.Config) managedRendere
 		t.Fatal(err)
 	}
 	return rendered
+}
+
+// stubbedManagedNixFixture omits nix/ntrecord.nix, which needs a real nixpkgs
+// set, so the loader skips it when evaluated against stub packages.
+func stubbedManagedNixFixture(name string) bool {
+	return strings.HasPrefix(name, "nix/") && name != "nix/ntrecord.nix"
 }
 
 func writeManagedRenderFixture(t *testing.T, root, name string, content []byte) {

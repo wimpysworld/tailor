@@ -300,7 +300,7 @@ Tailor uses one fixed internal registry for development roots, loaders, and frag
 | Policy | Active destinations |
 | --- | --- |
 | Protected roots | `justfile`, `flake.nix` |
-| Loaders and core | `just/loader.just`, `nix/loader.nix`, `just/tailor.just` |
+| Loaders and core | `just/loader.just`, `nix/loader.nix`, `just/tailor.just`, `nix/ntrecord.nix` |
 | Go fragments | `just/go.just`, `nix/go.nix` |
 | Python fragments | `just/python.just`, `nix/python.nix` |
 | Rust fragments | `just/rust.just`, `nix/rust.nix` |
@@ -355,7 +355,9 @@ Graphics package selection and component runtime library prepends apply on all L
 
 The component packages are `pkg-config`, `git`, `curl`, and `jq`, plus Linux-only `vulkan-loader`, `intel-media-driver`, and `vpl-gpu-rt`. Its library paths are oneVPL, Intel media, then Vulkan, after the host path and before existing entries. Unset-only defaults select oneVPL libraries, system DRI or Intel DRI fallback, and sorted readable system Vulkan ICD manifests through linked driver directories. Preserve explicit empty values and custom values for `ONEVPL_SEARCH_PATH`, `LIBVA_DRIVERS_PATH`, and `VK_DRIVER_FILES`. Do not inspect hardware vendors or set `LIBVA_DRIVER_NAME`.
 
-The Nix loader returns only a package list. It passes the existing `pkgs` set to each fragment and does not add inputs, change outputs, or update the lock file. This packages-only guarantee covers packages available through the existing flake inputs. The Go fragment supplies Go, golangci-lint, govulncheck, GoReleaser, gocyclo, goperf, and Staticcheck. Staticcheck uses the caller's Go and has a `2026.2.2` floor. Package versions at or above that floor retain the caller's source and overrides, including forks. Older versions use the pinned upstream fallback. The Playwright fragment supplies `playwright-mcp` with Chromium only. It excludes Firefox, WebKit, and the Chromium headless shell.
+The Nix loader returns only a package list. It passes the existing `pkgs` set to each fragment and does not add inputs, change outputs, or update the lock file. This packages-only guarantee covers packages available through the existing flake inputs, except for the pinned ntrecord binary described below. The Go fragment supplies Go, golangci-lint, govulncheck, GoReleaser, gocyclo, goperf, and Staticcheck. Staticcheck uses the caller's Go and has a `2026.2.2` floor. Package versions at or above that floor retain the caller's source and overrides, including forks. Older versions use the pinned upstream fallback. The Playwright fragment supplies `playwright-mcp` with Chromium only. It excludes Firefox, WebKit, and the Chromium headless shell.
+
+The core `nix/ntrecord.nix` fragment is always selected and has no configuration key. It supplies the ntrecord terminal recorder, plus `ffmpeg-headless`, `gifsicle`, `gifski`, and `oxipng`. ntrecord is a prebuilt release binary, fetched with `fetchurl` and a fixed SHA-256 hash for `x86_64-linux`, `aarch64-linux`, `x86_64-darwin`, and `aarch64-darwin`. On other systems, the fragment omits ntrecord and keeps the other tools. A wrapper sets `XDG_DATA_HOME` to static Fira Code for the ntrecord process only, so tapes can use `Set FontFamily "Fira Code"`. The wrapper defaults `NTRECORD_FONT_PATH` to Fira Code, Nerd Fonts Symbols Only, and DejaVu fallback roots. It does not export either variable into the shell, add a hook, or ship recording recipes.
 
 Shell and JavaScript follow the Go tool-ownership pattern: Nix supplies fixed tools and the shared Just core runs checks and corrections. The Shell package fragment supplies ShellCheck and shfmt. The JavaScript package fragment supplies Node.js, Oxlint, and Prettier from the caller's `pkgs`. Both fragments remain list-valued and add no inputs, lock changes, hooks, or installers.
 
