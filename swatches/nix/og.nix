@@ -229,6 +229,7 @@ let
       }
 
       .og-split-brand-top {
+        flex: 0 0 auto;
         display: flex;
         flex-direction: column;
         align-items: flex-start;
@@ -267,31 +268,53 @@ let
       }
 
       .og-split-logo-slot {
-        flex: 1 1 auto;
+        flex: 1 1 0;
         min-height: 0;
+        align-self: center;
+        width: 100%;
         display: flex;
         align-items: center;
-        justify-content: flex-start;
-        padding: 14px 0;
+        justify-content: center;
+        padding: 12px 0;
       }
 
       .og-split-logo {
-        display: inline-flex;
+        position: relative;
+        display: flex;
         align-items: center;
         justify-content: center;
-        width: 148px;
-        height: 148px;
-        padding: 10px;
-        border-radius: 28px;
-        border: 1px solid var(--mu-muted-border-color);
-        background: color-mix(in srgb, var(--mu-card-background-color) 88%, var(--mu-primary) 5%);
-        box-shadow:
-          0 18px 42px color-mix(in srgb, #000000 32%, transparent),
-          0 0 0 1px color-mix(in srgb, var(--mu-primary) 14%, transparent),
-          0 0 44px color-mix(in srgb, var(--mu-primary) 18%, transparent);
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        max-width: 176px;
+        max-height: 176px;
+        aspect-ratio: 1 / 1;
+      }
+
+      .og-split-logo::before {
+        content: "";
+        position: absolute;
+        inset: -72px;
+        background: radial-gradient(
+          circle closest-side at 50% 50%,
+          color-mix(in srgb, var(--mu-primary) 26%, transparent),
+          color-mix(in srgb, var(--mu-primary) 12%, transparent) 46%,
+          color-mix(in srgb, var(--mu-primary) 4%, transparent) 74%,
+          transparent 100%
+        );
+        pointer-events: none;
+      }
+
+      .og-split-logo .og-icon {
+        position: relative;
+        z-index: 1;
+        filter:
+          drop-shadow(0 16px 30px color-mix(in srgb, #000000 34%, transparent))
+          drop-shadow(0 0 28px color-mix(in srgb, var(--mu-primary) 20%, transparent));
       }
 
       .og-split .og-footer {
+        flex: 0 0 auto;
         justify-content: flex-start;
         padding-top: 0;
         font-size: 15px;
@@ -320,31 +343,31 @@ let
 
       .og-emblem-glow {
         position: absolute;
-        inset: -32px;
+        inset: -48px;
         background: radial-gradient(
-          circle at 50% 50%,
+          circle closest-side at 50% 50%,
           color-mix(in srgb, var(--mu-primary) 28%, transparent),
-          color-mix(in srgb, var(--mu-primary) 10%, transparent) 42%,
-          transparent 68%
+          color-mix(in srgb, var(--mu-primary) 13%, transparent) 46%,
+          color-mix(in srgb, var(--mu-primary) 4%, transparent) 74%,
+          transparent 100%
         );
         pointer-events: none;
       }
 
-      .og-emblem-card {
+      .og-emblem {
         position: relative;
         z-index: 1;
-        width: 368px;
-        height: 368px;
+        width: 312px;
+        height: 312px;
         display: flex;
         align-items: center;
         justify-content: center;
-        padding: 58px;
-        border-radius: 44px;
-        border: 1px solid var(--mu-muted-border-color);
-        background: color-mix(in srgb, var(--mu-card-background-color) 88%, var(--mu-primary) 5%);
-        box-shadow:
-          0 24px 60px color-mix(in srgb, #000000 36%, transparent),
-          0 0 0 1px color-mix(in srgb, var(--mu-primary) 16%, transparent);
+      }
+
+      .og-emblem .og-icon {
+        filter:
+          drop-shadow(0 24px 48px color-mix(in srgb, #000000 38%, transparent))
+          drop-shadow(0 0 42px color-mix(in srgb, var(--mu-primary) 24%, transparent));
       }
 
       .og-window {
@@ -363,18 +386,22 @@ let
           0 0 0 1px color-mix(in srgb, var(--mu-primary) 16%, transparent);
       }
 
-      :root[data-theme="light"] .og-window,
-      :root[data-theme="light"] .og-emblem-card {
+      :root[data-theme="light"] .og-window {
         box-shadow:
           0 20px 48px color-mix(in srgb, #000000 12%, transparent),
           0 0 0 1px color-mix(in srgb, var(--mu-primary) 14%, transparent);
       }
 
-      :root[data-theme="light"] .og-split-logo {
-        box-shadow:
-          0 14px 32px color-mix(in srgb, #000000 10%, transparent),
-          0 0 0 1px color-mix(in srgb, var(--mu-primary) 12%, transparent),
-          0 0 36px color-mix(in srgb, var(--mu-primary) 14%, transparent);
+      :root[data-theme="light"] .og-split-logo .og-icon {
+        filter:
+          drop-shadow(0 12px 24px color-mix(in srgb, #000000 14%, transparent))
+          drop-shadow(0 0 24px color-mix(in srgb, var(--mu-primary) 14%, transparent));
+      }
+
+      :root[data-theme="light"] .og-emblem .og-icon {
+        filter:
+          drop-shadow(0 18px 36px color-mix(in srgb, #000000 16%, transparent))
+          drop-shadow(0 0 32px color-mix(in srgb, var(--mu-primary) 16%, transparent));
       }
 
       .og-window-bar {
@@ -716,7 +743,7 @@ let
                 </div>
                 <div class="og-split-preview">
                   <div class="og-emblem-glow" aria-hidden="true"></div>
-                  <div class="og-emblem-card">
+                  <div class="og-emblem">
                     <img class="og-icon" src="{icon_uri}" alt="">
                   </div>
                 </div>
