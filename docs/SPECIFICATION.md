@@ -1029,6 +1029,7 @@ social:
       min_stars: 25
       min_days: 30
     sponsors: auto
+    contributors: true
   live:
     branch: social-assets
     schedule: "0 4 * * *"
@@ -1043,7 +1044,7 @@ Project title, tagline, and icon are inherited rather than duplicated in `.tailo
 Social assets use a hybrid storage model:
 
 - Static assets live on the default branch (`main`): the Open Graph preview image (default `pages/og.png`) and static README SVGs under `pages/social/*.svg`.
-- Daily live SVGs (stats strip and star history chart) live on an orphan branch (default `social-assets`) updated on schedule so the default branch history stays free of automated daily commits.
+- Daily live SVGs (stats health strip, star history chart or CTA fallback, live sponsors, live community, and contributors banner) live on an orphan branch (default `social-assets`) updated on schedule so the default branch history stays free of automated daily commits.
 
 #### Open Graph preview image (`og.png`)
 
@@ -1059,11 +1060,12 @@ Tailor generates dark and light SVG pairs in pure Go without external browser de
 - Preferred link pills controlled by `social.readme.preferred_links` (up to 4 unique keys from `pages.links`).
 - Community banner controlled by `social.readme.community` (`auto`, `none`, `discord`, `matrix`, `slack`, `irc`, `forum`, or `discussions`).
 - Haberdasher package tiles controlled by `social.readme.packages` (unique entries from `apt`, `rpm`, `pkg`, `apk`, `flatpak`, `brew`, `scoop`, and `nix`).
-- Live repository stats strip (`stats-dark.svg`, `stats-light.svg`) controlled by `social.readme.stats`.
-- Live animated star history chart (`stars-dark.svg`, `stars-light.svg`) controlled by `social.readme.star_history` (`enabled`, `min_stars >= 0`, `min_days >= 0`).
+- Live 4-column project health strip (`stats-dark.svg`, `stats-light.svg`) showing `Commits`, `Issues` (open and closed), `Pull Requests` (merged and open), and `Established` (month and year), linking to `/pulse`, controlled by `social.readme.stats` (Boolean, default `true`).
+- Live animated star history chart (`stars-dark.svg`, `stars-light.svg`) controlled by `social.readme.star_history` (`enabled`, `min_stars >= 0`, `min_days >= 0`). Below `min_stars` or `min_days`, Tailor renders a themed "Star this repository" CTA card with drifting stars instead.
 - Sponsors banner controlled by `social.readme.sponsors` (`auto`, `true`, or `false`).
+- Live floating-balloon contributors banner (`contributors-dark.svg`, `contributors-light.svg`) controlled by `social.readme.contributors` (Boolean, default `true`). It renders inline human-only contributor avatars (bots excluded) with a thank-you message and links to `/graphs/contributors`.
 
-Tailor updates only content between explicit standalone `<!-- tailor:social-<name>:start -->` and `<!-- tailor:social-<name>:end -->` marker pairs in `README.md`, and preserves all surrounding authored prose.
+Tailor updates only content between explicit standalone `<!-- tailor:social-<name>:start -->` and `<!-- tailor:social-<name>:end -->` marker pairs in `README.md`, and preserves all surrounding authored prose. Supported marker names are `header`, `links`, `community`, `stats`, `packages`, `sponsors`, `stars`, and `contributors` (`<!-- tailor:social-contributors:start -->` and `<!-- tailor:social-contributors:end -->`).
 
 #### Subcommand, managed files, and measurement
 
@@ -1715,6 +1717,7 @@ social:
       min_stars: 25
       min_days: 30
     sponsors: auto
+    contributors: true
   live:
     branch: social-assets
     schedule: "0 4 * * *"

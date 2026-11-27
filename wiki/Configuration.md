@@ -582,6 +582,7 @@ social:
       min_stars: 25
       min_days: 30
     sponsors: auto
+    contributors: true
   live:
     branch: social-assets
     schedule: "0 4 * * *"
@@ -622,11 +623,12 @@ Unknown keys under `social` (such as `title`, `tagline`, or `icon`) fail validat
 | `social.readme.preferred_links` | Up to 4 unique keys from `pages.links` (`link-<key>-dark.svg`, `link-<key>-light.svg`) | `[]` |
 | `social.readme.community` | `"auto"`, `"none"`, `"discord"`, `"matrix"`, `"slack"`, `"irc"`, `"forum"`, or `"discussions"` | `"auto"` |
 | `social.readme.packages` | Unique Haberdasher hosts from `apt`, `rpm`, `pkg`, `apk`, `flatpak`, `brew`, `scoop`, `nix` | `[]` |
-| `social.readme.stats` | Boolean (live `stats-dark.svg`, `stats-light.svg`) | `true` |
-| `social.readme.star_history.enabled` | Boolean (live `stars-dark.svg`, `stars-light.svg`) | `true` |
+| `social.readme.stats` | Boolean. Live 4-column project health strip (`Commits`, `Issues`, `Pull Requests`, `Established`) linking to `/pulse` (`stats-dark.svg`, `stats-light.svg`). | `true` |
+| `social.readme.star_history.enabled` | Boolean. Live animated star history chart (`stars-dark.svg`, `stars-light.svg`), or a drifting-stars CTA card below `min_stars` or `min_days`. | `true` |
 | `social.readme.star_history.min_stars` | Integer `>= 0` | `25` |
 | `social.readme.star_history.min_days` | Integer `>= 0` | `30` |
 | `social.readme.sponsors` | `"auto"`, `"true"`, or `"false"` (YAML Booleans `true` and `false` are also accepted) | `"auto"` |
+| `social.readme.contributors` | Boolean. Live floating-balloon human-only contributors banner with inline avatars linking to `/graphs/contributors` (`contributors-dark.svg`, `contributors-light.svg`). | `true` |
 | `social.live.branch` | Valid Git branch name for live SVGs | `"social-assets"` |
 | `social.live.schedule` | 5-field cron expression for `.github/workflows/tailor-social.yml` | `"0 4 * * *"` |
 
@@ -637,7 +639,9 @@ Unknown keys under `social` (such as `title`, `tagline`, or `icon`) fail validat
 Social assets split static and live outputs across two branches:
 
 - **Static assets on the default branch (`main`)**: the Open Graph preview image (`pages/og.png` by default) and static README SVGs under `pages/social/*.svg` (or `<pages.path>/social/*.svg`).
-- **Daily live SVGs on an orphan branch (`social-assets` by default)**: `stats`, `stars`, `sponsors`, and live community banners (Discord, GitHub Discussions, and Discourse forums). `.github/workflows/tailor-social.yml` updates this branch on `social.live.schedule` and updates `README.md` with commit-pinned `raw.githubusercontent.com` URLs, so daily asset refreshes do not add binary or SVG churn to `main`.
+- **Daily live SVGs on an orphan branch (`social-assets` by default)**: `stats`, `stars`, `sponsors`, live community banners (Discord, GitHub Discussions, and Discourse forums), and `contributors`. `.github/workflows/tailor-social.yml` updates this branch on `social.live.schedule` and updates `README.md` with commit-pinned `raw.githubusercontent.com` URLs, so daily asset refreshes do not add binary or SVG churn to `main`.
+- **Star CTA fallback**: when a repository is below `star_history.min_stars` or `star_history.min_days`, `stars-dark.svg` and `stars-light.svg` render a themed "Star this repository" CTA card with drifting stars. Once the repository meets both thresholds, they switch to the animated star history chart.
+- **Human-only contributors banner**: `contributors-dark.svg` and `contributors-light.svg` embed inline avatars for human contributors only (bots excluded) in a floating-balloon banner with a thank-you message, linking to `/graphs/contributors`.
 
 ### Running `tailor social` and `just og`
 
@@ -678,7 +682,7 @@ Put standalone marker pairs on separate lines in `README.md` for each section th
 <!-- tailor:social-header:end -->
 ```
 
-Supported marker names are `header`, `links`, `community`, `packages`, `stats`, `stars`, and `sponsors`. Tailor replaces only the content between existing marker pairs, skips absent markers, and preserves all surrounding prose. Partial, duplicated, reversed, inline, or overlapping markers stop the update before writes.
+Supported marker names are `header`, `links`, `community`, `stats`, `packages`, `sponsors`, `stars`, and `contributors` (`<!-- tailor:social-contributors:start -->` and `<!-- tailor:social-contributors:end -->`). Tailor replaces only the content between existing marker pairs, skips absent markers, and preserves all surrounding prose. Partial, duplicated, reversed, inline, or overlapping markers stop the update before writes.
 
 ### Existing `pages/index.html` sites
 

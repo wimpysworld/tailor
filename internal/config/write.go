@@ -499,6 +499,7 @@ func (w *rulesetWriter) socialReadme(r *model.SocialReadmeSettings) {
 	if r.Sponsors != nil {
 		sub.scalar(4, "", "sponsors", *r.Sponsors)
 	}
+	sub.boolean(4, "contributors", r.Contributors)
 	w.appendSubSection(2, "readme", sub)
 }
 

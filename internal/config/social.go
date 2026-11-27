@@ -155,6 +155,14 @@ func (cfg *Config) EffectiveSocialSponsors() string {
 	return model.DefaultSocialSponsors
 }
 
+// EffectiveSocialContributors reports whether the live README contributors banner is enabled (default true).
+func (cfg *Config) EffectiveSocialContributors() bool {
+	if cfg != nil && cfg.Social != nil && cfg.Social.Readme != nil && cfg.Social.Readme.Contributors != nil {
+		return *cfg.Social.Readme.Contributors
+	}
+	return model.DefaultSocialContributors
+}
+
 // EffectiveSocialLiveBranch returns the configured live assets branch or the default ("social-assets").
 func (cfg *Config) EffectiveSocialLiveBranch() string {
 	if cfg != nil && cfg.Social != nil && cfg.Social.Live != nil && cfg.Social.Live.Branch != nil && *cfg.Social.Live.Branch != "" {
@@ -243,7 +251,7 @@ func validateSocialReadmeNodes(node *yaml.Node) error {
 	for i := 0; i+1 < len(node.Content); i += 2 {
 		key, value := node.Content[i], node.Content[i+1]
 		switch key.Value {
-		case "header", "stats":
+		case "header", "stats", "contributors":
 			if err := requireYAMLTag("social.readme."+key.Value, value, "!!bool"); err != nil {
 				return err
 			}

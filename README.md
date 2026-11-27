@@ -14,15 +14,9 @@
 
 <!-- tailor:social-community:start -->
 <p align="center">
-  <a href="https://discord.com/invite/vUsydfP"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/community-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/community-light.svg" alt="Discord community"></picture></a>
+  <a href="https://discord.com/invite/vUsydfP"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/community-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/community-light.svg" alt="Discord community"></picture></a>
 </p>
 <!-- tailor:social-community:end -->
-
-<!-- tailor:social-stats:start -->
-<p align="center">
-  <a href="https://github.com/wimpysworld/tailor"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/stats-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/stats-light.svg" alt="Tailor statistics"></picture></a>
-</p>
-<!-- tailor:social-stats:end -->
 
 Tailor is a local terminal CLI that keeps GitHub repositories consistent with community health files, security policies, dev tooling, and repository settings.
 
@@ -40,6 +34,12 @@ Use it for solo projects or small teams that manage several repositories. Its em
 - **[GitHub Pages](https://github.com/wimpysworld/tailor/wiki/GitHub-Pages)**: a static starter site, or publication of an existing Hugo or Jekyll site.
 - **[GitHub wiki](https://github.com/wimpysworld/tailor/wiki/GitHub-wiki)**: publish the wiki from `wiki/` in the repository.
 - **Previews before changes**: `baste` shows every change before `alter` applies it. Tailor uses free GitHub features only.
+
+<!-- tailor:social-stats:start -->
+<p align="center">
+  <a href="https://github.com/wimpysworld/tailor/pulse"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/stats-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/stats-light.svg" alt="Tailor statistics"></picture></a>
+</p>
+<!-- tailor:social-stats:end -->
 
 ## Install
 
@@ -90,6 +90,12 @@ The `--user` option uses your host identity for Git ownership checks and writes 
 Tailor needs a valid GitHub authentication token for `fit`, `alter`, and `baste`. Set `GH_TOKEN` or `GITHUB_TOKEN` to use Tailor without the `gh` binary.
 
 Alternatively, install the [GitHub CLI](https://cli.github.com/) and run `gh auth login`. Tailor can then read the token from the `gh` config file or keyring. The `measure` and `docket` commands do not require authentication.
+
+<!-- tailor:social-sponsors:start -->
+<p align="center">
+  <a href="https://github.com/sponsors/flexiondotorg"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/sponsors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/sponsors-light.svg" alt="Tailor sponsors"></picture></a>
+</p>
+<!-- tailor:social-sponsors:end -->
 
 ## Quick start
 
@@ -167,12 +173,12 @@ Read [Support](SUPPORT.md) for help and [Contributing](CONTRIBUTING.md) before s
 
 <!-- tailor:social-stars:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/stars-light.svg" alt="Tailor star history"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/stars-light.svg" alt="Tailor star history"></picture></a>
 </p>
 <!-- tailor:social-stars:end -->
 
-<!-- tailor:social-sponsors:start -->
+<!-- tailor:social-contributors:start -->
 <p align="center">
-  <a href="https://github.com/sponsors/flexiondotorg"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/sponsors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/sponsors-light.svg" alt="Tailor sponsors"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/graphs/contributors"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/contributors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/contributors-light.svg" alt="Tailor contributors"></picture></a>
 </p>
-<!-- tailor:social-sponsors:end -->
+<!-- tailor:social-contributors:end -->

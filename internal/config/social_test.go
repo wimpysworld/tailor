@@ -63,6 +63,7 @@ func TestSocialParsingAndValidation(t *testing.T) {
       min_stars: 0
       min_days: 0
     sponsors: auto
+    contributors: true
   live:
     branch: social-assets
     schedule: "0 4 * * *"`,
@@ -108,6 +109,7 @@ func TestSocialParsingAndValidation(t *testing.T) {
 		{name: "readme not mapping", body: "social:\n  readme: []", wantError: "social.readme must be a mapping"},
 		{name: "readme header string", body: "social:\n  readme:\n    header: \"true\"", wantError: "social.readme.header must be a bool"},
 		{name: "readme stats string", body: "social:\n  readme:\n    stats: \"true\"", wantError: "social.readme.stats must be a bool"},
+		{name: "readme contributors string", body: "social:\n  readme:\n    contributors: \"true\"", wantError: "social.readme.contributors must be a bool"},
 		{name: "readme sponsors null", body: "social:\n  readme:\n    sponsors: null", wantError: "social.readme.sponsors must be a string or bool"},
 		{name: "readme sponsors int", body: "social:\n  readme:\n    sponsors: 1", wantError: "social.readme.sponsors must be a string or bool"},
 		{name: "star_history not mapping", body: "social:\n  readme:\n    star_history: true", wantError: "social.readme.star_history must be a mapping"},
@@ -233,6 +235,7 @@ func TestSocialAccessorsAndDefaults(t *testing.T) {
 		nilCfg.EffectiveSocialStarHistoryMinStars() != 25 ||
 		nilCfg.EffectiveSocialStarHistoryMinDays() != 30 ||
 		nilCfg.EffectiveSocialSponsors() != "auto" ||
+		!nilCfg.EffectiveSocialContributors() ||
 		nilCfg.EffectiveSocialLiveBranch() != "social-assets" ||
 		nilCfg.EffectiveSocialLiveSchedule() != "0 4 * * *" {
 		t.Fatal("nil Config returned unexpected social defaults")
@@ -283,7 +286,8 @@ func TestSocialAccessorsAndDefaults(t *testing.T) {
 					MinStars: new(0),
 					MinDays:  new(0),
 				},
-				Sponsors: new("false"),
+				Sponsors:     new("false"),
+				Contributors: new(false),
 			},
 			Live: &model.SocialLiveSettings{
 				Branch:   new("live-assets"),
@@ -309,6 +313,7 @@ func TestSocialAccessorsAndDefaults(t *testing.T) {
 		explicit.EffectiveSocialStarHistoryMinStars() != 0 ||
 		explicit.EffectiveSocialStarHistoryMinDays() != 0 ||
 		explicit.EffectiveSocialSponsors() != "false" ||
+		explicit.EffectiveSocialContributors() ||
 		explicit.EffectiveSocialLiveBranch() != "live-assets" ||
 		explicit.EffectiveSocialLiveSchedule() != "30 2 * * 1" {
 		t.Fatal("explicit social values were not returned by effective helpers")
@@ -360,6 +365,7 @@ func TestSocialRoundTripWithoutDefaults(t *testing.T) {
       min_stars: 0
       min_days: 7
     sponsors: "true"
+    contributors: false
   live:
     branch: live-social
     schedule: "15 3 * * *"`,
@@ -415,6 +421,7 @@ func TestSocialMergeThreeStateAndConvergence(t *testing.T) {
 	if empty.EffectiveSocialTheme() != "dark" ||
 		empty.EffectiveSocialOGOutput() != "pages/og.png" ||
 		empty.EffectiveSocialStarHistoryMinStars() != 25 ||
+		!empty.EffectiveSocialContributors() ||
 		empty.EffectiveSocialLiveBranch() != "social-assets" {
 		t.Fatalf("MergeDefaults did not fill social defaults: %+v", empty.Social)
 	}

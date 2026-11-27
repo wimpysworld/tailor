@@ -18,6 +18,7 @@ import (
 
 var (
 	svgXMLNSAttrRe  = regexp.MustCompile(`xmlns(?::[a-z]+)?="http://www\.w3\.org/(?:2000/svg|1999/xlink)"`)
+	svgDataURIRe    = regexp.MustCompile(`(?i)data:image/(?:png|jpeg|jpg|webp|gif|avif);base64,[A-Za-z0-9+/=]+`)
 	svgEventAttrRe  = regexp.MustCompile(`(?i)\bon[a-z]+\s*=`)
 	svgExternalRe   = regexp.MustCompile(`(?i)(?:https?://|//|javascript:)`)
 	svgWidthAttrRe  = regexp.MustCompile(`\bwidth="(\d+)"`)
@@ -105,7 +106,8 @@ func assertValidGitHubSVG(t *testing.T, label, svg string) {
 	}
 
 	withoutNS := svgXMLNSAttrRe.ReplaceAllString(svg, "")
-	if match := svgExternalRe.FindString(withoutNS); match != "" {
+	withoutData := svgDataURIRe.ReplaceAllString(withoutNS, "")
+	if match := svgExternalRe.FindString(withoutData); match != "" {
 		t.Errorf("%s: unexpected external URL or scheme %q inside SVG markup", label, match)
 	}
 }
@@ -390,6 +392,17 @@ func TestRenderHero(t *testing.T) {
 			if !strings.Contains(pair.Light, tc.theme.Light.Background) {
 				t.Errorf("light hero missing Light.Background %s", tc.theme.Light.Background)
 			}
+			for _, wantWave := range []string{
+				"@keyframes wave-flow",
+				"translateX(-840px)",
+				"18s linear infinite",
+				"28s linear infinite",
+				"L 1680 220 L 0 220 Z",
+			} {
+				if !strings.Contains(pair.Dark, wantWave) {
+					t.Errorf("dark hero missing seamless wave markup %q", wantWave)
+				}
+			}
 		})
 	}
 }
@@ -486,6 +499,9 @@ func TestRenderCommunityBanner(t *testing.T) {
 			if !strings.Contains(pair.Dark, theme.Dark.Primary) || !strings.Contains(pair.Light, theme.Light.Primary) {
 				t.Errorf("community banner did not reflect dark/light Primary colours")
 			}
+			if strings.Contains(pair.Dark, `width="4" height="68"`) || strings.Contains(pair.Light, `width="4" height="68"`) {
+				t.Error("community banner must not render leftmost vertical accent bar")
+			}
 		})
 	}
 
@@ -529,11 +545,12 @@ func TestRenderPackageCard(t *testing.T) {
 func TestRenderStats(t *testing.T) {
 	theme := iaGetTheme()
 	pair, err := RenderStats(StatsInput{
-		Stars:        1420,
-		Release:      "v1.8.0",
-		Language:     "Go",
-		License:      "BlueOak-1.0.0",
-		Contributors: 14,
+		Commits:      750,
+		OpenIssues:   2,
+		ClosedIssues: 41,
+		OpenPRs:      0,
+		MergedPRs:    180,
+		CreatedAt:    time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC),
 	}, theme)
 	if err != nil {
 		t.Fatalf("RenderStats() error = %v", err)
@@ -544,13 +561,28 @@ func TestRenderStats(t *testing.T) {
 	assertSVGDimensions(t, "stats-dark", pair.Dark, 840, 98)
 	assertSVGDimensions(t, "stats-light", pair.Light, 840, 98)
 
-	for _, want := range []string{"STARS", "RELEASE", "LANGUAGE", "LICENCE", "CONTRIBUTORS", "1,420", "v1.8.0", "Go", "BlueOak-1.0.0", "14"} {
+	for _, want := range []string{
+		"COMMITS", "ISSUES", "PULL REQUESTS", "ESTABLISHED",
+		"750", "2 open · 41 closed", "180 merged · 0 open", "Mar 2026",
+	} {
 		if !strings.Contains(pair.Dark, want) {
 			t.Errorf("dark stats SVG missing %q", want)
 		}
 	}
+	if strings.Count(pair.Dark, `<line x1="`) != 3 {
+		t.Errorf("expected 3 column dividers for 4-column health strip, got %d", strings.Count(pair.Dark, `<line x1="`))
+	}
 	if !strings.Contains(pair.Dark, theme.Dark.Primary) || !strings.Contains(pair.Light, theme.Light.Primary) {
 		t.Error("stats SVG did not apply dark/light theme Primary colours")
+	}
+
+	zeroPair, err := RenderStats(StatsInput{}, theme)
+	if err != nil {
+		t.Fatalf("RenderStats(zero) error = %v", err)
+	}
+	assertValidGitHubSVG(t, "stats-zero-dark", zeroPair.Dark)
+	if !strings.Contains(zeroPair.Dark, "—") {
+		t.Error("zero CreatedAt should render em dash fallback")
 	}
 }
 
@@ -735,6 +767,62 @@ func TestRenderSponsors(t *testing.T) {
 		}
 		if !strings.Contains(pair.Dark, theme.Dark.Primary) || !strings.Contains(pair.Light, theme.Light.Primary) {
 			t.Error("sponsors SVG did not reflect dark/light theme Primary colours")
+		}
+	})
+}
+
+func TestRenderContributors(t *testing.T) {
+	theme := iaGetTheme()
+	avatarURI := "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+
+	t.Run("renders floating balloon avatars, initials fallback, and +more pill", func(t *testing.T) {
+		contributors := []Contributor{
+			{Login: "flexiondotorg", AvatarDataURI: avatarURI},
+			{Login: "alice-dev"},
+			{Login: "bob", AvatarDataURI: "https://evil.example/a.png"}, // unsafe URL falls back to initials
+		}
+		pair, err := RenderContributors(theme, "Tailor", contributors, 25)
+		if err != nil {
+			t.Fatalf("RenderContributors() error = %v", err)
+		}
+		assertValidGitHubSVG(t, "contributors-dark", pair.Dark)
+		assertValidGitHubSVG(t, "contributors-light", pair.Light)
+		assertSVGDimensions(t, "contributors-dark", pair.Dark, 840, 150)
+		assertSVGDimensions(t, "contributors-light", pair.Light, 840, 150)
+
+		for _, want := range []string{
+			"Thank you to our contributors",
+			"Every commit, issue, and review helps shape Tailor",
+			"25 contributors",
+			"+22 more",
+			`width="38" height="38"`,
+			`stroke-width="1.5"`,
+			"AD",
+			"BO",
+			"@keyframes cb-rise-",
+			"prefers-reduced-motion: reduce",
+			"opacity: 1 !important",
+		} {
+			if !strings.Contains(pair.Dark, want) {
+				t.Errorf("dark contributors SVG missing %q", want)
+			}
+		}
+		if !strings.Contains(pair.Dark, theme.Dark.Primary) || !strings.Contains(pair.Light, theme.Light.Primary) {
+			t.Error("contributors SVG did not apply dark/light Primary colours")
+		}
+	})
+
+	t.Run("singular contributor label without +more pill", func(t *testing.T) {
+		pair, err := RenderContributors(theme, "Tailor", []Contributor{{Login: "flexiondotorg"}}, 1)
+		if err != nil {
+			t.Fatalf("RenderContributors(singular) error = %v", err)
+		}
+		assertValidGitHubSVG(t, "contributors-singular-dark", pair.Dark)
+		if !strings.Contains(pair.Dark, "1 contributor") || strings.Contains(pair.Dark, "1 contributors") {
+			t.Errorf("expected singular '1 contributor' label")
+		}
+		if strings.Contains(pair.Dark, " more") {
+			t.Error("unexpected +more pill when all contributors are shown")
 		}
 	})
 }

@@ -60,20 +60,14 @@ func newTestGitHubClients(t *testing.T, server *httptest.Server) (restClient, st
 }
 
 func TestHTTPLiveFetcherFetchRepoStats(t *testing.T) {
-	t.Run("full stats with Link-header contributor count", func(t *testing.T) {
+	t.Run("fetches 4-column health metrics via GraphQL", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			switch r.URL.Path {
-			case "/repos/wimpysworld/tailor":
-				fmt.Fprint(w, `{"stargazers_count":1234,"language":"Go","license":{"spdx_id":"BlueOak-1.0.0","name":"Blue Oak Model License 1.0.0"}}`)
-			case "/repos/wimpysworld/tailor/releases/latest":
-				fmt.Fprint(w, `{"tag_name":"v1.4.2"}`)
-			case "/repos/wimpysworld/tailor/contributors":
-				w.Header().Set("Link", `<https://api.github.com/repositories/1/contributors?per_page=1&anon=false&page=2>; rel="next", <https://api.github.com/repositories/1/contributors?per_page=1&anon=false&page=19>; rel="last"`)
-				fmt.Fprint(w, `[{"login":"flexiondotorg"}]`)
-			default:
+			if r.URL.Path != "/graphql" {
 				w.WriteHeader(http.StatusNotFound)
+				return
 			}
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"data":{"repository":{"createdAt":"2026-03-14T10:20:30Z","defaultBranchRef":{"target":{"history":{"totalCount":750}}},"openIssues":{"totalCount":2},"closedIssues":{"totalCount":41},"openPRs":{"totalCount":3},"mergedPRs":{"totalCount":180}}}}`)
 		}))
 		defer srv.Close()
 
@@ -85,66 +79,26 @@ func TestHTTPLiveFetcherFetchRepoStats(t *testing.T) {
 			t.Fatalf("FetchRepoStats() error = %v", err)
 		}
 		want := StatsData{
-			Stars:        1234,
-			Release:      "v1.4.2",
-			Language:     "Go",
-			License:      "BlueOak-1.0.0",
-			Contributors: 19,
+			Commits:      750,
+			OpenIssues:   2,
+			ClosedIssues: 41,
+			OpenPRs:      3,
+			MergedPRs:    180,
+			CreatedAt:    time.Date(2026, 3, 14, 10, 20, 30, 0, time.UTC),
 		}
 		if got != want {
 			t.Errorf("FetchRepoStats() = %+v, want %+v", got, want)
 		}
 	})
 
-	t.Run("handles 404 release, NOASSERTION licence, and single contributor without Link header", func(t *testing.T) {
+	t.Run("handles empty repository with null defaultBranchRef", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/graphql" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
-			switch r.URL.Path {
-			case "/repos/octocat/solo":
-				fmt.Fprint(w, `{"stargazers_count":5,"language":"Rust","license":{"spdx_id":"NOASSERTION","name":"Custom Licence"}}`)
-			case "/repos/octocat/solo/releases/latest":
-				w.WriteHeader(http.StatusNotFound)
-				fmt.Fprint(w, `{"message":"Not Found"}`)
-			case "/repos/octocat/solo/contributors":
-				fmt.Fprint(w, `[{"login":"octocat"}]`)
-			default:
-				w.WriteHeader(http.StatusNotFound)
-			}
-		}))
-		defer srv.Close()
-
-		restC, starC, gqlC := newTestGitHubClients(t, srv)
-		fetcher := NewHTTPLiveFetcher(restC, starC, gqlC, srv.Client())
-
-		got, err := fetcher.FetchRepoStats(context.Background(), "octocat", "solo")
-		if err != nil {
-			t.Fatalf("FetchRepoStats() error = %v", err)
-		}
-		if got.Release != "" {
-			t.Errorf("Release = %q, want empty on 404", got.Release)
-		}
-		if got.License != "Custom Licence" {
-			t.Errorf("License = %q, want %q", got.License, "Custom Licence")
-		}
-		if got.Contributors != 1 {
-			t.Errorf("Contributors = %d, want 1", got.Contributors)
-		}
-	})
-
-	t.Run("handles 204 empty contributors", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			switch r.URL.Path {
-			case "/repos/octocat/empty":
-				w.Header().Set("Content-Type", "application/json")
-				fmt.Fprint(w, `{"stargazers_count":0,"language":"","license":null}`)
-			case "/repos/octocat/empty/releases/latest":
-				w.WriteHeader(http.StatusNotFound)
-				fmt.Fprint(w, `{"message":"Not Found"}`)
-			case "/repos/octocat/empty/contributors":
-				w.WriteHeader(http.StatusNoContent)
-			default:
-				w.WriteHeader(http.StatusNotFound)
-			}
+			fmt.Fprint(w, `{"data":{"repository":{"createdAt":"","defaultBranchRef":null,"openIssues":{"totalCount":0},"closedIssues":{"totalCount":0},"openPRs":{"totalCount":0},"mergedPRs":{"totalCount":0}}}}`)
 		}))
 		defer srv.Close()
 
@@ -155,8 +109,8 @@ func TestHTTPLiveFetcherFetchRepoStats(t *testing.T) {
 		if err != nil {
 			t.Fatalf("FetchRepoStats() error = %v", err)
 		}
-		if got.Contributors != 0 {
-			t.Errorf("Contributors = %d, want 0", got.Contributors)
+		if got.Commits != 0 || !got.CreatedAt.IsZero() {
+			t.Errorf("FetchRepoStats(empty) = %+v, want zero commits and zero CreatedAt", got)
 		}
 	})
 }
@@ -264,7 +218,7 @@ func TestHTTPLiveFetcherFetchStarHistory(t *testing.T) {
 }
 
 func TestHTTPLiveFetcherFetchSponsors(t *testing.T) {
-	t.Run("GraphQL returns paginated active sponsor handles", func(t *testing.T) {
+	t.Run("GraphQL returns paginated active sponsor handles for user", func(t *testing.T) {
 		var calls atomic.Int32
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.URL.Path != "/graphql" {
@@ -273,10 +227,10 @@ func TestHTTPLiveFetcherFetchSponsors(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			if calls.Add(1) == 1 {
-				fmt.Fprint(w, `{"data":{"repositoryOwner":{"hasSponsorsListing":true,"sponsorshipsAsMaintainer":{"nodes":[{"sponsorEntity":{"login":"alice"}},{"sponsorEntity":{"login":"acme-org"}}],"pageInfo":{"hasNextPage":true,"endCursor":"cursor-1"}}}}}`)
+				fmt.Fprint(w, `{"data":{"user":{"hasSponsorsListing":true,"sponsorshipsAsMaintainer":{"nodes":[{"sponsorEntity":{"login":"alice"}},{"sponsorEntity":{"login":"acme-org"}}],"pageInfo":{"hasNextPage":true,"endCursor":"cursor-1"}}}}}`)
 				return
 			}
-			fmt.Fprint(w, `{"data":{"repositoryOwner":{"hasSponsorsListing":true,"sponsorshipsAsMaintainer":{"nodes":[{"sponsorEntity":{"login":"bob"}},{"sponsorEntity":{"login":"Alice"}}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`)
+			fmt.Fprint(w, `{"data":{"user":{"hasSponsorsListing":true,"sponsorshipsAsMaintainer":{"nodes":[{"sponsorEntity":{"login":"bob"}},{"sponsorEntity":{"login":"Alice"}}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`)
 		}))
 		defer srv.Close()
 
@@ -291,6 +245,75 @@ func TestHTTPLiveFetcherFetchSponsors(t *testing.T) {
 			t.Error("expected Enabled = true")
 		}
 		want := []string{"alice", "acme-org", "bob"}
+		if strings.Join(got.Handles, ",") != strings.Join(want, ",") {
+			t.Errorf("Handles = %v, want %v", got.Handles, want)
+		}
+	})
+
+	t.Run("GraphQL falls through from user to organization", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != "/graphql" {
+				w.WriteHeader(http.StatusNotFound)
+				return
+			}
+			var body struct {
+				Query string `json:"query"`
+			}
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			w.Header().Set("Content-Type", "application/json")
+			if strings.Contains(body.Query, "user(login:") {
+				fmt.Fprint(w, `{"data":{"user":null}}`)
+				return
+			}
+			fmt.Fprint(w, `{"data":{"organization":{"hasSponsorsListing":true,"sponsorshipsAsMaintainer":{"nodes":[{"sponsorEntity":{"login":"org-backer"}}],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`)
+		}))
+		defer srv.Close()
+
+		restC, starC, gqlC := newTestGitHubClients(t, srv)
+		fetcher := NewHTTPLiveFetcher(restC, starC, gqlC, srv.Client())
+
+		got, err := fetcher.FetchSponsors(context.Background(), "wimpysworld")
+		if err != nil {
+			t.Fatalf("FetchSponsors() error = %v", err)
+		}
+		if !got.Enabled || len(got.Handles) != 1 || got.Handles[0] != "org-backer" {
+			t.Errorf("FetchSponsors(org) = %+v, want Enabled=true Handles=[org-backer]", got)
+		}
+	})
+
+	t.Run("falls back to public sponsors HTML when GraphQL returns empty nodes", func(t *testing.T) {
+		gqlSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprint(w, `{"data":{"user":{"hasSponsorsListing":true,"sponsorshipsAsMaintainer":{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":""}}}}}`)
+		}))
+		defer gqlSrv.Close()
+
+		webSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.URL.Path {
+			case "/sponsors/flexiondotorg":
+				w.Header().Set("Content-Type", "text/html")
+				fmt.Fprint(w, `<include-fragment src="/sponsors/flexiondotorg/sponsors_partial?filter=active"></include-fragment>`)
+			case "/sponsors/flexiondotorg/sponsors_partial":
+				w.Header().Set("Content-Type", "text/html")
+				fmt.Fprint(w, `<a data-hovercard-url="/users/flexiondotorg/hovercard"></a><a data-hovercard-url="/users/supporter1/hovercard"></a><img alt="@supporter2">`)
+			default:
+				w.WriteHeader(http.StatusNotFound)
+			}
+		}))
+		defer webSrv.Close()
+
+		restC, starC, gqlC := newTestGitHubClients(t, gqlSrv)
+		fetcher := NewHTTPLiveFetcher(restC, starC, gqlC, webSrv.Client())
+		fetcher.githubWebBase = webSrv.URL
+
+		got, err := fetcher.FetchSponsors(context.Background(), "flexiondotorg")
+		if err != nil {
+			t.Fatalf("FetchSponsors() error = %v", err)
+		}
+		if !got.Enabled {
+			t.Error("expected Enabled = true from public fallback")
+		}
+		want := []string{"supporter1", "supporter2"}
 		if strings.Join(got.Handles, ",") != strings.Join(want, ",") {
 			t.Errorf("Handles = %v, want %v", got.Handles, want)
 		}
@@ -348,6 +371,67 @@ func TestHTTPLiveFetcherFetchSponsors(t *testing.T) {
 			t.Errorf("got %+v, want empty SponsorsData", got)
 		}
 	})
+}
+
+func TestHTTPLiveFetcherFetchContributors(t *testing.T) {
+	pngMagic := []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d}
+
+	avatarSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("s") != "64" {
+			t.Errorf("avatar request missing s=64 query: %s", r.URL.RawQuery)
+		}
+		switch r.URL.Path {
+		case "/u/1":
+			w.Header().Set("Content-Type", "image/png")
+			_, _ = w.Write(pngMagic)
+		case "/u/2":
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprint(w, "<html>not an image</html>")
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer avatarSrv.Close()
+
+	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/repos/wimpysworld/tailor/contributors" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `[
+			{"login":"dependabot[bot]","type":"Bot","avatar_url":"%s/u/bot"},
+			{"login":"flexiondotorg","type":"User","avatar_url":"%s/u/1?v=4"},
+			{"login":"renovate-bot","type":"Bot","avatar_url":"%s/u/bot2"},
+			{"login":"custom[bot]","type":"User","avatar_url":"%s/u/bot3"},
+			{"login":"alice","type":"User","avatar_url":"%s/u/2"},
+			{"login":"bob","type":"User","avatar_url":"%s/u/500"}
+		]`, avatarSrv.URL, avatarSrv.URL, avatarSrv.URL, avatarSrv.URL, avatarSrv.URL, avatarSrv.URL)
+	}))
+	defer apiSrv.Close()
+
+	restC, starC, gqlC := newTestGitHubClients(t, apiSrv)
+	fetcher := NewHTTPLiveFetcher(restC, starC, gqlC, avatarSrv.Client())
+
+	contributors, total, err := fetcher.FetchContributors(context.Background(), "wimpysworld", "tailor")
+	if err != nil {
+		t.Fatalf("FetchContributors() error = %v", err)
+	}
+	if total != 3 {
+		t.Fatalf("total = %d, want 3 human contributors", total)
+	}
+	if len(contributors) != 3 {
+		t.Fatalf("len(contributors) = %d, want 3", len(contributors))
+	}
+	if contributors[0].Login != "flexiondotorg" || !strings.HasPrefix(contributors[0].AvatarDataURI, "data:image/png;base64,") {
+		t.Errorf("contributors[0] = %+v, want flexiondotorg with PNG data URI", contributors[0])
+	}
+	if contributors[1].Login != "alice" || contributors[1].AvatarDataURI != "" {
+		t.Errorf("contributors[1] = %+v, want alice with empty AvatarDataURI on non-image MIME", contributors[1])
+	}
+	if contributors[2].Login != "bob" || contributors[2].AvatarDataURI != "" {
+		t.Errorf("contributors[2] = %+v, want bob with empty AvatarDataURI on HTTP 500", contributors[2])
+	}
 }
 
 func TestHTTPLiveFetcherFetchDiscussionsCount(t *testing.T) {
@@ -467,10 +551,11 @@ func TestLiveHelpers(t *testing.T) {
 	}
 
 	sponsorCases := map[string]string{
-		"https://github.com/sponsors/flexiondotorg": "flexiondotorg",
-		"https://github.com/sponsors/wimpysworld/":  "wimpysworld",
-		"https://patreon.com/wimpysworld":           "",
-		"https://github.com/wimpysworld/tailor":     "",
+		"https://github.com/sponsors/flexiondotorg":                          "flexiondotorg",
+		"https://github.com/sponsors/wimpysworld/":                           "wimpysworld",
+		"https://github.com/sponsors/flexiondotorg?frequency=recurring#tier": "flexiondotorg",
+		"https://patreon.com/wimpysworld":                                    "",
+		"https://github.com/wimpysworld/tailor":                              "",
 	}
 	for raw, want := range sponsorCases {
 		if got := ExtractGitHubSponsorsLogin(raw); got != want {

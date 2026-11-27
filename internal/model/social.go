@@ -12,6 +12,7 @@ const (
 	DefaultSocialOGOutput            = "pages/og.png"
 	DefaultSocialCommunity           = "auto"
 	DefaultSocialSponsors            = "auto"
+	DefaultSocialContributors        = true
 	DefaultSocialStarHistoryMinStars = 25
 	DefaultSocialStarHistoryMinDays  = 30
 	DefaultSocialLiveBranch          = "social-assets"
@@ -63,6 +64,7 @@ type SocialReadmeSettings struct {
 	Stats          *bool                      `yaml:"stats,omitempty"`
 	StarHistory    *SocialStarHistorySettings `yaml:"star_history,omitempty"`
 	Sponsors       *string                    `yaml:"sponsors,omitempty"`
+	Contributors   *bool                      `yaml:"contributors,omitempty"`
 
 	Extra map[string]any `yaml:",inline"`
 }

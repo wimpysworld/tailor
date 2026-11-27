@@ -2,6 +2,7 @@ package social
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,9 @@ const (
 	starHistoryPerPage       = 100
 	maxStarHistoryPages      = 15
 	maxSponsorPages          = 5
+	maxContributorsDisplayed = 20
+	avatarFetchTimeout       = 5 * time.Second
+	maxAvatarBytes           = 256 << 10
 	maxLiveResponseBytes     = 2 << 20
 	starHistoryAcceptHeader  = "application/vnd.github.star+json"
 )
@@ -34,15 +38,24 @@ var (
 	discordInviteCodeRe  = regexp.MustCompile(`^[A-Za-z0-9_-]{2,64}$`)
 	linkHeaderSegmentRe  = regexp.MustCompile(`<([^>]+)>\s*;\s*rel="([^"]+)"`)
 	publicSponsorHoverRe = regexp.MustCompile(`data-hovercard-url="/(?:users|orgs)/([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)/hovercard"`)
+	publicSponsorAltRe   = regexp.MustCompile(`alt="@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)"`)
 )
 
-// StatsData holds live repository metrics fetched from the GitHub API.
+// StatsData holds live repository health metrics fetched from the GitHub API.
 type StatsData struct {
-	Stars        int
-	Release      string
-	Language     string
-	License      string
-	Contributors int
+	Commits      int
+	OpenIssues   int
+	ClosedIssues int
+	OpenPRs      int
+	MergedPRs    int
+	CreatedAt    time.Time
+}
+
+// Contributor holds a human repository contributor's login and optional
+// base64-encoded avatar data URI.
+type Contributor struct {
+	Login         string
+	AvatarDataURI string
 }
 
 // SponsorsData holds live GitHub Sponsors state and active public sponsor
@@ -58,6 +71,7 @@ type LiveFetcher interface {
 	FetchRepoStats(ctx context.Context, owner, repo string) (StatsData, error)
 	FetchStarHistory(ctx context.Context, owner, repo string) ([]StarPoint, error)
 	FetchSponsors(ctx context.Context, login string) (SponsorsData, error)
+	FetchContributors(ctx context.Context, owner, repo string) ([]Contributor, int, error)
 	FetchDiscussionsCount(ctx context.Context, owner, repo string) (int, error)
 	FetchDiscordInvite(ctx context.Context, inviteCode string) (online int, members int, ok bool)
 	FetchDiscourseStats(ctx context.Context, baseURL string) (members int, ok bool)
@@ -112,103 +126,90 @@ func NewHTTPLiveFetcher(restClient, starClient *api.RESTClient, gqlClient *api.G
 	}
 }
 
-// FetchRepoStats fetches stars, latest release tag, primary language, licence
-// SPDX identifier, and contributor count for owner/repo.
-func (f *HTTPLiveFetcher) FetchRepoStats(ctx context.Context, owner, repo string) (StatsData, error) {
-	if f.restClient == nil {
-		return StatsData{}, errors.New("GitHub REST client is not configured")
-	}
-	escOwner := url.PathEscape(owner)
-	escRepo := url.PathEscape(repo)
+const repoStatsGraphQLQuery = `query($owner: String!, $repo: String!) {
+  repository(owner: $owner, name: $repo) {
+    createdAt
+    defaultBranchRef {
+      target {
+        ... on Commit {
+          history {
+            totalCount
+          }
+        }
+      }
+    }
+    openIssues: issues(states: OPEN) {
+      totalCount
+    }
+    closedIssues: issues(states: CLOSED) {
+      totalCount
+    }
+    openPRs: pullRequests(states: OPEN) {
+      totalCount
+    }
+    mergedPRs: pullRequests(states: MERGED) {
+      totalCount
+    }
+  }
+}`
 
-	var repoPayload struct {
-		StargazersCount int    `json:"stargazers_count"`
-		Language        string `json:"language"`
-		License         *struct {
-			SPDXID string `json:"spdx_id"`
-			Name   string `json:"name"`
-		} `json:"license"`
+// FetchRepoStats fetches commit count, open/closed issues, open/merged pull
+// requests, and creation date for owner/repo via GitHub GraphQL.
+func (f *HTTPLiveFetcher) FetchRepoStats(ctx context.Context, owner, repo string) (StatsData, error) {
+	if f.gqlClient == nil {
+		return StatsData{}, errors.New("GitHub GraphQL client is not configured")
 	}
-	repoPath := fmt.Sprintf("repos/%s/%s", escOwner, escRepo)
-	if err := f.restClient.DoWithContext(ctx, http.MethodGet, repoPath, nil, &repoPayload); err != nil {
+
+	var resp struct {
+		Repository *struct {
+			CreatedAt        string `json:"createdAt"`
+			DefaultBranchRef *struct {
+				Target *struct {
+					History struct {
+						TotalCount int `json:"totalCount"`
+					} `json:"history"`
+				} `json:"target"`
+			} `json:"defaultBranchRef"`
+			OpenIssues struct {
+				TotalCount int `json:"totalCount"`
+			} `json:"openIssues"`
+			ClosedIssues struct {
+				TotalCount int `json:"totalCount"`
+			} `json:"closedIssues"`
+			OpenPRs struct {
+				TotalCount int `json:"totalCount"`
+			} `json:"openPRs"`
+			MergedPRs struct {
+				TotalCount int `json:"totalCount"`
+			} `json:"mergedPRs"`
+		} `json:"repository"`
+	}
+	vars := map[string]any{
+		"owner": owner,
+		"repo":  repo,
+	}
+	if err := f.gqlClient.DoWithContext(ctx, repoStatsGraphQLQuery, vars, &resp); err != nil {
 		return StatsData{}, fmt.Errorf("fetching repository stats for %s/%s: %w", owner, repo, err)
+	}
+	if resp.Repository == nil {
+		return StatsData{}, nil
 	}
 
 	stats := StatsData{
-		Stars:    repoPayload.StargazersCount,
-		Language: strings.TrimSpace(repoPayload.Language),
+		OpenIssues:   max(resp.Repository.OpenIssues.TotalCount, 0),
+		ClosedIssues: max(resp.Repository.ClosedIssues.TotalCount, 0),
+		OpenPRs:      max(resp.Repository.OpenPRs.TotalCount, 0),
+		MergedPRs:    max(resp.Repository.MergedPRs.TotalCount, 0),
 	}
-	if repoPayload.License != nil {
-		spdx := strings.TrimSpace(repoPayload.License.SPDXID)
-		name := strings.TrimSpace(repoPayload.License.Name)
-		if spdx != "" && !strings.EqualFold(spdx, "NOASSERTION") {
-			stats.License = spdx
-		} else if name != "" && !strings.EqualFold(name, "Other") {
-			stats.License = name
+	if resp.Repository.DefaultBranchRef != nil && resp.Repository.DefaultBranchRef.Target != nil {
+		stats.Commits = max(resp.Repository.DefaultBranchRef.Target.History.TotalCount, 0)
+	}
+	if raw := strings.TrimSpace(resp.Repository.CreatedAt); raw != "" {
+		if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+			stats.CreatedAt = parsed.UTC()
 		}
 	}
-
-	releaseTag, err := f.fetchLatestReleaseTag(ctx, escOwner, escRepo)
-	if err != nil {
-		return StatsData{}, fmt.Errorf("fetching latest release for %s/%s: %w", owner, repo, err)
-	}
-	stats.Release = releaseTag
-
-	contributors, err := f.fetchContributorCount(ctx, escOwner, escRepo)
-	if err != nil {
-		return StatsData{}, fmt.Errorf("fetching contributor count for %s/%s: %w", owner, repo, err)
-	}
-	stats.Contributors = contributors
-
 	return stats, nil
-}
-
-func (f *HTTPLiveFetcher) fetchLatestReleaseTag(ctx context.Context, escOwner, escRepo string) (string, error) {
-	var payload struct {
-		TagName string `json:"tag_name"`
-	}
-	relPath := fmt.Sprintf("repos/%s/%s/releases/latest", escOwner, escRepo)
-	if err := f.restClient.DoWithContext(ctx, http.MethodGet, relPath, nil, &payload); err != nil {
-		var httpErr *api.HTTPError
-		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
-			return "", nil
-		}
-		return "", err
-	}
-	return strings.TrimSpace(payload.TagName), nil
-}
-
-func (f *HTTPLiveFetcher) fetchContributorCount(ctx context.Context, escOwner, escRepo string) (int, error) {
-	contribPath := fmt.Sprintf("repos/%s/%s/contributors?per_page=1&anon=false", escOwner, escRepo)
-	resp, err := f.restClient.RequestWithContext(ctx, http.MethodGet, contribPath, nil)
-	if err != nil {
-		var httpErr *api.HTTPError
-		if errors.As(err, &httpErr) && (httpErr.StatusCode == http.StatusNotFound || httpErr.StatusCode == http.StatusNoContent) {
-			return 0, nil
-		}
-		return 0, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusNotFound {
-		return 0, nil
-	}
-	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
-		return 0, fmt.Errorf("unexpected HTTP %d from contributors endpoint", resp.StatusCode)
-	}
-
-	if lastPage := parseLinkLastPage(resp.Header.Get("Link")); lastPage > 0 {
-		return lastPage, nil
-	}
-
-	var entries []json.RawMessage
-	if err := json.NewDecoder(io.LimitReader(resp.Body, maxLiveResponseBytes)).Decode(&entries); err != nil {
-		if errors.Is(err, io.EOF) {
-			return 0, nil
-		}
-		return 0, fmt.Errorf("decoding contributors response: %w", err)
-	}
-	return len(entries), nil
 }
 
 type stargazerEvent struct {
@@ -454,9 +455,9 @@ func sampleStarPages(lastPage, maxPages int) []int {
 }
 
 // FetchSponsors fetches active public GitHub Sponsors handles for login via
-// GraphQL, falling back to the public sponsors page when GraphQL is
-// unavailable. It returns an empty SponsorsData without error when sponsors is
-// disabled or inaccessible.
+// user and organization GraphQL queries, falling back to the public sponsors
+// HTML page when GraphQL fails or returns no handles (for example when
+// GITHUB_TOKEN lacks read:user/read:org scopes).
 func (f *HTTPLiveFetcher) FetchSponsors(ctx context.Context, login string) (SponsorsData, error) {
 	trimmed := strings.TrimSpace(login)
 	if trimmed == "" {
@@ -466,40 +467,111 @@ func (f *HTTPLiveFetcher) FetchSponsors(ctx context.Context, login string) (Spon
 		return SponsorsData{}, err
 	}
 
+	var gqlData SponsorsData
 	if f.gqlClient != nil {
 		data, err := f.fetchSponsorsGraphQL(ctx, trimmed)
 		if err == nil {
-			return data, nil
+			if len(data.Handles) > 0 {
+				return data, nil
+			}
+			gqlData = data
 		}
 		if ctx.Err() != nil {
 			return SponsorsData{}, ctx.Err()
 		}
 	}
 
-	return f.fetchSponsorsPublicFallback(ctx, trimmed), nil
+	fallback := f.fetchSponsorsPublicFallback(ctx, trimmed)
+	if len(fallback.Handles) > 0 {
+		return SponsorsData{
+			Enabled: true,
+			Handles: fallback.Handles,
+		}, nil
+	}
+	return SponsorsData{
+		Enabled: gqlData.Enabled || fallback.Enabled,
+	}, nil
 }
 
-const sponsorsGraphQLQuery = `query($login: String!, $cursor: String) {
-  repositoryOwner(login: $login) {
-    ... on Sponsorable {
-      hasSponsorsListing
-      sponsorshipsAsMaintainer(first: 100, activeOnly: true, includePrivate: false, after: $cursor) {
-        nodes {
-          sponsorEntity {
-            ... on User { login }
-            ... on Organization { login }
-          }
+const userSponsorsGraphQLQuery = `query($login: String!, $cursor: String) {
+  user(login: $login) {
+    hasSponsorsListing
+    sponsorshipsAsMaintainer(first: 100, activeOnly: true, includePrivate: false, after: $cursor) {
+      nodes {
+        sponsorEntity {
+          ... on User { login }
+          ... on Organization { login }
         }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
       }
     }
   }
 }`
 
+const orgSponsorsGraphQLQuery = `query($login: String!, $cursor: String) {
+  organization(login: $login) {
+    hasSponsorsListing
+    sponsorshipsAsMaintainer(first: 100, activeOnly: true, includePrivate: false, after: $cursor) {
+      nodes {
+        sponsorEntity {
+          ... on User { login }
+          ... on Organization { login }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+}`
+
+type sponsorableGraphQLNode struct {
+	HasSponsorsListing       bool `json:"hasSponsorsListing"`
+	SponsorshipsAsMaintainer struct {
+		Nodes []struct {
+			SponsorEntity *struct {
+				Login string `json:"login"`
+			} `json:"sponsorEntity"`
+		} `json:"nodes"`
+		PageInfo struct {
+			HasNextPage bool   `json:"hasNextPage"`
+			EndCursor   string `json:"endCursor"`
+		} `json:"pageInfo"`
+	} `json:"sponsorshipsAsMaintainer"`
+}
+
 func (f *HTTPLiveFetcher) fetchSponsorsGraphQL(ctx context.Context, login string) (SponsorsData, error) {
+	data, found, err := f.fetchSponsorsGraphQLByKind(ctx, login, true)
+	if err == nil && found {
+		return data, nil
+	}
+	if ctx.Err() != nil {
+		return SponsorsData{}, ctx.Err()
+	}
+
+	orgData, orgFound, orgErr := f.fetchSponsorsGraphQLByKind(ctx, login, false)
+	if orgErr == nil && orgFound {
+		return orgData, nil
+	}
+	if err != nil {
+		return SponsorsData{}, err
+	}
+	if orgErr != nil {
+		return SponsorsData{}, orgErr
+	}
+	return SponsorsData{}, nil
+}
+
+func (f *HTTPLiveFetcher) fetchSponsorsGraphQLByKind(ctx context.Context, login string, isUser bool) (SponsorsData, bool, error) {
+	query := orgSponsorsGraphQLQuery
+	if isUser {
+		query = userSponsorsGraphQLQuery
+	}
+
 	var (
 		result SponsorsData
 		cursor any
@@ -508,38 +580,30 @@ func (f *HTTPLiveFetcher) fetchSponsorsGraphQL(ctx context.Context, login string
 
 	for range maxSponsorPages {
 		if err := ctx.Err(); err != nil {
-			return SponsorsData{}, err
+			return SponsorsData{}, false, err
 		}
 		vars := map[string]any{
 			"login":  login,
 			"cursor": cursor,
 		}
 		var resp struct {
-			RepositoryOwner *struct {
-				HasSponsorsListing       bool `json:"hasSponsorsListing"`
-				SponsorshipsAsMaintainer struct {
-					Nodes []struct {
-						SponsorEntity *struct {
-							Login string `json:"login"`
-						} `json:"sponsorEntity"`
-					} `json:"nodes"`
-					PageInfo struct {
-						HasNextPage bool   `json:"hasNextPage"`
-						EndCursor   string `json:"endCursor"`
-					} `json:"pageInfo"`
-				} `json:"sponsorshipsAsMaintainer"`
-			} `json:"repositoryOwner"`
+			User         *sponsorableGraphQLNode `json:"user"`
+			Organization *sponsorableGraphQLNode `json:"organization"`
 		}
-		if err := f.gqlClient.DoWithContext(ctx, sponsorsGraphQLQuery, vars, &resp); err != nil {
-			return SponsorsData{}, err
+		if err := f.gqlClient.DoWithContext(ctx, query, vars, &resp); err != nil {
+			return SponsorsData{}, false, err
 		}
-		if resp.RepositoryOwner == nil {
-			return SponsorsData{}, nil
+		ownerNode := resp.Organization
+		if isUser {
+			ownerNode = resp.User
 		}
-		if resp.RepositoryOwner.HasSponsorsListing {
+		if ownerNode == nil {
+			return SponsorsData{}, false, nil
+		}
+		if ownerNode.HasSponsorsListing {
 			result.Enabled = true
 		}
-		for _, node := range resp.RepositoryOwner.SponsorshipsAsMaintainer.Nodes {
+		for _, node := range ownerNode.SponsorshipsAsMaintainer.Nodes {
 			if node.SponsorEntity == nil {
 				continue
 			}
@@ -557,13 +621,13 @@ func (f *HTTPLiveFetcher) fetchSponsorsGraphQL(ctx context.Context, login string
 		if len(result.Handles) > 0 {
 			result.Enabled = true
 		}
-		if !resp.RepositoryOwner.SponsorshipsAsMaintainer.PageInfo.HasNextPage ||
-			resp.RepositoryOwner.SponsorshipsAsMaintainer.PageInfo.EndCursor == "" {
+		if !ownerNode.SponsorshipsAsMaintainer.PageInfo.HasNextPage ||
+			ownerNode.SponsorshipsAsMaintainer.PageInfo.EndCursor == "" {
 			break
 		}
-		cursor = resp.RepositoryOwner.SponsorshipsAsMaintainer.PageInfo.EndCursor
+		cursor = ownerNode.SponsorshipsAsMaintainer.PageInfo.EndCursor
 	}
-	return result, nil
+	return result, true, nil
 }
 
 func (f *HTTPLiveFetcher) fetchSponsorsPublicFallback(ctx context.Context, login string) SponsorsData {
@@ -574,57 +638,203 @@ func (f *HTTPLiveFetcher) fetchSponsorsPublicFallback(ctx context.Context, login
 	if base == "" {
 		return SponsorsData{}
 	}
-	endpoint := base + "/sponsors/" + url.PathEscape(login)
+	escLogin := url.PathEscape(login)
+	htmlBody, ok := f.fetchPublicHTML(ctx, base+"/sponsors/"+escLogin, true)
+	if !ok {
+		return SponsorsData{}
+	}
+	handles := extractPublicSponsorHandles(htmlBody, login)
+	if len(handles) == 0 && strings.Contains(htmlBody, "sponsors_partial") {
+		if partial, ok := f.fetchPublicHTML(ctx, base+"/sponsors/"+escLogin+"/sponsors_partial?filter=active", false); ok {
+			handles = extractPublicSponsorHandles(partial, login)
+		}
+	}
+	return SponsorsData{
+		Enabled: true,
+		Handles: handles,
+	}
+}
+
+func (f *HTTPLiveFetcher) fetchPublicHTML(ctx context.Context, endpoint string, requireSponsorsPath bool) (string, bool) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return SponsorsData{}
+		return "", false
 	}
 	req.Header.Set("User-Agent", "tailor")
 	req.Header.Set("Accept", "text/html")
 
 	resp, err := f.httpClient.Do(req) //nolint:gosec // Endpoint is restricted to githubWebBase + escaped login.
 	if err != nil {
-		return SponsorsData{}
+		return "", false
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return SponsorsData{}
+		return "", false
+	}
+	if requireSponsorsPath && resp.Request != nil && resp.Request.URL != nil &&
+		!strings.Contains(strings.ToLower(resp.Request.URL.Path), "/sponsors/") {
+		return "", false
 	}
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxLiveResponseBytes))
 	if err != nil {
-		return SponsorsData{Enabled: true}
+		return "", true
 	}
-	return SponsorsData{
-		Enabled: true,
-		Handles: extractPublicSponsorHandles(string(body), login),
-	}
+	return string(body), true
 }
 
 func extractPublicSponsorHandles(htmlBody, ownerLogin string) []string {
-	matches := publicSponsorHoverRe.FindAllStringSubmatch(htmlBody, -1)
-	if len(matches) == 0 {
+	hoverMatches := publicSponsorHoverRe.FindAllStringSubmatch(htmlBody, -1)
+	altMatches := publicSponsorAltRe.FindAllStringSubmatch(htmlBody, -1)
+	if len(hoverMatches) == 0 && len(altMatches) == 0 {
 		return nil
 	}
 	ownerLower := strings.ToLower(strings.TrimSpace(ownerLogin))
-	seen := make(map[string]struct{}, len(matches))
+	seen := make(map[string]struct{}, len(hoverMatches)+len(altMatches))
 	var handles []string
-	for _, m := range matches {
-		if len(m) < 2 {
+	appendMatches := func(matches [][]string) {
+		for _, m := range matches {
+			if len(m) < 2 {
+				continue
+			}
+			handle := strings.TrimSpace(m[1])
+			key := strings.ToLower(handle)
+			if handle == "" || key == ownerLower {
+				continue
+			}
+			if _, dup := seen[key]; dup {
+				continue
+			}
+			seen[key] = struct{}{}
+			handles = append(handles, handle)
+		}
+	}
+	appendMatches(hoverMatches)
+	appendMatches(altMatches)
+	return handles
+}
+
+// FetchContributors fetches human repository contributors from GitHub REST,
+// filtering out bot accounts, recording the total human count, taking up to
+// the top 20 contributors, and embedding base64 avatar data URIs when fetched
+// cleanly.
+func (f *HTTPLiveFetcher) FetchContributors(ctx context.Context, owner, repo string) ([]Contributor, int, error) {
+	if f.restClient == nil {
+		return nil, 0, errors.New("GitHub REST client is not configured")
+	}
+	escOwner := url.PathEscape(owner)
+	escRepo := url.PathEscape(repo)
+	contribPath := fmt.Sprintf("repos/%s/%s/contributors?per_page=100", escOwner, escRepo)
+
+	resp, err := f.restClient.RequestWithContext(ctx, http.MethodGet, contribPath, nil)
+	if err != nil {
+		var httpErr *api.HTTPError
+		if errors.As(err, &httpErr) && (httpErr.StatusCode == http.StatusNotFound || httpErr.StatusCode == http.StatusNoContent) {
+			return nil, 0, nil
+		}
+		return nil, 0, fmt.Errorf("fetching contributors for %s/%s: %w", owner, repo, err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusNotFound {
+		return nil, 0, nil
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, 0, fmt.Errorf("unexpected HTTP %d from contributors endpoint", resp.StatusCode)
+	}
+
+	var entries []struct {
+		Login     string `json:"login"`
+		Type      string `json:"type"`
+		AvatarURL string `json:"avatar_url"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxLiveResponseBytes)).Decode(&entries); err != nil {
+		if errors.Is(err, io.EOF) {
+			return nil, 0, nil
+		}
+		return nil, 0, fmt.Errorf("decoding contributors response: %w", err)
+	}
+
+	type humanEntry struct {
+		login     string
+		avatarURL string
+	}
+	humans := make([]humanEntry, 0, len(entries))
+	seen := make(map[string]struct{}, len(entries))
+	for _, entry := range entries {
+		login := strings.TrimSpace(entry.Login)
+		if login == "" || strings.EqualFold(entry.Type, "Bot") || strings.HasSuffix(strings.ToLower(login), "[bot]") {
 			continue
 		}
-		handle := strings.TrimSpace(m[1])
-		key := strings.ToLower(handle)
-		if handle == "" || key == ownerLower {
-			continue
-		}
+		key := strings.ToLower(login)
 		if _, dup := seen[key]; dup {
 			continue
 		}
 		seen[key] = struct{}{}
-		handles = append(handles, handle)
+		humans = append(humans, humanEntry{
+			login:     login,
+			avatarURL: strings.TrimSpace(entry.AvatarURL),
+		})
 	}
-	return handles
+
+	totalCount := len(humans)
+	limit := min(totalCount, maxContributorsDisplayed)
+	out := make([]Contributor, 0, limit)
+	for i := range limit {
+		if err := ctx.Err(); err != nil {
+			return nil, 0, err
+		}
+		entry := humans[i]
+		out = append(out, Contributor{
+			Login:         entry.login,
+			AvatarDataURI: f.fetchAvatarDataURI(ctx, entry.avatarURL),
+		})
+	}
+	return out, totalCount, nil
+}
+
+func (f *HTTPLiveFetcher) fetchAvatarDataURI(ctx context.Context, rawURL string) string {
+	if f.httpClient == nil || strings.TrimSpace(rawURL) == "" {
+		return ""
+	}
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil {
+		return ""
+	}
+	q := u.Query()
+	q.Set("s", "64")
+	u.RawQuery = q.Encode()
+
+	reqCtx, cancel := context.WithTimeout(ctx, avatarFetchTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, u.String(), nil)
+	if err != nil {
+		return ""
+	}
+	req.Header.Set("User-Agent", "tailor")
+	req.Header.Set("Accept", "image/png,image/jpeg,image/webp")
+
+	resp, err := f.httpClient.Do(req) //nolint:gosec // Avatar URL comes from GitHub contributors API and is validated to http/https.
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxAvatarBytes+1))
+	if err != nil || len(data) == 0 || len(data) > maxAvatarBytes {
+		return ""
+	}
+	mimeType := http.DetectContentType(data)
+	switch mimeType {
+	case "image/png", "image/jpeg", "image/webp":
+	default:
+		return ""
+	}
+	return "data:" + mimeType + ";base64," + base64.StdEncoding.EncodeToString(data)
 }
 
 const discussionsCountGraphQLQuery = `query($owner: String!, $repo: String!) {
@@ -803,8 +1013,8 @@ func ExtractGitHubSponsorsLogin(rawURL string) string {
 		return ""
 	}
 	trimmedPath := strings.Trim(u.Path, "/")
-	rest, ok := strings.CutPrefix(trimmedPath, "sponsors/")
-	if !ok || rest == "" {
+	head, rest, ok := strings.Cut(trimmedPath, "/")
+	if !ok || !strings.EqualFold(head, "sponsors") || rest == "" {
 		return ""
 	}
 	login, _, _ := strings.Cut(rest, "/")

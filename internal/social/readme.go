@@ -10,13 +10,14 @@ import (
 
 // Supported README social marker section names.
 const (
-	MarkerHeader    = "header"
-	MarkerLinks     = "links"
-	MarkerCommunity = "community"
-	MarkerPackages  = "packages"
-	MarkerStats     = "stats"
-	MarkerStars     = "stars"
-	MarkerSponsors  = "sponsors"
+	MarkerHeader       = "header"
+	MarkerLinks        = "links"
+	MarkerCommunity    = "community"
+	MarkerPackages     = "packages"
+	MarkerStats        = "stats"
+	MarkerStars        = "stars"
+	MarkerSponsors     = "sponsors"
+	MarkerContributors = "contributors"
 )
 
 // DefaultStaticSocialDir is the default project-relative POSIX directory for
@@ -31,8 +32,9 @@ var ReadmeMarkerNames = []string{
 	MarkerCommunity,
 	MarkerPackages,
 	MarkerStats,
-	MarkerStars,
 	MarkerSponsors,
+	MarkerStars,
+	MarkerContributors,
 }
 
 // MarkerStart returns the opening HTML comment marker for a social section.
@@ -258,14 +260,15 @@ type ReadmeBlocksInput struct {
 
 	Packages []ReadmePackageEntry
 
-	Stats       bool
-	StarHistory bool
-	Sponsors    bool
-	SponsorsURL string
+	Stats        bool
+	StarHistory  bool
+	Sponsors     bool
+	SponsorsURL  string
+	Contributors bool
 }
 
 // FormatReadmeBlocks generates formatted HTML blocks keyed by README marker
-// name (header, links, community, packages, stats, stars, sponsors).
+// name (header, links, community, packages, stats, sponsors, stars, contributors).
 func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 	blocks := make(map[string]string)
 
@@ -367,7 +370,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 		darkSrc, lightSrc := resolveLivePair("stats")
 		href := ""
 		if strings.TrimSpace(in.Owner) != "" && strings.TrimSpace(in.Repo) != "" {
-			href = fmt.Sprintf("https://github.com/%s/%s", strings.TrimSpace(in.Owner), strings.TrimSpace(in.Repo))
+			href = fmt.Sprintf("https://github.com/%s/%s/pulse", strings.TrimSpace(in.Owner), strings.TrimSpace(in.Repo))
 		}
 		blocks[MarkerStats] = wrapCentered(FormatLinkedPicture(href, darkSrc, lightSrc, title+" statistics"))
 	}
@@ -388,6 +391,15 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 			href = "https://github.com/sponsors/" + strings.TrimSpace(in.Owner)
 		}
 		blocks[MarkerSponsors] = wrapCentered(FormatLinkedPicture(href, darkSrc, lightSrc, title+" sponsors"))
+	}
+
+	if in.Contributors {
+		darkSrc, lightSrc := resolveLivePair("contributors")
+		href := ""
+		if strings.TrimSpace(in.Owner) != "" && strings.TrimSpace(in.Repo) != "" {
+			href = fmt.Sprintf("https://github.com/%s/%s/graphs/contributors", strings.TrimSpace(in.Owner), strings.TrimSpace(in.Repo))
+		}
+		blocks[MarkerContributors] = wrapCentered(FormatLinkedPicture(href, darkSrc, lightSrc, title+" contributors"))
 	}
 
 	return blocks

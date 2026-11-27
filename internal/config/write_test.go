@@ -200,6 +200,7 @@ social:
       min_stars: 25
       min_days: 30
     sponsors: auto
+    contributors: true
   live:
     branch: social-assets
     schedule: "0 4 * * *"

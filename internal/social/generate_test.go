@@ -11,27 +11,31 @@ import (
 )
 
 type mockLiveFetcher struct {
-	stats            StatsData
-	statsErr         error
-	stars            []StarPoint
-	starsErr         error
-	sponsors         SponsorsData
-	sponsorsErr      error
-	discussionsCount int
-	discussionsErr   error
-	discordOnline    int
-	discordMembers   int
-	discordOK        bool
-	discourseMembers int
-	discourseOK      bool
+	stats             StatsData
+	statsErr          error
+	stars             []StarPoint
+	starsErr          error
+	sponsors          SponsorsData
+	sponsorsErr       error
+	contributors      []Contributor
+	contributorsTotal int
+	contributorsErr   error
+	discussionsCount  int
+	discussionsErr    error
+	discordOnline     int
+	discordMembers    int
+	discordOK         bool
+	discourseMembers  int
+	discourseOK       bool
 
-	statsCalls       int
-	starsCalls       int
-	sponsorsCalls    int
-	sponsorLoginSeen string
-	discussionsCalls int
-	discordCodesSeen []string
-	discourseURLSeen string
+	statsCalls        int
+	starsCalls        int
+	sponsorsCalls     int
+	contributorsCalls int
+	sponsorLoginSeen  string
+	discussionsCalls  int
+	discordCodesSeen  []string
+	discourseURLSeen  string
 }
 
 func (m *mockLiveFetcher) FetchRepoStats(_ context.Context, _, _ string) (StatsData, error) {
@@ -48,6 +52,11 @@ func (m *mockLiveFetcher) FetchSponsors(_ context.Context, login string) (Sponso
 	m.sponsorsCalls++
 	m.sponsorLoginSeen = login
 	return m.sponsors, m.sponsorsErr
+}
+
+func (m *mockLiveFetcher) FetchContributors(_ context.Context, _, _ string) ([]Contributor, int, error) {
+	m.contributorsCalls++
+	return m.contributors, m.contributorsTotal, m.contributorsErr
 }
 
 func (m *mockLiveFetcher) FetchDiscussionsCount(_ context.Context, _, _ string) (int, error) {
@@ -156,6 +165,9 @@ existing stats block
 
 <!-- tailor:social-sponsors:start -->
 <!-- tailor:social-sponsors:end -->
+
+<!-- tailor:social-contributors:start -->
+<!-- tailor:social-contributors:end -->
 
 Footer notes.
 `
@@ -294,11 +306,12 @@ func TestGenerateLiveToCustomOutputDirAndUpdateReadmeWithSHA(t *testing.T) {
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	fetcher := &mockLiveFetcher{
 		stats: StatsData{
-			Stars:        420,
-			Release:      "v2.1.0",
-			Language:     "Go",
-			License:      "BlueOak-1.0.0",
-			Contributors: 14,
+			Commits:      750,
+			OpenIssues:   2,
+			ClosedIssues: 41,
+			OpenPRs:      0,
+			MergedPRs:    180,
+			CreatedAt:    time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
 		},
 		stars: []StarPoint{
 			{Date: start, Stars: 10},
@@ -309,9 +322,14 @@ func TestGenerateLiveToCustomOutputDirAndUpdateReadmeWithSHA(t *testing.T) {
 			Enabled: true,
 			Handles: []string{"alice", "bob"},
 		},
-		discordOnline:  45,
-		discordMembers: 320,
-		discordOK:      true,
+		contributors: []Contributor{
+			{Login: "flexiondotorg"},
+			{Login: "alice"},
+		},
+		contributorsTotal: 2,
+		discordOnline:     45,
+		discordMembers:    320,
+		discordOK:         true,
 	}
 
 	const sha = "deadbeef1234567890"
@@ -334,6 +352,7 @@ func TestGenerateLiveToCustomOutputDirAndUpdateReadmeWithSHA(t *testing.T) {
 		"stats-dark.svg", "stats-light.svg",
 		"stars-dark.svg", "stars-light.svg",
 		"sponsors-dark.svg", "sponsors-light.svg",
+		"contributors-dark.svg", "contributors-light.svg",
 		"community-dark.svg", "community-light.svg",
 	}
 	for _, name := range wantFiles {
@@ -371,8 +390,11 @@ func TestGenerateLiveToCustomOutputDirAndUpdateReadmeWithSHA(t *testing.T) {
 	const prefix = "https://raw.githubusercontent.com/wimpysworld/tailor/" + sha + "/"
 	for _, want := range []string{
 		prefix + "stats-dark.svg",
+		`href="https://github.com/wimpysworld/tailor/pulse"`,
 		prefix + "stars-dark.svg",
 		prefix + "sponsors-dark.svg",
+		prefix + "contributors-dark.svg",
+		`href="https://github.com/wimpysworld/tailor/graphs/contributors"`,
 		prefix + "community-dark.svg",
 		`href="https://github.com/sponsors/flexiondotorg"`,
 	} {
@@ -393,7 +415,7 @@ func TestGenerateLiveThresholdsAndSkips(t *testing.T) {
 	writeTestFixtureFile(t, dir, "README.md", "<!-- tailor:social-stars:start -->\nstale stars\n<!-- tailor:social-stars:end -->\n")
 
 	fetcher := &mockLiveFetcher{
-		stats:    StatsData{Stars: 10, Language: "Go"},
+		stats:    StatsData{Commits: 10, CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)},
 		stars:    []StarPoint{{Date: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC), Stars: 10}}, // below min_stars=25 and min_days=30
 		sponsors: SponsorsData{Enabled: false},
 	}

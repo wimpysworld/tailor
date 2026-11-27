@@ -173,14 +173,10 @@ func Generate(ctx context.Context, opts GenerateOptions) (result GenerateResult,
 		}
 	}
 
-	var (
-		starsGenerated         bool
-		sponsorsGenerated      bool
-		liveCommunityGenerated bool
-	)
+	var liveRes liveGenResult
 	if runLive {
 		var err error
-		starsGenerated, sponsorsGenerated, liveCommunityGenerated, err = generateLiveAssets(
+		liveRes, err = generateLiveAssets(
 			ctx, target, cfg, theme, assets.Title, comm, commIsLive, owner, repo, opts.Fetcher, opts.DryRun, &result,
 		)
 		if err != nil {
@@ -191,8 +187,7 @@ func Generate(ctx context.Context, opts GenerateOptions) (result GenerateResult,
 	if opts.UpdateReadme {
 		if err := updateProjectReadme(
 			projectRoot, cfg, assets, target.staticRelDir, owner, repo, sha,
-			runStatic, runLive, links, comm, liveCommunityGenerated, packages,
-			starsGenerated, sponsorsGenerated, opts.DryRun, &result,
+			runStatic, runLive, links, comm, packages, liveRes, opts.DryRun, &result,
 		); err != nil {
 			return result, err
 		}
@@ -311,6 +306,13 @@ func staticSponsorsEnabled(cfg *config.Config) bool {
 	}
 }
 
+type liveGenResult struct {
+	stars        bool
+	sponsors     bool
+	community    bool
+	contributors bool
+}
+
 func generateLiveAssets(
 	ctx context.Context,
 	target *outputTarget,
@@ -323,25 +325,27 @@ func generateLiveAssets(
 	fetcher LiveFetcher,
 	dryRun bool,
 	result *GenerateResult,
-) (starsGenerated, sponsorsGenerated, liveCommunityGenerated bool, err error) {
+) (liveGenResult, error) {
+	var live liveGenResult
+
 	if cfg.EffectiveSocialReadmeStats() {
 		stats, err := fetcher.FetchRepoStats(ctx, owner, repo)
 		if err != nil {
-			return false, false, false, err
+			return live, err
 		}
 		pair, err := RenderStats(StatsInput(stats), theme)
 		if err != nil {
-			return false, false, false, fmt.Errorf("rendering stats SVG: %w", err)
+			return live, fmt.Errorf("rendering stats SVG: %w", err)
 		}
 		if err := writeSVGPair(target, "stats", pair, dryRun, result); err != nil {
-			return false, false, false, err
+			return live, err
 		}
 	}
 
 	if cfg.EffectiveSocialStarHistoryEnabled() {
 		points, err := fetcher.FetchStarHistory(ctx, owner, repo)
 		if err != nil {
-			return false, false, false, err
+			return live, err
 		}
 		pair, ok, err := RenderStarHistory(StarHistoryInput{
 			Points:       points,
@@ -351,13 +355,13 @@ func generateLiveAssets(
 			ProjectTitle: projectTitle,
 		}, theme)
 		if err != nil {
-			return false, false, false, fmt.Errorf("rendering star history SVG: %w", err)
+			return live, fmt.Errorf("rendering star history SVG: %w", err)
 		}
 		if ok {
 			if err := writeSVGPair(target, "stars", pair, dryRun, result); err != nil {
-				return false, false, false, err
+				return live, err
 			}
-			starsGenerated = true
+			live.stars = true
 		} else {
 			recordSkippedPair(target, "stars", "below star history threshold", result)
 		}
@@ -368,19 +372,38 @@ func generateLiveAssets(
 		sponsorLogin := resolveSponsorLogin(cfg, owner)
 		sponsorsData, err := fetcher.FetchSponsors(ctx, sponsorLogin)
 		if err != nil {
-			return starsGenerated, false, false, err
+			return live, err
 		}
 		if sponsorsMode == "true" || sponsorsData.Enabled || len(sponsorsData.Handles) > 0 {
 			pair, err := RenderSponsors(SponsorsInput{Handles: sponsorsData.Handles}, theme)
 			if err != nil {
-				return starsGenerated, false, false, fmt.Errorf("rendering sponsors SVG: %w", err)
+				return live, fmt.Errorf("rendering sponsors SVG: %w", err)
 			}
 			if err := writeSVGPair(target, "sponsors", pair, dryRun, result); err != nil {
-				return starsGenerated, false, false, err
+				return live, err
 			}
-			sponsorsGenerated = true
+			live.sponsors = true
 		} else {
 			recordSkippedPair(target, "sponsors", "sponsors not enabled", result)
+		}
+	}
+
+	if cfg.EffectiveSocialContributors() {
+		contributors, totalCount, err := fetcher.FetchContributors(ctx, owner, repo)
+		if err != nil {
+			return live, err
+		}
+		if len(contributors) > 0 {
+			pair, err := RenderContributors(theme, projectTitle, contributors, totalCount)
+			if err != nil {
+				return live, fmt.Errorf("rendering contributors SVG: %w", err)
+			}
+			if err := writeSVGPair(target, "contributors", pair, dryRun, result); err != nil {
+				return live, err
+			}
+			live.contributors = true
+		} else {
+			recordSkippedPair(target, "contributors", "no human contributors found", result)
 		}
 	}
 
@@ -397,7 +420,7 @@ func generateLiveAssets(
 		case "discussions":
 			count, err := fetcher.FetchDiscussionsCount(ctx, owner, repo)
 			if err != nil {
-				return starsGenerated, sponsorsGenerated, false, err
+				return live, err
 			}
 			commIn.DiscussionCount = count
 		case "forum":
@@ -409,15 +432,15 @@ func generateLiveAssets(
 		}
 		pair, err := RenderCommunityBanner(commIn, theme)
 		if err != nil {
-			return starsGenerated, sponsorsGenerated, false, fmt.Errorf("rendering live community SVG: %w", err)
+			return live, fmt.Errorf("rendering live community SVG: %w", err)
 		}
 		if err := writeSVGPair(target, "community", pair, dryRun, result); err != nil {
-			return starsGenerated, sponsorsGenerated, false, err
+			return live, err
 		}
-		liveCommunityGenerated = true
+		live.community = true
 	}
 
-	return starsGenerated, sponsorsGenerated, liveCommunityGenerated, nil
+	return live, nil
 }
 
 func updateProjectReadme(
@@ -429,9 +452,8 @@ func updateProjectReadme(
 	runStatic, runLive bool,
 	links []ReadmeLinkEntry,
 	comm *ReadmeCommunityEntry,
-	liveCommunityGenerated bool,
 	packages []ReadmePackageEntry,
-	starsGenerated, sponsorsGenerated bool,
+	live liveGenResult,
 	dryRun bool,
 	result *GenerateResult,
 ) error {
@@ -467,7 +489,7 @@ func updateProjectReadme(
 		blocksIn.Packages = packages
 	}
 	if comm != nil {
-		if liveCommunityGenerated {
+		if live.community {
 			blocksIn.Community = comm
 			blocksIn.LiveCommunity = true
 		} else if runStatic {
@@ -477,9 +499,10 @@ func updateProjectReadme(
 	}
 	if runLive {
 		blocksIn.Stats = cfg.EffectiveSocialReadmeStats()
-		blocksIn.StarHistory = starsGenerated
-		blocksIn.Sponsors = sponsorsGenerated
+		blocksIn.StarHistory = live.stars
+		blocksIn.Sponsors = live.sponsors
 		blocksIn.SponsorsURL = resolveSponsorsURL(cfg, owner)
+		blocksIn.Contributors = live.contributors
 	} else if runStatic && staticSponsorsEnabled(cfg) {
 		blocksIn.Sponsors = true
 		blocksIn.SponsorsURL = resolveSponsorsURL(cfg, owner)
@@ -487,11 +510,14 @@ func updateProjectReadme(
 
 	blocks := FormatReadmeBlocks(blocksIn)
 	if runLive {
-		if cfg.EffectiveSocialStarHistoryEnabled() && !starsGenerated {
+		if cfg.EffectiveSocialStarHistoryEnabled() && !live.stars {
 			blocks[MarkerStars] = ""
 		}
-		if cfg.EffectiveSocialSponsors() == "auto" && !sponsorsGenerated {
+		if cfg.EffectiveSocialSponsors() == "auto" && !live.sponsors {
 			blocks[MarkerSponsors] = ""
+		}
+		if cfg.EffectiveSocialContributors() && !live.contributors {
+			blocks[MarkerContributors] = ""
 		}
 	}
 

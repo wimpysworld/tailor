@@ -125,7 +125,7 @@ Footer notes stay intact.
 		}
 	})
 
-	t.Run("updates all seven canonical marker names", func(t *testing.T) {
+	t.Run("updates all eight canonical marker names", func(t *testing.T) {
 		var sb strings.Builder
 		blocks := make(map[string]string, len(ReadmeMarkerNames))
 		for _, name := range ReadmeMarkerNames {
@@ -222,10 +222,11 @@ func TestFormatReadmeBlocks(t *testing.T) {
 			{Host: "nix", Package: "tailor"},
 			{Host: "brew", URL: "https://brew.wimpys.world/#custom"},
 		},
-		Stats:       true,
-		StarHistory: true,
-		Sponsors:    true,
-		SponsorsURL: "https://github.com/sponsors/flexiondotorg",
+		Stats:        true,
+		StarHistory:  true,
+		Sponsors:     true,
+		SponsorsURL:  "https://github.com/sponsors/flexiondotorg",
+		Contributors: true,
 	}
 
 	blocks := FormatReadmeBlocks(in)
@@ -268,8 +269,9 @@ func TestFormatReadmeBlocks(t *testing.T) {
 	// Verify commit-pinned raw.githubusercontent.com live URLs.
 	const livePrefix = "https://raw.githubusercontent.com/wimpysworld/tailor/deadbeef1234567890/"
 	if !strings.Contains(blocks[MarkerStats], `srcset="`+livePrefix+`stats-dark.svg"`) ||
-		!strings.Contains(blocks[MarkerStats], `src="`+livePrefix+`stats-light.svg"`) {
-		t.Errorf("stats block missing commit-pinned live URLs:\n%s", blocks[MarkerStats])
+		!strings.Contains(blocks[MarkerStats], `src="`+livePrefix+`stats-light.svg"`) ||
+		!strings.Contains(blocks[MarkerStats], `href="https://github.com/wimpysworld/tailor/pulse"`) {
+		t.Errorf("stats block missing commit-pinned live URLs or /pulse link:\n%s", blocks[MarkerStats])
 	}
 	if !strings.Contains(blocks[MarkerStars], `srcset="`+livePrefix+`stars-dark.svg"`) ||
 		!strings.Contains(blocks[MarkerStars], `href="https://github.com/wimpysworld/tailor/stargazers"`) {
@@ -278,6 +280,11 @@ func TestFormatReadmeBlocks(t *testing.T) {
 	if !strings.Contains(blocks[MarkerSponsors], `srcset="`+livePrefix+`sponsors-dark.svg"`) ||
 		!strings.Contains(blocks[MarkerSponsors], `href="https://github.com/sponsors/flexiondotorg"`) {
 		t.Errorf("sponsors block missing commit-pinned live URLs:\n%s", blocks[MarkerSponsors])
+	}
+	if !strings.Contains(blocks[MarkerContributors], `srcset="`+livePrefix+`contributors-dark.svg"`) ||
+		!strings.Contains(blocks[MarkerContributors], `src="`+livePrefix+`contributors-light.svg"`) ||
+		!strings.Contains(blocks[MarkerContributors], `href="https://github.com/wimpysworld/tailor/graphs/contributors"`) {
+		t.Errorf("contributors block missing commit-pinned live URLs or /graphs/contributors link:\n%s", blocks[MarkerContributors])
 	}
 
 	// Verify LiveCommunity switches community banner to commit-pinned live URL.

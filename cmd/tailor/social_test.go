@@ -18,9 +18,11 @@ import (
 )
 
 type stubSocialFetcher struct {
-	stats    social.StatsData
-	stars    []social.StarPoint
-	sponsors social.SponsorsData
+	stats             social.StatsData
+	stars             []social.StarPoint
+	sponsors          social.SponsorsData
+	contributors      []social.Contributor
+	contributorsTotal int
 }
 
 func (s *stubSocialFetcher) FetchRepoStats(_ context.Context, _, _ string) (social.StatsData, error) {
@@ -33,6 +35,10 @@ func (s *stubSocialFetcher) FetchStarHistory(_ context.Context, _, _ string) ([]
 
 func (s *stubSocialFetcher) FetchSponsors(_ context.Context, _ string) (social.SponsorsData, error) {
 	return s.sponsors, nil
+}
+
+func (s *stubSocialFetcher) FetchContributors(_ context.Context, _, _ string) ([]social.Contributor, int, error) {
+	return s.contributors, s.contributorsTotal, nil
 }
 
 func (s *stubSocialFetcher) FetchDiscussionsCount(_ context.Context, _, _ string) (int, error) {
@@ -186,12 +192,13 @@ func TestSocialLiveCustomOutputDirAndAssetsSHA(t *testing.T) {
 		AssetsSHA:    "1234567890abcdef",
 		dir:          dir,
 		fetcher: &stubSocialFetcher{
-			stats: social.StatsData{Stars: 50, Release: "v1.0.0", Language: "Go", License: "BlueOak-1.0.0", Contributors: 4},
+			stats: social.StatsData{Commits: 50, OpenIssues: 1, ClosedIssues: 5, OpenPRs: 0, MergedPRs: 12, CreatedAt: start},
 			stars: []social.StarPoint{
 				{Date: start, Stars: 5},
 				{Date: start.AddDate(0, 2, 0), Stars: 50},
 			},
-			sponsors: social.SponsorsData{Enabled: false},
+			sponsors:     social.SponsorsData{Enabled: false},
+			contributors: []social.Contributor{{Login: "flexiondotorg"}},
 		},
 		output: output.New(&stdout, &stderr, output.Plain),
 	}

@@ -148,9 +148,9 @@ func renderHeroVariant(assets ProjectAssets, iconMarkup string, isRaster bool, p
 	fmt.Fprintf(&b, `<clipPath id="hero-clip"><rect x="0.5" y="0.5" width="839" height="209" rx="14"/></clipPath>`)
 	fmt.Fprintf(&b, `<linearGradient id="hero-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0%%" stop-color="%s"/><stop offset="100%%" stop-color="%s"/></linearGradient>`,
 		p.CardBackground, p.Background)
-	fmt.Fprintf(&b, `<linearGradient id="hero-aurora" x1="0" y1="0" x2="1" y2="1"><stop offset="0%%" stop-color="%s" stop-opacity="%s"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
+	fmt.Fprintf(&b, `<linearGradient id="hero-aurora" x1="0" y1="0" x2="0" y2="1"><stop offset="0%%" stop-color="%s" stop-opacity="%s"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
 		p.Primary, waveOpacity1, p.Primary)
-	fmt.Fprintf(&b, `<linearGradient id="hero-aurora-soft" x1="1" y1="0" x2="0" y2="1"><stop offset="0%%" stop-color="%s" stop-opacity="%s"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
+	fmt.Fprintf(&b, `<linearGradient id="hero-aurora-soft" x1="0" y1="0" x2="0" y2="1"><stop offset="0%%" stop-color="%s" stop-opacity="%s"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
 		p.Primary, waveOpacity2, p.Primary)
 	fmt.Fprintf(&b, `<linearGradient id="hero-glint" x1="0" y1="0" x2="1" y2="0"><stop offset="0%%" stop-color="%s" stop-opacity="0"/><stop offset="50%%" stop-color="%s" stop-opacity="0.9"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
 		p.Primary, p.Primary, p.Primary)
@@ -164,18 +164,19 @@ func renderHeroVariant(assets ProjectAssets, iconMarkup string, isRaster bool, p
 	fmt.Fprintf(&b, `.h-tag{font-family:%s;font-size:15.5px;font-weight:400;fill:%s}`, fontSans, p.Color)
 	fmt.Fprintf(&b, `.h-foot{font-family:%s;font-size:12.5px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
 	heroDur, heroDelay := glintTiming("hero")
-	b.WriteString(`@keyframes hero-wave{0%{transform:translateX(-18px)}100%{transform:translateX(18px)}}`)
+	b.WriteString(`@keyframes wave-flow{from{transform:translateX(0)}to{transform:translateX(-840px)}}`)
 	b.WriteString(`@keyframes hero-glint-move{0%{transform:translateX(-260px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(900px);opacity:0}}`)
-	b.WriteString(`.wave-a{animation:hero-wave 14s ease-in-out infinite alternate}`)
+	b.WriteString(`.wave-a{animation:wave-flow 18s linear infinite}`)
+	b.WriteString(`.wave-b{animation:wave-flow 28s linear infinite}`)
 	fmt.Fprintf(&b, `.glint{animation:hero-glint-move %.1fs ease-in-out %.1fs infinite}`, heroDur, heroDelay)
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
 
 	b.WriteString(`<g clip-path="url(#hero-clip)">`)
 	b.WriteString(`<rect x="0" y="0" width="840" height="210" fill="url(#hero-bg)"/>`)
-	// Calm harmonic aurora waves in Primary.
-	b.WriteString(`<path class="wave-a" d="M-40 162 C180 112 360 198 580 128 C700 90 790 118 890 88 L890 220 L-40 220 Z" fill="url(#hero-aurora)"/>`)
-	b.WriteString(`<path d="M-20 176 C220 144 430 196 660 146 C750 126 810 140 870 122 L870 220 L-20 220 Z" fill="url(#hero-aurora-soft)"/>`)
+	// Two seamless 1680px horizontally tiling waves (repeating identically at x+840) for calm flowing water motion.
+	b.WriteString(`<path class="wave-b" d="M 0 148 C 70 138 140 130 210 130 C 280 130 350 138 420 148 C 490 158 560 166 630 166 C 700 166 770 158 840 148 C 910 138 980 130 1050 130 C 1120 130 1190 138 1260 148 C 1330 158 1400 166 1470 166 C 1540 166 1610 158 1680 148 L 1680 220 L 0 220 Z" fill="url(#hero-aurora-soft)"/>`)
+	b.WriteString(`<path class="wave-a" d="M 0 154 C 140 154 280 116 420 116 C 560 116 700 154 840 154 C 980 154 1120 116 1260 116 C 1400 116 1540 154 1680 154 L 1680 220 L 0 220 Z" fill="url(#hero-aurora)"/>`)
 	// Subtle top accent bar and gliding glint.
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="3" fill="%s" opacity="0.28"/>`, p.Primary)
 	b.WriteString(`<rect class="glint" x="0" y="0" width="220" height="3" fill="url(#hero-glint)"/>`)
@@ -430,9 +431,8 @@ func renderCommunityVariant(platform string, icon IconInfo, title, subtitle, liv
 
 	b.WriteString(`<g clip-path="url(#comm-clip)">`)
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="68" fill="%s"/>`, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="4" height="68" fill="%s"/>`, p.Primary)
+	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2" fill="%s" opacity="0.22"/>`, p.Primary)
 	if liveText == "" {
-		fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2" fill="%s" opacity="0.22"/>`, p.Primary)
 		b.WriteString(`<rect class="c-glint" x="0" y="0" width="180" height="2" fill="url(#comm-glint)"/>`)
 	}
 
