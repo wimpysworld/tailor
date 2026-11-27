@@ -143,8 +143,13 @@ tailor/
 - Supply reusable FiveHorizons tooling through Tailor. Keep assets, engine pins, signing, and application recipes project-owned.
 - Do not edit or migrate FiveHorizons unless separately authorised. Do not claim runtime acceptance from parsing or tool availability.
 - Never auto-run component setup. Explicit `just setup` can change Git config and submodules, remove archives, stage changes, and use the network.
-- Five commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect)
-- `fit`, `alter`, and `baste` require a valid GitHub auth token at startup; `measure` and `docket` do not
+- Six commands: `fit` (bootstrap), `alter` (apply), `baste` (preview), `measure` (inspect), `docket` (inspect), `social` (generate social SVG assets and update README markers).
+- `fit`, `alter`, and `baste` require a valid GitHub auth token at startup. `social --live` requires GitHub auth and a GitHub git remote. `measure`, `docket`, and static `social` do not require auth.
+- Social assets follow the three-state `social.enabled` lifecycle (`true`, `false`, omitted) with hybrid storage: static `pages/og.png` and `pages/social/*.svg` live on `main`, while daily live SVGs live on the orphan `social-assets` branch via `.github/workflows/tailor-social.yml` (`# Managed by Tailor: social`) with commit-pinned URLs in standalone `<!-- tailor:social-*:start/end -->` README marker blocks.
+- Manage `just/og.just` (`just og`) and `nix/og.nix` (`tailor-og`) under `social.enabled`. `tailor-og` refuses to overwrite an existing output file without `--force`. Explicit `social.enabled: false` removes only the owned fragments and workflow, and preserves authored assets and `README.md`.
+- Exclude `pages/og.png` from the swatch registry because it is generated project artwork, not an embedded swatch.
+- Keep `tailor measure`'s Open Graph check read-only: when a file exists at `social.og.output` (default `pages/og.png`), verify that it is a regular non-symlink PNG with dimensions `1280 x 640` or `1200 x 630` and a size under `1 MB`. Emit no warning when the file is absent.
+- Support `pages.links.irc` immediately after `matrix`, with a full HTTPS URL without credentials and a generic terminal icon (`terminal-24`). `irc` is also valid in `social.readme.preferred_links` and `social.readme.community`.
 - After wiki readiness passes, write config updates, remove retired workflows, apply repository settings, then immutable releases. Continue with Actions policy, code scanning, Code Quality, ruleset, labels, variables, Pages, wiki, licence, then swatches.
 - Run Pages preflight before config or remote writes. Apply additive Pages ignore rules after swatches.
 - Validate config and complete local wiki safety preflight before writes. Activate the four wiki swatches only for declared `repository.has_wiki: true` on public repositories.
