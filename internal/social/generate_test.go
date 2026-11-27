@@ -351,7 +351,6 @@ func TestGenerateLiveToCustomOutputDirAndUpdateReadmeWithSHA(t *testing.T) {
 	wantFiles := []string{
 		"stats-dark.svg", "stats-light.svg",
 		"stars-dark.svg", "stars-light.svg",
-		"sponsors-dark.svg", "sponsors-light.svg",
 		"contributors-dark.svg", "contributors-light.svg",
 		"community-dark.svg", "community-light.svg",
 	}
@@ -367,15 +366,18 @@ func TestGenerateLiveToCustomOutputDirAndUpdateReadmeWithSHA(t *testing.T) {
 		assertValidGitHubSVG(t, name, string(data))
 	}
 
-	// Verify static hero was NOT generated in live-only mode.
+	// Verify static hero and static sponsors were NOT generated in live-only mode.
 	if _, err := os.Stat(filepath.Join(outDir, "hero-dark.svg")); !os.IsNotExist(err) {
 		t.Error("live-only mode must not write hero-dark.svg")
 	}
+	if _, err := os.Stat(filepath.Join(outDir, "sponsors-dark.svg")); !os.IsNotExist(err) {
+		t.Error("live-only mode must not write sponsors-dark.svg")
+	}
+	if fetcher.sponsorsCalls != 0 {
+		t.Errorf("sponsorsCalls = %d, want 0 (sponsors is static)", fetcher.sponsorsCalls)
+	}
 
 	// Verify live counts were fetched and rendered.
-	if fetcher.sponsorLoginSeen != "flexiondotorg" {
-		t.Errorf("sponsor login = %q, want flexiondotorg from pages.links.github_sponsors", fetcher.sponsorLoginSeen)
-	}
 	if len(fetcher.discordCodesSeen) != 1 || fetcher.discordCodesSeen[0] != "tailor123" {
 		t.Errorf("discord invite codes seen = %v, want [tailor123]", fetcher.discordCodesSeen)
 	}
@@ -392,19 +394,17 @@ func TestGenerateLiveToCustomOutputDirAndUpdateReadmeWithSHA(t *testing.T) {
 		prefix + "stats-dark.svg",
 		`href="https://github.com/wimpysworld/tailor/pulse"`,
 		prefix + "stars-dark.svg",
-		prefix + "sponsors-dark.svg",
 		prefix + "contributors-dark.svg",
 		`href="https://github.com/wimpysworld/tailor/graphs/contributors"`,
 		prefix + "community-dark.svg",
-		`href="https://github.com/sponsors/flexiondotorg"`,
 	} {
 		if !strings.Contains(readme, want) {
 			t.Errorf("README missing %q:\n%s", want, readme)
 		}
 	}
-	// Static header marker must remain empty because Static was false.
-	if strings.Contains(readme, "hero-dark.svg") {
-		t.Errorf("live-only run should not populate static header marker:\n%s", readme)
+	// Static header and sponsors markers must remain untouched because Static was false.
+	if strings.Contains(readme, "hero-dark.svg") || strings.Contains(readme, "sponsors-dark.svg") {
+		t.Errorf("live-only run should not populate static header or sponsors markers:\n%s", readme)
 	}
 }
 
@@ -438,8 +438,8 @@ func TestGenerateLiveThresholdsAndSkips(t *testing.T) {
 	if got[filepath.Join(outDir, "stars-dark.svg")] != StatusCreated {
 		t.Errorf("stars-dark.svg status = %q, want created (Star CTA fallback)", got[filepath.Join(outDir, "stars-dark.svg")])
 	}
-	if got[filepath.Join(outDir, "sponsors-dark.svg")] != StatusSkipped {
-		t.Errorf("sponsors-dark.svg status = %q, want skipped", got[filepath.Join(outDir, "sponsors-dark.svg")])
+	if _, ok := got[filepath.Join(outDir, "sponsors-dark.svg")]; ok {
+		t.Errorf("sponsors-dark.svg must not be emitted in live-only mode, got status %q", got[filepath.Join(outDir, "sponsors-dark.svg")])
 	}
 	starsData, err := os.ReadFile(filepath.Join(outDir, "stars-dark.svg"))
 	if err != nil {
@@ -638,9 +638,12 @@ swatches: []
 		if !strings.Contains(string(commDark), "910 members") {
 			t.Errorf("community-dark.svg missing Discourse members:\n%s", string(commDark))
 		}
-		// sponsors: true must render even with 0 handles.
-		if statusMap(res)[filepath.Join(outDir, "sponsors-dark.svg")] != StatusCreated {
-			t.Error("expected sponsors-dark.svg when sponsors: true even with 0 handles")
+		// sponsors is static-only, so live-only mode does not fetch or write sponsors-dark.svg.
+		if fetcher.sponsorsCalls != 0 {
+			t.Errorf("sponsorsCalls = %d, want 0 (sponsors is static)", fetcher.sponsorsCalls)
+		}
+		if _, ok := statusMap(res)[filepath.Join(outDir, "sponsors-dark.svg")]; ok {
+			t.Error("live-only mode must not emit sponsors-dark.svg")
 		}
 	})
 }

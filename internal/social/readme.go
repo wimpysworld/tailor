@@ -385,7 +385,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 	}
 
 	if in.Sponsors {
-		darkSrc, lightSrc := resolveLivePair("sponsors")
+		darkSrc, lightSrc := StaticAssetPair(staticDir, "sponsors")
 		href := strings.TrimSpace(in.SponsorsURL)
 		if href == "" && strings.TrimSpace(in.Owner) != "" {
 			href = "https://github.com/sponsors/" + strings.TrimSpace(in.Owner)

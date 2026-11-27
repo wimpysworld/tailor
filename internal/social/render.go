@@ -199,8 +199,7 @@ func renderHeroVariant(assets ProjectAssets, iconMarkup string, isRaster bool, p
 		fmt.Fprintf(&b, `<text x="%d" y="%d" class="h-tag">%s</text>`, textX, titleY+28+i*22, XMLEscape(line))
 	}
 
-	// Quiet muted footer separated by a subtle hairline.
-	fmt.Fprintf(&b, `<line x1="36" y1="162" x2="804" y2="162" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
+	// Quiet muted footer.
 	if footerURL != "" {
 		fmt.Fprintf(&b, `<text x="36" y="187" class="h-foot">%s</text>`, XMLEscape(footerURL))
 	}

@@ -14,7 +14,7 @@
 
 <!-- tailor:social-community:start -->
 <p align="center">
-  <a href="https://discord.com/invite/vUsydfP"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/community-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/community-light.svg" alt="Discord community"></picture></a>
+  <a href="https://discord.com/invite/vUsydfP"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/ce32ba38ffa16feb3dfdb15eb7de7c6610ad551d/community-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/ce32ba38ffa16feb3dfdb15eb7de7c6610ad551d/community-light.svg" alt="Discord community"></picture></a>
 </p>
 <!-- tailor:social-community:end -->
 
@@ -37,7 +37,7 @@ Use it for solo projects or small teams that manage several repositories. Its em
 
 <!-- tailor:social-stats:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/pulse"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/stats-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/stats-light.svg" alt="Tailor statistics"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/pulse"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/ce32ba38ffa16feb3dfdb15eb7de7c6610ad551d/stats-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/ce32ba38ffa16feb3dfdb15eb7de7c6610ad551d/stats-light.svg" alt="Tailor statistics"></picture></a>
 </p>
 <!-- tailor:social-stats:end -->
 
@@ -85,17 +85,17 @@ The `--user` option uses your host identity for Git ownership checks and writes 
 
 </details>
 
+<!-- tailor:social-sponsors:start -->
+<p align="center">
+  <a href="https://github.com/sponsors/flexiondotorg"><picture><source media="(prefers-color-scheme: dark)" srcset="pages/social/sponsors-dark.svg"><img src="pages/social/sponsors-light.svg" alt="Tailor sponsors"></picture></a>
+</p>
+<!-- tailor:social-sponsors:end -->
+
 ### Authentication
 
 Tailor needs a valid GitHub authentication token for `fit`, `alter`, and `baste`. Set `GH_TOKEN` or `GITHUB_TOKEN` to use Tailor without the `gh` binary.
 
 Alternatively, install the [GitHub CLI](https://cli.github.com/) and run `gh auth login`. Tailor can then read the token from the `gh` config file or keyring. The `measure` and `docket` commands do not require authentication.
-
-<!-- tailor:social-sponsors:start -->
-<p align="center">
-  <a href="https://github.com/sponsors/flexiondotorg"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/sponsors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/sponsors-light.svg" alt="Tailor sponsors"></picture></a>
-</p>
-<!-- tailor:social-sponsors:end -->
 
 ## Quick start
 
@@ -173,12 +173,12 @@ Read [Support](SUPPORT.md) for help and [Contributing](CONTRIBUTING.md) before s
 
 <!-- tailor:social-stars:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/stars-light.svg" alt="Tailor star history"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/ce32ba38ffa16feb3dfdb15eb7de7c6610ad551d/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/ce32ba38ffa16feb3dfdb15eb7de7c6610ad551d/stars-light.svg" alt="Tailor star history"></picture></a>
 </p>
 <!-- tailor:social-stars:end -->
 
 <!-- tailor:social-contributors:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/graphs/contributors"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/contributors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/f7e223a7f4ef8f5285ed80c0b4ae551d5a4b0c94/contributors-light.svg" alt="Tailor contributors"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/graphs/contributors"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/ce32ba38ffa16feb3dfdb15eb7de7c6610ad551d/contributors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/ce32ba38ffa16feb3dfdb15eb7de7c6610ad551d/contributors-light.svg" alt="Tailor contributors"></picture></a>
 </p>
 <!-- tailor:social-contributors:end -->

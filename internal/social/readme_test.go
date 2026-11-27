@@ -277,9 +277,10 @@ func TestFormatReadmeBlocks(t *testing.T) {
 		!strings.Contains(blocks[MarkerStars], `href="https://github.com/wimpysworld/tailor/stargazers"`) {
 		t.Errorf("stars block missing commit-pinned live URLs:\n%s", blocks[MarkerStars])
 	}
-	if !strings.Contains(blocks[MarkerSponsors], `srcset="`+livePrefix+`sponsors-dark.svg"`) ||
+	if !strings.Contains(blocks[MarkerSponsors], `srcset="pages/social/sponsors-dark.svg"`) ||
+		!strings.Contains(blocks[MarkerSponsors], `src="pages/social/sponsors-light.svg"`) ||
 		!strings.Contains(blocks[MarkerSponsors], `href="https://github.com/sponsors/flexiondotorg"`) {
-		t.Errorf("sponsors block missing commit-pinned live URLs:\n%s", blocks[MarkerSponsors])
+		t.Errorf("sponsors block should use static pages/social paths:\n%s", blocks[MarkerSponsors])
 	}
 	if !strings.Contains(blocks[MarkerContributors], `srcset="`+livePrefix+`contributors-dark.svg"`) ||
 		!strings.Contains(blocks[MarkerContributors], `src="`+livePrefix+`contributors-light.svg"`) ||

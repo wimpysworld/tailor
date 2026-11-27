@@ -403,6 +403,9 @@ func TestRenderHero(t *testing.T) {
 					t.Errorf("dark hero missing seamless wave markup %q", wantWave)
 				}
 			}
+			if strings.Contains(pair.Dark, "<line ") || strings.Contains(pair.Light, "<line ") {
+				t.Error("hero banner must not render horizontal divider line above footer")
+			}
 		})
 	}
 }
@@ -714,59 +717,90 @@ func TestRenderStarHistory(t *testing.T) {
 		if !strings.Contains(pair.Dark, theme.Dark.Primary) || !strings.Contains(pair.Light, theme.Light.Primary) {
 			t.Error("star history SVG did not reflect dark/light Primary colours")
 		}
+		for _, want := range []string{
+			"12s linear infinite",
+			"sh-apex-loop",
+			"scale(1.4)",
+			"sh-halo-loop",
+			`class="sh-halo"`,
+			`class="sh-apex"`,
+			`class="sh-sparkle sh-sp0"`,
+			`class="sh-sparkle sh-sp7"`,
+			"#f9e2af",
+			"#fab387",
+			"#f5c2e7",
+			".sh-halo, .sh-sparkle { opacity: 0 !important; }",
+		} {
+			if !strings.Contains(pair.Dark, want) {
+				t.Errorf("dark star history SVG missing %q", want)
+			}
+		}
+		if strings.Count(pair.Dark, `class="sh-sparkle `) != 8 {
+			t.Errorf("expected 8 radial burst sparkles, got %d", strings.Count(pair.Dark, `class="sh-sparkle `))
+		}
 	})
 }
 
 func TestRenderSponsors(t *testing.T) {
 	theme := iaGetTheme()
 
-	t.Run("zero sponsors shows inviting message at min height 108", func(t *testing.T) {
+	t.Run("renders fixed 840x108 CTA card with multi-coloured drifting hearts", func(t *testing.T) {
 		pair, err := RenderSponsors(SponsorsInput{}, theme)
 		if err != nil {
 			t.Fatalf("RenderSponsors() error = %v", err)
 		}
-		assertValidGitHubSVG(t, "sponsors-empty-dark", pair.Dark)
-		assertValidGitHubSVG(t, "sponsors-empty-light", pair.Light)
-		assertSVGDimensions(t, "sponsors-empty-dark", pair.Dark, 840, 108)
-		assertSVGDimensions(t, "sponsors-empty-light", pair.Light, 840, 108)
-		if !strings.Contains(pair.Dark, "SPONSOR") {
-			t.Error("sponsors SVG missing SPONSOR CTA")
+		assertValidGitHubSVG(t, "sponsors-dark", pair.Dark)
+		assertValidGitHubSVG(t, "sponsors-light", pair.Light)
+		assertSVGDimensions(t, "sponsors-dark", pair.Dark, 840, 108)
+		assertSVGDimensions(t, "sponsors-light", pair.Light, 840, 108)
+
+		for _, want := range []string{
+			"Sponsors",
+			"Support ongoing maintenance and open-source development",
+			"SPONSOR",
+			"@keyframes sp-rise-",
+			"prefers-reduced-motion: reduce",
+			theme.Dark.Primary,
+		} {
+			if !strings.Contains(pair.Dark, want) {
+				t.Errorf("dark sponsors SVG missing %q", want)
+			}
 		}
-		if !strings.Contains(pair.Dark, "Be the first to sponsor") {
-			t.Error("empty sponsors SVG missing inviting message")
+		if !strings.Contains(pair.Light, theme.Light.Primary) {
+			t.Error("light sponsors SVG missing Light.Primary")
+		}
+		for _, c := range sponsorDarkHeartColors {
+			if !strings.Contains(pair.Dark, c) {
+				t.Errorf("dark sponsors SVG missing multi-colour heart %s", c)
+			}
+		}
+		for _, c := range sponsorLightHeartColors {
+			if !strings.Contains(pair.Light, c) {
+				t.Errorf("light sponsors SVG missing multi-colour heart %s", c)
+			}
+		}
+		if strings.Contains(pair.Dark, "Be the first to sponsor") || strings.Contains(pair.Light, "Be the first to sponsor") {
+			t.Error("sponsors CTA banner must not render legacy empty footer row")
 		}
 	})
 
-	t.Run("dynamic height grows for many sponsor handles", func(t *testing.T) {
-		handles := []string{
-			"alice", "@bob", "charlie", "dana", "evan", "fiona",
-			"george", "hannah", "ian", "julia", "kevin", "laura",
-			"martin", "nina", "oscar", "paula", "quinn", "rachel",
-			"@alice", // duplicate should be deduplicated
-		}
-		pair, err := RenderSponsors(SponsorsInput{Handles: handles}, theme)
+	t.Run("supports custom title, subtitle, and CTA label at fixed 840x108", func(t *testing.T) {
+		pair, err := RenderSponsors(SponsorsInput{
+			Title:    "Back Tailor",
+			Subtitle: "Help fund ongoing development",
+			CTALabel: "BACK US",
+		}, theme)
 		if err != nil {
-			t.Fatalf("RenderSponsors() error = %v", err)
+			t.Fatalf("RenderSponsors(custom) error = %v", err)
 		}
-		assertValidGitHubSVG(t, "sponsors-many-dark", pair.Dark)
-		assertValidGitHubSVG(t, "sponsors-many-light", pair.Light)
-
-		hm := svgHeightAttrRe.FindStringSubmatch(pair.Dark[:strings.IndexByte(pair.Dark, '>')+1])
-		if len(hm) != 2 {
-			t.Fatalf("missing height attribute on sponsors SVG")
-		}
-		gotH, _ := strconv.Atoi(hm[1])
-		if gotH <= 108 {
-			t.Errorf("expected dynamic height > 108 for 18 sponsors, got %d", gotH)
-		}
-		if strings.Count(pair.Dark, "@alice") != 1 {
-			t.Errorf("expected @alice once (deduplicated), got %d", strings.Count(pair.Dark, "@alice"))
-		}
-		if !strings.Contains(pair.Dark, "@bob") || !strings.Contains(pair.Dark, "@rachel") {
-			t.Error("expected sponsor handle pills in output")
-		}
-		if !strings.Contains(pair.Dark, theme.Dark.Primary) || !strings.Contains(pair.Light, theme.Light.Primary) {
-			t.Error("sponsors SVG did not reflect dark/light theme Primary colours")
+		assertValidGitHubSVG(t, "sponsors-custom-dark", pair.Dark)
+		assertValidGitHubSVG(t, "sponsors-custom-light", pair.Light)
+		assertSVGDimensions(t, "sponsors-custom-dark", pair.Dark, 840, 108)
+		assertSVGDimensions(t, "sponsors-custom-light", pair.Light, 840, 108)
+		for _, want := range []string{"Back Tailor", "Help fund ongoing development", "BACK US"} {
+			if !strings.Contains(pair.Dark, want) {
+				t.Errorf("custom sponsors SVG missing %q", want)
+			}
 		}
 	})
 }
@@ -795,6 +829,8 @@ func TestRenderContributors(t *testing.T) {
 			"Every commit, issue, and review helps shape Tailor",
 			"25 contributors",
 			"+22 more",
+			`width="160" height="26"`,
+			`width="96" height="26"`,
 			`width="38" height="38"`,
 			`stroke-width="1.5"`,
 			"AD",

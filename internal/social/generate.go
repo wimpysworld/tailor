@@ -280,8 +280,8 @@ func generateStaticAssets(
 		}
 	}
 
-	// Write static sponsors CTA banner when sponsors is enabled and not also running live.
-	if !runLive && staticSponsorsEnabled(cfg) {
+	// Write static sponsors CTA banner when sponsors is enabled.
+	if staticSponsorsEnabled(cfg) {
 		pair, err := RenderSponsors(SponsorsInput{}, theme)
 		if err != nil {
 			return fmt.Errorf("rendering static sponsors SVG: %w", err)
@@ -308,7 +308,6 @@ func staticSponsorsEnabled(cfg *config.Config) bool {
 
 type liveGenResult struct {
 	stars        bool
-	sponsors     bool
 	community    bool
 	contributors bool
 }
@@ -364,27 +363,6 @@ func generateLiveAssets(
 			live.stars = true
 		} else {
 			recordSkippedPair(target, "stars", "below star history threshold", result)
-		}
-	}
-
-	sponsorsMode := cfg.EffectiveSocialSponsors()
-	if sponsorsMode != "false" {
-		sponsorLogin := resolveSponsorLogin(cfg, owner)
-		sponsorsData, err := fetcher.FetchSponsors(ctx, sponsorLogin)
-		if err != nil {
-			return live, err
-		}
-		if sponsorsMode == "true" || sponsorsData.Enabled || len(sponsorsData.Handles) > 0 {
-			pair, err := RenderSponsors(SponsorsInput{Handles: sponsorsData.Handles}, theme)
-			if err != nil {
-				return live, fmt.Errorf("rendering sponsors SVG: %w", err)
-			}
-			if err := writeSVGPair(target, "sponsors", pair, dryRun, result); err != nil {
-				return live, err
-			}
-			live.sponsors = true
-		} else {
-			recordSkippedPair(target, "sponsors", "sponsors not enabled", result)
 		}
 	}
 
@@ -487,6 +465,10 @@ func updateProjectReadme(
 		blocksIn.HeaderURL = assets.FooterURL
 		blocksIn.Links = links
 		blocksIn.Packages = packages
+		if staticSponsorsEnabled(cfg) {
+			blocksIn.Sponsors = true
+			blocksIn.SponsorsURL = resolveSponsorsURL(cfg, owner)
+		}
 	}
 	if comm != nil {
 		if live.community {
@@ -500,21 +482,13 @@ func updateProjectReadme(
 	if runLive {
 		blocksIn.Stats = cfg.EffectiveSocialReadmeStats()
 		blocksIn.StarHistory = live.stars
-		blocksIn.Sponsors = live.sponsors
-		blocksIn.SponsorsURL = resolveSponsorsURL(cfg, owner)
 		blocksIn.Contributors = live.contributors
-	} else if runStatic && staticSponsorsEnabled(cfg) {
-		blocksIn.Sponsors = true
-		blocksIn.SponsorsURL = resolveSponsorsURL(cfg, owner)
 	}
 
 	blocks := FormatReadmeBlocks(blocksIn)
 	if runLive {
 		if cfg.EffectiveSocialStarHistoryEnabled() && !live.stars {
 			blocks[MarkerStars] = ""
-		}
-		if cfg.EffectiveSocialSponsors() == "auto" && !live.sponsors {
-			blocks[MarkerSponsors] = ""
 		}
 		if cfg.EffectiveSocialContributors() && !live.contributors {
 			blocks[MarkerContributors] = ""
@@ -705,17 +679,6 @@ func resolvePackages(cfg *config.Config, repoFullName, repo string) []ReadmePack
 		out = append(out, ReadmePackageEntry{Host: host, Package: pkgName})
 	}
 	return out
-}
-
-func resolveSponsorLogin(cfg *config.Config, owner string) string {
-	if cfg != nil && cfg.Pages != nil && cfg.Pages.Links != nil {
-		if raw := strings.TrimSpace((*cfg.Pages.Links)["github_sponsors"]); raw != "" {
-			if login := ExtractGitHubSponsorsLogin(raw); login != "" {
-				return login
-			}
-		}
-	}
-	return owner
 }
 
 func resolveSponsorsURL(cfg *config.Config, owner string) string {

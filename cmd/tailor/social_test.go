@@ -209,7 +209,7 @@ func TestSocialLiveCustomOutputDirAndAssetsSHA(t *testing.T) {
 	out := stdout.String()
 	if !strings.Contains(out, "created "+filepath.Join(outDir, "stats-dark.svg")) ||
 		!strings.Contains(out, "created "+filepath.Join(outDir, "stars-dark.svg")) ||
-		!strings.Contains(out, "skipped "+filepath.Join(outDir, "sponsors-dark.svg")) ||
+		strings.Contains(out, "sponsors-dark.svg") ||
 		!strings.Contains(out, "updated README.md") {
 		t.Errorf("unexpected live command output:\n%s", out)
 	}
