@@ -382,6 +382,12 @@ func (m *MeasureCmd) Run() (runErr error) {
 				health = append(health, measure.HealthResult{Path: name, Status: status, Detail: pythonPolicy.Reason})
 			}
 		}
+		if cfg.SocialEnabled() || cfg.PagesEnabled() {
+			if root, rootErr := os.OpenRoot(dir); rootErr == nil {
+				health = append(health, measure.CheckSocialOG(root, cfg.EffectiveSocialOGOutput())...)
+				_ = root.Close()
+			}
+		}
 	}
 
 	health = measure.SortHealthResults(health)

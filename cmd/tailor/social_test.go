@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"image"
+	"image/png"
 	"os"
 	"path/filepath"
 	"strings"
@@ -225,5 +228,80 @@ func TestSocialHelpListsAllFlags(t *testing.T) {
 		if !strings.Contains(help, flag) {
 			t.Errorf("social --help missing flag %q:\n%s", flag, help)
 		}
+	}
+}
+
+func TestMeasureCmdChecksSocialOG(t *testing.T) {
+	encodePNG := func(width, height int) []byte {
+		var buf bytes.Buffer
+		if err := png.Encode(&buf, image.NewGray(image.Rect(0, 0, width, height))); err != nil {
+			t.Fatal(err)
+		}
+		return buf.Bytes()
+	}
+
+	tests := []struct {
+		name       string
+		configYAML string
+		ogBytes    []byte
+		wantLine   string
+		wantAbsent bool
+	}{
+		{
+			name:       "social enabled with valid 1280x640 reports present",
+			configYAML: "license: none\nsocial:\n  enabled: true\nswatches: []\n",
+			ogBytes:    encodePNG(1280, 640),
+			wantLine:   "present:        pages/og.png",
+		},
+		{
+			name:       "pages enabled with wrong dimensions reports warning",
+			configYAML: "license: none\npages:\n  enabled: true\nswatches: []\n",
+			ogBytes:    encodePNG(640, 480),
+			wantLine:   "warning:        pages/og.png (dimensions 640x480; expected 1280x640 or 1200x630)",
+		},
+		{
+			name:       "social enabled with absent og.png emits no og line",
+			configYAML: "license: none\nsocial:\n  enabled: true\nswatches: []\n",
+			wantAbsent: true,
+		},
+		{
+			name:       "neither social nor pages enabled skips og.png",
+			configYAML: "license: none\nswatches: []\n",
+			ogBytes:    []byte("not a png"),
+			wantAbsent: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			testutil.WriteConfig(t, dir, tt.configYAML)
+			if tt.ogBytes != nil {
+				ogPath := filepath.Join(dir, "pages", "og.png")
+				if err := os.MkdirAll(filepath.Dir(ogPath), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(ogPath, tt.ogBytes, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			t.Chdir(dir)
+			var stdout, stderr strings.Builder
+			cmd := MeasureCmd{output: output.New(&stdout, &stderr, output.Plain)}
+			if err := cmd.Run(); err != nil {
+				t.Fatalf("MeasureCmd.Run() error = %v", err)
+			}
+			out := stdout.String()
+			if tt.wantAbsent {
+				if strings.Contains(out, "pages/og.png") {
+					t.Fatalf("unexpected pages/og.png in measure output:\n%s", out)
+				}
+				return
+			}
+			if !strings.Contains(out, tt.wantLine) {
+				t.Fatalf("measure output missing %q:\n%s", tt.wantLine, out)
+			}
+		})
 	}
 }

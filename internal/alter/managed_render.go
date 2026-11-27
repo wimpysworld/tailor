@@ -3,12 +3,14 @@ package alter
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/wimpysworld/tailor/internal/config"
+	"github.com/wimpysworld/tailor/internal/social"
 	"github.com/wimpysworld/tailor/internal/swatch"
 )
 
@@ -16,13 +18,28 @@ const (
 	managedImportsPlaceholder     = "[[TAILOR_MANAGED_IMPORTS]]"
 	managedBuildPlaceholderPrefix = "[[TAILOR_MANAGED_BUILD_"
 	managedLintPlaceholderPrefix  = "[[TAILOR_MANAGED_LINT_"
+	managedOGArgsPlaceholder      = "[[TAILOR_OG_ARGS]]"
 )
 
+type managedRenderContext struct {
+	Dir   string
+	Owner string
+	Repo  string
+}
+
 func renderManagedFiles(cfg *config.Config, selections []managedSelection) (managedRenderedFiles, error) {
-	return renderManagedFilesFromRegistries(cfg, selections, fixedManagedRegistry(), fixedManagedMCPRegistry())
+	return renderManagedFilesWithContext(cfg, selections, managedRenderContext{})
+}
+
+func renderManagedFilesWithContext(cfg *config.Config, selections []managedSelection, ctx managedRenderContext) (managedRenderedFiles, error) {
+	return renderManagedFilesFromRegistriesWithContext(cfg, selections, fixedManagedRegistry(), fixedManagedMCPRegistry(), ctx)
 }
 
 func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSelection, registry []managedRegistryEntry, mcpRegistry []managedMCPServerDefinition) (managedRenderedFiles, error) {
+	return renderManagedFilesFromRegistriesWithContext(cfg, selections, registry, mcpRegistry, managedRenderContext{})
+}
+
+func renderManagedFilesFromRegistriesWithContext(cfg *config.Config, selections []managedSelection, registry []managedRegistryEntry, mcpRegistry []managedMCPServerDefinition, ctx managedRenderContext) (managedRenderedFiles, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("managed file rendering requires a config")
 	}
@@ -83,6 +100,8 @@ func renderManagedFilesFromRegistries(cfg *config.Config, selections []managedSe
 			content, err = renderManagedGoHook(cfg, content)
 		case "just/pages.just":
 			content, err = renderManagedPages(cfg, content)
+		case "just/og.just":
+			content, err = renderManagedOG(cfg, content, ctx)
 		}
 		if err != nil {
 			return nil, fmt.Errorf("rendering %q: %w", entry.Path, err)
@@ -240,4 +259,142 @@ func renderManagedPages(cfg *config.Config, content []byte) ([]byte, error) {
 		return nil, fmt.Errorf("managed Pages template contains an unresolved placeholder")
 	}
 	return content, nil
+}
+
+func renderManagedOG(cfg *config.Config, content []byte, ctx managedRenderContext) ([]byte, error) {
+	if err := config.ValidateSocial(cfg); err != nil {
+		return nil, fmt.Errorf("validating social Open Graph recipe: %w", err)
+	}
+	placeholder := []byte(managedOGArgsPlaceholder)
+	if bytes.Count(content, placeholder) != 1 {
+		return nil, fmt.Errorf("managed Open Graph template must contain one %s placeholder", managedOGArgsPlaceholder)
+	}
+
+	styleCSS, err := resolveOGStyleCSS(cfg, ctx.Dir)
+	if err != nil {
+		return nil, err
+	}
+
+	lines, err := formatOGArgs(buildOGArgs(cfg, ctx, styleCSS))
+	if err != nil {
+		return nil, err
+	}
+
+	rendered := bytes.Replace(content, placeholder, []byte(strings.Join(lines, "\n        ")), 1)
+	if bytes.Contains(rendered, placeholder) {
+		return nil, fmt.Errorf("managed Open Graph template contains an unresolved placeholder")
+	}
+	return rendered, nil
+}
+
+type ogArg struct {
+	flag  string
+	value string
+	bare  bool
+}
+
+func resolveOGStyleCSS(cfg *config.Config, dir string) (string, error) {
+	pagesPath := "pages"
+	if cfg.Pages != nil && cfg.Pages.Path != nil && strings.TrimSpace(*cfg.Pages.Path) != "" {
+		if err := config.ValidatePages(cfg); err != nil {
+			return "", fmt.Errorf("validating Pages path for Open Graph recipe: %w", err)
+		}
+		pagesPath = path.Clean(*cfg.Pages.Path)
+	}
+	styleCSS := path.Join(pagesPath, "style.css")
+	if cfg.PagesEnabled() {
+		return styleCSS, nil
+	}
+	if dir == "" {
+		return "", nil
+	}
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		return "", nil
+	}
+	defer root.Close()
+	if info, statErr := root.Lstat(styleCSS); statErr == nil && info.Mode().IsRegular() {
+		return styleCSS, nil
+	}
+	return "", nil
+}
+
+func buildOGArgs(cfg *config.Config, ctx managedRenderContext, styleCSS string) []ogArg {
+	args := []ogArg{
+		{flag: "--output", value: cfg.EffectiveSocialOGOutput()},
+		{flag: "--theme", value: cfg.EffectiveSocialTheme()},
+	}
+	add := func(flag, value string) {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			args = append(args, ogArg{flag: flag, value: trimmed})
+		}
+	}
+	add("--style-css", styleCSS)
+	add("--accent", cfg.EffectiveSocialAccent())
+	add("--background", cfg.EffectiveSocialBackground())
+	add("--title", ctx.Repo)
+	if cfg.Repository != nil && cfg.Repository.Description != nil {
+		add("--tagline", social.StripTrailingEmoji(*cfg.Repository.Description))
+	}
+	add("--footer", resolveOGFooter(cfg, strings.TrimSpace(ctx.Owner), strings.TrimSpace(ctx.Repo)))
+	add("--platforms", cfg.EffectiveSocialPlatforms())
+	if cfg.EffectiveSocialOGIncludePreview() {
+		args = append(args, ogArg{flag: "--include-preview", bare: true})
+	}
+	add("--image", cfg.EffectiveSocialOGImage())
+	for _, terminalLine := range cfg.EffectiveSocialOGTerminal() {
+		args = append(args, ogArg{flag: "--terminal-line", value: terminalLine})
+	}
+	return args
+}
+
+func formatOGArgs(args []ogArg) ([]string, error) {
+	lines := make([]string, 0, len(args))
+	for _, arg := range args {
+		if arg.bare {
+			lines = append(lines, arg.flag)
+			continue
+		}
+		if strings.ContainsAny(arg.value, "\x00\r\n") {
+			return nil, fmt.Errorf("managed Open Graph argument %s contains unsupported control characters", arg.flag)
+		}
+		lines = append(lines, arg.flag+" "+shellQuoteJustArg(arg.value))
+	}
+	return lines, nil
+}
+
+func resolveOGFooter(cfg *config.Config, owner, repo string) string {
+	if cfg != nil && cfg.Pages != nil && cfg.Pages.CNAME != nil {
+		if cname := trimURLScheme(*cfg.Pages.CNAME); cname != "" {
+			return cname
+		}
+	}
+	if cfg != nil && cfg.Repository != nil && cfg.Repository.Homepage != nil {
+		if homepage := trimURLScheme(*cfg.Repository.Homepage); homepage != "" {
+			return homepage
+		}
+	}
+	if owner != "" && repo != "" {
+		return "github.com/" + owner + "/" + repo
+	}
+	return ""
+}
+
+func trimURLScheme(raw string) string {
+	s := strings.TrimSpace(raw)
+	s = strings.TrimPrefix(s, "https://")
+	s = strings.TrimPrefix(s, "http://")
+	s = strings.TrimRight(s, "/")
+	return s
+}
+
+// shellQuoteJustArg wraps value in POSIX single quotes and breaks any Just
+// interpolation delimiter ("{{") across adjacent single-quoted segments so
+// Just passes literal bytes unchanged to bash.
+func shellQuoteJustArg(value string) string {
+	quoted := "'" + strings.ReplaceAll(value, "'", `'\''`) + "'"
+	for strings.Contains(quoted, "{{") {
+		quoted = strings.ReplaceAll(quoted, "{{", "{''{")
+	}
+	return quoted
 }
