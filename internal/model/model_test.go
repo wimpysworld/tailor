@@ -200,7 +200,7 @@ func TestSocialNames(t *testing.T) {
 	}{
 		{name: "settings", got: SocialSettingNames, want: []string{"accent", "background", "enabled", "live", "og", "platforms", "readme", "theme"}},
 		{name: "og", got: SocialOGSettingNames, want: []string{"image", "include_preview", "output", "terminal"}},
-		{name: "readme", got: SocialReadmeSettingNames, want: []string{"community", "contributors", "header", "packages", "preferred_links", "sponsors", "star_history", "stats"}},
+		{name: "readme", got: SocialReadmeSettingNames, want: []string{"community", "contributors", "demo", "footer", "header", "packages", "preferred_links", "sponsors", "star_history", "stats"}},
 		{name: "star_history", got: SocialStarHistorySettingNames, want: []string{"enabled", "min_days", "min_stars"}},
 		{name: "live", got: SocialLiveSettingNames, want: []string{"branch", "schedule"}},
 	}

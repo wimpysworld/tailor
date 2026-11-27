@@ -57,6 +57,7 @@ func TestSocialParsingAndValidation(t *testing.T) {
       - brew
       - scoop
       - nix
+    demo: true
     stats: true
     star_history:
       enabled: true
@@ -64,6 +65,7 @@ func TestSocialParsingAndValidation(t *testing.T) {
       min_days: 0
     sponsors: auto
     contributors: true
+    footer: true
   live:
     branch: social-assets
     schedule: "0 4 * * *"`,
@@ -108,8 +110,10 @@ func TestSocialParsingAndValidation(t *testing.T) {
 		{name: "og terminal item non-string", body: "social:\n  og:\n    terminal: [123]", wantError: "social.og.terminal[0] must be a string"},
 		{name: "readme not mapping", body: "social:\n  readme: []", wantError: "social.readme must be a mapping"},
 		{name: "readme header string", body: "social:\n  readme:\n    header: \"true\"", wantError: "social.readme.header must be a bool"},
+		{name: "readme demo string", body: "social:\n  readme:\n    demo: \"true\"", wantError: "social.readme.demo must be a bool"},
 		{name: "readme stats string", body: "social:\n  readme:\n    stats: \"true\"", wantError: "social.readme.stats must be a bool"},
 		{name: "readme contributors string", body: "social:\n  readme:\n    contributors: \"true\"", wantError: "social.readme.contributors must be a bool"},
+		{name: "readme footer string", body: "social:\n  readme:\n    footer: \"true\"", wantError: "social.readme.footer must be a bool"},
 		{name: "readme sponsors null", body: "social:\n  readme:\n    sponsors: null", wantError: "social.readme.sponsors must be a string or bool"},
 		{name: "readme sponsors int", body: "social:\n  readme:\n    sponsors: 1", wantError: "social.readme.sponsors must be a string or bool"},
 		{name: "star_history not mapping", body: "social:\n  readme:\n    star_history: true", wantError: "social.readme.star_history must be a mapping"},
@@ -230,12 +234,14 @@ func TestSocialAccessorsAndDefaults(t *testing.T) {
 		nilCfg.EffectiveSocialPreferredLinks() != nil ||
 		nilCfg.EffectiveSocialCommunity() != "auto" ||
 		nilCfg.EffectiveSocialPackages() != nil ||
+		!nilCfg.EffectiveSocialDemo() ||
 		!nilCfg.EffectiveSocialReadmeStats() ||
 		!nilCfg.EffectiveSocialStarHistoryEnabled() ||
 		nilCfg.EffectiveSocialStarHistoryMinStars() != 25 ||
 		nilCfg.EffectiveSocialStarHistoryMinDays() != 30 ||
 		nilCfg.EffectiveSocialSponsors() != "auto" ||
 		!nilCfg.EffectiveSocialContributors() ||
+		!nilCfg.EffectiveSocialFooter() ||
 		nilCfg.EffectiveSocialLiveBranch() != "social-assets" ||
 		nilCfg.EffectiveSocialLiveSchedule() != "0 4 * * *" {
 		t.Fatal("nil Config returned unexpected social defaults")
@@ -280,6 +286,7 @@ func TestSocialAccessorsAndDefaults(t *testing.T) {
 				PreferredLinks: &[]string{"website", "irc"},
 				Community:      new("irc"),
 				Packages:       &[]string{"apt", "nix"},
+				Demo:           new(false),
 				Stats:          new(false),
 				StarHistory: &model.SocialStarHistorySettings{
 					Enabled:  new(false),
@@ -288,6 +295,7 @@ func TestSocialAccessorsAndDefaults(t *testing.T) {
 				},
 				Sponsors:     new("false"),
 				Contributors: new(false),
+				Footer:       new(false),
 			},
 			Live: &model.SocialLiveSettings{
 				Branch:   new("live-assets"),
@@ -308,12 +316,14 @@ func TestSocialAccessorsAndDefaults(t *testing.T) {
 		!reflect.DeepEqual(explicit.EffectiveSocialPreferredLinks(), []string{"website", "irc"}) ||
 		explicit.EffectiveSocialCommunity() != "irc" ||
 		!reflect.DeepEqual(explicit.EffectiveSocialPackages(), []string{"apt", "nix"}) ||
+		explicit.EffectiveSocialDemo() ||
 		explicit.EffectiveSocialReadmeStats() ||
 		explicit.EffectiveSocialStarHistoryEnabled() ||
 		explicit.EffectiveSocialStarHistoryMinStars() != 0 ||
 		explicit.EffectiveSocialStarHistoryMinDays() != 0 ||
 		explicit.EffectiveSocialSponsors() != "false" ||
 		explicit.EffectiveSocialContributors() ||
+		explicit.EffectiveSocialFooter() ||
 		explicit.EffectiveSocialLiveBranch() != "live-assets" ||
 		explicit.EffectiveSocialLiveSchedule() != "30 2 * * 1" {
 		t.Fatal("explicit social values were not returned by effective helpers")
@@ -359,6 +369,7 @@ func TestSocialRoundTripWithoutDefaults(t *testing.T) {
     packages:
       - apt
       - nix
+    demo: false
     stats: false
     star_history:
       enabled: false
@@ -366,6 +377,7 @@ func TestSocialRoundTripWithoutDefaults(t *testing.T) {
       min_days: 7
     sponsors: "true"
     contributors: false
+    footer: false
   live:
     branch: live-social
     schedule: "15 3 * * *"`,
@@ -420,8 +432,10 @@ func TestSocialMergeThreeStateAndConvergence(t *testing.T) {
 	}
 	if empty.EffectiveSocialTheme() != "dark" ||
 		empty.EffectiveSocialOGOutput() != "pages/og.png" ||
+		!empty.EffectiveSocialDemo() ||
 		empty.EffectiveSocialStarHistoryMinStars() != 25 ||
 		!empty.EffectiveSocialContributors() ||
+		!empty.EffectiveSocialFooter() ||
 		empty.EffectiveSocialLiveBranch() != "social-assets" {
 		t.Fatalf("MergeDefaults did not fill social defaults: %+v", empty.Social)
 	}

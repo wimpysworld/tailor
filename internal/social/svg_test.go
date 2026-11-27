@@ -2,6 +2,7 @@ package social
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/xml"
 	"errors"
 	"io"
@@ -393,14 +394,25 @@ func TestRenderHero(t *testing.T) {
 				t.Errorf("light hero missing Light.Background %s", tc.theme.Light.Background)
 			}
 			for _, wantWave := range []string{
-				"@keyframes wave-flow",
+				"@keyframes wave-flow-left",
+				"@keyframes wave-flow-right",
+				"@keyframes wave-bob-a",
+				"@keyframes wave-bob-b",
 				"translateX(-840px)",
-				"18s linear infinite",
-				"28s linear infinite",
+				"translateY(-4px)",
+				"translateY(4px)",
+				"translateY(5px)",
+				"translateY(-5px)",
+				"19s linear infinite",
+				"29s linear infinite",
+				"7.3s ease-in-out infinite alternate",
+				"11.1s ease-in-out infinite alternate",
+				`<g class="wave-bob-b"><path class="wave-b"`,
+				`<g class="wave-bob-a"><path class="wave-a"`,
 				"L 1680 220 L 0 220 Z",
 			} {
 				if !strings.Contains(pair.Dark, wantWave) {
-					t.Errorf("dark hero missing seamless wave markup %q", wantWave)
+					t.Errorf("dark hero missing seamless opposite bobbing wave markup %q", wantWave)
 				}
 			}
 			if strings.Contains(pair.Dark, "<line ") || strings.Contains(pair.Light, "<line ") {
@@ -718,22 +730,36 @@ func TestRenderStarHistory(t *testing.T) {
 			t.Error("star history SVG did not reflect dark/light Primary colours")
 		}
 		for _, want := range []string{
-			"12s linear infinite",
+			"14s linear infinite",
+			"@keyframes star-race",
+			"@keyframes sh-collapse-loop",
+			"sh-collapse",
+			"transform-origin:0px 236.0px",
+			"scaleY(0)",
+			"cubic-bezier(0.55,0.05,0.9,0.35)",
 			"sh-apex-loop",
 			"scale(1.4)",
 			"sh-halo-loop",
 			`class="sh-halo"`,
+			`class="sh-star-pos"`,
 			`class="sh-apex"`,
+			`fill="#facc15" stroke="#ca8a04"`,
 			`class="sh-sparkle sh-sp0"`,
 			`class="sh-sparkle sh-sp7"`,
+			"#facc15",
 			"#f9e2af",
 			"#fab387",
 			"#f5c2e7",
+			".sh-collapse { transform: scaleY(1) !important; opacity: 1 !important; }",
+			".sh-star-pos {",
 			".sh-halo, .sh-sparkle { opacity: 0 !important; }",
 		} {
 			if !strings.Contains(pair.Dark, want) {
 				t.Errorf("dark star history SVG missing %q", want)
 			}
+		}
+		if !strings.Contains(pair.Light, `fill="#facc15" stroke="#ca8a04"`) {
+			t.Error("light star history SVG must keep fixed yellow star colours regardless of theme")
 		}
 		if strings.Count(pair.Dark, `class="sh-sparkle `) != 8 {
 			t.Errorf("expected 8 radial burst sparkles, got %d", strings.Count(pair.Dark, `class="sh-sparkle `))
@@ -938,4 +964,202 @@ func TestRenderHeroRejectsMalformedInlineSVG(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for malformed inline SVG icon")
 	}
+}
+
+func TestRenderDemo(t *testing.T) {
+	theme := iaGetTheme()
+	sampleWebP := makeTestWebPVP8X(960, 540)
+
+	pair, err := RenderDemo(theme, "Tailor", sampleWebP, "image/webp", 960, 540)
+	if err != nil {
+		t.Fatalf("RenderDemo() error = %v", err)
+	}
+	assertValidGitHubSVG(t, "demo-dark", pair.Dark)
+	assertValidGitHubSVG(t, "demo-light", pair.Light)
+	// 840px wide * (540/960) = 472.5 -> 473px body + 36px titlebar = 509px total.
+	assertSVGDimensions(t, "demo-dark", pair.Dark, 840, 509)
+	assertSVGDimensions(t, "demo-light", pair.Light, 840, 509)
+
+	for _, want := range []string{
+		`fill="#ff5f56"`,
+		`fill="#ffbd2e"`,
+		`fill="#27c93f"`,
+		`fill="#1a1f28"`,
+		`>Tailor</text>`,
+		`href="data:image/webp;base64,`,
+		theme.Dark.MutedBorder,
+	} {
+		if !strings.Contains(pair.Dark, want) {
+			t.Errorf("dark demo SVG missing %q", want)
+		}
+	}
+	if !strings.Contains(pair.Light, theme.Light.CodeBackground) {
+		t.Errorf("light demo SVG missing Light.CodeBackground %s", theme.Light.CodeBackground)
+	}
+
+	if _, err := RenderDemo(theme, "Tailor", nil, "image/webp", 800, 600); err == nil {
+		t.Error("expected error for empty image bytes")
+	}
+	if _, err := RenderDemo(theme, "Tailor", sampleWebP, "image/webp", 0, 600); err == nil {
+		t.Error("expected error for non-positive width")
+	}
+	if _, err := RenderDemo(theme, "Tailor", sampleWebP, "image/webp", 800, -1); err == nil {
+		t.Error("expected error for non-positive height")
+	}
+}
+
+func TestDecodeDemoImageDimensions(t *testing.T) {
+	t.Run("PNG IHDR", func(t *testing.T) {
+		data := makeTestPNGHeader(1200, 630)
+		w, h, err := decodeDemoImageDimensions(data, "image/png")
+		if err != nil || w != 1200 || h != 630 {
+			t.Fatalf("decodeDemoImageDimensions(PNG) = %dx%d, %v; want 1200x630, nil", w, h, err)
+		}
+	})
+
+	t.Run("WebP VP8X", func(t *testing.T) {
+		data := makeTestWebPVP8X(1024, 576)
+		w, h, err := decodeDemoImageDimensions(data, "image/webp")
+		if err != nil || w != 1024 || h != 576 {
+			t.Fatalf("decodeDemoImageDimensions(VP8X) = %dx%d, %v; want 1024x576, nil", w, h, err)
+		}
+	})
+
+	t.Run("WebP VP8 lossy", func(t *testing.T) {
+		buf := make([]byte, 30)
+		copy(buf[0:4], "RIFF")
+		copy(buf[8:12], "WEBP")
+		copy(buf[12:16], "VP8 ")
+		buf[20] = 0x10 // keyframe (bit 0 == 0)
+		buf[23], buf[24], buf[25] = 0x9d, 0x01, 0x2a
+		binary.LittleEndian.PutUint16(buf[26:28], 800)
+		binary.LittleEndian.PutUint16(buf[28:30], 450)
+		w, h, err := decodeDemoImageDimensions(buf, "image/webp")
+		if err != nil || w != 800 || h != 450 {
+			t.Fatalf("decodeDemoImageDimensions(VP8 ) = %dx%d, %v; want 800x450, nil", w, h, err)
+		}
+	})
+
+	t.Run("WebP VP8L lossless", func(t *testing.T) {
+		buf := make([]byte, 25)
+		copy(buf[0:4], "RIFF")
+		copy(buf[8:12], "WEBP")
+		copy(buf[12:16], "VP8L")
+		buf[20] = 0x2f
+		bits := uint32(640-1) | (uint32(360-1) << 14)
+		binary.LittleEndian.PutUint32(buf[21:25], bits)
+		w, h, err := decodeDemoImageDimensions(buf, "image/webp")
+		if err != nil || w != 640 || h != 360 {
+			t.Fatalf("decodeDemoImageDimensions(VP8L) = %dx%d, %v; want 640x360, nil", w, h, err)
+		}
+	})
+
+	t.Run("repository demo.webp and demo-still.png", func(t *testing.T) {
+		for _, tc := range []struct {
+			file string
+			mime string
+		}{
+			{"demo.webp", "image/webp"},
+			{"demo-still.png", "image/png"},
+		} {
+			raw, err := os.ReadFile(filepath.Join("..", "..", "pages", tc.file))
+			if err != nil {
+				t.Fatalf("reading pages/%s: %v", tc.file, err)
+			}
+			w, h, err := decodeDemoImageDimensions(raw, tc.mime)
+			if err != nil || w <= 0 || h <= 0 {
+				t.Fatalf("decodeDemoImageDimensions(%s) = %dx%d, %v", tc.file, w, h, err)
+			}
+		}
+	})
+
+	t.Run("rejects malformed headers", func(t *testing.T) {
+		for _, tc := range []struct {
+			name string
+			data []byte
+			mime string
+		}{
+			{"short png", []byte{0x89, 'P', 'N', 'G'}, "image/png"},
+			{"short webp", []byte("RIFF\x00\x00\x00\x00WEBP"), "image/webp"},
+			{"unknown chunk", []byte("RIFF\x00\x00\x00\x00WEBPVXXX00000000000000"), "image/webp"},
+			{"unsupported mime", makeTestPNGHeader(10, 10), "image/gif"},
+		} {
+			if _, _, err := decodeDemoImageDimensions(tc.data, tc.mime); err == nil {
+				t.Errorf("%s: expected error, got nil", tc.name)
+			}
+		}
+	})
+}
+
+func TestRenderFooter(t *testing.T) {
+	theme := iaGetTheme()
+	pair, err := RenderFooter(theme)
+	if err != nil {
+		t.Fatalf("RenderFooter() error = %v", err)
+	}
+
+	assertValidGitHubSVG(t, "footer-dark", pair.Dark)
+	assertValidGitHubSVG(t, "footer-light", pair.Light)
+	assertSVGDimensions(t, "footer-dark", pair.Dark, 840, 44)
+	assertSVGDimensions(t, "footer-light", pair.Light, 840, 44)
+
+	for _, want := range []string{
+		"Fitted by ",
+		">Tailor</tspan>",
+		"tailor.wimpys.world",
+		"stroke-dasharray:5 5",
+		"@keyframes stitch-march",
+		"14s linear infinite",
+		"@keyframes snip-top",
+		"@keyframes snip-bot",
+		"10s ease-in-out infinite",
+		"#f0cb78",
+		"#b88a44",
+		theme.Dark.CardBackground,
+		theme.Dark.MutedBorder,
+		theme.Dark.MutedColor,
+		theme.Dark.HeadingColor,
+	} {
+		if !strings.Contains(pair.Dark, want) {
+			t.Errorf("dark footer SVG missing %q", want)
+		}
+	}
+	for _, want := range []string{
+		theme.Light.CardBackground,
+		theme.Light.MutedBorder,
+		theme.Light.MutedColor,
+		theme.Light.HeadingColor,
+	} {
+		if !strings.Contains(pair.Light, want) {
+			t.Errorf("light footer SVG missing %q", want)
+		}
+	}
+}
+
+func makeTestPNGHeader(width, height uint32) []byte {
+	buf := make([]byte, 24)
+	copy(buf[0:8], pngSignature)
+	binary.BigEndian.PutUint32(buf[8:12], 13)
+	copy(buf[12:16], "IHDR")
+	binary.BigEndian.PutUint32(buf[16:20], width)
+	binary.BigEndian.PutUint32(buf[20:24], height)
+	return buf
+}
+
+func makeTestWebPVP8X(width, height uint32) []byte {
+	buf := make([]byte, 30)
+	copy(buf[0:4], "RIFF")
+	binary.LittleEndian.PutUint32(buf[4:8], 22)
+	copy(buf[8:12], "WEBP")
+	copy(buf[12:16], "VP8X")
+	binary.LittleEndian.PutUint32(buf[16:20], 10)
+	w := width - 1
+	h := height - 1
+	buf[24] = byte(w & 0xff)
+	buf[25] = byte((w >> 8) & 0xff)
+	buf[26] = byte((w >> 16) & 0xff)
+	buf[27] = byte(h & 0xff)
+	buf[28] = byte((h >> 8) & 0xff)
+	buf[29] = byte((h >> 16) & 0xff)
+	return buf
 }

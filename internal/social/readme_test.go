@@ -222,11 +222,13 @@ func TestFormatReadmeBlocks(t *testing.T) {
 			{Host: "nix", Package: "tailor"},
 			{Host: "brew", URL: "https://brew.wimpys.world/#custom"},
 		},
+		Demo:         true,
 		Stats:        true,
 		StarHistory:  true,
 		Sponsors:     true,
 		SponsorsURL:  "https://github.com/sponsors/flexiondotorg",
 		Contributors: true,
+		Footer:       true,
 	}
 
 	blocks := FormatReadmeBlocks(in)
@@ -286,6 +288,28 @@ func TestFormatReadmeBlocks(t *testing.T) {
 		!strings.Contains(blocks[MarkerContributors], `src="`+livePrefix+`contributors-light.svg"`) ||
 		!strings.Contains(blocks[MarkerContributors], `href="https://github.com/wimpysworld/tailor/graphs/contributors"`) {
 		t.Errorf("contributors block missing commit-pinned live URLs or /graphs/contributors link:\n%s", blocks[MarkerContributors])
+	}
+
+	if !strings.Contains(blocks[MarkerDemo], `srcset="pages/social/demo-dark.svg"`) ||
+		!strings.Contains(blocks[MarkerDemo], `src="pages/social/demo-light.svg"`) ||
+		!strings.Contains(blocks[MarkerDemo], `alt="Tailor demo"`) {
+		t.Errorf("demo block unexpected:\n%s", blocks[MarkerDemo])
+	}
+	if !strings.Contains(blocks[MarkerFooter], `href="https://tailor.wimpys.world"`) ||
+		!strings.Contains(blocks[MarkerFooter], `srcset="pages/social/footer-dark.svg"`) ||
+		!strings.Contains(blocks[MarkerFooter], `src="pages/social/footer-light.svg"`) ||
+		!strings.Contains(blocks[MarkerFooter], `alt="Fitted by Tailor"`) {
+		t.Errorf("footer block unexpected:\n%s", blocks[MarkerFooter])
+	}
+
+	// Verify DemoFallbackSrc renders a plain centred <img> without <picture>.
+	fallbackBlocks := FormatReadmeBlocks(ReadmeBlocksInput{
+		ProjectTitle:    "Tailor",
+		DemoFallbackSrc: "pages/demo.webp",
+	})
+	wantFallback := "<p align=\"center\">\n  <img src=\"pages/demo.webp\" alt=\"Tailor demo\">\n</p>"
+	if fallbackBlocks[MarkerDemo] != wantFallback {
+		t.Errorf("demo fallback block =\n%s\nwant:\n%s", fallbackBlocks[MarkerDemo], wantFallback)
 	}
 
 	// Verify LiveCommunity switches community banner to commit-pinned live URL.

@@ -194,6 +194,7 @@ social:
     preferred_links: []
     community: auto
     packages: []
+    demo: true
     stats: true
     star_history:
       enabled: true
@@ -201,6 +202,7 @@ social:
       min_days: 30
     sponsors: auto
     contributors: true
+    footer: true
   live:
     branch: social-assets
     schedule: "0 4 * * *"

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/binary"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -20,6 +21,7 @@ import (
 const (
 	maxGeneratedAssetSize = 4 << 20
 	maxReadmeFileSize     = 4 << 20
+	maxDemoEmbedSize      = 512 * 1024
 )
 
 var hexSHARegexp = regexp.MustCompile(`^[0-9a-fA-F]{7,64}$`)
@@ -167,8 +169,11 @@ func Generate(ctx context.Context, opts GenerateOptions) (result GenerateResult,
 	commIsLive := isLiveCommunity(comm)
 	packages := resolvePackages(cfg, repoFullName, repo)
 
+	var staticRes staticGenResult
 	if runStatic {
-		if err := generateStaticAssets(projectRoot, target, cfg, theme, assets, links, comm, commIsLive, runLive, packages, opts.DryRun, &result); err != nil {
+		var err error
+		staticRes, err = generateStaticAssets(projectRoot, target, cleanedPages, cfg, theme, assets, links, comm, commIsLive, runLive, packages, opts.DryRun, &result)
+		if err != nil {
 			return result, err
 		}
 	}
@@ -187,7 +192,7 @@ func Generate(ctx context.Context, opts GenerateOptions) (result GenerateResult,
 	if opts.UpdateReadme {
 		if err := updateProjectReadme(
 			projectRoot, cfg, assets, target.staticRelDir, owner, repo, sha,
-			runStatic, runLive, links, comm, packages, liveRes, opts.DryRun, &result,
+			runStatic, runLive, links, comm, packages, staticRes, liveRes, opts.DryRun, &result,
 		); err != nil {
 			return result, err
 		}
@@ -209,9 +214,16 @@ func formatRepoFullName(owner, repo, dir string) string {
 	return filepath.Base(dir)
 }
 
+type staticGenResult struct {
+	demoSVG         bool
+	demoFallbackSrc string
+	footer          bool
+}
+
 func generateStaticAssets(
 	projectRoot *os.Root,
 	target *outputTarget,
+	cleanedPages string,
 	cfg *config.Config,
 	theme Theme,
 	assets ProjectAssets,
@@ -222,13 +234,15 @@ func generateStaticAssets(
 	packages []ReadmePackageEntry,
 	dryRun bool,
 	result *GenerateResult,
-) error {
+) (staticGenResult, error) {
+	var staticRes staticGenResult
+
 	if cfg.EffectiveSocialReadmeHeader() {
 		heroIn := HeroInput{Assets: assets}
 		if assets.IconPath != "" && assets.IconKind != IconKindNone {
 			data, exists, err := readRootRegularFile(projectRoot, assets.IconPath, maxIconSize)
 			if err != nil {
-				return fmt.Errorf("reading project icon %q: %w", assets.IconPath, err)
+				return staticRes, fmt.Errorf("reading project icon %q: %w", assets.IconPath, err)
 			}
 			if exists {
 				heroIn.IconData = data
@@ -242,20 +256,20 @@ func generateStaticAssets(
 		}
 		pair, err := RenderHero(heroIn, theme)
 		if err != nil {
-			return fmt.Errorf("rendering hero SVG: %w", err)
+			return staticRes, fmt.Errorf("rendering hero SVG: %w", err)
 		}
 		if err := writeSVGPair(target, "hero", pair, dryRun, result); err != nil {
-			return err
+			return staticRes, err
 		}
 	}
 
 	for _, link := range links {
 		pair, err := RenderLinkPill(LinkPillInput{Key: link.Key, Label: link.Label}, theme)
 		if err != nil {
-			return fmt.Errorf("rendering link pill %q: %w", link.Key, err)
+			return staticRes, fmt.Errorf("rendering link pill %q: %w", link.Key, err)
 		}
 		if err := writeSVGPair(target, "link-"+link.Key, pair, dryRun, result); err != nil {
-			return err
+			return staticRes, err
 		}
 	}
 
@@ -263,35 +277,181 @@ func generateStaticAssets(
 	if comm != nil && (!runLive || !commIsLive) {
 		pair, err := RenderCommunityBanner(CommunityBannerInput{Platform: comm.Platform}, theme)
 		if err != nil {
-			return fmt.Errorf("rendering static community SVG: %w", err)
+			return staticRes, fmt.Errorf("rendering static community SVG: %w", err)
 		}
 		if err := writeSVGPair(target, "community", pair, dryRun, result); err != nil {
-			return err
+			return staticRes, err
 		}
 	}
 
 	for _, pkg := range packages {
 		pair, err := RenderPackageCard(pkg.Host, theme)
 		if err != nil {
-			return fmt.Errorf("rendering package card %q: %w", pkg.Host, err)
+			return staticRes, fmt.Errorf("rendering package card %q: %w", pkg.Host, err)
 		}
 		if err := writeSVGPair(target, "pkg-"+pkg.Host, pair, dryRun, result); err != nil {
-			return err
+			return staticRes, err
 		}
+	}
+
+	if cfg.EffectiveSocialDemo() {
+		demoSVG, fallbackSrc, err := generateStaticDemo(projectRoot, target, cleanedPages, theme, assets.Title, dryRun, result)
+		if err != nil {
+			return staticRes, err
+		}
+		staticRes.demoSVG = demoSVG
+		staticRes.demoFallbackSrc = fallbackSrc
 	}
 
 	// Write static sponsors CTA banner when sponsors is enabled.
 	if staticSponsorsEnabled(cfg) {
 		pair, err := RenderSponsors(SponsorsInput{}, theme)
 		if err != nil {
-			return fmt.Errorf("rendering static sponsors SVG: %w", err)
+			return staticRes, fmt.Errorf("rendering static sponsors SVG: %w", err)
 		}
 		if err := writeSVGPair(target, "sponsors", pair, dryRun, result); err != nil {
-			return err
+			return staticRes, err
 		}
 	}
 
-	return nil
+	if cfg.EffectiveSocialFooter() {
+		pair, err := RenderFooter(theme)
+		if err != nil {
+			return staticRes, fmt.Errorf("rendering footer SVG: %w", err)
+		}
+		if err := writeSVGPair(target, "footer", pair, dryRun, result); err != nil {
+			return staticRes, err
+		}
+		staticRes.footer = true
+	}
+
+	return staticRes, nil
+}
+
+func generateStaticDemo(
+	projectRoot *os.Root,
+	target *outputTarget,
+	cleanedPages string,
+	theme Theme,
+	projectTitle string,
+	dryRun bool,
+	result *GenerateResult,
+) (demoSVG bool, fallbackSrc string, err error) {
+	candidates := []struct {
+		filename string
+		mime     string
+	}{
+		{filename: "demo.webp", mime: "image/webp"},
+		{filename: "demo-still.png", mime: "image/png"},
+	}
+
+	for _, cand := range candidates {
+		relPath := path.Join(cleanedPages, cand.filename)
+		if err := checkRootParents(projectRoot, relPath); err != nil {
+			return false, "", err
+		}
+		info, err := projectRoot.Lstat(filepath.FromSlash(relPath))
+		if err != nil {
+			if errors.Is(err, fs.ErrNotExist) {
+				continue
+			}
+			return false, "", fmt.Errorf("inspecting %q: %w", relPath, err)
+		}
+		if info.Mode()&os.ModeSymlink != 0 {
+			return false, "", fmt.Errorf("%q is a symlink", relPath)
+		}
+		if !info.Mode().IsRegular() {
+			return false, "", fmt.Errorf("%q is not a regular file", relPath)
+		}
+		if info.Size() > maxDemoEmbedSize {
+			recordSkippedPair(target, "demo", "demo image exceeds 512 KiB embed limit", result)
+			return false, relPath, nil
+		}
+
+		data, exists, err := readRootRegularFile(projectRoot, relPath, maxDemoEmbedSize)
+		if err != nil {
+			return false, "", fmt.Errorf("reading demo image %q: %w", relPath, err)
+		}
+		if !exists {
+			continue
+		}
+		imgW, imgH, err := decodeDemoImageDimensions(data, cand.mime)
+		if err != nil {
+			return false, "", fmt.Errorf("decoding demo image %q dimensions: %w", relPath, err)
+		}
+		pair, err := RenderDemo(theme, projectTitle, data, cand.mime, imgW, imgH)
+		if err != nil {
+			return false, "", fmt.Errorf("rendering demo SVG: %w", err)
+		}
+		if err := writeSVGPair(target, "demo", pair, dryRun, result); err != nil {
+			return false, "", err
+		}
+		return true, "", nil
+	}
+
+	return false, "", nil
+}
+
+var pngSignature = []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a}
+
+func decodeDemoImageDimensions(data []byte, mime string) (width, height int, err error) {
+	switch strings.ToLower(strings.TrimSpace(mime)) {
+	case "image/png":
+		if len(data) < 24 || !bytes.Equal(data[:8], pngSignature) || string(data[12:16]) != "IHDR" {
+			return 0, 0, errors.New("invalid PNG header")
+		}
+		w := int(binary.BigEndian.Uint32(data[16:20]))
+		h := int(binary.BigEndian.Uint32(data[20:24]))
+		if w <= 0 || h <= 0 {
+			return 0, 0, fmt.Errorf("invalid PNG dimensions %dx%d", w, h)
+		}
+		return w, h, nil
+
+	case "image/webp":
+		if len(data) < 16 || string(data[0:4]) != "RIFF" || string(data[8:12]) != "WEBP" {
+			return 0, 0, errors.New("invalid WebP RIFF header")
+		}
+		switch string(data[12:16]) {
+		case "VP8X":
+			if len(data) < 30 {
+				return 0, 0, errors.New("truncated WebP VP8X header")
+			}
+			w := 1 + (int(data[24]) | int(data[25])<<8 | int(data[26])<<16)
+			h := 1 + (int(data[27]) | int(data[28])<<8 | int(data[29])<<16)
+			if w <= 0 || h <= 0 {
+				return 0, 0, fmt.Errorf("invalid WebP VP8X dimensions %dx%d", w, h)
+			}
+			return w, h, nil
+		case "VP8 ":
+			if len(data) < 30 {
+				return 0, 0, errors.New("truncated WebP VP8 header")
+			}
+			if data[20]&1 != 0 || data[23] != 0x9d || data[24] != 0x01 || data[25] != 0x2a {
+				return 0, 0, errors.New("invalid WebP VP8 keyframe header")
+			}
+			w := int(binary.LittleEndian.Uint16(data[26:28]) & 0x3fff)
+			h := int(binary.LittleEndian.Uint16(data[28:30]) & 0x3fff)
+			if w <= 0 || h <= 0 {
+				return 0, 0, fmt.Errorf("invalid WebP VP8 dimensions %dx%d", w, h)
+			}
+			return w, h, nil
+		case "VP8L":
+			if len(data) < 25 || data[20] != 0x2f {
+				return 0, 0, errors.New("invalid WebP VP8L header")
+			}
+			bits := binary.LittleEndian.Uint32(data[21:25])
+			w := int(bits&0x3fff) + 1
+			h := int((bits>>14)&0x3fff) + 1
+			if w <= 0 || h <= 0 {
+				return 0, 0, fmt.Errorf("invalid WebP VP8L dimensions %dx%d", w, h)
+			}
+			return w, h, nil
+		default:
+			return 0, 0, fmt.Errorf("unsupported WebP chunk %q", string(data[12:16]))
+		}
+	default:
+		return 0, 0, fmt.Errorf("unsupported demo image MIME %q", mime)
+	}
 }
 
 func staticSponsorsEnabled(cfg *config.Config) bool {
@@ -431,6 +591,7 @@ func updateProjectReadme(
 	links []ReadmeLinkEntry,
 	comm *ReadmeCommunityEntry,
 	packages []ReadmePackageEntry,
+	staticRes staticGenResult,
 	live liveGenResult,
 	dryRun bool,
 	result *GenerateResult,
@@ -465,10 +626,13 @@ func updateProjectReadme(
 		blocksIn.HeaderURL = assets.FooterURL
 		blocksIn.Links = links
 		blocksIn.Packages = packages
+		blocksIn.Demo = staticRes.demoSVG
+		blocksIn.DemoFallbackSrc = staticRes.demoFallbackSrc
 		if staticSponsorsEnabled(cfg) {
 			blocksIn.Sponsors = true
 			blocksIn.SponsorsURL = resolveSponsorsURL(cfg, owner)
 		}
+		blocksIn.Footer = staticRes.footer
 	}
 	if comm != nil {
 		if live.community {

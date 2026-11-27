@@ -11,8 +11,10 @@ const (
 	DefaultSocialTheme               = "dark"
 	DefaultSocialOGOutput            = "pages/og.png"
 	DefaultSocialCommunity           = "auto"
+	DefaultSocialDemo                = true
 	DefaultSocialSponsors            = "auto"
 	DefaultSocialContributors        = true
+	DefaultSocialFooter              = true
 	DefaultSocialStarHistoryMinStars = 25
 	DefaultSocialStarHistoryMinDays  = 30
 	DefaultSocialLiveBranch          = "social-assets"
@@ -61,10 +63,12 @@ type SocialReadmeSettings struct {
 	PreferredLinks *[]string                  `yaml:"preferred_links,omitempty"`
 	Community      *string                    `yaml:"community,omitempty"`
 	Packages       *[]string                  `yaml:"packages,omitempty"`
+	Demo           *bool                      `yaml:"demo,omitempty"`
 	Stats          *bool                      `yaml:"stats,omitempty"`
 	StarHistory    *SocialStarHistorySettings `yaml:"star_history,omitempty"`
 	Sponsors       *string                    `yaml:"sponsors,omitempty"`
 	Contributors   *bool                      `yaml:"contributors,omitempty"`
+	Footer         *bool                      `yaml:"footer,omitempty"`
 
 	Extra map[string]any `yaml:",inline"`
 }

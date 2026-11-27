@@ -163,11 +163,17 @@ existing stats block
 <!-- tailor:social-packages:start -->
 <!-- tailor:social-packages:end -->
 
+<!-- tailor:social-demo:start -->
+<!-- tailor:social-demo:end -->
+
 <!-- tailor:social-sponsors:start -->
 <!-- tailor:social-sponsors:end -->
 
 <!-- tailor:social-contributors:start -->
 <!-- tailor:social-contributors:end -->
+
+<!-- tailor:social-footer:start -->
+<!-- tailor:social-footer:end -->
 
 Footer notes.
 `
@@ -218,6 +224,8 @@ func TestGenerateStaticOfflineAndIdempotent(t *testing.T) {
 		"pages/social/pkg-nix-light.svg",
 		"pages/social/sponsors-dark.svg",
 		"pages/social/sponsors-light.svg",
+		"pages/social/footer-dark.svg",
+		"pages/social/footer-light.svg",
 	}
 	for _, p := range wantCreated {
 		if got[p] != StatusCreated {
@@ -251,15 +259,20 @@ func TestGenerateStaticOfflineAndIdempotent(t *testing.T) {
 		t.Error("hero-dark.svg did not strip trailing emoji from tagline")
 	}
 
-	// Verify README updated static markers (including static sponsors CTA) and left existing stats marker untouched.
+	// Verify README updated static markers (including static sponsors CTA and footer) and left existing stats marker untouched.
 	readmeBytes, _ := os.ReadFile(filepath.Join(dir, "README.md"))
 	readme := string(readmeBytes)
 	if !strings.Contains(readme, `srcset="pages/social/hero-dark.svg"`) ||
 		!strings.Contains(readme, `srcset="pages/social/link-mastodon-dark.svg"`) ||
 		!strings.Contains(readme, `srcset="pages/social/pkg-apt-dark.svg"`) ||
 		!strings.Contains(readme, `srcset="pages/social/sponsors-dark.svg"`) ||
-		!strings.Contains(readme, `href="https://github.com/sponsors/flexiondotorg"`) {
+		!strings.Contains(readme, `href="https://github.com/sponsors/flexiondotorg"`) ||
+		!strings.Contains(readme, `srcset="pages/social/footer-dark.svg"`) ||
+		!strings.Contains(readme, `href="https://tailor.wimpys.world"`) {
 		t.Errorf("README missing expected static marker blocks:\n%s", readme)
+	}
+	if strings.Contains(readme, "demo-dark.svg") {
+		t.Error("README demo marker must stay untouched when no demo image exists")
 	}
 	if !strings.Contains(readme, "existing stats block") {
 		t.Errorf("static run clobbered existing live stats marker:\n%s", readme)
@@ -644,6 +657,177 @@ swatches: []
 		}
 		if _, ok := statusMap(res)[filepath.Join(outDir, "sponsors-dark.svg")]; ok {
 			t.Error("live-only mode must not emit sponsors-dark.svg")
+		}
+	})
+}
+
+func TestGenerateStaticDemoAndFooterOptions(t *testing.T) {
+	t.Run("embeds demo.webp when within 512 KiB", func(t *testing.T) {
+		dir := t.TempDir()
+		writeTestFixtureFile(t, dir, ".tailor.yml", sampleSocialConfigYAML())
+		writeTestFixtureFile(t, dir, "README.md", sampleReadmeWithMarkers())
+		if err := os.MkdirAll(filepath.Join(dir, "pages"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "pages", "demo.webp"), makeTestWebPVP8X(960, 540), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := Generate(context.Background(), GenerateOptions{
+			Dir:          dir,
+			UpdateReadme: true,
+			Owner:        "wimpysworld",
+			Repo:         "tailor",
+		})
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+		got := statusMap(res)
+		for _, p := range []string{"pages/social/demo-dark.svg", "pages/social/demo-light.svg"} {
+			if got[p] != StatusCreated {
+				t.Errorf("%s status = %q, want %q", p, got[p], StatusCreated)
+			}
+			data, err := os.ReadFile(filepath.Join(dir, filepath.FromSlash(p)))
+			if err != nil {
+				t.Fatalf("ReadFile(%s): %v", p, err)
+			}
+			assertValidGitHubSVG(t, p, string(data))
+			assertSVGDimensions(t, p, string(data), 840, 509)
+		}
+		readme, _ := os.ReadFile(filepath.Join(dir, "README.md"))
+		if !strings.Contains(string(readme), `srcset="pages/social/demo-dark.svg"`) ||
+			!strings.Contains(string(readme), `src="pages/social/demo-light.svg"`) {
+			t.Errorf("README missing demo <picture> block:\n%s", string(readme))
+		}
+	})
+
+	t.Run("falls back to demo-still.png when demo.webp is absent", func(t *testing.T) {
+		dir := t.TempDir()
+		writeTestFixtureFile(t, dir, ".tailor.yml", sampleSocialConfigYAML())
+		writeTestFixtureFile(t, dir, "README.md", sampleReadmeWithMarkers())
+		if err := os.MkdirAll(filepath.Join(dir, "pages"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "pages", "demo-still.png"), makeTestPNGHeader(840, 420), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := Generate(context.Background(), GenerateOptions{
+			Dir:          dir,
+			UpdateReadme: true,
+			Owner:        "wimpysworld",
+			Repo:         "tailor",
+		})
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+		if statusMap(res)["pages/social/demo-dark.svg"] != StatusCreated {
+			t.Fatalf("demo-dark.svg status = %q, want created", statusMap(res)["pages/social/demo-dark.svg"])
+		}
+		data, _ := os.ReadFile(filepath.Join(dir, "pages/social/demo-dark.svg"))
+		assertValidGitHubSVG(t, "demo-png-dark", string(data))
+		assertSVGDimensions(t, "demo-png-dark", string(data), 840, 456)
+		if !strings.Contains(string(data), "data:image/png;base64,") {
+			t.Error("expected embedded PNG data URI in demo-dark.svg")
+		}
+	})
+
+	t.Run("oversized demo over 512 KiB falls back to plain img tag", func(t *testing.T) {
+		dir := t.TempDir()
+		writeTestFixtureFile(t, dir, ".tailor.yml", sampleSocialConfigYAML())
+		writeTestFixtureFile(t, dir, "README.md", sampleReadmeWithMarkers())
+		if err := os.MkdirAll(filepath.Join(dir, "pages"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		oversized := make([]byte, maxDemoEmbedSize+1)
+		copy(oversized, makeTestWebPVP8X(960, 540))
+		if err := os.WriteFile(filepath.Join(dir, "pages", "demo.webp"), oversized, 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := Generate(context.Background(), GenerateOptions{
+			Dir:          dir,
+			UpdateReadme: true,
+			Owner:        "wimpysworld",
+			Repo:         "tailor",
+		})
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+		if statusMap(res)["pages/social/demo-dark.svg"] != StatusSkipped {
+			t.Errorf("demo-dark.svg status = %q, want skipped", statusMap(res)["pages/social/demo-dark.svg"])
+		}
+		if _, err := os.Stat(filepath.Join(dir, "pages/social/demo-dark.svg")); !os.IsNotExist(err) {
+			t.Error("oversized demo must not write pages/social/demo-dark.svg")
+		}
+		readme, _ := os.ReadFile(filepath.Join(dir, "README.md"))
+		wantImg := `<img src="pages/demo.webp" alt="Tailor demo">`
+		if !strings.Contains(string(readme), wantImg) {
+			t.Errorf("README missing plain img fallback %q:\n%s", wantImg, string(readme))
+		}
+	})
+
+	t.Run("rejects symlink demo image", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("symlink test skipped on windows")
+		}
+		dir := t.TempDir()
+		outside := filepath.Join(t.TempDir(), "secret.webp")
+		if err := os.WriteFile(outside, makeTestWebPVP8X(640, 360), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		writeTestFixtureFile(t, dir, ".tailor.yml", sampleSocialConfigYAML())
+		if err := os.MkdirAll(filepath.Join(dir, "pages"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(outside, filepath.Join(dir, "pages", "demo.webp")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Generate(context.Background(), GenerateOptions{
+			Dir:   dir,
+			Owner: "wimpysworld",
+			Repo:  "tailor",
+		}); err == nil {
+			t.Fatal("expected error for symlink pages/demo.webp")
+		}
+	})
+
+	t.Run("disabling demo and footer skips both assets", func(t *testing.T) {
+		dir := t.TempDir()
+		writeTestFixtureFile(t, dir, ".tailor.yml", `license: BlueOak-1.0.0
+pages:
+  enabled: true
+  path: pages
+social:
+  enabled: true
+  readme:
+    header: false
+    demo: false
+    sponsors: false
+    footer: false
+swatches: []
+`)
+		if err := os.MkdirAll(filepath.Join(dir, "pages"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "pages", "demo.webp"), makeTestWebPVP8X(640, 360), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		res, err := Generate(context.Background(), GenerateOptions{
+			Dir:   dir,
+			Owner: "wimpysworld",
+			Repo:  "tailor",
+		})
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+		got := statusMap(res)
+		if _, ok := got["pages/social/demo-dark.svg"]; ok {
+			t.Error("demo-dark.svg should not be generated when demo: false")
+		}
+		if _, ok := got["pages/social/footer-dark.svg"]; ok {
+			t.Error("footer-dark.svg should not be generated when footer: false")
 		}
 	})
 }

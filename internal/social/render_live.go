@@ -342,7 +342,7 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 
 	yMax := niceAxisMax(maxStars)
 	coords := mapStarCoords(pts, plotL, plotW, plotT, plotH, float64(yMax))
-	linePath, areaPath, pathLen := buildSmoothChartPaths(coords, plotB)
+	linePath, areaPath, sampledCoords, pathLen := buildSmoothChartPaths(coords, plotB)
 
 	gradTopOp := "0.24"
 	if dark {
@@ -368,7 +368,7 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 		color string
 		path  string
 	}
-	sparkleColors := [4]string{"#f9e2af", "#fab387", "#f5c2e7", p.Primary}
+	sparkleColors := [4]string{"#facc15", "#f9e2af", "#fab387", "#f5c2e7"}
 	sparkles := make([]burstSparkle, 8)
 	for i := range sparkles {
 		angle := (22.5 + float64(i)*45.0) * math.Pi / 180.0
@@ -405,22 +405,26 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 	fmt.Fprintf(&b, `.sh-range{font-family:%s;font-size:11.5px;font-weight:400;fill:%s}`, fontMono, p.MutedColor)
 	fmt.Fprintf(&b, `.sh-axis{font-family:%s;font-size:11px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
 	fmt.Fprintf(&b, `.sh-badge{font-family:%s;font-size:12px;font-weight:600;fill:%s}`, fontMono, p.HeadingColor)
-	fmt.Fprintf(&b, `@keyframes sh-line-loop{0%%{stroke-dashoffset:%.1f;opacity:0;animation-timing-function:cubic-bezier(0.22,1,0.36,1)}2%%{opacity:1}22%%,86%%{stroke-dashoffset:0;opacity:1}96%%,100%%{stroke-dashoffset:0;opacity:0}}`, pathLen)
-	b.WriteString(`@keyframes sh-area-loop{0%,5%{opacity:0}22%,86%{opacity:1}96%,100%{opacity:0}}`)
-	b.WriteString(`@keyframes sh-apex-loop{0%,21%{transform:scale(0);opacity:0}26%{transform:scale(1.4);opacity:1}31%{transform:scale(0.92);opacity:1}36%{transform:scale(1);opacity:1}48%{transform:scale(1.07);opacity:1}61%{transform:scale(0.97);opacity:0.92}74%{transform:scale(1.07);opacity:1}86%{transform:scale(1);opacity:1}96%,100%{transform:scale(0.8);opacity:0}}`)
+	fmt.Fprintf(&b, `@keyframes sh-line-loop{0%%{stroke-dashoffset:%.1f;opacity:0}1.5%%{opacity:1}22%%,98%%{stroke-dashoffset:0;opacity:1}100%%{stroke-dashoffset:0;opacity:0}}`, pathLen)
+	b.WriteString(`@keyframes sh-area-loop{0%,4%{opacity:0}22%,98%{opacity:1}100%{opacity:0}}`)
+	b.WriteString(`@keyframes sh-collapse-loop{0%,84%{transform:scaleY(1);opacity:1;animation-timing-function:cubic-bezier(0.55,0.05,0.9,0.35)}93%{transform:scaleY(0);opacity:1}98%,100%{transform:scaleY(0);opacity:0}}`)
+	writeStarRaceKeyframes(&b, sampledCoords, last, plotB)
+	b.WriteString(`@keyframes sh-apex-loop{0%,21.5%{transform:scale(0.95)}22%{transform:scale(1)}26%{transform:scale(1.4)}31%{transform:scale(0.92)}36%{transform:scale(1)}48%{transform:scale(1.07)}60%{transform:scale(0.97)}72%{transform:scale(1.07)}84%{transform:scale(1)}93%,100%{transform:scale(0.88)}}`)
 	b.WriteString(`@keyframes sh-halo-loop{0%,21.5%{transform:scale(0.3);opacity:0}23.5%{transform:scale(0.85);opacity:0.85}36%,100%{transform:scale(3.4);opacity:0}}`)
 	for i, sp := range sparkles {
 		fmt.Fprintf(&b, `@keyframes sh-sp%d{0%%,22%%{transform:translate(0px,0px) scale(0);opacity:0}27%%{transform:translate(%.1fpx,%.1fpx) scale(1);opacity:1}36%%,100%%{transform:translate(%.1fpx,%.1fpx) scale(0);opacity:0}}`,
 			i, sp.dx, sp.dy, sp.dx2, sp.dy2)
 	}
-	fmt.Fprintf(&b, `.sh-line{stroke-dasharray:%.1f;stroke-dashoffset:%.1f;animation:sh-line-loop 12s linear infinite}`, pathLen, pathLen)
-	b.WriteString(`.sh-area{opacity:0;animation:sh-area-loop 12s ease-in-out infinite}`)
-	b.WriteString(`.sh-apex{transform:scale(0);opacity:0;animation:sh-apex-loop 12s ease-in-out infinite}`)
-	b.WriteString(`.sh-halo{transform:scale(0.3);opacity:0;animation:sh-halo-loop 12s ease-out infinite}`)
+	fmt.Fprintf(&b, `.sh-collapse{transform-origin:0px %.1fpx;animation:sh-collapse-loop 14s linear infinite}`, plotB)
+	fmt.Fprintf(&b, `.sh-line{stroke-dasharray:%.1f;stroke-dashoffset:%.1f;animation:sh-line-loop 14s linear infinite}`, pathLen, pathLen)
+	b.WriteString(`.sh-area{opacity:0;animation:sh-area-loop 14s linear infinite}`)
+	fmt.Fprintf(&b, `.sh-star-pos{transform:translate(%.1fpx,%.1fpx);animation:star-race 14s linear infinite}`, last.x, last.y)
+	b.WriteString(`.sh-apex{animation:sh-apex-loop 14s ease-in-out infinite}`)
+	b.WriteString(`.sh-halo{transform:scale(0.3);opacity:0;animation:sh-halo-loop 14s ease-out infinite}`)
 	for i := range sparkles {
-		fmt.Fprintf(&b, `.sh-sp%d{opacity:0;animation:sh-sp%d 12s ease-out infinite}`, i, i)
+		fmt.Fprintf(&b, `.sh-sp%d{opacity:0;animation:sh-sp%d 14s ease-out infinite}`, i, i)
 	}
-	b.WriteString(`@media (prefers-reduced-motion: reduce) { * { animation: none !important; } .sh-line { stroke-dashoffset: 0 !important; opacity: 1 !important; } .sh-area, .sh-apex { opacity: 1 !important; transform: none !important; } .sh-halo, .sh-sparkle { opacity: 0 !important; } }`)
+	fmt.Fprintf(&b, `@media (prefers-reduced-motion: reduce) { * { animation: none !important; } .sh-collapse { transform: scaleY(1) !important; opacity: 1 !important; } .sh-line { stroke-dashoffset: 0 !important; opacity: 1 !important; } .sh-area, .sh-apex { opacity: 1 !important; transform: none !important; } .sh-star-pos { transform: translate(%.1fpx,%.1fpx) !important; opacity: 1 !important; } .sh-halo, .sh-sparkle { opacity: 0 !important; } }`, last.x, last.y)
 	b.WriteString(`</style>`)
 
 	b.WriteString(`<g clip-path="url(#star-clip)">`)
@@ -433,8 +437,8 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 
 	fmt.Fprintf(&b, `<rect x="%d" y="18" width="%d" height="28" rx="14" fill="%s" stroke="%s" stroke-width="1"/>`,
 		badgeX, badgeW, p.CodeBackground, badgeBorder)
-	fmt.Fprintf(&b, `<g transform="translate(%d, 25) scale(0.583333)" fill="%s"><path d="%s"/></g>`,
-		badgeX+11, p.Primary, starGlyphPath)
+	fmt.Fprintf(&b, `<g transform="translate(%d, 25) scale(0.583333)" fill="#facc15"><path d="%s"/></g>`,
+		badgeX+11, starGlyphPath)
 	fmt.Fprintf(&b, `<text x="%d" y="36" class="sh-badge">%s</text>`, badgeX+29, XMLEscape(badgeText))
 
 	// Horizontal Y-axis gridlines and ticks.
@@ -466,25 +470,54 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 			tick.x, anchor, XMLEscape(tick.label))
 	}
 
-	// Area gradient fill + animated polyline curve.
+	// Area gradient fill + animated polyline curve inside gravity rope-collapse group.
+	b.WriteString(`<g class="sh-collapse">`)
 	fmt.Fprintf(&b, `<path class="sh-area" d="%s" fill="url(#star-area)"/>`, areaPath)
 	fmt.Fprintf(&b, `<path class="sh-line" d="%s" fill="none" stroke="%s" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round"/>`,
 		linePath, p.Primary)
+	b.WriteString(`</g>`)
 
-	// Apex celebration: expanding halo ring, 8 radial mini-stars/sparkles, and elastic 5-point star.
+	// Apex burst effects anchored at the final point: expanding halo ring and 8 radial sparkles.
 	fmt.Fprintf(&b, `<g transform="translate(%.1f, %.1f)">`, last.x, last.y)
-	fmt.Fprintf(&b, `<circle class="sh-halo" cx="0" cy="0" r="7" fill="none" stroke="%s" stroke-width="2"/>`, p.Primary)
+	b.WriteString(`<circle class="sh-halo" cx="0" cy="0" r="7" fill="none" stroke="#facc15" stroke-width="2"/>`)
 	for i, sp := range sparkles {
 		fmt.Fprintf(&b, `<g class="sh-sparkle sh-sp%d" fill="%s"><path d="%s"/></g>`, i, sp.color, sp.path)
 	}
-	fmt.Fprintf(&b, `<g class="sh-apex"><path d="%s" fill="%s" stroke="%s" stroke-width="1.6" stroke-linejoin="round"/></g>`,
-		apexStarPath, p.Primary, p.CardBackground)
+	b.WriteString(`</g>`)
+
+	// Fixed yellow/gold 5-point star racing up the drawing tip, popping at the apex, and dropping to baseline.
+	fmt.Fprintf(&b, `<g class="sh-star-pos" transform="translate(%.1f, %.1f)">`, last.x, last.y)
+	fmt.Fprintf(&b, `<g class="sh-apex"><path d="%s" fill="#facc15" stroke="#ca8a04" stroke-width="1.5" stroke-linejoin="round"/></g>`, apexStarPath)
 	b.WriteString(`</g>`)
 
 	b.WriteString(`</g>`)
 	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="279" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
 	b.WriteString(`</svg>`)
 	return b.String()
+}
+
+func writeStarRaceKeyframes(b *strings.Builder, sampled []chartXY, last chartXY, baselineY float64) {
+	b.WriteString(`@keyframes star-race{`)
+	n := len(sampled)
+	if n >= 2 {
+		for i, pt := range sampled {
+			frac := float64(i) / float64(n-1)
+			pct := frac * 22.0
+			deg := frac * 360.0
+			op := "1"
+			if i == 0 {
+				op = "0"
+			}
+			fmt.Fprintf(b, `%.2f%%{transform:translate(%.1fpx,%.1fpx) rotate(%.0fdeg);opacity:%s}`, pct, pt.x, pt.y, deg, op)
+		}
+	} else {
+		fmt.Fprintf(b, `0%%{transform:translate(%.1fpx,%.1fpx) rotate(0deg);opacity:0}`, last.x, last.y)
+		fmt.Fprintf(b, `22%%{transform:translate(%.1fpx,%.1fpx) rotate(360deg);opacity:1}`, last.x, last.y)
+	}
+	fmt.Fprintf(b, `84%%{transform:translate(%.1fpx,%.1fpx) rotate(360deg);opacity:1;animation-timing-function:cubic-bezier(0.55,0.05,0.9,0.35)}`, last.x, last.y)
+	fmt.Fprintf(b, `93%%{transform:translate(%.1fpx,%.1fpx) rotate(360deg);opacity:1}`, last.x, baselineY)
+	fmt.Fprintf(b, `98%%,100%%{transform:translate(%.1fpx,%.1fpx) rotate(360deg);opacity:0}`, last.x, baselineY)
+	b.WriteString(`}`)
 }
 
 func mapStarCoords(pts []StarPoint, plotL, plotW, plotT, plotH, yMax float64) []chartXY {
@@ -519,28 +552,43 @@ func mapStarCoords(pts []StarPoint, plotL, plotW, plotT, plotH, yMax float64) []
 }
 
 // buildSmoothChartPaths produces a variation-diminishing smooth quadratic path
-// (never overshooting the data hull), its closed area path, and approximate
-// curve length for stroke-dashoffset draw-in animation.
-func buildSmoothChartPaths(coords []chartXY, baseY float64) (linePath, areaPath string, length float64) {
+// (never overshooting the data hull), its closed area path, evenly arc-length
+// sampled coordinates along the rendered curve for the racing star, and curve
+// length for stroke-dashoffset draw-in animation.
+func buildSmoothChartPaths(coords []chartXY, baseY float64) (linePath, areaPath string, sampled []chartXY, length float64) {
 	var line strings.Builder
 	fmt.Fprintf(&line, "M %.1f %.1f", coords[0].x, coords[0].y)
 
+	dense := []chartXY{coords[0]}
 	if len(coords) == 2 {
 		fmt.Fprintf(&line, " L %.1f %.1f", coords[1].x, coords[1].y)
-		length = math.Hypot(coords[1].x-coords[0].x, coords[1].y-coords[0].y)
+		dense = append(dense, coords[1])
 	} else {
+		const quadSteps = 16
+		prev := coords[0]
 		for i := 1; i < len(coords)-1; i++ {
-			midX := (coords[i].x + coords[i+1].x) / 2
-			midY := (coords[i].y + coords[i+1].y) / 2
-			fmt.Fprintf(&line, " Q %.1f %.1f %.1f %.1f", coords[i].x, coords[i].y, midX, midY)
+			ctrl := coords[i]
+			mid := chartXY{
+				x: (coords[i].x + coords[i+1].x) / 2,
+				y: (coords[i].y + coords[i+1].y) / 2,
+			}
+			fmt.Fprintf(&line, " Q %.1f %.1f %.1f %.1f", ctrl.x, ctrl.y, mid.x, mid.y)
+			for s := 1; s <= quadSteps; s++ {
+				t := float64(s) / float64(quadSteps)
+				u := 1 - t
+				dense = append(dense, chartXY{
+					x: u*u*prev.x + 2*u*t*ctrl.x + t*t*mid.x,
+					y: u*u*prev.y + 2*u*t*ctrl.y + t*t*mid.y,
+				})
+			}
+			prev = mid
 		}
 		last := coords[len(coords)-1]
 		fmt.Fprintf(&line, " L %.1f %.1f", last.x, last.y)
-
-		for i := 1; i < len(coords); i++ {
-			length += math.Hypot(coords[i].x-coords[i-1].x, coords[i].y-coords[i-1].y)
-		}
+		dense = append(dense, last)
 	}
+
+	sampled, length = resampleByArcLength(dense, 24)
 	if length < 1 {
 		length = 1
 	}
@@ -548,7 +596,51 @@ func buildSmoothChartPaths(coords []chartXY, baseY float64) (linePath, areaPath 
 	linePath = line.String()
 	last := coords[len(coords)-1]
 	areaPath = fmt.Sprintf("%s L %.1f %.1f L %.1f %.1f Z", linePath, last.x, baseY, coords[0].x, baseY)
-	return linePath, areaPath, math.Ceil(length)
+	return linePath, areaPath, sampled, math.Ceil(length)
+}
+
+func resampleByArcLength(dense []chartXY, segments int) ([]chartXY, float64) {
+	if len(dense) == 0 {
+		return nil, 0
+	}
+	if len(dense) == 1 || segments <= 0 {
+		return []chartXY{dense[0]}, 0
+	}
+
+	cum := make([]float64, len(dense))
+	for i := 1; i < len(dense); i++ {
+		cum[i] = cum[i-1] + math.Hypot(dense[i].x-dense[i-1].x, dense[i].y-dense[i-1].y)
+	}
+	total := cum[len(cum)-1]
+	if total == 0 {
+		out := make([]chartXY, segments+1)
+		for i := range out {
+			out[i] = dense[0]
+		}
+		return out, 0
+	}
+
+	out := make([]chartXY, segments+1)
+	out[0] = dense[0]
+	out[segments] = dense[len(dense)-1]
+
+	idx := 1
+	for k := 1; k < segments; k++ {
+		target := total * float64(k) / float64(segments)
+		for idx < len(cum)-1 && cum[idx] < target {
+			idx++
+		}
+		segLen := cum[idx] - cum[idx-1]
+		var frac float64
+		if segLen > 0 {
+			frac = (target - cum[idx-1]) / segLen
+		}
+		out[k] = chartXY{
+			x: dense[idx-1].x + frac*(dense[idx].x-dense[idx-1].x),
+			y: dense[idx-1].y + frac*(dense[idx].y-dense[idx-1].y),
+		}
+	}
+	return out, total
 }
 
 func niceAxisMax(v int) int {

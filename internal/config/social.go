@@ -115,6 +115,14 @@ func (cfg *Config) EffectiveSocialPackages() []string {
 	return nil
 }
 
+// EffectiveSocialDemo reports whether the framed README demo asset is enabled (default true).
+func (cfg *Config) EffectiveSocialDemo() bool {
+	if cfg != nil && cfg.Social != nil && cfg.Social.Readme != nil && cfg.Social.Readme.Demo != nil {
+		return *cfg.Social.Readme.Demo
+	}
+	return model.DefaultSocialDemo
+}
+
 // EffectiveSocialReadmeStats reports whether the live README stats strip is enabled (default true).
 func (cfg *Config) EffectiveSocialReadmeStats() bool {
 	if cfg != nil && cfg.Social != nil && cfg.Social.Readme != nil && cfg.Social.Readme.Stats != nil {
@@ -161,6 +169,14 @@ func (cfg *Config) EffectiveSocialContributors() bool {
 		return *cfg.Social.Readme.Contributors
 	}
 	return model.DefaultSocialContributors
+}
+
+// EffectiveSocialFooter reports whether the README "Fitted by Tailor" footer banner is enabled (default true).
+func (cfg *Config) EffectiveSocialFooter() bool {
+	if cfg != nil && cfg.Social != nil && cfg.Social.Readme != nil && cfg.Social.Readme.Footer != nil {
+		return *cfg.Social.Readme.Footer
+	}
+	return model.DefaultSocialFooter
 }
 
 // EffectiveSocialLiveBranch returns the configured live assets branch or the default ("social-assets").
@@ -251,7 +267,7 @@ func validateSocialReadmeNodes(node *yaml.Node) error {
 	for i := 0; i+1 < len(node.Content); i += 2 {
 		key, value := node.Content[i], node.Content[i+1]
 		switch key.Value {
-		case "header", "stats", "contributors":
+		case "header", "demo", "stats", "contributors", "footer":
 			if err := requireYAMLTag("social.readme."+key.Value, value, "!!bool"); err != nil {
 				return err
 			}

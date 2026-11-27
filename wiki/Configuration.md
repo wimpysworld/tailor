@@ -582,7 +582,9 @@ social:
       min_stars: 25
       min_days: 30
     sponsors: auto
+    demo: true
     contributors: true
+    footer: true
   live:
     branch: social-assets
     schedule: "0 4 * * *"
@@ -624,11 +626,13 @@ Unknown keys under `social` (such as `title`, `tagline`, or `icon`) fail validat
 | `social.readme.community` | `"auto"`, `"none"`, `"discord"`, `"matrix"`, `"slack"`, `"irc"`, `"forum"`, or `"discussions"` | `"auto"` |
 | `social.readme.packages` | Unique Haberdasher hosts from `apt`, `rpm`, `pkg`, `apk`, `flatpak`, `brew`, `scoop`, `nix` | `[]` |
 | `social.readme.stats` | Boolean. Live 4-column project health strip (`Commits`, `Issues`, `Pull Requests`, `Established`) linking to `/pulse` (`stats-dark.svg`, `stats-light.svg`). | `true` |
-| `social.readme.star_history.enabled` | Boolean. Live animated star history chart (`stars-dark.svg`, `stars-light.svg`), or a drifting-stars CTA card below `min_stars` or `min_days`. | `true` |
+| `social.readme.star_history.enabled` | Boolean. Live animated star history chart (`stars-dark.svg`, `stars-light.svg`) with a racing yellow star, apex burst, and rope-collapse animation, or a drifting-stars CTA card below `min_stars` or `min_days`. | `true` |
 | `social.readme.star_history.min_stars` | Integer `>= 0` | `25` |
 | `social.readme.star_history.min_days` | Integer `>= 0` | `30` |
 | `social.readme.sponsors` | `"auto"`, `"true"`, or `"false"` (YAML Booleans `true` and `false` are also accepted) | `"auto"` |
+| `social.readme.demo` | Boolean. Framed window-chrome demo SVG (`demo-dark.svg`, `demo-light.svg`) when `demo.webp` or `demo-still.png` is `<= 512 KiB`, or a plain `<img>` fallback if larger. | `true` |
 | `social.readme.contributors` | Boolean. Live floating-balloon human-only contributors banner with inline avatars linking to `/graphs/contributors` (`contributors-dark.svg`, `contributors-light.svg`). | `true` |
+| `social.readme.footer` | Boolean. Slim "Fitted by Tailor" footer banner (`footer-dark.svg`, `footer-light.svg`) linking to `https://tailor.wimpys.world`, always placed last at the bottom of `README.md`. | `true` |
 | `social.live.branch` | Valid Git branch name for live SVGs | `"social-assets"` |
 | `social.live.schedule` | 5-field cron expression for `.github/workflows/tailor-social.yml` | `"0 4 * * *"` |
 
@@ -638,9 +642,9 @@ Unknown keys under `social` (such as `title`, `tagline`, or `icon`) fail validat
 
 Social assets split static and live outputs across two branches:
 
-- **Static assets on the default branch (`main`)**: the Open Graph preview image (`pages/og.png` by default) and static README SVGs under `pages/social/*.svg` (or `<pages.path>/social/*.svg`).
+- **Static assets on the default branch (`main`)**: the Open Graph preview image (`pages/og.png` by default) and static README SVGs under `pages/social/*.svg` (or `<pages.path>/social/*.svg`), including the framed `demo` SVG when `demo.webp` or `demo-still.png` is `<= 512 KiB` (larger files fall back to a plain `<img>`) and the slim "Fitted by Tailor" `footer` banner linking to `https://tailor.wimpys.world`.
 - **Daily live SVGs on an orphan branch (`social-assets` by default)**: `stats`, `stars`, `sponsors`, live community banners (Discord, GitHub Discussions, and Discourse forums), and `contributors`. `.github/workflows/tailor-social.yml` updates this branch on `social.live.schedule` and updates `README.md` with commit-pinned `raw.githubusercontent.com` URLs, so daily asset refreshes do not add binary or SVG churn to `main`.
-- **Star CTA fallback**: when a repository is below `star_history.min_stars` or `star_history.min_days`, `stars-dark.svg` and `stars-light.svg` render a themed "Star this repository" CTA card with drifting stars. Once the repository meets both thresholds, they switch to the animated star history chart.
+- **Star CTA fallback**: when a repository is below `star_history.min_stars` or `star_history.min_days`, `stars-dark.svg` and `stars-light.svg` render a themed "Star this repository" CTA card with drifting stars. Once the repository meets both thresholds, they switch to the animated star history chart with a racing yellow star, apex burst, and rope-collapse animation.
 - **Human-only contributors banner**: `contributors-dark.svg` and `contributors-light.svg` embed inline avatars for human contributors only (bots excluded) in a floating-balloon banner with a thank-you message, linking to `/graphs/contributors`.
 
 ### Running `tailor social` and `just og`
@@ -682,7 +686,7 @@ Put standalone marker pairs on separate lines in `README.md` for each section th
 <!-- tailor:social-header:end -->
 ```
 
-Supported marker names are `header`, `links`, `community`, `stats`, `packages`, `sponsors`, `stars`, and `contributors` (`<!-- tailor:social-contributors:start -->` and `<!-- tailor:social-contributors:end -->`). Tailor replaces only the content between existing marker pairs, skips absent markers, and preserves all surrounding prose. Partial, duplicated, reversed, inline, or overlapping markers stop the update before writes.
+Supported marker names are `header`, `links`, `community`, `stats`, `packages`, `sponsors`, `demo`, `stars`, `contributors`, and `footer`. Use `<!-- tailor:social-demo:start -->` and `<!-- tailor:social-demo:end -->` for the framed demo showcase in Quick start. Always place `<!-- tailor:social-footer:start -->` and `<!-- tailor:social-footer:end -->` as the very last block at the bottom of `README.md`, below `contributors`, linking to `https://tailor.wimpys.world`. Tailor replaces only the content between existing marker pairs, skips absent markers, and preserves all surrounding prose. Partial, duplicated, reversed, inline, or overlapping markers stop the update before writes.
 
 ### Existing `pages/index.html` sites
 

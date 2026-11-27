@@ -14,10 +14,12 @@ const (
 	MarkerLinks        = "links"
 	MarkerCommunity    = "community"
 	MarkerPackages     = "packages"
+	MarkerDemo         = "demo"
 	MarkerStats        = "stats"
 	MarkerStars        = "stars"
 	MarkerSponsors     = "sponsors"
 	MarkerContributors = "contributors"
+	MarkerFooter       = "footer"
 )
 
 // DefaultStaticSocialDir is the default project-relative POSIX directory for
@@ -31,10 +33,12 @@ var ReadmeMarkerNames = []string{
 	MarkerLinks,
 	MarkerCommunity,
 	MarkerPackages,
+	MarkerDemo,
 	MarkerStats,
 	MarkerSponsors,
 	MarkerStars,
 	MarkerContributors,
+	MarkerFooter,
 }
 
 // MarkerStart returns the opening HTML comment marker for a social section.
@@ -260,15 +264,19 @@ type ReadmeBlocksInput struct {
 
 	Packages []ReadmePackageEntry
 
+	Demo            bool
+	DemoFallbackSrc string
+
 	Stats        bool
 	StarHistory  bool
 	Sponsors     bool
 	SponsorsURL  string
 	Contributors bool
+	Footer       bool
 }
 
 // FormatReadmeBlocks generates formatted HTML blocks keyed by README marker
-// name (header, links, community, packages, stats, sponsors, stars, contributors).
+// name (header, links, community, packages, demo, stats, sponsors, stars, contributors, footer).
 func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 	blocks := make(map[string]string)
 
@@ -366,6 +374,16 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 		}
 	}
 
+	if in.Demo {
+		darkSrc, lightSrc := StaticAssetPair(staticDir, "demo")
+		blocks[MarkerDemo] = wrapCentered(FormatPicture(darkSrc, lightSrc, title+" demo"))
+	} else if fallbackSrc := strings.TrimSpace(in.DemoFallbackSrc); fallbackSrc != "" {
+		blocks[MarkerDemo] = wrapCentered(fmt.Sprintf(`<img src="%s" alt="%s">`,
+			html.EscapeString(fallbackSrc),
+			html.EscapeString(title+" demo"),
+		))
+	}
+
 	if in.Stats {
 		darkSrc, lightSrc := resolveLivePair("stats")
 		href := ""
@@ -400,6 +418,11 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 			href = fmt.Sprintf("https://github.com/%s/%s/graphs/contributors", strings.TrimSpace(in.Owner), strings.TrimSpace(in.Repo))
 		}
 		blocks[MarkerContributors] = wrapCentered(FormatLinkedPicture(href, darkSrc, lightSrc, title+" contributors"))
+	}
+
+	if in.Footer {
+		darkSrc, lightSrc := StaticAssetPair(staticDir, "footer")
+		blocks[MarkerFooter] = wrapCentered(FormatLinkedPicture("https://tailor.wimpys.world", darkSrc, lightSrc, "Fitted by Tailor"))
 	}
 
 	return blocks

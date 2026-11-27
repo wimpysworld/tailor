@@ -2,7 +2,9 @@ package social
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -164,19 +166,24 @@ func renderHeroVariant(assets ProjectAssets, iconMarkup string, isRaster bool, p
 	fmt.Fprintf(&b, `.h-tag{font-family:%s;font-size:15.5px;font-weight:400;fill:%s}`, fontSans, p.Color)
 	fmt.Fprintf(&b, `.h-foot{font-family:%s;font-size:12.5px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
 	heroDur, heroDelay := glintTiming("hero")
-	b.WriteString(`@keyframes wave-flow{from{transform:translateX(0)}to{transform:translateX(-840px)}}`)
+	b.WriteString(`@keyframes wave-flow-left{from{transform:translateX(0)}to{transform:translateX(-840px)}}`)
+	b.WriteString(`@keyframes wave-flow-right{from{transform:translateX(-840px)}to{transform:translateX(0)}}`)
+	b.WriteString(`@keyframes wave-bob-a{from{transform:translateY(-4px)}to{transform:translateY(4px)}}`)
+	b.WriteString(`@keyframes wave-bob-b{from{transform:translateY(5px)}to{transform:translateY(-5px)}}`)
 	b.WriteString(`@keyframes hero-glint-move{0%{transform:translateX(-260px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(900px);opacity:0}}`)
-	b.WriteString(`.wave-a{animation:wave-flow 18s linear infinite}`)
-	b.WriteString(`.wave-b{animation:wave-flow 28s linear infinite}`)
+	b.WriteString(`.wave-a{animation:wave-flow-left 19s linear infinite}`)
+	b.WriteString(`.wave-b{animation:wave-flow-right 29s linear infinite}`)
+	b.WriteString(`.wave-bob-a{animation:wave-bob-a 7.3s ease-in-out infinite alternate}`)
+	b.WriteString(`.wave-bob-b{animation:wave-bob-b 11.1s ease-in-out infinite alternate}`)
 	fmt.Fprintf(&b, `.glint{animation:hero-glint-move %.1fs ease-in-out %.1fs infinite}`, heroDur, heroDelay)
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
 
 	b.WriteString(`<g clip-path="url(#hero-clip)">`)
 	b.WriteString(`<rect x="0" y="0" width="840" height="210" fill="url(#hero-bg)"/>`)
-	// Two seamless 1680px horizontally tiling waves (repeating identically at x+840) for calm flowing water motion.
-	b.WriteString(`<path class="wave-b" d="M 0 148 C 70 138 140 130 210 130 C 280 130 350 138 420 148 C 490 158 560 166 630 166 C 700 166 770 158 840 148 C 910 138 980 130 1050 130 C 1120 130 1190 138 1260 148 C 1330 158 1400 166 1470 166 C 1540 166 1610 158 1680 148 L 1680 220 L 0 220 Z" fill="url(#hero-aurora-soft)"/>`)
-	b.WriteString(`<path class="wave-a" d="M 0 154 C 140 154 280 116 420 116 C 560 116 700 154 840 154 C 980 154 1120 116 1260 116 C 1400 116 1540 154 1680 154 L 1680 220 L 0 220 Z" fill="url(#hero-aurora)"/>`)
+	// Two seamless 1680px horizontally tiling waves scrolling in opposite directions with gentle vertical bobbing.
+	b.WriteString(`<g class="wave-bob-b"><path class="wave-b" d="M 0 164 C 47 164 93 132 140 132 C 187 132 233 164 280 164 C 327 164 373 132 420 132 C 467 132 513 164 560 164 C 607 164 653 132 700 132 C 747 132 793 164 840 164 C 887 164 933 132 980 132 C 1027 132 1073 164 1120 164 C 1167 164 1213 132 1260 132 C 1307 132 1353 164 1400 164 C 1447 164 1493 132 1540 132 C 1587 132 1633 164 1680 164 L 1680 220 L 0 220 Z" fill="url(#hero-aurora-soft)"/></g>`)
+	b.WriteString(`<g class="wave-bob-a"><path class="wave-a" d="M 0 160 C 70 160 140 124 210 124 C 280 124 350 160 420 160 C 490 160 560 124 630 124 C 700 124 770 160 840 160 C 910 160 980 124 1050 124 C 1120 124 1190 160 1260 160 C 1330 160 1400 124 1470 124 C 1540 124 1610 160 1680 160 L 1680 220 L 0 220 Z" fill="url(#hero-aurora)"/></g>`)
 	// Subtle top accent bar and gliding glint.
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="3" fill="%s" opacity="0.28"/>`, p.Primary)
 	b.WriteString(`<rect class="glint" x="0" y="0" width="220" height="3" fill="url(#hero-glint)"/>`)
@@ -532,6 +539,159 @@ func renderPackageCardVariant(host string, info PackageHostInfo, p Palette, dark
 
 	b.WriteString(`</g>`)
 	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="197" height="77" rx="11" fill="none" stroke="%s" stroke-width="1"/>`, border)
+	b.WriteString(`</svg>`)
+	return b.String()
+}
+
+// RenderDemo renders an 840px-wide macOS-style framed demo SVG wrapping an
+// embedded raster image (WebP or PNG) in dark and light variants.
+func RenderDemo(theme Theme, projectTitle string, imgBytes []byte, mime string, imgWidth, imgHeight int) (SVGPair, error) {
+	if len(imgBytes) == 0 {
+		return SVGPair{}, errors.New("demo image bytes are empty")
+	}
+	if imgWidth <= 0 || imgHeight <= 0 {
+		return SVGPair{}, fmt.Errorf("demo image dimensions must be positive, got %dx%d", imgWidth, imgHeight)
+	}
+
+	resolvedMIME := normalizeRasterMIME(mime, imgBytes)
+	encoded := base64.StdEncoding.EncodeToString(imgBytes)
+	title := strings.TrimSpace(projectTitle)
+	if title == "" {
+		title = "Demo"
+	}
+	if wrapped := WrapText(title, 60, 1); len(wrapped) > 0 {
+		title = wrapped[0]
+	}
+
+	darkP := normalizePalette(theme.Dark, defaultDarkPalette)
+	lightP := normalizePalette(theme.Light, defaultLightPalette)
+
+	return SVGPair{
+		Dark:  renderDemoVariant(title, encoded, resolvedMIME, imgWidth, imgHeight, darkP, true),
+		Light: renderDemoVariant(title, encoded, resolvedMIME, imgWidth, imgHeight, lightP, false),
+	}, nil
+}
+
+func renderDemoVariant(title, encodedImg, mime string, imgWidth, imgHeight int, p Palette, dark bool) string {
+	const (
+		width     = 840
+		titlebarH = 36
+	)
+
+	bodyH := max(int(math.Round(float64(imgHeight)*float64(width)/float64(imgWidth))), 1)
+	totalH := titlebarH + bodyH
+
+	canvasBg := p.CodeBackground
+	if dark {
+		canvasBg = "#1a1f28"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" aria-label="%s demo">`,
+		width, totalH, width, totalH, XMLEscape(title))
+	fmt.Fprintf(&b, `<title>%s demo</title>`, XMLEscape(title))
+	b.WriteString(`<defs>`)
+	fmt.Fprintf(&b, `<clipPath id="demo-clip"><rect x="0.5" y="0.5" width="839" height="%d" rx="12"/></clipPath>`, totalH-1)
+	fmt.Fprintf(&b, `<linearGradient id="demo-glint" x1="0" y1="0" x2="1" y2="0"><stop offset="0%%" stop-color="%s" stop-opacity="0"/><stop offset="50%%" stop-color="%s" stop-opacity="0.85"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
+		p.Primary, p.Primary, p.Primary)
+	b.WriteString(`</defs>`)
+
+	b.WriteString(`<style>`)
+	fmt.Fprintf(&b, `.d-title{font-family:%s;font-size:12px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
+	demoDur, demoDelay := glintTiming("demo")
+	b.WriteString(`@keyframes demo-sweep{0%{transform:translateX(-220px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(880px);opacity:0}}`)
+	fmt.Fprintf(&b, `.d-glint{animation:demo-sweep %.1fs ease-in-out %.1fs infinite}`, demoDur, demoDelay)
+	b.WriteString(reducedMotionCSS)
+	b.WriteString(`</style>`)
+
+	b.WriteString(`<g clip-path="url(#demo-clip)">`)
+	// Titlebar chrome and hairline separator.
+	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="%d" fill="%s"/>`, titlebarH, p.CardBackground)
+	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2" fill="%s" opacity="0.25"/>`, p.Primary)
+	b.WriteString(`<rect class="d-glint" x="0" y="0" width="180" height="2" fill="url(#demo-glint)"/>`)
+	b.WriteString(`<circle cx="20" cy="18" r="5.5" fill="#ff5f56"/>`)
+	b.WriteString(`<circle cx="38" cy="18" r="5.5" fill="#ffbd2e"/>`)
+	b.WriteString(`<circle cx="56" cy="18" r="5.5" fill="#27c93f"/>`)
+	fmt.Fprintf(&b, `<text x="420" y="22" text-anchor="middle" class="d-title">%s</text>`, XMLEscape(title))
+	fmt.Fprintf(&b, `<line x1="0" y1="%d" x2="840" y2="%d" stroke="%s" stroke-width="1"/>`, titlebarH, titlebarH, p.MutedBorder)
+
+	// Window body with embedded raster image.
+	fmt.Fprintf(&b, `<rect x="0" y="%d" width="840" height="%d" fill="%s"/>`, titlebarH, bodyH, canvasBg)
+	fmt.Fprintf(&b, `<image x="0" y="%d" width="840" height="%d" href="data:%s;base64,%s" preserveAspectRatio="xMidYMid meet"/>`,
+		titlebarH, bodyH, mime, encodedImg)
+
+	b.WriteString(`</g>`)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="%d" rx="12" fill="none" stroke="%s" stroke-width="1"/>`, totalH-1, p.MutedBorder)
+	b.WriteString(`</svg>`)
+	return b.String()
+}
+
+// RenderFooter renders the slim 840x44 animated "Fitted by Tailor" footer
+// banner in dark and light theme variants using the host project's palette.
+func RenderFooter(theme Theme) (SVGPair, error) {
+	darkP := normalizePalette(theme.Dark, defaultDarkPalette)
+	lightP := normalizePalette(theme.Light, defaultLightPalette)
+
+	return SVGPair{
+		Dark:  renderFooterVariant(darkP),
+		Light: renderFooterVariant(lightP),
+	}, nil
+}
+
+func renderFooterVariant(p Palette) string {
+	const (
+		width  = 840
+		height = 44
+	)
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" aria-label="Fitted by Tailor">`,
+		width, height, width, height)
+	b.WriteString(`<title>Fitted by Tailor</title>`)
+	b.WriteString(`<defs>`)
+	b.WriteString(`<clipPath id="footer-clip"><rect x="0.5" y="0.5" width="839" height="43" rx="10"/></clipPath>`)
+	b.WriteString(`</defs>`)
+
+	b.WriteString(`<style>`)
+	fmt.Fprintf(&b, `.f-label{font-family:%s;font-size:12.5px;font-weight:500;fill:%s}`, fontSans, p.MutedColor)
+	fmt.Fprintf(&b, `.f-brand{font-family:%s;font-size:12.5px;font-weight:700;fill:%s}`, fontSans, p.HeadingColor)
+	fmt.Fprintf(&b, `.f-url{font-family:%s;font-size:11.5px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
+	b.WriteString(`@keyframes stitch-march{from{stroke-dashoffset:0}to{stroke-dashoffset:-100}}`)
+	b.WriteString(`@keyframes snip-top{0%,78%,100%{transform:rotate(0deg)}83%{transform:rotate(-8deg)}87%{transform:rotate(3deg)}91%{transform:rotate(-5deg)}95%{transform:rotate(0deg)}}`)
+	b.WriteString(`@keyframes snip-bot{0%,78%,100%{transform:rotate(0deg)}83%{transform:rotate(8deg)}87%{transform:rotate(-3deg)}91%{transform:rotate(5deg)}95%{transform:rotate(0deg)}}`)
+	b.WriteString(`.f-stitch{stroke-dasharray:5 5;animation:stitch-march 14s linear infinite}`)
+	b.WriteString(`.f-blade-top{transform-origin:20.5px 21px;animation:snip-top 10s ease-in-out infinite}`)
+	b.WriteString(`.f-blade-bot{transform-origin:20.5px 21px;animation:snip-bot 10s ease-in-out infinite}`)
+	b.WriteString(reducedMotionCSS)
+	b.WriteString(`</style>`)
+
+	b.WriteString(`<g clip-path="url(#footer-clip)">`)
+	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="44" fill="%s"/>`, p.CardBackground)
+	// Subtle marching tailor's stitch lines along top and bottom edges.
+	fmt.Fprintf(&b, `<line class="f-stitch" x1="14" y1="4" x2="826" y2="4" stroke="%s" stroke-opacity="0.35" stroke-width="1" stroke-linecap="round"/>`, p.MutedColor)
+	fmt.Fprintf(&b, `<line class="f-stitch" x1="14" y1="40" x2="826" y2="40" stroke="%s" stroke-opacity="0.35" stroke-width="1" stroke-linecap="round"/>`, p.MutedColor)
+
+	// Miniature 20x20 inline golden Tailor shears with occasional gentle snip wiggle.
+	b.WriteString(`<g transform="translate(18, 12) scale(0.5)">`)
+	b.WriteString(`<g class="f-blade-top">`)
+	b.WriteString(`<path d="M14 27 17.5 19.5 31 3 25 19.5 20 29Z" fill="#b88a44"/>`)
+	b.WriteString(`<path d="M17.5 19.5 31 3 23 18.5Z" fill="#f0cb78"/>`)
+	b.WriteString(`<path fill="#f0cb78" fill-rule="evenodd" d="M22 31a8 5.6 0 1 0-16 0 8 5.6 0 1 0 16 0Zm-3 0a5 2.8 0 1 1-10 0 5 2.8 0 1 1 10 0Z" transform="rotate(-40 14 31)"/>`)
+	b.WriteString(`</g>`)
+	b.WriteString(`<g class="f-blade-bot">`)
+	b.WriteString(`<path d="M11 18.5 19 19 37 9 25 21.5Q20 25 12 23Z" fill="#b88a44"/>`)
+	b.WriteString(`<path d="M11 18.5 19 19 37 9 22 19.5Z" fill="#f0cb78"/>`)
+	b.WriteString(`<path fill="#b88a44" fill-rule="evenodd" d="M14 20a6 5.5 0 1 0-12 0 6 5.5 0 1 0 12 0Zm-3 0a3 2.7 0 1 1-6 0 3 2.7 0 1 1 6 0Z" transform="rotate(-20 8 20)"/>`)
+	b.WriteString(`</g>`)
+	b.WriteString(`<circle cx="20.5" cy="21" r="2.1" fill="#594020"/>`)
+	b.WriteString(`<circle cx="20.5" cy="21" r="0.9" fill="#f5efe6"/>`)
+	b.WriteString(`</g>`)
+
+	b.WriteString(`<text x="48" y="27" class="f-label">Fitted by <tspan class="f-brand">Tailor</tspan></text>`)
+	b.WriteString(`<text x="820" y="26" text-anchor="end" class="f-url">tailor.wimpys.world</text>`)
+
+	b.WriteString(`</g>`)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="43" rx="10" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
 	b.WriteString(`</svg>`)
 	return b.String()
 }

@@ -484,6 +484,7 @@ func (w *rulesetWriter) socialReadme(r *model.SocialReadmeSettings) {
 	if r.Packages != nil {
 		sub.list(4, "packages", *r.Packages)
 	}
+	sub.boolean(4, "demo", r.Demo)
 	sub.boolean(4, "stats", r.Stats)
 	if r.StarHistory != nil {
 		sh := &rulesetWriter{}
@@ -500,6 +501,7 @@ func (w *rulesetWriter) socialReadme(r *model.SocialReadmeSettings) {
 		sub.scalar(4, "", "sponsors", *r.Sponsors)
 	}
 	sub.boolean(4, "contributors", r.Contributors)
+	sub.boolean(4, "footer", r.Footer)
 	w.appendSubSection(2, "readme", sub)
 }
 
