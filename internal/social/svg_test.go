@@ -536,8 +536,8 @@ func TestRenderPackageCard(t *testing.T) {
 			}
 			assertValidGitHubSVG(t, "pkg-"+host+"-dark", pair.Dark)
 			assertValidGitHubSVG(t, "pkg-"+host+"-light", pair.Light)
-			assertSVGDimensions(t, "pkg-"+host+"-dark", pair.Dark, 198, 78)
-			assertSVGDimensions(t, "pkg-"+host+"-light", pair.Light, 198, 78)
+			assertSVGDimensions(t, "pkg-"+host+"-dark", pair.Dark, 200, 78)
+			assertSVGDimensions(t, "pkg-"+host+"-light", pair.Light, 200, 78)
 
 			info, _ := LookupPackageHost(host)
 			if !strings.Contains(pair.Dark, info.Domain) || !strings.Contains(pair.Dark, info.Label) {
@@ -726,33 +726,52 @@ func TestRenderStarHistory(t *testing.T) {
 		if !strings.Contains(pair.Dark, "410 stars") {
 			t.Error("star history SVG missing latest star count badge")
 		}
+		if !strings.Contains(pair.Dark, `width="111" height="28" rx="14"`) {
+			t.Error("star history SVG missing dynamic wider pill width for 410 stars")
+		}
 		if !strings.Contains(pair.Dark, theme.Dark.Primary) || !strings.Contains(pair.Light, theme.Light.Primary) {
 			t.Error("star history SVG did not reflect dark/light Primary colours")
 		}
 		for _, want := range []string{
 			"14s linear infinite",
+			"@keyframes sh-line-loop",
+			"14.00%,98%{stroke-dashoffset:0;opacity:1}",
 			"@keyframes star-race",
+			"14.00%,84%{transform:translate(",
+			"@keyframes sh-star-spin-loop",
+			"cubic-bezier(0.32,0,0.72,0.25)",
+			"cubic-bezier(0.42,0,0.85,0.28)",
 			"@keyframes sh-collapse-loop",
 			"sh-collapse",
 			"transform-origin:0px 236.0px",
 			"scaleY(0)",
 			"cubic-bezier(0.55,0.05,0.9,0.35)",
 			"sh-apex-loop",
-			"scale(1.4)",
+			"scale(1.65)",
+			"scale(0.88)",
 			"sh-halo-loop",
+			"19%,100%{transform:scale(3.8);opacity:0}",
 			`class="sh-halo"`,
 			`class="sh-star-pos"`,
+			`class="sh-star-spin"`,
 			`class="sh-apex"`,
+			`class="sh-comet-tail"`,
+			"@keyframes sh-comet-tail-loop",
+			`id="star-comet-glow"`,
+			`id="star-comet-core"`,
+			"translate(48.0px,22.0px)",
 			`fill="#facc15" stroke="#ca8a04"`,
 			`class="sh-sparkle sh-sp0"`,
-			`class="sh-sparkle sh-sp7"`,
+			`class="sh-sparkle sh-sp13"`,
+			`class="sh-trail sh-tr0"`,
+			`class="sh-trail sh-tr5"`,
 			"#facc15",
-			"#f9e2af",
-			"#fab387",
-			"#f5c2e7",
+			"#fffbeb",
+			"#fb923c",
+			"#f472b6",
 			".sh-collapse { transform: scaleY(1) !important; opacity: 1 !important; }",
 			".sh-star-pos {",
-			".sh-halo, .sh-sparkle { opacity: 0 !important; }",
+			".sh-halo, .sh-sparkle, .sh-comet-tail, .sh-trail { opacity: 0 !important; }",
 		} {
 			if !strings.Contains(pair.Dark, want) {
 				t.Errorf("dark star history SVG missing %q", want)
@@ -761,8 +780,45 @@ func TestRenderStarHistory(t *testing.T) {
 		if !strings.Contains(pair.Light, `fill="#facc15" stroke="#ca8a04"`) {
 			t.Error("light star history SVG must keep fixed yellow star colours regardless of theme")
 		}
-		if strings.Count(pair.Dark, `class="sh-sparkle `) != 8 {
-			t.Errorf("expected 8 radial burst sparkles, got %d", strings.Count(pair.Dark, `class="sh-sparkle `))
+		if strings.Count(pair.Dark, `class="sh-sparkle `) != 14 {
+			t.Errorf("expected 14 arcade fountain sparkles, got %d", strings.Count(pair.Dark, `class="sh-sparkle `))
+		}
+		if strings.Count(pair.Dark, `class="sh-trail `) != 6 {
+			t.Errorf("expected 6 comet trail sparks, got %d", strings.Count(pair.Dark, `class="sh-trail `))
+		}
+	})
+
+	t.Run("dynamic star-count pill enforces minimum width and scales for large counts", func(t *testing.T) {
+		smallPair, ok, err := RenderStarHistory(StarHistoryInput{
+			Points: []StarPoint{
+				{Date: base, Stars: 1},
+				{Date: base.AddDate(0, 2, 0), Stars: 37},
+			},
+			MinStars: 25,
+			MinDays:  30,
+		}, theme)
+		if err != nil || !ok {
+			t.Fatalf("RenderStarHistory(37) = ok:%v err:%v", ok, err)
+		}
+		assertValidGitHubSVG(t, "stars-37-dark", smallPair.Dark)
+		if !strings.Contains(smallPair.Dark, `width="106" height="28" rx="14"`) {
+			t.Error("expected minimum pill width 106 for 37 stars")
+		}
+
+		largePair, ok, err := RenderStarHistory(StarHistoryInput{
+			Points: []StarPoint{
+				{Date: base, Stars: 10},
+				{Date: base.AddDate(0, 6, 0), Stars: 1240},
+			},
+			MinStars: 25,
+			MinDays:  30,
+		}, theme)
+		if err != nil || !ok {
+			t.Fatalf("RenderStarHistory(1240) = ok:%v err:%v", ok, err)
+		}
+		assertValidGitHubSVG(t, "stars-1240-dark", largePair.Dark)
+		if !strings.Contains(largePair.Dark, `width="128" height="28" rx="14"`) {
+			t.Error("expected dynamic pill width 128 for 1,240 stars")
 		}
 	})
 }

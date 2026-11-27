@@ -328,6 +328,64 @@ type chartXY struct {
 	y float64
 }
 
+type fountainParticleSpec struct {
+	dx        float64
+	dyUp      float64
+	launchPct float64
+	peakPct   float64
+	endPct    float64
+	peakScale float64
+	kind      string // "star", "sparkle", or "dot"
+	colorIdx  int    // 0:#facc15, 1:#fffbeb, 2:#fb923c, 3:#f472b6, 4:p.Primary
+}
+
+var arcadeFountainSpecs = [14]fountainParticleSpec{
+	{dx: -18, dyUp: -52, launchPct: 14.0, peakPct: 19.2, endPct: 25.0, peakScale: 1.10, kind: "star", colorIdx: 0},
+	{dx: 12, dyUp: -48, launchPct: 14.2, peakPct: 19.0, endPct: 24.6, peakScale: 1.00, kind: "sparkle", colorIdx: 1},
+	{dx: -38, dyUp: -44, launchPct: 14.3, peakPct: 19.8, endPct: 25.6, peakScale: 0.95, kind: "sparkle", colorIdx: 2},
+	{dx: 24, dyUp: -36, launchPct: 14.1, peakPct: 18.8, endPct: 24.2, peakScale: 0.85, kind: "dot", colorIdx: 3},
+	{dx: -6, dyUp: -56, launchPct: 14.5, peakPct: 20.0, endPct: 25.8, peakScale: 1.05, kind: "sparkle", colorIdx: 4},
+	{dx: -52, dyUp: -30, launchPct: 14.6, peakPct: 20.2, endPct: 25.5, peakScale: 0.90, kind: "star", colorIdx: 0},
+	{dx: 19, dyUp: -44, launchPct: 14.8, peakPct: 19.6, endPct: 25.0, peakScale: 0.80, kind: "star", colorIdx: 2},
+	{dx: -26, dyUp: -36, launchPct: 14.4, peakPct: 18.9, endPct: 24.0, peakScale: 0.85, kind: "dot", colorIdx: 1},
+	{dx: 6, dyUp: -38, launchPct: 15.0, peakPct: 19.8, endPct: 24.8, peakScale: 0.95, kind: "dot", colorIdx: 4},
+	{dx: -44, dyUp: -50, launchPct: 15.1, peakPct: 20.5, endPct: 26.0, peakScale: 1.00, kind: "sparkle", colorIdx: 3},
+	{dx: 26, dyUp: -24, launchPct: 14.9, peakPct: 19.2, endPct: 23.8, peakScale: 0.90, kind: "sparkle", colorIdx: 0},
+	{dx: -12, dyUp: -30, launchPct: 15.3, peakPct: 19.9, endPct: 24.5, peakScale: 0.80, kind: "dot", colorIdx: 2},
+	{dx: -32, dyUp: -20, launchPct: 15.2, peakPct: 19.5, endPct: 24.2, peakScale: 0.85, kind: "star", colorIdx: 1},
+	{dx: 16, dyUp: -54, launchPct: 15.5, peakPct: 20.8, endPct: 26.0, peakScale: 1.05, kind: "star", colorIdx: 4},
+}
+
+type cometTrailSpec struct {
+	prog       float64
+	driftBack  float64
+	sideSpread float64
+	gravityY   float64
+	kind       string
+	colorIdx   int
+}
+
+var cometTrailSpecs = [6]cometTrailSpec{
+	{prog: 0.05, driftBack: 26, sideSpread: -9, gravityY: 10, kind: "sparkle", colorIdx: 1},
+	{prog: 0.18, driftBack: 32, sideSpread: 10, gravityY: 12, kind: "dot", colorIdx: 0},
+	{prog: 0.34, driftBack: 36, sideSpread: -12, gravityY: 11, kind: "star", colorIdx: 2},
+	{prog: 0.52, driftBack: 30, sideSpread: 11, gravityY: 14, kind: "sparkle", colorIdx: 3},
+	{prog: 0.70, driftBack: 38, sideSpread: -8, gravityY: 10, kind: "dot", colorIdx: 4},
+	{prog: 0.86, driftBack: 28, sideSpread: 9, gravityY: 9, kind: "star", colorIdx: 0},
+}
+
+type cometTrailParticle struct {
+	x        float64
+	y        float64
+	dx       float64
+	dy       float64
+	startPct float64
+	peakPct  float64
+	endPct   float64
+	kind     string
+	color    string
+}
+
 func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title string, p Palette, dark bool) string {
 	const (
 		width  = 840
@@ -336,6 +394,8 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 		plotR  = 804.0
 		plotT  = 66.0
 		plotB  = 236.0
+		exitX  = 48.0
+		exitY  = 22.0
 	)
 	plotW := plotR - plotL
 	plotH := plotB - plotT
@@ -350,54 +410,28 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 	}
 
 	dateRange := formatStarDateRange(pts[0].Date, pts[len(pts)-1].Date)
-	badgeText := formatCount(latestStars) + " stars"
-	badgeW := len([]rune(badgeText))*7 + 34
-	if badgeW < 92 {
-		badgeW = 92
-	}
+	badgeLabel := formatCount(latestStars) + " stars"
+	badgeW := max(int(math.Ceil(float64(len(badgeLabel))*8.5))+34, 106)
 	badgeX := int(plotR) - badgeW
 	badgeBorder := mixHex(p.Primary, p.MutedBorder, 0.45)
 
 	last := coords[len(coords)-1]
+	midY := (last.y + plotB) / 2.0
+	tailAngleDeg := math.Atan2(midY-exitY, last.x-exitX) * 180.0 / math.Pi
 
-	type burstSparkle struct {
-		dx    float64
-		dy    float64
-		dx2   float64
-		dy2   float64
-		color string
-		path  string
-	}
-	sparkleColors := [4]string{"#facc15", "#f9e2af", "#fab387", "#f5c2e7"}
-	sparkles := make([]burstSparkle, 8)
-	for i := range sparkles {
-		angle := (22.5 + float64(i)*45.0) * math.Pi / 180.0
-		r := 18.5
-		pStr := miniStarPath
-		if i%2 == 1 {
-			r = 15.0
-			pStr = sparklePath
-		}
-		dx := r * math.Cos(angle)
-		dy := r * math.Sin(angle)
-		sparkles[i] = burstSparkle{
-			dx:    dx,
-			dy:    dy,
-			dx2:   dx * 1.4,
-			dy2:   dy * 1.4,
-			color: sparkleColors[i%len(sparkleColors)],
-			path:  pStr,
-		}
-	}
+	sparkPalette := [5]string{"#facc15", "#fffbeb", "#fb923c", "#f472b6", p.Primary}
+	trailParticles := buildCometTrailParticles(last.x, midY, exitX, exitY, sparkPalette)
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" aria-label="%s">`,
 		width, height, width, height, XMLEscape(title))
-	fmt.Fprintf(&b, `<title>%s: %s</title>`, XMLEscape(title), XMLEscape(badgeText))
+	fmt.Fprintf(&b, `<title>%s: %s</title>`, XMLEscape(title), XMLEscape(badgeLabel))
 	b.WriteString(`<defs>`)
 	b.WriteString(`<clipPath id="star-clip"><rect x="0.5" y="0.5" width="839" height="279" rx="14"/></clipPath>`)
 	fmt.Fprintf(&b, `<linearGradient id="star-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%%" stop-color="%s" stop-opacity="%s"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
 		p.Primary, gradTopOp, p.Primary)
+	b.WriteString(`<linearGradient id="star-comet-glow" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#facc15" stop-opacity="0.82"/><stop offset="45%" stop-color="#fb923c" stop-opacity="0.42"/><stop offset="100%" stop-color="#f472b6" stop-opacity="0"/></linearGradient>`)
+	b.WriteString(`<linearGradient id="star-comet-core" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#fffbeb" stop-opacity="0.96"/><stop offset="55%" stop-color="#facc15" stop-opacity="0.55"/><stop offset="100%" stop-color="#facc15" stop-opacity="0"/></linearGradient>`)
 	b.WriteString(`</defs>`)
 
 	b.WriteString(`<style>`)
@@ -405,26 +439,39 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 	fmt.Fprintf(&b, `.sh-range{font-family:%s;font-size:11.5px;font-weight:400;fill:%s}`, fontMono, p.MutedColor)
 	fmt.Fprintf(&b, `.sh-axis{font-family:%s;font-size:11px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
 	fmt.Fprintf(&b, `.sh-badge{font-family:%s;font-size:12px;font-weight:600;fill:%s}`, fontMono, p.HeadingColor)
-	fmt.Fprintf(&b, `@keyframes sh-line-loop{0%%{stroke-dashoffset:%.1f;opacity:0}1.5%%{opacity:1}22%%,98%%{stroke-dashoffset:0;opacity:1}100%%{stroke-dashoffset:0;opacity:0}}`, pathLen)
-	b.WriteString(`@keyframes sh-area-loop{0%,4%{opacity:0}22%,98%{opacity:1}100%{opacity:0}}`)
+	writeStarLineKeyframes(&b, sampledCoords, pathLen)
+	b.WriteString(`@keyframes sh-area-loop{0%,3%{opacity:0}14%,98%{opacity:1}100%{opacity:0}}`)
 	b.WriteString(`@keyframes sh-collapse-loop{0%,84%{transform:scaleY(1);opacity:1;animation-timing-function:cubic-bezier(0.55,0.05,0.9,0.35)}93%{transform:scaleY(0);opacity:1}98%,100%{transform:scaleY(0);opacity:0}}`)
-	writeStarRaceKeyframes(&b, sampledCoords, last, plotB)
-	b.WriteString(`@keyframes sh-apex-loop{0%,21.5%{transform:scale(0.95)}22%{transform:scale(1)}26%{transform:scale(1.4)}31%{transform:scale(0.92)}36%{transform:scale(1)}48%{transform:scale(1.07)}60%{transform:scale(0.97)}72%{transform:scale(1.07)}84%{transform:scale(1)}93%,100%{transform:scale(0.88)}}`)
-	b.WriteString(`@keyframes sh-halo-loop{0%,21.5%{transform:scale(0.3);opacity:0}23.5%{transform:scale(0.85);opacity:0.85}36%,100%{transform:scale(3.4);opacity:0}}`)
-	for i, sp := range sparkles {
-		fmt.Fprintf(&b, `@keyframes sh-sp%d{0%%,22%%{transform:translate(0px,0px) scale(0);opacity:0}27%%{transform:translate(%.1fpx,%.1fpx) scale(1);opacity:1}36%%,100%%{transform:translate(%.1fpx,%.1fpx) scale(0);opacity:0}}`,
-			i, sp.dx, sp.dy, sp.dx2, sp.dy2)
+	writeStarRaceKeyframes(&b, sampledCoords, last, midY, exitX, exitY)
+	b.WriteString(`@keyframes sh-star-spin-loop{0%{transform:rotate(0deg);animation-timing-function:cubic-bezier(0.32,0,0.72,0.25)}14%,84%{transform:rotate(360deg)}87%{transform:rotate(390deg);animation-timing-function:cubic-bezier(0.42,0,0.85,0.28)}94%,100%{transform:rotate(1110deg)}}`)
+	b.WriteString(`@keyframes sh-apex-loop{0%,13.5%{transform:scale(0.95)}14%{transform:scale(1)}16.5%{transform:scale(1.65)}20%{transform:scale(0.88)}24%{transform:scale(1)}36%{transform:scale(1.06)}48%{transform:scale(0.98)}60%{transform:scale(1.06)}72%{transform:scale(0.98)}84%{transform:scale(1)}87%{transform:scale(1.22)}91%{transform:scale(1.05)}95%,100%{transform:scale(0.6)}}`)
+	b.WriteString(`@keyframes sh-halo-loop{0%,13.8%{transform:scale(0.3);opacity:0}15.2%{transform:scale(1.1);opacity:0.9}19%,100%{transform:scale(3.8);opacity:0}}`)
+	b.WriteString(`@keyframes sh-comet-tail-loop{0%,86.8%{transform:scaleX(0.05);opacity:0}88.2%{transform:scaleX(1);opacity:0.95}92.5%{transform:scaleX(1.18);opacity:0.9}94%,100%{transform:scaleX(0.25);opacity:0}}`)
+	for i, sp := range arcadeFountainSpecs {
+		dx2 := sp.dx * 1.25
+		dy2 := sp.dyUp + 18.0
+		fmt.Fprintf(&b, `@keyframes sh-sp%d{0%%,%.1f%%{transform:translate(0px,0px) scale(0);opacity:0;animation-timing-function:cubic-bezier(0.18,0.82,0.32,1)}%.1f%%{transform:translate(%.1fpx,%.1fpx) scale(%.2f);opacity:1;animation-timing-function:cubic-bezier(0.45,0.05,0.85,0.45)}%.1f%%,100%%{transform:translate(%.1fpx,%.1fpx) scale(0);opacity:0}}`,
+			i, sp.launchPct, sp.peakPct, sp.dx, sp.dyUp, sp.peakScale, sp.endPct, dx2, dy2)
+	}
+	for i, tp := range trailParticles {
+		fmt.Fprintf(&b, `@keyframes sh-tr%d{0%%,%.2f%%{transform:translate(0px,0px) scale(0.2);opacity:0}%.2f%%{transform:translate(%.1fpx,%.1fpx) scale(1);opacity:1}%.2f%%,100%%{transform:translate(%.1fpx,%.1fpx) scale(0);opacity:0}}`,
+			i, tp.startPct, tp.peakPct, tp.dx*0.25, tp.dy*0.25, tp.endPct, tp.dx, tp.dy)
 	}
 	fmt.Fprintf(&b, `.sh-collapse{transform-origin:0px %.1fpx;animation:sh-collapse-loop 14s linear infinite}`, plotB)
 	fmt.Fprintf(&b, `.sh-line{stroke-dasharray:%.1f;stroke-dashoffset:%.1f;animation:sh-line-loop 14s linear infinite}`, pathLen, pathLen)
 	b.WriteString(`.sh-area{opacity:0;animation:sh-area-loop 14s linear infinite}`)
 	fmt.Fprintf(&b, `.sh-star-pos{transform:translate(%.1fpx,%.1fpx);animation:star-race 14s linear infinite}`, last.x, last.y)
+	b.WriteString(`.sh-star-spin{animation:sh-star-spin-loop 14s linear infinite}`)
 	b.WriteString(`.sh-apex{animation:sh-apex-loop 14s ease-in-out infinite}`)
 	b.WriteString(`.sh-halo{transform:scale(0.3);opacity:0;animation:sh-halo-loop 14s ease-out infinite}`)
-	for i := range sparkles {
-		fmt.Fprintf(&b, `.sh-sp%d{opacity:0;animation:sh-sp%d 14s ease-out infinite}`, i, i)
+	b.WriteString(`.sh-comet-tail{transform-origin:0px 0px;opacity:0;animation:sh-comet-tail-loop 14s linear infinite}`)
+	for i := range arcadeFountainSpecs {
+		fmt.Fprintf(&b, `.sh-sp%d{opacity:0;animation:sh-sp%d 14s linear infinite}`, i, i)
 	}
-	fmt.Fprintf(&b, `@media (prefers-reduced-motion: reduce) { * { animation: none !important; } .sh-collapse { transform: scaleY(1) !important; opacity: 1 !important; } .sh-line { stroke-dashoffset: 0 !important; opacity: 1 !important; } .sh-area, .sh-apex { opacity: 1 !important; transform: none !important; } .sh-star-pos { transform: translate(%.1fpx,%.1fpx) !important; opacity: 1 !important; } .sh-halo, .sh-sparkle { opacity: 0 !important; } }`, last.x, last.y)
+	for i := range trailParticles {
+		fmt.Fprintf(&b, `.sh-tr%d{opacity:0;animation:sh-tr%d 14s ease-out infinite}`, i, i)
+	}
+	fmt.Fprintf(&b, `@media (prefers-reduced-motion: reduce) { * { animation: none !important; } .sh-collapse { transform: scaleY(1) !important; opacity: 1 !important; } .sh-line { stroke-dashoffset: 0 !important; opacity: 1 !important; } .sh-area, .sh-star-spin, .sh-apex { opacity: 1 !important; transform: none !important; } .sh-star-pos { transform: translate(%.1fpx,%.1fpx) !important; opacity: 1 !important; } .sh-halo, .sh-sparkle, .sh-comet-tail, .sh-trail { opacity: 0 !important; } }`, last.x, last.y)
 	b.WriteString(`</style>`)
 
 	b.WriteString(`<g clip-path="url(#star-clip)">`)
@@ -439,7 +486,7 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 		badgeX, badgeW, p.CodeBackground, badgeBorder)
 	fmt.Fprintf(&b, `<g transform="translate(%d, 25) scale(0.583333)" fill="#facc15"><path d="%s"/></g>`,
 		badgeX+11, starGlyphPath)
-	fmt.Fprintf(&b, `<text x="%d" y="36" class="sh-badge">%s</text>`, badgeX+29, XMLEscape(badgeText))
+	fmt.Fprintf(&b, `<text x="%d" y="36" class="sh-badge">%s</text>`, badgeX+29, XMLEscape(badgeLabel))
 
 	// Horizontal Y-axis gridlines and ticks.
 	const tickCount = 4
@@ -477,17 +524,29 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 		linePath, p.Primary)
 	b.WriteString(`</g>`)
 
-	// Apex burst effects anchored at the final point: expanding halo ring and 8 radial sparkles.
+	// Apex burst effects anchored at the final point: crisp shockwave halo ring and 14 asymmetric fountain particles.
 	fmt.Fprintf(&b, `<g transform="translate(%.1f, %.1f)">`, last.x, last.y)
 	b.WriteString(`<circle class="sh-halo" cx="0" cy="0" r="7" fill="none" stroke="#facc15" stroke-width="2"/>`)
-	for i, sp := range sparkles {
-		fmt.Fprintf(&b, `<g class="sh-sparkle sh-sp%d" fill="%s"><path d="%s"/></g>`, i, sp.color, sp.path)
+	for i, sp := range arcadeFountainSpecs {
+		writeSparkParticle(&b, fmt.Sprintf("sh-sparkle sh-sp%d", i), sparkPalette[sp.colorIdx], sp.kind)
 	}
 	b.WriteString(`</g>`)
 
-	// Fixed yellow/gold 5-point star racing up the drawing tip, popping at the apex, and dropping to baseline.
+	// Streaming comet wake spark particles peeling off along the shooting-star exit trajectory.
+	for i, tp := range trailParticles {
+		fmt.Fprintf(&b, `<g transform="translate(%.1f, %.1f)">`, tp.x, tp.y)
+		writeSparkParticle(&b, fmt.Sprintf("sh-trail sh-tr%d", i), tp.color, tp.kind)
+		b.WriteString(`</g>`)
+	}
+
+	// Fixed yellow/gold 5-point star racing up the accelerating tip, popping at apex,
+	// dropping halfway on collapse, then igniting into a diagonal shooting-star comet.
 	fmt.Fprintf(&b, `<g class="sh-star-pos" transform="translate(%.1f, %.1f)">`, last.x, last.y)
-	fmt.Fprintf(&b, `<g class="sh-apex"><path d="%s" fill="#facc15" stroke="#ca8a04" stroke-width="1.5" stroke-linejoin="round"/></g>`, apexStarPath)
+	fmt.Fprintf(&b, `<g transform="rotate(%.1f)"><g class="sh-comet-tail">`, tailAngleDeg)
+	b.WriteString(`<path d="M-2 0L8 -6.5L138 0L8 6.5Z" fill="url(#star-comet-glow)"/>`)
+	b.WriteString(`<path d="M-1 0L6 -2.8L88 0L6 2.8Z" fill="url(#star-comet-core)"/>`)
+	b.WriteString(`</g></g>`)
+	fmt.Fprintf(&b, `<g class="sh-star-spin"><g class="sh-apex"><path d="%s" fill="#facc15" stroke="#ca8a04" stroke-width="1.5" stroke-linejoin="round"/></g></g>`, apexStarPath)
 	b.WriteString(`</g>`)
 
 	b.WriteString(`</g>`)
@@ -496,28 +555,116 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 	return b.String()
 }
 
-func writeStarRaceKeyframes(b *strings.Builder, sampled []chartXY, last chartXY, baselineY float64) {
+func writeSparkParticle(b *strings.Builder, className, color, kind string) {
+	switch kind {
+	case "dot":
+		fmt.Fprintf(b, `<g class="%s" fill="%s"><circle cx="0" cy="0" r="2.2"/></g>`, className, color)
+	case "star":
+		fmt.Fprintf(b, `<g class="%s" fill="%s"><path d="%s"/></g>`, className, color, miniStarPath)
+	default:
+		fmt.Fprintf(b, `<g class="%s" fill="%s"><path d="%s"/></g>`, className, color, sparklePath)
+	}
+}
+
+func writeStarLineKeyframes(b *strings.Builder, sampled []chartXY, pathLen float64) {
+	b.WriteString(`@keyframes sh-line-loop{`)
+	n := len(sampled)
+	if n >= 2 {
+		fmt.Fprintf(b, `0%%{stroke-dashoffset:%.1f;opacity:0}`, pathLen)
+		for i := 1; i < n-1; i++ {
+			frac := float64(i) / float64(n-1)
+			pct := 14.0 * math.Pow(frac, 0.72)
+			offset := pathLen * (1.0 - frac)
+			fmt.Fprintf(b, `%.2f%%{stroke-dashoffset:%.1f;opacity:1}`, pct, offset)
+		}
+		b.WriteString(`14.00%,98%{stroke-dashoffset:0;opacity:1}`)
+	} else {
+		fmt.Fprintf(b, `0%%{stroke-dashoffset:%.1f;opacity:0;animation-timing-function:cubic-bezier(0.32,0,0.72,0.25)}1.5%%{opacity:1}14%%,98%%{stroke-dashoffset:0;opacity:1}`, pathLen)
+	}
+	b.WriteString(`100%{stroke-dashoffset:0;opacity:0}}`)
+}
+
+func writeStarRaceKeyframes(b *strings.Builder, sampled []chartXY, last chartXY, midY, exitX, exitY float64) {
 	b.WriteString(`@keyframes star-race{`)
 	n := len(sampled)
 	if n >= 2 {
-		for i, pt := range sampled {
+		for i := range n - 1 {
+			pt := sampled[i]
 			frac := float64(i) / float64(n-1)
-			pct := frac * 22.0
-			deg := frac * 360.0
+			pct := 14.0 * math.Pow(frac, 0.72)
 			op := "1"
 			if i == 0 {
 				op = "0"
 			}
-			fmt.Fprintf(b, `%.2f%%{transform:translate(%.1fpx,%.1fpx) rotate(%.0fdeg);opacity:%s}`, pct, pt.x, pt.y, deg, op)
+			fmt.Fprintf(b, `%.2f%%{transform:translate(%.1fpx,%.1fpx);opacity:%s}`, pct, pt.x, pt.y, op)
 		}
 	} else {
-		fmt.Fprintf(b, `0%%{transform:translate(%.1fpx,%.1fpx) rotate(0deg);opacity:0}`, last.x, last.y)
-		fmt.Fprintf(b, `22%%{transform:translate(%.1fpx,%.1fpx) rotate(360deg);opacity:1}`, last.x, last.y)
+		fmt.Fprintf(b, `0%%{transform:translate(%.1fpx,%.1fpx);opacity:0}`, last.x, last.y)
 	}
-	fmt.Fprintf(b, `84%%{transform:translate(%.1fpx,%.1fpx) rotate(360deg);opacity:1;animation-timing-function:cubic-bezier(0.55,0.05,0.9,0.35)}`, last.x, last.y)
-	fmt.Fprintf(b, `93%%{transform:translate(%.1fpx,%.1fpx) rotate(360deg);opacity:1}`, last.x, baselineY)
-	fmt.Fprintf(b, `98%%,100%%{transform:translate(%.1fpx,%.1fpx) rotate(360deg);opacity:0}`, last.x, baselineY)
+	fmt.Fprintf(b, `14.00%%,84%%{transform:translate(%.1fpx,%.1fpx);opacity:1;animation-timing-function:cubic-bezier(0.55,0.05,0.9,0.35)}`, last.x, last.y)
+	fmt.Fprintf(b, `87%%{transform:translate(%.1fpx,%.1fpx);opacity:1;animation-timing-function:cubic-bezier(0.42,0,0.85,0.28)}`, last.x, midY)
+	fmt.Fprintf(b, `94%%{transform:translate(%.1fpx,%.1fpx);opacity:1}`, exitX, exitY)
+	fmt.Fprintf(b, `95%%,100%%{transform:translate(%.1fpx,%.1fpx);opacity:0}`, exitX, exitY)
 	b.WriteString(`}`)
+}
+
+func buildCometTrailParticles(startX, startY, exitX, exitY float64, palette [5]string) []cometTrailParticle {
+	wakeDX := startX - exitX
+	wakeDY := startY - exitY
+	wakeLen := math.Hypot(wakeDX, wakeDY)
+	if wakeLen == 0 {
+		wakeLen = 1
+	}
+	wx := wakeDX / wakeLen
+	wy := wakeDY / wakeLen
+	px := -wy
+	py := wx
+
+	out := make([]cometTrailParticle, len(cometTrailSpecs))
+	for i, sp := range cometTrailSpecs {
+		u := invertCometEase(sp.prog)
+		startPct := 87.0 + u*7.0
+		peakPct := min(startPct+0.55, 94.8)
+		endPct := min(startPct+2.2, 95.8)
+		out[i] = cometTrailParticle{
+			x:        startX + sp.prog*(exitX-startX),
+			y:        startY + sp.prog*(exitY-startY),
+			dx:       sp.driftBack*wx + sp.sideSpread*px,
+			dy:       sp.driftBack*wy + sp.sideSpread*py + sp.gravityY,
+			startPct: startPct,
+			peakPct:  peakPct,
+			endPct:   endPct,
+			kind:     sp.kind,
+			color:    palette[sp.colorIdx],
+		}
+	}
+	return out
+}
+
+// invertCometEase returns the time fraction u in [0,1] at which
+// cubic-bezier(0.42, 0, 0.85, 0.28) reaches spatial progress prog in [0,1].
+func invertCometEase(prog float64) float64 {
+	if prog <= 0 {
+		return 0
+	}
+	if prog >= 1 {
+		return 1
+	}
+	lo, hi := 0.0, 1.0
+	for range 20 {
+		mid := (lo + hi) * 0.5
+		if cubicBezierSample(mid, 0.0, 0.28) < prog {
+			lo = mid
+		} else {
+			hi = mid
+		}
+	}
+	return cubicBezierSample((lo+hi)*0.5, 0.42, 0.85)
+}
+
+func cubicBezierSample(t, p1, p2 float64) float64 {
+	u := 1.0 - t
+	return 3*u*u*t*p1 + 3*u*t*t*p2 + t*t*t
 }
 
 func mapStarCoords(pts []StarPoint, plotL, plotW, plotT, plotH, yMax float64) []chartXY {

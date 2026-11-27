@@ -370,7 +370,12 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 			lines = append(lines, "  "+FormatLinkedPicture(href, darkSrc, lightSrc, info.Label))
 		}
 		if len(lines) > 0 {
-			blocks[MarkerPackages] = "<p align=\"center\">\n" + strings.Join(lines, "\n") + "\n</p>"
+			rows := balancePackageRows(lines)
+			rowBlocks := make([]string, len(rows))
+			for i, row := range rows {
+				rowBlocks[i] = strings.Join(row, "\n")
+			}
+			blocks[MarkerPackages] = "<p align=\"center\">\n" + strings.Join(rowBlocks, "\n  <br>\n") + "\n</p>"
 		}
 	}
 
@@ -430,6 +435,31 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 
 func wrapCentered(inner string) string {
 	return "<p align=\"center\">\n  " + inner + "\n</p>"
+}
+
+// balancePackageRows splits package tiles into balanced rows capped at 4 per
+// row so GitHub never wraps into lopsided rows (e.g. 5->3+2, 6->3+3, 7->4+3,
+// 8->4+4).
+func balancePackageRows(items []string) [][]string {
+	const maxPerRow = 4
+	n := len(items)
+	if n == 0 {
+		return nil
+	}
+	rowCount := (n + maxPerRow - 1) / maxPerRow
+	base := n / rowCount
+	rem := n % rowCount
+	rows := make([][]string, 0, rowCount)
+	offset := 0
+	for i := range rowCount {
+		size := base
+		if i < rem {
+			size++
+		}
+		rows = append(rows, items[offset:offset+size])
+		offset += size
+	}
+	return rows
 }
 
 func normalizeLinkHref(key, raw string) string {

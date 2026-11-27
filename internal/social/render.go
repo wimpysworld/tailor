@@ -478,7 +478,7 @@ func renderCommunityVariant(platform string, icon IconInfo, title, subtitle, liv
 	return b.String()
 }
 
-// RenderPackageCard renders a 198x78 themed Haberdasher clickable package tile
+// RenderPackageCard renders a 200x78 themed Haberdasher clickable package tile
 // for one supported package host (apt, rpm, pkg, apk, flatpak, brew, scoop, or nix).
 func RenderPackageCard(host string, theme Theme) (SVGPair, error) {
 	key := strings.ToLower(strings.TrimSpace(host))
@@ -498,7 +498,7 @@ func RenderPackageCard(host string, theme Theme) (SVGPair, error) {
 
 func renderPackageCardVariant(host string, info PackageHostInfo, p Palette, dark bool) string {
 	const (
-		width  = 198
+		width  = 200
 		height = 78
 	)
 
@@ -513,7 +513,7 @@ func renderPackageCardVariant(host string, info PackageHostInfo, p Palette, dark
 		width, height, width, height, XMLEscape(info.Label))
 	fmt.Fprintf(&b, `<title>%s (%s)</title>`, XMLEscape(info.Label), XMLEscape(info.Domain))
 	b.WriteString(`<defs>`)
-	b.WriteString(`<clipPath id="pkg-clip"><rect x="0.5" y="0.5" width="197" height="77" rx="11"/></clipPath>`)
+	b.WriteString(`<clipPath id="pkg-clip"><rect x="0.5" y="0.5" width="199" height="77" rx="11"/></clipPath>`)
 	fmt.Fprintf(&b, `<linearGradient id="pkg-glint" x1="0" y1="0" x2="1" y2="0"><stop offset="0%%" stop-color="%s" stop-opacity="0"/><stop offset="50%%" stop-color="%s" stop-opacity="0.85"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
 		accent, accent, accent)
 	b.WriteString(`</defs>`)
@@ -528,8 +528,8 @@ func renderPackageCardVariant(host string, info PackageHostInfo, p Palette, dark
 	b.WriteString(`</style>`)
 
 	b.WriteString(`<g clip-path="url(#pkg-clip)">`)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="198" height="78" fill="%s"/>`, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="198" height="2.5" fill="%s" opacity="0.25"/>`, accent)
+	fmt.Fprintf(&b, `<rect x="0" y="0" width="200" height="78" fill="%s"/>`, p.CardBackground)
+	fmt.Fprintf(&b, `<rect x="0" y="0" width="200" height="2.5" fill="%s" opacity="0.25"/>`, accent)
 	b.WriteString(`<rect class="k-glint" x="0" y="0" width="80" height="2.5" fill="url(#pkg-glint)"/>`)
 
 	// 36x36 inline host icon (24 * 1.5 = 36).
@@ -538,7 +538,7 @@ func renderPackageCardVariant(host string, info PackageHostInfo, p Palette, dark
 	fmt.Fprintf(&b, `<text x="60" y="52" class="k-domain">%s</text>`, XMLEscape(info.Domain))
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="197" height="77" rx="11" fill="none" stroke="%s" stroke-width="1"/>`, border)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="199" height="77" rx="11" fill="none" stroke="%s" stroke-width="1"/>`, border)
 	b.WriteString(`</svg>`)
 	return b.String()
 }

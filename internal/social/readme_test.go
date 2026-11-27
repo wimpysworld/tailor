@@ -319,3 +319,88 @@ func TestFormatReadmeBlocks(t *testing.T) {
 		t.Errorf("live community block missing commit-pinned URL:\n%s", liveBlocks[MarkerCommunity])
 	}
 }
+
+func TestBalancePackageRows(t *testing.T) {
+	cases := []struct {
+		n         int
+		wantSizes []int
+	}{
+		{n: 0, wantSizes: nil},
+		{n: 1, wantSizes: []int{1}},
+		{n: 2, wantSizes: []int{2}},
+		{n: 3, wantSizes: []int{3}},
+		{n: 4, wantSizes: []int{4}},
+		{n: 5, wantSizes: []int{3, 2}},
+		{n: 6, wantSizes: []int{3, 3}},
+		{n: 7, wantSizes: []int{4, 3}},
+		{n: 8, wantSizes: []int{4, 4}},
+		{n: 9, wantSizes: []int{3, 3, 3}},
+	}
+
+	for _, tc := range cases {
+		items := make([]string, tc.n)
+		for i := range items {
+			items[i] = string(rune('a' + i))
+		}
+		rows := balancePackageRows(items)
+		if len(rows) != len(tc.wantSizes) {
+			t.Fatalf("balancePackageRows(%d) returned %d rows, want %d", tc.n, len(rows), len(tc.wantSizes))
+		}
+		var flattened []string
+		for i, row := range rows {
+			if len(row) != tc.wantSizes[i] {
+				t.Errorf("balancePackageRows(%d) row %d len = %d, want %d", tc.n, i, len(row), tc.wantSizes[i])
+			}
+			flattened = append(flattened, row...)
+		}
+		if strings.Join(flattened, "") != strings.Join(items, "") {
+			t.Errorf("balancePackageRows(%d) did not preserve item order: got %v, want %v", tc.n, flattened, items)
+		}
+	}
+}
+
+func TestFormatReadmeBlocksBalancedPackageRows(t *testing.T) {
+	allHosts := []string{"apt", "rpm", "pkg", "apk", "flatpak", "brew", "scoop", "nix"}
+
+	cases := []struct {
+		count    int
+		wantRows []int
+		wantBrs  int
+	}{
+		{count: 3, wantRows: []int{3}, wantBrs: 0},
+		{count: 4, wantRows: []int{4}, wantBrs: 0},
+		{count: 5, wantRows: []int{3, 2}, wantBrs: 1},
+		{count: 6, wantRows: []int{3, 3}, wantBrs: 1},
+		{count: 7, wantRows: []int{4, 3}, wantBrs: 1},
+		{count: 8, wantRows: []int{4, 4}, wantBrs: 1},
+	}
+
+	for _, tc := range cases {
+		pkgs := make([]ReadmePackageEntry, tc.count)
+		for i := range tc.count {
+			pkgs[i] = ReadmePackageEntry{Host: allHosts[i], Package: "tailor"}
+		}
+		blocks := FormatReadmeBlocks(ReadmeBlocksInput{
+			StaticDir: "pages/social",
+			Packages:  pkgs,
+		})
+		block := blocks[MarkerPackages]
+		if !strings.HasPrefix(block, "<p align=\"center\">\n") || !strings.HasSuffix(block, "\n</p>") {
+			t.Fatalf("count=%d: unexpected wrapper:\n%s", tc.count, block)
+		}
+		if gotBrs := strings.Count(block, "<br>"); gotBrs != tc.wantBrs {
+			t.Errorf("count=%d: <br> count = %d, want %d\n%s", tc.count, gotBrs, tc.wantBrs, block)
+		}
+		inner := strings.TrimSuffix(strings.TrimPrefix(block, "<p align=\"center\">\n"), "\n</p>")
+		parts := strings.Split(inner, "\n  <br>\n")
+		if len(parts) != len(tc.wantRows) {
+			t.Fatalf("count=%d: got %d row chunks, want %d\n%s", tc.count, len(parts), len(tc.wantRows), block)
+		}
+		for i, part := range parts {
+			gotTiles := strings.Count(part, "<a href=")
+			if gotTiles != tc.wantRows[i] {
+				t.Errorf("count=%d: row %d has %d tiles, want %d\n%s", tc.count, i, gotTiles, tc.wantRows[i], part)
+			}
+		}
+	}
+}

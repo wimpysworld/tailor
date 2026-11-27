@@ -14,7 +14,7 @@
 
 <!-- tailor:social-community:start -->
 <p align="center">
-  <a href="https://discord.com/invite/vUsydfP"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/40ade52f1afd265a8e83c1550c026ee9a391877c/community-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/40ade52f1afd265a8e83c1550c026ee9a391877c/community-light.svg" alt="Discord community"></picture></a>
+  <a href="https://discord.com/invite/vUsydfP"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/9e22133aec1cfba1c38b0544a7331cf6207d9dbf/community-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/9e22133aec1cfba1c38b0544a7331cf6207d9dbf/community-light.svg" alt="Discord community"></picture></a>
 </p>
 <!-- tailor:social-community:end -->
 
@@ -37,7 +37,7 @@ Use it for solo projects or small teams that manage several repositories. Its em
 
 <!-- tailor:social-stats:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/pulse"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/40ade52f1afd265a8e83c1550c026ee9a391877c/stats-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/40ade52f1afd265a8e83c1550c026ee9a391877c/stats-light.svg" alt="Tailor statistics"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/pulse"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/9e22133aec1cfba1c38b0544a7331cf6207d9dbf/stats-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/9e22133aec1cfba1c38b0544a7331cf6207d9dbf/stats-light.svg" alt="Tailor statistics"></picture></a>
 </p>
 <!-- tailor:social-stats:end -->
 
@@ -51,6 +51,7 @@ First-party signed package repositories are published for Linux, macOS, and Wind
   <a href="https://rpm.wimpys.world/#tailor"><picture><source media="(prefers-color-scheme: dark)" srcset="pages/social/pkg-rpm-dark.svg"><img src="pages/social/pkg-rpm-light.svg" alt="Fedora and openSUSE"></picture></a>
   <a href="https://pkg.wimpys.world/#tailor"><picture><source media="(prefers-color-scheme: dark)" srcset="pages/social/pkg-pkg-dark.svg"><img src="pages/social/pkg-pkg-light.svg" alt="Arch Linux"></picture></a>
   <a href="https://apk.wimpys.world/#tailor"><picture><source media="(prefers-color-scheme: dark)" srcset="pages/social/pkg-apk-dark.svg"><img src="pages/social/pkg-apk-light.svg" alt="Alpine Linux"></picture></a>
+  <br>
   <a href="https://brew.wimpys.world/#tailor"><picture><source media="(prefers-color-scheme: dark)" srcset="pages/social/pkg-brew-dark.svg"><img src="pages/social/pkg-brew-light.svg" alt="macOS (Homebrew)"></picture></a>
   <a href="https://scoop.wimpys.world/#tailor"><picture><source media="(prefers-color-scheme: dark)" srcset="pages/social/pkg-scoop-dark.svg"><img src="pages/social/pkg-scoop-light.svg" alt="Windows (Scoop)"></picture></a>
   <a href="https://nix.wimpys.world/#tailor"><picture><source media="(prefers-color-scheme: dark)" srcset="pages/social/pkg-nix-dark.svg"><img src="pages/social/pkg-nix-light.svg" alt="Nix and NixOS"></picture></a>
@@ -179,13 +180,13 @@ Read [Support](SUPPORT.md) for help and [Contributing](CONTRIBUTING.md) before s
 
 <!-- tailor:social-stars:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/40ade52f1afd265a8e83c1550c026ee9a391877c/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/40ade52f1afd265a8e83c1550c026ee9a391877c/stars-light.svg" alt="Tailor star history"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/9e22133aec1cfba1c38b0544a7331cf6207d9dbf/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/9e22133aec1cfba1c38b0544a7331cf6207d9dbf/stars-light.svg" alt="Tailor star history"></picture></a>
 </p>
 <!-- tailor:social-stars:end -->
 
 <!-- tailor:social-contributors:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/graphs/contributors"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/40ade52f1afd265a8e83c1550c026ee9a391877c/contributors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/40ade52f1afd265a8e83c1550c026ee9a391877c/contributors-light.svg" alt="Tailor contributors"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/graphs/contributors"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/9e22133aec1cfba1c38b0544a7331cf6207d9dbf/contributors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/9e22133aec1cfba1c38b0544a7331cf6207d9dbf/contributors-light.svg" alt="Tailor contributors"></picture></a>
 </p>
 <!-- tailor:social-contributors:end -->
 
