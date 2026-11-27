@@ -139,6 +139,10 @@ func TestPagesStarterCustomStyles(t *testing.T) {
 		`<option value="dark">Dark</option>`,
 		`<!-- tailor:navigation:start -->`,
 		`<!-- tailor:navigation:end -->`,
+		`<span class="colophon-sep" aria-hidden="true">·</span>`,
+		`<a class="tailor-colophon" href="https://tailor.wimpys.world" target="_blank" rel="noopener noreferrer">`,
+		`<svg class="tailor-colophon-shears" width="14" height="14" viewBox="0 0 40 40" aria-hidden="true">`,
+		`<span>Fitted by Tailor</span>`,
 	} {
 		if !strings.Contains(index, want) {
 			t.Fatalf("starter index is missing %q", want)
@@ -179,6 +183,9 @@ func TestPagesStarterCustomStyles(t *testing.T) {
 		".terminal-command {\n  color: var(--mu-primary);\n  font-weight: 600;",
 		".steps li > code,\n.steps .step-badge {",
 		".install-options details > summary:focus-visible {\n  outline: 3px solid var(--mu-primary);\n  outline-offset: -3px;",
+		".tailor-colophon {\n  display: inline-flex;\n  align-items: center;\n  gap: 0.35rem;",
+		"@keyframes tailor-colophon-snip {",
+		"@media (prefers-reduced-motion: reduce) {",
 		"@media (max-width: 760px) {\n  .site-header {\n    flex-wrap: wrap;\n    justify-content: space-between;\n  }\n  .site-header nav {\n    order: 3;\n    width: 100%;\n    margin: 0;\n  }\n  .site-header nav ul {\n    width: 100%;\n    justify-content: flex-start;\n    row-gap: 0.25rem;\n  }\n  .site-hero,\n  .features,\n  .install {\n    grid-template-columns: 1fr;\n    gap: 2.25rem;",
 	} {
 		if !strings.Contains(style, want) {

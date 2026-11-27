@@ -123,8 +123,8 @@ func renderStatsVariant(in StatsInput, p Palette) string {
 
 	b.WriteString(`<style>`)
 	fmt.Fprintf(&b, `.s-label{font-family:%s;font-size:10.5px;font-weight:600;fill:%s;letter-spacing:0.08em}`, fontSans, p.MutedColor)
-	fmt.Fprintf(&b, `.s-val-sans{font-family:%s;font-weight:700;fill:%s}`, fontSans, p.HeadingColor)
-	fmt.Fprintf(&b, `.s-val-mono{font-family:%s;font-weight:700;fill:%s}`, fontMono, p.HeadingColor)
+	fmt.Fprintf(&b, `.s-val-sans{font-family:%s;font-size:14px;font-weight:700;fill:%s}`, fontSans, p.HeadingColor)
+	fmt.Fprintf(&b, `.s-val-mono{font-family:%s;font-size:14px;font-weight:700;fill:%s}`, fontMono, p.HeadingColor)
 	b.WriteString(`@keyframes stat-pulse{0%,100%{opacity:0.45;transform:scale(0.92)}50%{opacity:1;transform:scale(1.15)}}`)
 	b.WriteString(`.s-dot{transform-box:fill-box;transform-origin:center;animation:stat-pulse 3.4s ease-in-out infinite}`)
 	b.WriteString(`.d0{animation-delay:0s}.d1{animation-delay:0.7s}.d2{animation-delay:1.4s}.d3{animation-delay:2.1s}`)
@@ -153,47 +153,18 @@ func renderStatsVariant(in StatsInput, p Palette) string {
 		if wrapped := WrapText(val, 28, 1); len(wrapped) > 0 {
 			val = wrapped[0]
 		}
-		fontSize := statValueFontSize(val, col.mono)
 		cls := "s-val-sans"
 		if col.mono {
 			cls = "s-val-mono"
 		}
-		fmt.Fprintf(&b, `<text x="%d" y="67" text-anchor="middle" font-size="%d" class="%s">%s</text>`,
-			centerX, fontSize, cls, XMLEscape(val))
+		fmt.Fprintf(&b, `<text x="%d" y="67" text-anchor="middle" class="%s">%s</text>`,
+			centerX, cls, XMLEscape(val))
 	}
 
 	b.WriteString(`</g>`)
 	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="97" rx="12" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
 	b.WriteString(`</svg>`)
 	return b.String()
-}
-
-func statValueFontSize(val string, mono bool) int {
-	n := utf8.RuneCountInString(val)
-	if mono {
-		switch {
-		case n > 10:
-			return 16
-		case n > 7:
-			return 19
-		default:
-			return 22
-		}
-	}
-	switch {
-	case n > 23:
-		return 12
-	case n > 19:
-		return 13
-	case n > 14:
-		return 14
-	case n > 10:
-		return 17
-	case n > 8:
-		return 19
-	default:
-		return 21
-	}
 }
 
 // RenderStarHistory renders the 840x280 animated star-history chart in dark and

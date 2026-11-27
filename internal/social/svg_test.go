@@ -579,10 +579,20 @@ func TestRenderStats(t *testing.T) {
 	for _, want := range []string{
 		"COMMITS", "ISSUES", "PULL REQUESTS", "ESTABLISHED",
 		"750", "2 open · 41 closed", "180 merged · 0 open", "Mar 2026",
+		"font-size:14px;font-weight:700",
 	} {
 		if !strings.Contains(pair.Dark, want) {
 			t.Errorf("dark stats SVG missing %q", want)
 		}
+	}
+	if strings.Count(pair.Dark, "font-size:14px;font-weight:700") != 2 {
+		t.Errorf("expected both .s-val-sans and .s-val-mono to declare uniform 14px bold font size")
+	}
+	if strings.Contains(pair.Dark, `font-size="`) {
+		t.Error("stats SVG value text must not override uniform font-size via per-element attribute")
+	}
+	if strings.Count(pair.Dark, `y="67" text-anchor="middle"`) != 4 {
+		t.Errorf("expected all 4 metric values to share the identical y=67 baseline")
 	}
 	if strings.Count(pair.Dark, `<line x1="`) != 3 {
 		t.Errorf("expected 3 column dividers for 4-column health strip, got %d", strings.Count(pair.Dark, `<line x1="`))
