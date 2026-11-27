@@ -35,6 +35,7 @@ type CLI struct {
 	Baste      BasteCmd         `cmd:"" help:"Preview what alter would do without making any changes."`
 	Measure    MeasureCmd       `cmd:"" help:"Assess project health files and configuration alignment."`
 	Docket     DocketCmd        `cmd:"" help:"Display GitHub authentication state and repository context."`
+	Social     SocialCmd        `cmd:"" help:"Generate themed social SVG assets and update README markers."`
 }
 
 // FitCmd writes a default .tailor.yml in a new or existing project directory.
@@ -504,6 +505,9 @@ func run(args []string, stdout, stderr io.Writer) (code int) {
 	cli.Docket.stdout = stdout
 	cli.Docket.stderr = stderr
 	cli.Docket.output = policy
+	cli.Social.stdout = stdout
+	cli.Social.stderr = stderr
+	cli.Social.output = policy
 
 	err = ctx.Run()
 	ctx.FatalIfErrorf(err)
