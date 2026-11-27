@@ -114,9 +114,12 @@ Social assets are opt-in and follow Tailor's three-state lifecycle (`enabled: tr
 social:
   enabled: true
   theme: dark
+  # accent: "#F2C96B"        # optional hex override when no pages/style.css exists
+  # background: "#1A1410"    # optional hex override when no pages/style.css exists
+  # platforms: "Linux · macOS · Windows"
   og:
     output: pages/og.png
-    include_preview: false   # default, set true with og.image or up to 8 og.terminal lines
+    include_preview: false   # default: split borderless icon card; true: framed og.image, pages/demo-still.png, or up to 8 og.terminal lines
   readme:
     header: true
     preferred_links: []      # up to 4 unique keys from pages.links
@@ -133,7 +136,7 @@ social:
     schedule: "0 4 * * *"
 ```
 
-Tailor inherits the project title from the repository name, the tagline from `repository.description` (trailing emoji removed), and the icon from `pages/icon.svg` or `pages/icon.png`.
+`social:` works with or without `pages.enabled: true`. Repositories without `pages/style.css` fall back to µCSS defaults and can set optional `accent`, `background`, and `platforms` values. Tailor inherits the display title from the repository name using the Haberdasher and Vitrine rule (splitting on `-` and capitalising segments when every segment has more than 2 characters, preserving names such as `ia-get` and `WonKey`), the tagline from `repository.description` (trailing emoji removed), and the icon from `pages/icon.svg` or `pages/icon.png`. `.tailor.yml` has no `title`, `tagline`, or `icon` override keys.
 
 ### Hybrid storage model
 
@@ -142,11 +145,13 @@ Tailor inherits the project title from the repository name, the tagline from `re
 
 ### Generate static assets locally
 
-1. Run `tailor baste`, get approval, then run `tailor alter` to create `nix/og.nix`, `just/og.just`, and `.github/workflows/tailor-social.yml`. Add `nix/og.nix` to Git so the Nix flake sees it.
+1. Run `tailor baste`, get approval, then run `tailor alter` to create `nix/og.nix`, `just/og.just`, and `.github/workflows/tailor-social.yml`. Add `nix/og.nix` to Git so the Nix flake sees it. `tailor alter` and `tailor alter --recut` never overwrite `pages/og.png`.
 2. Add the desired `<!-- tailor:social-<name>:start -->` / `<!-- tailor:social-<name>:end -->` markers to `README.md`.
 3. Run `tailor social --static --update-readme` to render `pages/social/*.svg` and populate the static README blocks. Add `--dry-run` to preview. `--static` is the default when `--live` is omitted.
-4. Run `just og` to render `pages/og.png` (`1280 x 640`, `< 1 MB`). `just og` refuses to overwrite existing artwork. Pass `just og --force` to regenerate. `tailor measure` validates `og.png` dimensions and file size.
-5. Remind the user to upload `pages/og.png` manually in GitHub under **Settings > General > Social preview**.
+4. Run `just og` to render `pages/og.png` (`1280 x 640`, `< 1 MB`). `just og` refuses to overwrite existing artwork; pass `just og --force` to regenerate. `tailor measure` accepts both `1280 x 640` and bespoke `1200 x 630` PNGs under 1 MB.
+5. Update existing `pages/index.html` landing pages manually: new static Pages starters include Open Graph and Twitter Card tags automatically, but existing `first-fit` `pages/index.html` files stay untouched. Set `og:image` to `https://<domain>/og.png` (from `pages.cname` or `https://<owner>.github.io/<repo>/og.png`), `og:image:width="1280"`, `og:image:height="640"`, `og:image:alt`, and `twitter:card="summary_large_image"` (replacing older `icon.png` or `summary` tags).
+6. Remind the user to upload `pages/og.png` manually in GitHub under **Settings > General > Social preview**.
+7. Commit and push the generated assets, `README.md`, and `.github/workflows/tailor-social.yml`. When using live README markers (`stats`, `stars`, `sponsors`), tell the user they can trigger **Actions > Tailor Social > Run workflow** once to create the orphan `social-assets` branch and populate the commit-pinned live URLs immediately instead of waiting for the daily schedule.
 
 ### Canonical `README.md` header and marker blocks
 
@@ -165,7 +170,7 @@ When `social.enabled: true`, replace the legacy `<h1 align="center">` + `256x256
 
 Supported marker names in canonical order: `header`, `links`, `community`, `packages`, `stats`, `stars`, `sponsors`. Place `packages` in the Install section and `stats`, `stars`, and `sponsors` where appropriate in `README.md`.
 
-- Tailor writes centered theme-aware `<picture><source media="(prefers-color-scheme: dark)" srcset="..."><img src="..." alt="..."></picture>` markup (wrapped in `<a href="...">` when linked) between each pair, including the animated SVG hero in `header`.
+- Tailor writes centred theme-aware `<picture><source media="(prefers-color-scheme: dark)" srcset="..."><img src="..." alt="..."></picture>` markup (wrapped in `<a href="...">` when linked) between each pair, including the animated SVG hero in `header`.
 - Each opening and closing marker must sit alone on its own line, appear at most once per section, and never overlap another marker block.
 - Tailor skips absent markers and leaves all surrounding prose untouched.
 
