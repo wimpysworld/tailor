@@ -33,10 +33,11 @@ type StarPoint struct {
 // StarHistoryInput configures the animated star-history chart rendered by
 // RenderStarHistory.
 type StarHistoryInput struct {
-	Points   []StarPoint
-	MinStars int
-	MinDays  int
-	Title    string
+	Points       []StarPoint
+	MinStars     int
+	MinDays      int
+	Title        string
+	ProjectTitle string
 }
 
 // SponsorsInput configures the dynamic-height sponsors banner rendered by
@@ -157,11 +158,15 @@ func statValueFontSize(val string) int {
 }
 
 // RenderStarHistory renders the 840x280 animated star-history chart in dark and
-// light variants. It returns (SVGPair{}, false, nil) when the data is empty or
-// falls below MinStars or MinDays.
+// light variants. When the data is empty or falls below MinStars or MinDays, it
+// renders an 840x108 themed "Star on GitHub" call-to-action banner instead and
+// still returns ok=true.
 func RenderStarHistory(in StarHistoryInput, theme Theme) (SVGPair, bool, error) {
+	darkP := normalizePalette(theme.Dark, defaultDarkPalette)
+	lightP := normalizePalette(theme.Light, defaultLightPalette)
+
 	if len(in.Points) == 0 {
-		return SVGPair{}, false, nil
+		return renderStarCTAPair(in.ProjectTitle, darkP, lightP), true, nil
 	}
 
 	pts := slices.Clone(in.Points)
@@ -178,11 +183,8 @@ func RenderStarHistory(in StarHistoryInput, theme Theme) (SVGPair, bool, error) 
 	}
 	spanDays := int(pts[len(pts)-1].Date.Sub(pts[0].Date).Hours() / 24)
 
-	if in.MinStars > 0 && latestStars < in.MinStars {
-		return SVGPair{}, false, nil
-	}
-	if in.MinDays > 0 && spanDays < in.MinDays {
-		return SVGPair{}, false, nil
+	if (in.MinStars > 0 && latestStars < in.MinStars) || (in.MinDays > 0 && spanDays < in.MinDays) {
+		return renderStarCTAPair(in.ProjectTitle, darkP, lightP), true, nil
 	}
 
 	title := strings.TrimSpace(in.Title)
@@ -190,13 +192,96 @@ func RenderStarHistory(in StarHistoryInput, theme Theme) (SVGPair, bool, error) 
 		title = "Star History"
 	}
 
-	darkP := normalizePalette(theme.Dark, defaultDarkPalette)
-	lightP := normalizePalette(theme.Light, defaultLightPalette)
-
 	return SVGPair{
 		Dark:  renderStarHistoryVariant(pts, maxStars, latestStars, title, darkP, true),
 		Light: renderStarHistoryVariant(pts, maxStars, latestStars, title, lightP, false),
 	}, true, nil
+}
+
+func renderStarCTAPair(projectTitle string, darkP, lightP Palette) SVGPair {
+	proj := strings.TrimSpace(projectTitle)
+	title := "Star this repository on GitHub"
+	if proj != "" {
+		title = "Star " + proj + " on GitHub"
+	}
+	if wrapped := WrapText(title, 52, 1); len(wrapped) > 0 {
+		title = wrapped[0]
+	}
+	const subtitle = "Follow new releases and help others discover the project"
+
+	return SVGPair{
+		Dark:  renderStarCTAVariant(title, subtitle, darkP, true),
+		Light: renderStarCTAVariant(title, subtitle, lightP, false),
+	}
+}
+
+func renderStarCTAVariant(title, subtitle string, p Palette, dark bool) string {
+	const (
+		width  = 840
+		height = 108
+	)
+
+	ctaBg := p.PrimaryBackground
+	if ctaBg == "" {
+		ctaBg = p.Primary
+	}
+	ctaFg := contrastOnFill(ctaBg)
+
+	starOp := "0.10"
+	if dark {
+		starOp = "0.15"
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" aria-label="%s">`,
+		width, height, width, height, XMLEscape(title))
+	fmt.Fprintf(&b, `<title>%s</title>`, XMLEscape(title))
+	b.WriteString(`<defs>`)
+	fmt.Fprintf(&b, `<clipPath id="st-clip"><rect x="0.5" y="0.5" width="839" height="%d" rx="14"/></clipPath>`, height-1)
+	b.WriteString(`</defs>`)
+
+	b.WriteString(`<style>`)
+	fmt.Fprintf(&b, `.st-title{font-family:%s;font-size:15.5px;font-weight:700;fill:%s}`, fontSans, p.HeadingColor)
+	fmt.Fprintf(&b, `.st-sub{font-family:%s;font-size:12.5px;font-weight:400;fill:%s}`, fontSans, p.MutedColor)
+	fmt.Fprintf(&b, `.st-empty{font-family:%s;font-size:12.5px;font-weight:500;fill:%s}`, fontSans, p.MutedColor)
+	fmt.Fprintf(&b, `.st-cta{font-family:%s;font-size:11.5px;font-weight:700;fill:%s;letter-spacing:0.06em}`, fontSans, ctaFg)
+	b.WriteString(`@keyframes star-drift{0%{transform:translateY(8px) scale(0.86);opacity:0}25%{opacity:1}55%{transform:translateY(-4px) scale(1.08);opacity:0.75}80%{opacity:1}100%{transform:translateY(-14px) scale(0.92);opacity:0}}`)
+	b.WriteString(`.st-star{animation:star-drift 7.5s ease-in-out infinite}`)
+	b.WriteString(`.sd1{animation-delay:0s}.sd2{animation-delay:2.5s}.sd3{animation-delay:5s}`)
+	b.WriteString(reducedMotionCSS)
+	b.WriteString(`</style>`)
+
+	b.WriteString(`<g clip-path="url(#st-clip)">`)
+	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="%d" fill="%s"/>`, height, p.CardBackground)
+	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2.5" fill="%s" opacity="0.28"/>`, p.Primary)
+
+	// Subtle drifting and twinkling 5-point stars in Primary.
+	fmt.Fprintf(&b, `<g opacity="%s" fill="%s">`, starOp, p.Primary)
+	fmt.Fprintf(&b, `<g class="st-star sd1"><g transform="translate(560, %d) scale(0.65)"><path d="%s"/></g></g>`, height-36, starGlyphPath)
+	fmt.Fprintf(&b, `<g class="st-star sd2"><g transform="translate(625, %d) scale(0.50)"><path d="%s"/></g></g>`, height-46, starGlyphPath)
+	fmt.Fprintf(&b, `<g class="st-star sd3"><g transform="translate(675, %d) scale(0.58)"><path d="%s"/></g></g>`, height-32, starGlyphPath)
+	b.WriteString(`</g>`)
+
+	// Header star icon badge.
+	fmt.Fprintf(&b, `<rect x="24" y="18" width="34" height="34" rx="9" fill="%s" stroke="%s" stroke-width="1"/>`, p.CodeBackground, p.MutedBorder)
+	fmt.Fprintf(&b, `<g transform="translate(32, 26) scale(0.75)" fill="%s"><path d="%s"/></g>`, p.Primary, starGlyphPath)
+
+	fmt.Fprintf(&b, `<text x="68" y="32" class="st-title">%s</text>`, XMLEscape(title))
+	fmt.Fprintf(&b, `<text x="68" y="50" class="st-sub">%s</text>`, XMLEscape(subtitle))
+
+	// STAR CTA pill.
+	fmt.Fprintf(&b, `<rect x="720" y="19" width="96" height="32" rx="8" fill="%s"/>`, ctaBg)
+	fmt.Fprintf(&b, `<g transform="translate(734, 28) scale(0.583333)" fill="%s"><path d="%s"/></g>`, ctaFg, starGlyphPath)
+	fmt.Fprintf(&b, `<text x="778" y="39" text-anchor="middle" class="st-cta">STAR</text>`)
+
+	fmt.Fprintf(&b, `<rect x="24" y="68" width="792" height="26" rx="8" fill="%s" stroke="%s" stroke-width="1" stroke-dasharray="4 3"/>`,
+		p.CodeBackground, p.MutedBorder)
+	b.WriteString(`<text x="420" y="85" text-anchor="middle" class="st-empty">Starring helps keep the project active and easy to find on GitHub</text>`)
+
+	b.WriteString(`</g>`)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="%d" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, height-1, p.MutedBorder)
+	b.WriteString(`</svg>`)
+	return b.String()
 }
 
 type chartXY struct {

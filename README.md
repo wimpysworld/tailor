@@ -14,11 +14,14 @@
 
 <!-- tailor:social-community:start -->
 <p align="center">
-  <a href="https://discord.com/invite/vUsydfP"><picture><source media="(prefers-color-scheme: dark)" srcset="pages/social/community-dark.svg"><img src="pages/social/community-light.svg" alt="Discord community"></picture></a>
+  <a href="https://discord.com/invite/vUsydfP"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/community-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/community-light.svg" alt="Discord community"></picture></a>
 </p>
 <!-- tailor:social-community:end -->
 
 <!-- tailor:social-stats:start -->
+<p align="center">
+  <a href="https://github.com/wimpysworld/tailor"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/stats-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/stats-light.svg" alt="Tailor statistics"></picture></a>
+</p>
 <!-- tailor:social-stats:end -->
 
 Tailor is a local terminal CLI that keeps GitHub repositories consistent with community health files, security policies, dev tooling, and repository settings.
@@ -40,6 +43,8 @@ Use it for solo projects or small teams that manage several repositories. Its em
 
 ## Install
 
+First-party signed package repositories are published for Linux, macOS, and Windows through [wimpys.world](https://wimpys.world/). Choose your platform below for setup instructions and automatic updates.
+
 <!-- tailor:social-packages:start -->
 <p align="center">
   <a href="https://apt.wimpys.world/#tailor"><picture><source media="(prefers-color-scheme: dark)" srcset="pages/social/pkg-apt-dark.svg"><img src="pages/social/pkg-apt-light.svg" alt="Debian and Ubuntu"></picture></a>
@@ -52,9 +57,8 @@ Use it for solo projects or small teams that manage several repositories. Its em
 </p>
 <!-- tailor:social-packages:end -->
 
-Each repository is signed, and its page gives the setup steps and keeps Tailor up to date.
-
-### Any platform
+<details>
+<summary><strong>Any platform (<code>bin</code>)</strong> - install and update the release binary directly</summary>
 
 [bin](https://github.com/marcosnils/bin) installs and updates the release binary:
 
@@ -62,7 +66,10 @@ Each repository is signed, and its page gives the setup steps and keeps Tailor u
 bin install github.com/wimpysworld/tailor
 ```
 
-### Container
+</details>
+
+<details>
+<summary><strong>Container (GHCR)</strong> - run <code>ghcr.io/wimpysworld/tailor</code> on <code>linux/amd64</code> and <code>linux/arm64</code></summary>
 
 Images are published to GHCR for `linux/amd64` and `linux/arm64`. Mount your project directory and pass a GitHub token:
 
@@ -75,6 +82,8 @@ docker run --rm \
 ```
 
 The `--user` option uses your host identity for Git ownership checks and writes to the mounted checkout.
+
+</details>
 
 ### Authentication
 
@@ -157,7 +166,13 @@ Read the [wiki](https://github.com/wimpysworld/tailor/wiki) for detailed guides 
 Read [Support](SUPPORT.md) for help and [Contributing](CONTRIBUTING.md) before submitting a change. The [specification](docs/SPECIFICATION.md) defines Tailor's behaviour.
 
 <!-- tailor:social-stars:start -->
+<p align="center">
+  <a href="https://github.com/wimpysworld/tailor/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/stars-light.svg" alt="Tailor star history"></picture></a>
+</p>
 <!-- tailor:social-stars:end -->
 
 <!-- tailor:social-sponsors:start -->
+<p align="center">
+  <a href="https://github.com/sponsors/flexiondotorg"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/sponsors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/dbb6f433ac91da5e7b40eb022fb095f60fe9662e/sponsors-light.svg" alt="Tailor sponsors"></picture></a>
+</p>
 <!-- tailor:social-sponsors:end -->

@@ -204,6 +204,8 @@ func TestGenerateStaticOfflineAndIdempotent(t *testing.T) {
 		"pages/social/pkg-apt-light.svg",
 		"pages/social/pkg-nix-dark.svg",
 		"pages/social/pkg-nix-light.svg",
+		"pages/social/sponsors-dark.svg",
+		"pages/social/sponsors-light.svg",
 	}
 	for _, p := range wantCreated {
 		if got[p] != StatusCreated {
@@ -237,12 +239,14 @@ func TestGenerateStaticOfflineAndIdempotent(t *testing.T) {
 		t.Error("hero-dark.svg did not strip trailing emoji from tagline")
 	}
 
-	// Verify README updated static markers and left existing stats marker untouched.
+	// Verify README updated static markers (including static sponsors CTA) and left existing stats marker untouched.
 	readmeBytes, _ := os.ReadFile(filepath.Join(dir, "README.md"))
 	readme := string(readmeBytes)
 	if !strings.Contains(readme, `srcset="pages/social/hero-dark.svg"`) ||
 		!strings.Contains(readme, `srcset="pages/social/link-mastodon-dark.svg"`) ||
-		!strings.Contains(readme, `srcset="pages/social/pkg-apt-dark.svg"`) {
+		!strings.Contains(readme, `srcset="pages/social/pkg-apt-dark.svg"`) ||
+		!strings.Contains(readme, `srcset="pages/social/sponsors-dark.svg"`) ||
+		!strings.Contains(readme, `href="https://github.com/sponsors/flexiondotorg"`) {
 		t.Errorf("README missing expected static marker blocks:\n%s", readme)
 	}
 	if !strings.Contains(readme, "existing stats block") {
@@ -409,20 +413,27 @@ func TestGenerateLiveThresholdsAndSkips(t *testing.T) {
 	}
 
 	got := statusMap(res)
-	if got[filepath.Join(outDir, "stars-dark.svg")] != StatusSkipped {
-		t.Errorf("stars-dark.svg status = %q, want skipped", got[filepath.Join(outDir, "stars-dark.svg")])
+	if got[filepath.Join(outDir, "stars-dark.svg")] != StatusCreated {
+		t.Errorf("stars-dark.svg status = %q, want created (Star CTA fallback)", got[filepath.Join(outDir, "stars-dark.svg")])
 	}
 	if got[filepath.Join(outDir, "sponsors-dark.svg")] != StatusSkipped {
 		t.Errorf("sponsors-dark.svg status = %q, want skipped", got[filepath.Join(outDir, "sponsors-dark.svg")])
 	}
-	if _, err := os.Stat(filepath.Join(outDir, "stars-dark.svg")); !os.IsNotExist(err) {
-		t.Error("stars-dark.svg must not be created when below threshold")
+	starsData, err := os.ReadFile(filepath.Join(outDir, "stars-dark.svg"))
+	if err != nil {
+		t.Fatalf("ReadFile(stars-dark.svg): %v", err)
+	}
+	assertValidGitHubSVG(t, "stars-cta-dark", string(starsData))
+	assertSVGDimensions(t, "stars-cta-dark", string(starsData), 840, 108)
+	if !strings.Contains(string(starsData), "Star Tailor on GitHub") || !strings.Contains(string(starsData), "STAR") {
+		t.Errorf("stars-dark.svg missing Star CTA copy:\n%s", string(starsData))
 	}
 
-	// Stale stars marker in README should be cleared cleanly.
+	// Stars marker in README should now point to the commit-pinned Star CTA SVG.
 	readmeBytes, _ := os.ReadFile(filepath.Join(dir, "README.md"))
-	if strings.Contains(string(readmeBytes), "stale stars") {
-		t.Errorf("expected stale stars marker to be cleared:\n%s", string(readmeBytes))
+	wantURL := "https://raw.githubusercontent.com/wimpysworld/tailor/abcdef1/stars-dark.svg"
+	if !strings.Contains(string(readmeBytes), wantURL) {
+		t.Errorf("expected stars marker to contain %q:\n%s", wantURL, string(readmeBytes))
 	}
 }
 

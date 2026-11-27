@@ -181,7 +181,7 @@ func Generate(ctx context.Context, opts GenerateOptions) (result GenerateResult,
 	if runLive {
 		var err error
 		starsGenerated, sponsorsGenerated, liveCommunityGenerated, err = generateLiveAssets(
-			ctx, target, cfg, theme, comm, commIsLive, owner, repo, opts.Fetcher, opts.DryRun, &result,
+			ctx, target, cfg, theme, assets.Title, comm, commIsLive, owner, repo, opts.Fetcher, opts.DryRun, &result,
 		)
 		if err != nil {
 			return result, err
@@ -285,7 +285,30 @@ func generateStaticAssets(
 		}
 	}
 
+	// Write static sponsors CTA banner when sponsors is enabled and not also running live.
+	if !runLive && staticSponsorsEnabled(cfg) {
+		pair, err := RenderSponsors(SponsorsInput{}, theme)
+		if err != nil {
+			return fmt.Errorf("rendering static sponsors SVG: %w", err)
+		}
+		if err := writeSVGPair(target, "sponsors", pair, dryRun, result); err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+func staticSponsorsEnabled(cfg *config.Config) bool {
+	switch cfg.EffectiveSocialSponsors() {
+	case "true":
+		return true
+	case "auto":
+		return cfg != nil && cfg.Pages != nil && cfg.Pages.Links != nil &&
+			strings.TrimSpace((*cfg.Pages.Links)["github_sponsors"]) != ""
+	default:
+		return false
+	}
 }
 
 func generateLiveAssets(
@@ -293,6 +316,7 @@ func generateLiveAssets(
 	target *outputTarget,
 	cfg *config.Config,
 	theme Theme,
+	projectTitle string,
 	comm *ReadmeCommunityEntry,
 	commIsLive bool,
 	owner, repo string,
@@ -320,10 +344,11 @@ func generateLiveAssets(
 			return false, false, false, err
 		}
 		pair, ok, err := RenderStarHistory(StarHistoryInput{
-			Points:   points,
-			MinStars: cfg.EffectiveSocialStarHistoryMinStars(),
-			MinDays:  cfg.EffectiveSocialStarHistoryMinDays(),
-			Title:    "Star History",
+			Points:       points,
+			MinStars:     cfg.EffectiveSocialStarHistoryMinStars(),
+			MinDays:      cfg.EffectiveSocialStarHistoryMinDays(),
+			Title:        "Star History",
+			ProjectTitle: projectTitle,
 		}, theme)
 		if err != nil {
 			return false, false, false, fmt.Errorf("rendering star history SVG: %w", err)
@@ -423,11 +448,15 @@ func updateProjectReadme(
 		return nil
 	}
 
+	liveSHA := ""
+	if runLive {
+		liveSHA = sha
+	}
 	blocksIn := ReadmeBlocksInput{
 		StaticDir:    staticRelDir,
 		Owner:        owner,
 		Repo:         repo,
-		LiveSHA:      sha,
+		LiveSHA:      liveSHA,
 		ProjectTitle: assets.Title,
 	}
 
@@ -450,6 +479,9 @@ func updateProjectReadme(
 		blocksIn.Stats = cfg.EffectiveSocialReadmeStats()
 		blocksIn.StarHistory = starsGenerated
 		blocksIn.Sponsors = sponsorsGenerated
+		blocksIn.SponsorsURL = resolveSponsorsURL(cfg, owner)
+	} else if runStatic && staticSponsorsEnabled(cfg) {
+		blocksIn.Sponsors = true
 		blocksIn.SponsorsURL = resolveSponsorsURL(cfg, owner)
 	}
 

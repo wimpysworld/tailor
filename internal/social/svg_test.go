@@ -558,31 +558,35 @@ func TestRenderStarHistory(t *testing.T) {
 	theme := iaGetTheme()
 	base := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 
-	t.Run("gating thresholds", func(t *testing.T) {
+	t.Run("gating thresholds fall back to 840x108 Star CTA banner", func(t *testing.T) {
 		cases := []struct {
-			name   string
-			in     StarHistoryInput
-			wantOK bool
+			name      string
+			in        StarHistoryInput
+			wantChart bool
+			wantTitle string
 		}{
 			{
-				name:   "empty points gated",
-				in:     StarHistoryInput{MinStars: 25, MinDays: 30},
-				wantOK: false,
+				name:      "empty points renders Star CTA",
+				in:        StarHistoryInput{MinStars: 25, MinDays: 30, ProjectTitle: "Tailor"},
+				wantChart: false,
+				wantTitle: "Star Tailor on GitHub",
 			},
 			{
-				name: "below min_stars gated",
+				name: "below min_stars renders Star CTA",
 				in: StarHistoryInput{
 					Points: []StarPoint{
 						{Date: base, Stars: 1},
 						{Date: base.AddDate(0, 3, 0), Stars: 24},
 					},
-					MinStars: 25,
-					MinDays:  30,
+					MinStars:     25,
+					MinDays:      30,
+					ProjectTitle: "Tailor",
 				},
-				wantOK: false,
+				wantChart: false,
+				wantTitle: "Star Tailor on GitHub",
 			},
 			{
-				name: "below min_days gated",
+				name: "below min_days renders Star CTA with generic title when ProjectTitle empty",
 				in: StarHistoryInput{
 					Points: []StarPoint{
 						{Date: base, Stars: 10},
@@ -591,10 +595,11 @@ func TestRenderStarHistory(t *testing.T) {
 					MinStars: 25,
 					MinDays:  30,
 				},
-				wantOK: false,
+				wantChart: false,
+				wantTitle: "Star this repository on GitHub",
 			},
 			{
-				name: "meets exact min_stars and min_days",
+				name: "meets exact min_stars and min_days renders chart",
 				in: StarHistoryInput{
 					Points: []StarPoint{
 						{Date: base, Stars: 1},
@@ -603,16 +608,16 @@ func TestRenderStarHistory(t *testing.T) {
 					MinStars: 25,
 					MinDays:  30,
 				},
-				wantOK: true,
+				wantChart: true,
 			},
 			{
-				name: "single point allowed when min_days is 0",
+				name: "single point allowed when min_days is 0 renders chart",
 				in: StarHistoryInput{
 					Points:   []StarPoint{{Date: base, Stars: 30}},
 					MinStars: 25,
 					MinDays:  0,
 				},
-				wantOK: true,
+				wantChart: true,
 			},
 		}
 
@@ -622,19 +627,26 @@ func TestRenderStarHistory(t *testing.T) {
 				if err != nil {
 					t.Fatalf("RenderStarHistory() error = %v", err)
 				}
-				if ok != tc.wantOK {
-					t.Fatalf("RenderStarHistory() ok = %v, want %v", ok, tc.wantOK)
-				}
 				if !ok {
-					if pair.Dark != "" || pair.Light != "" {
-						t.Error("expected empty SVGPair when gated")
-					}
-					return
+					t.Fatalf("RenderStarHistory() ok = false, want true")
 				}
 				assertValidGitHubSVG(t, tc.name+"-dark", pair.Dark)
 				assertValidGitHubSVG(t, tc.name+"-light", pair.Light)
-				assertSVGDimensions(t, tc.name+"-dark", pair.Dark, 840, 280)
-				assertSVGDimensions(t, tc.name+"-light", pair.Light, 840, 280)
+				if tc.wantChart {
+					assertSVGDimensions(t, tc.name+"-dark", pair.Dark, 840, 280)
+					assertSVGDimensions(t, tc.name+"-light", pair.Light, 840, 280)
+					return
+				}
+				assertSVGDimensions(t, tc.name+"-dark", pair.Dark, 840, 108)
+				assertSVGDimensions(t, tc.name+"-light", pair.Light, 840, 108)
+				for _, want := range []string{tc.wantTitle, "STAR", "star-drift", theme.Dark.Primary} {
+					if !strings.Contains(pair.Dark, want) {
+						t.Errorf("dark Star CTA missing %q", want)
+					}
+				}
+				if !strings.Contains(pair.Light, theme.Light.Primary) {
+					t.Errorf("light Star CTA missing Light.Primary %s", theme.Light.Primary)
+				}
 			})
 		}
 	})
@@ -725,6 +737,70 @@ func TestRenderSponsors(t *testing.T) {
 			t.Error("sponsors SVG did not reflect dark/light theme Primary colours")
 		}
 	})
+}
+
+func TestGlintTimingCalmAndStaggered(t *testing.T) {
+	theme := iaGetTheme()
+
+	checkGroup := func(t *testing.T, groupName string, keys []string) {
+		t.Helper()
+		type pairKey struct {
+			dur   float64
+			delay float64
+		}
+		seen := make(map[pairKey]string, len(keys))
+		for _, k := range keys {
+			dur, delay := glintTiming(k)
+			if dur < 16.0 || dur > 24.0 {
+				t.Errorf("%s[%q]: duration = %.1fs, want within [16, 24]", groupName, k, dur)
+			}
+			if delay >= 0 || -delay > dur {
+				t.Errorf("%s[%q]: delay = %.1fs, want negative within cycle %.1fs", groupName, k, delay, dur)
+			}
+			// Deterministic check.
+			dur2, delay2 := glintTiming(k)
+			if dur != dur2 || delay != delay2 {
+				t.Errorf("%s[%q]: glintTiming is non-deterministic", groupName, k)
+			}
+			pk := pairKey{dur: dur, delay: delay}
+			if prev, dup := seen[pk]; dup {
+				t.Errorf("%s: keys %q and %q share identical glint timing (%.1fs, %.1fs)", groupName, prev, k, dur, delay)
+			}
+			seen[pk] = k
+		}
+	}
+
+	checkGroup(t, "links", []string{"bluesky", "mastodon", "linkedin"})
+	checkGroup(t, "packages", []string{"apt", "rpm", "pkg", "apk", "brew", "scoop", "nix"})
+
+	// Verify calm resting keyframes (14%,100% invisible rest) appear across hero, pill, community, and package cards.
+	hero, err := RenderHero(HeroInput{Assets: ProjectAssets{Title: "Tailor"}}, theme)
+	if err != nil {
+		t.Fatalf("RenderHero() error = %v", err)
+	}
+	pill, err := RenderLinkPill(LinkPillInput{Key: "bluesky"}, theme)
+	if err != nil {
+		t.Fatalf("RenderLinkPill() error = %v", err)
+	}
+	comm, err := RenderCommunityBanner(CommunityBannerInput{Platform: "discord"}, theme)
+	if err != nil {
+		t.Fatalf("RenderCommunityBanner() error = %v", err)
+	}
+	pkg, err := RenderPackageCard("apt", theme)
+	if err != nil {
+		t.Fatalf("RenderPackageCard() error = %v", err)
+	}
+
+	for name, svg := range map[string]string{
+		"hero":      hero.Dark,
+		"pill":      pill.Dark,
+		"community": comm.Dark,
+		"package":   pkg.Dark,
+	} {
+		if !strings.Contains(svg, "14%,100%") {
+			t.Errorf("%s SVG missing calm 14%%,100%% rest keyframe", name)
+		}
+	}
 }
 
 func TestRenderHeroRejectsMalformedInlineSVG(t *testing.T) {

@@ -1,6 +1,8 @@
 package social
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"math"
 	"strings"
@@ -11,6 +13,26 @@ const (
 	fontMono         = "'Fira Code', ui-monospace, SFMono-Regular, Menlo, monospace"
 	reducedMotionCSS = "@media (prefers-reduced-motion: reduce) { * { animation: none !important; } }"
 )
+
+var glintDurations = [...]float64{
+	16.3, 17.3, 18.1, 18.7, 19.3, 19.9, 20.9, 21.1, 22.3, 22.7, 23.3, 23.9,
+}
+
+// glintTiming returns a deterministic calm cycle duration (16s-24s) and
+// negative animation-delay offset for key so neighbouring tiles do not flash
+// in lockstep.
+func glintTiming(key string) (durationSec, delaySec float64) {
+	sum := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(key))))
+	durIdx := binary.BigEndian.Uint64(sum[0:8]) % uint64(len(glintDurations))
+	durationSec = glintDurations[durIdx]
+
+	frac := float64(binary.BigEndian.Uint64(sum[8:16])%1000) / 1000.0
+	delay := math.Round(frac*durationSec*10) / 10
+	if delay < 0.3 {
+		delay = 0.3
+	}
+	return durationSec, -delay
+}
 
 // SVGPair holds dark and light theme variants of a rendered SVG tile.
 type SVGPair struct {
@@ -141,10 +163,11 @@ func renderHeroVariant(assets ProjectAssets, iconMarkup string, isRaster bool, p
 	fmt.Fprintf(&b, `.h-title{font-family:%s;font-size:30px;font-weight:700;fill:%s;letter-spacing:-0.02em}`, fontSans, p.HeadingColor)
 	fmt.Fprintf(&b, `.h-tag{font-family:%s;font-size:15.5px;font-weight:400;fill:%s}`, fontSans, p.Color)
 	fmt.Fprintf(&b, `.h-foot{font-family:%s;font-size:12.5px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
+	heroDur, heroDelay := glintTiming("hero")
 	b.WriteString(`@keyframes hero-wave{0%{transform:translateX(-18px)}100%{transform:translateX(18px)}}`)
-	b.WriteString(`@keyframes hero-glint-move{0%{transform:translateX(-260px);opacity:0}18%{opacity:1}82%{opacity:1}100%{transform:translateX(900px);opacity:0}}`)
+	b.WriteString(`@keyframes hero-glint-move{0%{transform:translateX(-260px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(900px);opacity:0}}`)
 	b.WriteString(`.wave-a{animation:hero-wave 14s ease-in-out infinite alternate}`)
-	b.WriteString(`.glint{animation:hero-glint-move 8s ease-in-out infinite}`)
+	fmt.Fprintf(&b, `.glint{animation:hero-glint-move %.1fs ease-in-out %.1fs infinite}`, heroDur, heroDelay)
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
 
@@ -207,12 +230,12 @@ func RenderLinkPill(in LinkPillInput, theme Theme) (SVGPair, error) {
 	lightP := normalizePalette(theme.Light, defaultLightPalette)
 
 	return SVGPair{
-		Dark:  renderLinkPillVariant(icon, label, darkP, true),
-		Light: renderLinkPillVariant(icon, label, lightP, false),
+		Dark:  renderLinkPillVariant(key, icon, label, darkP, true),
+		Light: renderLinkPillVariant(key, icon, label, lightP, false),
 	}, nil
 }
 
-func renderLinkPillVariant(icon IconInfo, label string, p Palette, dark bool) string {
+func renderLinkPillVariant(key string, icon IconInfo, label string, p Palette, dark bool) string {
 	const (
 		width  = 184
 		height = 44
@@ -242,8 +265,9 @@ func renderLinkPillVariant(icon IconInfo, label string, p Palette, dark bool) st
 
 	b.WriteString(`<style>`)
 	fmt.Fprintf(&b, `.p-label{font-family:%s;font-size:13.5px;font-weight:600;fill:%s}`, fontSans, p.HeadingColor)
-	b.WriteString(`@keyframes pill-sweep{0%{transform:translateX(-90px);opacity:0}20%{opacity:1}80%{opacity:1}100%{transform:translateX(210px);opacity:0}}`)
-	b.WriteString(`.p-glint{animation:pill-sweep 6.5s ease-in-out infinite}`)
+	pillDur, pillDelay := glintTiming(key)
+	b.WriteString(`@keyframes pill-sweep{0%{transform:translateX(-90px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(210px);opacity:0}}`)
+	fmt.Fprintf(&b, `.p-glint{animation:pill-sweep %.1fs ease-in-out %.1fs infinite}`, pillDur, pillDelay)
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
 
@@ -294,8 +318,8 @@ func RenderCommunityBanner(in CommunityBannerInput, theme Theme) (SVGPair, error
 	lightP := normalizePalette(theme.Light, defaultLightPalette)
 
 	return SVGPair{
-		Dark:  renderCommunityVariant(icon, title, subtitle, liveText, cta, darkP),
-		Light: renderCommunityVariant(icon, title, subtitle, liveText, cta, lightP),
+		Dark:  renderCommunityVariant(platform, icon, title, subtitle, liveText, cta, darkP),
+		Light: renderCommunityVariant(platform, icon, title, subtitle, liveText, cta, lightP),
 	}, nil
 }
 
@@ -353,7 +377,7 @@ func formatCommunityLiveText(platform string, online, members, discussions int) 
 	}
 }
 
-func renderCommunityVariant(icon IconInfo, title, subtitle, liveText, cta string, p Palette) string {
+func renderCommunityVariant(platform string, icon IconInfo, title, subtitle, liveText, cta string, p Palette) string {
 	const (
 		width  = 840
 		height = 68
@@ -397,8 +421,9 @@ func renderCommunityVariant(icon IconInfo, title, subtitle, liveText, cta string
 		b.WriteString(`@keyframes sonar-ring{0%{transform:scale(1);opacity:0.65}100%{transform:scale(2.4);opacity:0}}`)
 		b.WriteString(`.sonar{transform-box:fill-box;transform-origin:center;animation:sonar-ring 2.6s ease-out infinite}`)
 	} else {
-		b.WriteString(`@keyframes comm-sweep{0%{transform:translateX(-220px);opacity:0}18%{opacity:1}82%{opacity:1}100%{transform:translateX(880px);opacity:0}}`)
-		b.WriteString(`.c-glint{animation:comm-sweep 7.5s ease-in-out infinite}`)
+		commDur, commDelay := glintTiming(platform)
+		b.WriteString(`@keyframes comm-sweep{0%{transform:translateX(-220px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(880px);opacity:0}}`)
+		fmt.Fprintf(&b, `.c-glint{animation:comm-sweep %.1fs ease-in-out %.1fs infinite}`, commDur, commDelay)
 	}
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
@@ -460,12 +485,12 @@ func RenderPackageCard(host string, theme Theme) (SVGPair, error) {
 	lightP := normalizePalette(theme.Light, defaultLightPalette)
 
 	return SVGPair{
-		Dark:  renderPackageCardVariant(info, darkP, true),
-		Light: renderPackageCardVariant(info, lightP, false),
+		Dark:  renderPackageCardVariant(key, info, darkP, true),
+		Light: renderPackageCardVariant(key, info, lightP, false),
 	}, nil
 }
 
-func renderPackageCardVariant(info PackageHostInfo, p Palette, dark bool) string {
+func renderPackageCardVariant(host string, info PackageHostInfo, p Palette, dark bool) string {
 	const (
 		width  = 198
 		height = 78
@@ -490,8 +515,9 @@ func renderPackageCardVariant(info PackageHostInfo, p Palette, dark bool) string
 	b.WriteString(`<style>`)
 	fmt.Fprintf(&b, `.k-label{font-family:%s;font-size:12px;font-weight:700;fill:%s}`, fontSans, p.HeadingColor)
 	fmt.Fprintf(&b, `.k-domain{font-family:%s;font-size:10px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
-	b.WriteString(`@keyframes pkg-sweep{0%{transform:translateX(-90px);opacity:0}20%{opacity:1}80%{opacity:1}100%{transform:translateX(220px);opacity:0}}`)
-	b.WriteString(`.k-glint{animation:pkg-sweep 7s ease-in-out infinite}`)
+	pkgDur, pkgDelay := glintTiming(host)
+	b.WriteString(`@keyframes pkg-sweep{0%{transform:translateX(-90px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(220px);opacity:0}}`)
+	fmt.Fprintf(&b, `.k-glint{animation:pkg-sweep %.1fs ease-in-out %.1fs infinite}`, pkgDur, pkgDelay)
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
 
