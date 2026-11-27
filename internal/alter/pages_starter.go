@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"html"
 	"io/fs"
+	"net/url"
 	"os"
 	"path"
 	"strings"
@@ -50,9 +51,40 @@ func pagesStarterContent(cfg *config.Config, p *pagesPreparation, source string)
 		"{{PROJECT_NAME}}", html.EscapeString(name),
 		"{{DESCRIPTION}}", html.EscapeString(description),
 		"{{REPO_URL}}", html.EscapeString(p.RepoURL),
+		"{{SITE_URL}}", html.EscapeString(pagesSiteURL(cfg, p.RepoURL)),
 		"{{YEAR}}", fmt.Sprint(time.Now().Year()),
 	).Replace(string(data)))
 	return renderStaticPages(cfg, data, p.RepoURL)
+}
+
+func pagesSiteURL(cfg *config.Config, repoURL string) string {
+	if cname := pagesConfiguredCNAME(cfg); cname != "" {
+		return cname
+	}
+	parsed, err := url.Parse(strings.TrimSpace(repoURL))
+	if err != nil || parsed.Host == "" || (parsed.Scheme != "https" && parsed.Scheme != "http") {
+		return ""
+	}
+	owner, repo, hasSlash := strings.Cut(strings.Trim(parsed.Path, "/"), "/")
+	repo = strings.TrimSuffix(repo, ".git")
+	if !hasSlash || owner == "" || repo == "" || strings.Contains(repo, "/") {
+		return ""
+	}
+	return "https://" + strings.ToLower(owner) + ".github.io/" + repo + "/"
+}
+
+func pagesConfiguredCNAME(cfg *config.Config) string {
+	if cfg == nil || cfg.Pages == nil || cfg.Pages.CNAME == nil {
+		return ""
+	}
+	cname := strings.TrimRight(strings.TrimSpace(*cfg.Pages.CNAME), "/")
+	if cname == "" {
+		return ""
+	}
+	if strings.HasPrefix(cname, "https://") || strings.HasPrefix(cname, "http://") {
+		return cname + "/"
+	}
+	return "https://" + cname + "/"
 }
 
 func processPagesStarter(cfg *config.Config, dir string, mode ApplyMode, p *pagesPreparation) (results []SwatchResult, err error) {

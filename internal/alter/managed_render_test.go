@@ -75,11 +75,26 @@ func TestManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 		t.Fatalf("managed=%d, want 36", len(managed))
 	}
 
+	unwired := map[string]bool{
+		"just/og.just": true,
+		"nix/og.nix":   true,
+	}
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(name string, entry fs.DirEntry, err error) error {
 		if err != nil || entry.IsDir() {
 			return err
 		}
 		relative := strings.TrimPrefix(name, "swatches/")
+		if unwired[relative] {
+			content, readErr := swatch.Content(relative)
+			if readErr != nil {
+				t.Errorf("unwired managed template %q: %v", relative, readErr)
+				return nil
+			}
+			if !hasManagedMarker(content, relative) {
+				t.Errorf("unwired managed template %q lacks its ownership marker", relative)
+			}
+			return nil
+		}
 		if (strings.HasPrefix(relative, "just/") || strings.HasPrefix(relative, "nix/")) && !managed[relative] {
 			t.Errorf("managed source %q is not in the fixed registry", relative)
 		}
