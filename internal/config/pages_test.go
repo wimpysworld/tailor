@@ -102,8 +102,8 @@ func TestPagesMergeAndRoundTrip(t *testing.T) {
 	if _, err := MergeDefaults(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if cfg.Languages != nil || cfg.MCP != nil || cfg.Pages != nil {
-		t.Fatalf("merge inserted an absent capability section: languages=%+v mcp=%+v pages=%+v", cfg.Languages, cfg.MCP, cfg.Pages)
+	if cfg.Languages != nil || cfg.MCP != nil || cfg.Pages != nil || cfg.Social != nil {
+		t.Fatalf("merge inserted an absent capability section: languages=%+v mcp=%+v pages=%+v social=%+v", cfg.Languages, cfg.MCP, cfg.Pages, cfg.Social)
 	}
 
 	cfg = &Config{License: "MIT", Pages: &model.PagesSettings{}}

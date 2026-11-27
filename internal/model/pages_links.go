@@ -13,6 +13,7 @@ var PagesLinkTypes = []PagesLinkType{
 	{"mastodon", "Mastodon", "mastodon"},
 	{"discord", "Discord", "discord"},
 	{"matrix", "Matrix", "matrix"},
+	{"irc", "IRC", "terminal-24"},
 	{"slack", "Slack", "organization-24"},
 	{"linkedin", "LinkedIn", "briefcase-24"},
 	{"youtube", "YouTube", "youtube"},

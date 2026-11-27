@@ -191,3 +191,47 @@ func TestRulesetNames(t *testing.T) {
 		})
 	}
 }
+
+func TestSocialNames(t *testing.T) {
+	tests := []struct {
+		name string
+		got  []string
+		want []string
+	}{
+		{name: "settings", got: SocialSettingNames, want: []string{"accent", "background", "enabled", "live", "og", "platforms", "readme", "theme"}},
+		{name: "og", got: SocialOGSettingNames, want: []string{"image", "include_preview", "output", "terminal"}},
+		{name: "readme", got: SocialReadmeSettingNames, want: []string{"community", "header", "packages", "preferred_links", "sponsors", "star_history", "stats"}},
+		{name: "star_history", got: SocialStarHistorySettingNames, want: []string{"enabled", "min_days", "min_stars"}},
+		{name: "live", got: SocialLiveSettingNames, want: []string{"branch", "schedule"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if len(tt.got) != len(tt.want) {
+				t.Fatalf("names = %v, want %v", tt.got, tt.want)
+			}
+			for i := range tt.want {
+				if tt.got[i] != tt.want[i] {
+					t.Errorf("names[%d] = %q, want %q", i, tt.got[i], tt.want[i])
+				}
+			}
+		})
+	}
+}
+
+func TestPagesLinkTypesIncludesIRC(t *testing.T) {
+	matrixIdx, ircIdx := -1, -1
+	for i, link := range PagesLinkTypes {
+		switch link.Key {
+		case "matrix":
+			matrixIdx = i
+		case "irc":
+			ircIdx = i
+			if link.Label != "IRC" || link.Icon != "terminal-24" {
+				t.Fatalf("irc link = %+v, want {irc IRC terminal-24}", link)
+			}
+		}
+	}
+	if matrixIdx == -1 || ircIdx != matrixIdx+1 {
+		t.Fatalf("irc index = %d, want immediately after matrix (%d)", ircIdx, matrixIdx)
+	}
+}

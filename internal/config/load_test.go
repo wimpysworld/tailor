@@ -41,6 +41,7 @@ func TestLoadAcceptsSupportedTopLevelSettings(t *testing.T) {
 repository: {}
 actions: {}
 mcp: {}
+social: {}
 labels: []
 variables: []
 swatches: []
@@ -60,12 +61,12 @@ func TestLoadRejectsUnknownTopLevelSettings(t *testing.T) {
 		{
 			name: "one",
 			yaml: "lables: []\nlicense: none\nswatches: []\n",
-			want: `unrecognised top-level setting "lables" in config; valid settings: actions, code_quality, code_scanning, immutable_releases, labels, languages, license, mcp, pages, repository, ruleset, swatches, variables`,
+			want: `unrecognised top-level setting "lables" in config; valid settings: actions, code_quality, code_scanning, immutable_releases, labels, languages, license, mcp, pages, repository, ruleset, social, swatches, variables`,
 		},
 		{
 			name: "multiple use sorted first key",
 			yaml: "zebra: true\nlicense: none\nswatches: []\nalpaca: true\n",
-			want: `unrecognised top-level setting "alpaca" in config; valid settings: actions, code_quality, code_scanning, immutable_releases, labels, languages, license, mcp, pages, repository, ruleset, swatches, variables`,
+			want: `unrecognised top-level setting "alpaca" in config; valid settings: actions, code_quality, code_scanning, immutable_releases, labels, languages, license, mcp, pages, repository, ruleset, social, swatches, variables`,
 		},
 	}
 

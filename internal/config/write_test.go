@@ -159,6 +159,7 @@ pages:
     slack: ""
     discord: https://discord.com/invite/vUsydfP
     matrix: "https://matrix.to/#/@wimpress:matrix.org"
+    irc: ""
     youtube: https://youtube.com/WimpysWorld
     twitch: https://twitch.tv/WimpysWorld
     peertube: ""
@@ -180,6 +181,28 @@ pages:
   # links:
   #   website: https://example.com
   #   email: hello@example.com
+
+# Social assets are opt-in. Omission or enabled: false leaves social assets unmanaged.
+social:
+  enabled: false
+  theme: dark
+  og:
+    output: pages/og.png
+    include_preview: false
+  readme:
+    header: true
+    preferred_links: []
+    community: auto
+    packages: []
+    stats: true
+    star_history:
+      enabled: true
+      min_stars: 25
+      min_days: 30
+    sponsors: auto
+  live:
+    branch: social-assets
+    schedule: "0 4 * * *"
 
 labels:
   - name: bug
