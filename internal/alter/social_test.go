@@ -148,7 +148,7 @@ func TestSocialEnabledCreatesUpdatesAndPreservesOGImage(t *testing.T) {
 				"--style-css 'pages/style.css'",
 				"--accent '#ff6600'",
 				"--background '#0f172a'",
-				"--title 'tailor'",
+				"--title 'Tailor'",
 				"--tagline 'Ready-to-wear project templates'",
 				"--footer 'tailor.wimpys.world'",
 				"--platforms 'Linux, macOS'",
@@ -435,7 +435,7 @@ func TestRenderManagedOGFooterAndStyleFallbacks(t *testing.T) {
 			wantParts: []string{
 				"--style-css 'pages/style.css'",
 				"--footer 'tailor.wimpys.world'",
-				"--title 'tailor'",
+				"--title 'Tailor'",
 			},
 			omitParts: []string{"fallback.example", "github.com/wimpysworld/tailor", "--include-preview"},
 		},
@@ -446,16 +446,32 @@ func TestRenderManagedOGFooterAndStyleFallbacks(t *testing.T) {
 				Social:     &model.SocialSettings{Enabled: new(true)},
 			},
 			ctx:       managedRenderContext{Owner: "wimpysworld", Repo: "demo"},
-			wantParts: []string{"--footer 'docs.example.org'", "--title 'demo'"},
+			wantParts: []string{"--footer 'docs.example.org'", "--title 'Demo'"},
 			omitParts: []string{"--style-css", "github.com/wimpysworld/demo"},
+		},
+		{
+			name: "hyphenated repo formats display title",
+			cfg: &config.Config{
+				Social: &model.SocialSettings{Enabled: new(true)},
+			},
+			ctx:       managedRenderContext{Owner: "wimpysworld", Repo: "stream-sprout"},
+			wantParts: []string{"--title 'Stream Sprout'", "--footer 'github.com/wimpysworld/stream-sprout'"},
+		},
+		{
+			name: "short-segment and internal-capital repo titles preserve conventions",
+			cfg: &config.Config{
+				Social: &model.SocialSettings{Enabled: new(true)},
+			},
+			ctx:       managedRenderContext{Owner: "wimpysworld", Repo: "ia-get"},
+			wantParts: []string{"--title 'ia-get'", "--footer 'github.com/wimpysworld/ia-get'"},
 		},
 		{
 			name: "github fallback when cname and homepage absent",
 			cfg: &config.Config{
 				Social: &model.SocialSettings{Enabled: new(true)},
 			},
-			ctx:       managedRenderContext{Owner: "wimpysworld", Repo: "demo"},
-			wantParts: []string{"--footer 'github.com/wimpysworld/demo'"},
+			ctx:       managedRenderContext{Owner: "wimpysworld", Repo: "WonKey"},
+			wantParts: []string{"--title 'WonKey'", "--footer 'github.com/wimpysworld/WonKey'"},
 			omitParts: []string{"--style-css"},
 		},
 		{
@@ -552,7 +568,7 @@ func TestManagedOGRecipePassesSafelyQuotedArgsToStub(t *testing.T) {
 	want := []string{
 		"--output", "pages/og.png",
 		"--theme", "dark",
-		"--title", "tailor",
+		"--title", "Tailor",
 		"--tagline", `Quotes 'single' "double" $HOME ` + "`id`" + ` {{expr}}`,
 		"--footer", "github.com/wimpysworld/tailor",
 		"--platforms", "Linux & macOS; BSD",

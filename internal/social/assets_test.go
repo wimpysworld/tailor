@@ -10,6 +10,47 @@ import (
 	"github.com/wimpysworld/tailor/internal/model"
 )
 
+func TestProjectTitle(t *testing.T) {
+	tests := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "single lowercase word", in: "tailor", want: "Tailor"},
+		{name: "owner and repo", in: "wimpysworld/tailor", want: "Tailor"},
+		{name: "two-char leading segment unchanged", in: "ia-get", want: "ia-get"},
+		{name: "owner and two-char segment unchanged", in: "wimpysworld/ia-get", want: "ia-get"},
+		{name: "internal capitals preserved", in: "WonKey", want: "WonKey"},
+		{name: "owner and internal capitals preserved", in: "wimpysworld/WonKey", want: "WonKey"},
+		{name: "hyphenated stream-sprout", in: "stream-sprout", want: "Stream Sprout"},
+		{name: "owner and stream-sprout", in: "wimpysworld/stream-sprout", want: "Stream Sprout"},
+		{name: "hyphenated hue-jackman", in: "hue-jackman", want: "Hue Jackman"},
+		{name: "hyphenated jive-vocals", in: "jive-vocals", want: "Jive Vocals"},
+		{name: "single word sidra", in: "sidra", want: "Sidra"},
+		{name: "single word nyala", in: "nyala", want: "Nyala"},
+		{name: "multi-word internal capitals", in: "myTool-extraFast", want: "MyTool ExtraFast"},
+		{name: "trimmed whitespace", in: "  wimpysworld/stream-sprout  ", want: "Stream Sprout"},
+		{name: "empty string", in: "", want: ""},
+		{name: "whitespace only", in: "   ", want: ""},
+		{name: "owner with empty repo", in: "wimpysworld/", want: ""},
+		{name: "double hyphen unchanged", in: "stream--sprout", want: "stream--sprout"},
+		{name: "leading hyphen unchanged", in: "-tailor", want: "-tailor"},
+		{name: "trailing hyphen unchanged", in: "tailor-", want: "tailor-"},
+		{name: "two-char single word unchanged", in: "go", want: "go"},
+		{name: "trailing two-char segment unchanged", in: "foo-v2", want: "foo-v2"},
+		{name: "middle two-char segment unchanged", in: "foo-in-bar", want: "foo-in-bar"},
+		{name: "already formatted title idempotent", in: "Stream Sprout", want: "Stream Sprout"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := ProjectTitle(tt.in); got != tt.want {
+				t.Errorf("ProjectTitle(%q) = %q, want %q", tt.in, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestStripTrailingEmoji(t *testing.T) {
 	tests := []struct {
 		name string
@@ -319,7 +360,7 @@ func TestResolveProjectAssetsMetadataPreviewAndFooter(t *testing.T) {
 				},
 			},
 			want: ProjectAssets{
-				Title:       "tailor",
+				Title:       "Tailor",
 				Tagline:     "Ready-to-wear project templates for GitHub repositories",
 				IconPath:    "pages/icon.svg",
 				IconKind:    IconKindSVG,
@@ -349,7 +390,7 @@ func TestResolveProjectAssetsMetadataPreviewAndFooter(t *testing.T) {
 				},
 			},
 			want: ProjectAssets{
-				Title:        "nyala",
+				Title:        "Nyala",
 				Tagline:      "Desktop companion",
 				IconKind:     IconKindNone,
 				PreviewMode:  PreviewModeImage,
@@ -375,7 +416,7 @@ func TestResolveProjectAssetsMetadataPreviewAndFooter(t *testing.T) {
 				},
 			},
 			want: ProjectAssets{
-				Title:        "wonkey",
+				Title:        "Wonkey",
 				Tagline:      "One-key launcher",
 				IconKind:     IconKindNone,
 				PreviewMode:  PreviewModeImage,
@@ -417,7 +458,7 @@ func TestResolveProjectAssetsMetadataPreviewAndFooter(t *testing.T) {
 				},
 			},
 			want: ProjectAssets{
-				Title:       "bare-repo",
+				Title:       "Bare Repo",
 				IconKind:    IconKindNone,
 				PreviewMode: PreviewModeNone,
 				FooterURL:   "",

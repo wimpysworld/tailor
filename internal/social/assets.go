@@ -6,6 +6,7 @@ import (
 	"path"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/wimpysworld/tailor/internal/config"
 )
@@ -56,7 +57,8 @@ func ResolveProjectAssets(root *os.Root, pagesPath string, cfg *config.Config, r
 		return ProjectAssets{}, err
 	}
 
-	title, repoOwner, repoShort := parseRepoName(repoName)
+	repoOwner, repoShort := parseRepoName(repoName)
+	title := ProjectTitle(repoName)
 
 	tagline := ""
 	if cfg != nil && cfg.Repository != nil && cfg.Repository.Description != nil {
@@ -90,16 +92,43 @@ func ResolveProjectAssets(root *os.Root, pagesPath string, cfg *config.Config, r
 	return assets, nil
 }
 
-func parseRepoName(repoName string) (title, owner, repo string) {
+// ProjectTitle formats a repository name (or "owner/repo") into a display title
+// matching the Haberdasher and Vitrine convention. When any hyphen-separated
+// segment has two or fewer runes (including empty segments from leading,
+// trailing, or consecutive hyphens), the trimmed repository name is returned
+// unchanged. Otherwise only the first rune of each segment is uppercased,
+// preserving internal capitals, and segments are joined with spaces.
+func ProjectTitle(repo string) string {
+	name := strings.TrimSpace(repo)
+	if _, after, ok := strings.Cut(name, "/"); ok {
+		name = strings.TrimSpace(after)
+	}
+	if name == "" {
+		return ""
+	}
+	parts := strings.Split(name, "-")
+	for _, part := range parts {
+		if utf8.RuneCountInString(part) <= 2 {
+			return name
+		}
+	}
+	for i, part := range parts {
+		r, size := utf8.DecodeRuneInString(part)
+		parts[i] = string(unicode.ToUpper(r)) + part[size:]
+	}
+	return strings.Join(parts, " ")
+}
+
+func parseRepoName(repoName string) (owner, repo string) {
 	trimmed := strings.TrimSpace(repoName)
 	if trimmed == "" {
-		return "", "", ""
+		return "", ""
 	}
 	left, right, hasSlash := strings.Cut(trimmed, "/")
 	if hasSlash && left != "" && right != "" && !strings.Contains(right, "/") {
-		return right, left, right
+		return left, right
 	}
-	return trimmed, "", ""
+	return "", ""
 }
 
 func resolveIcon(root *os.Root, pagesPath string) (string, string, error) {

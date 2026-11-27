@@ -165,7 +165,7 @@ func Generate(ctx context.Context, opts GenerateOptions) (result GenerateResult,
 	links := resolvePreferredLinks(cfg)
 	comm := resolveCommunity(cfg, owner, repo)
 	commIsLive := isLiveCommunity(comm)
-	packages := resolvePackages(cfg, assets.Title, repo)
+	packages := resolvePackages(cfg, repoFullName, repo)
 
 	if runStatic {
 		if err := generateStaticAssets(projectRoot, target, cfg, theme, assets, links, comm, commIsLive, runLive, packages, opts.DryRun, &result); err != nil {
@@ -625,14 +625,18 @@ func isLiveCommunity(comm *ReadmeCommunityEntry) bool {
 	}
 }
 
-func resolvePackages(cfg *config.Config, projectTitle, repo string) []ReadmePackageEntry {
+func resolvePackages(cfg *config.Config, repoFullName, repo string) []ReadmePackageEntry {
 	hosts := cfg.EffectiveSocialPackages()
 	if len(hosts) == 0 {
 		return nil
 	}
 	pkgName := strings.ToLower(strings.TrimSpace(repo))
 	if pkgName == "" {
-		pkgName = strings.ToLower(strings.TrimSpace(projectTitle))
+		fallback := strings.TrimSpace(repoFullName)
+		if _, after, ok := strings.Cut(fallback, "/"); ok {
+			fallback = strings.TrimSpace(after)
+		}
+		pkgName = strings.ToLower(fallback)
 	}
 	out := make([]ReadmePackageEntry, 0, len(hosts))
 	for _, rawHost := range hosts {

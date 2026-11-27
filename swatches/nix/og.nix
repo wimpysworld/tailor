@@ -146,19 +146,6 @@ let
         max-width: 960px;
       }
 
-      .og-icon-wrap {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 92px;
-        height: 92px;
-        border-radius: 22px;
-        background: color-mix(in srgb, var(--mu-card-background-color) 86%, var(--mu-primary) 6%);
-        border: 1px solid var(--mu-muted-border-color);
-        box-shadow: 0 14px 34px color-mix(in srgb, #000000 22%, transparent);
-        padding: 16px;
-      }
-
       .og-icon {
         display: block;
         width: 100%;
@@ -225,7 +212,7 @@ let
         opacity: 0.75;
       }
 
-      /* Split product-proof layout */
+      /* Split layouts (icon showcase and product-proof preview) */
       .og-split {
         display: flex;
         align-items: stretch;
@@ -238,25 +225,24 @@ let
         display: flex;
         flex-direction: column;
         justify-content: space-between;
-        padding: 8px 0 4px;
+        padding: 26px 0 22px;
       }
 
       .og-split-brand-top {
         display: flex;
         flex-direction: column;
         align-items: flex-start;
-        gap: 18px;
+        gap: 15px;
       }
 
-      .og-split .og-icon-wrap {
-        width: 72px;
-        height: 72px;
-        border-radius: 18px;
-        padding: 13px;
+      .og-split--icon .og-split-brand-top {
+        margin: auto 0;
+        gap: 18px;
       }
 
       .og-split .og-title {
         font-size: 56px;
+        line-height: 1.05;
         white-space: normal;
         display: -webkit-box;
         -webkit-line-clamp: 2;
@@ -264,7 +250,7 @@ let
       }
 
       .og-split .og-title--long {
-        font-size: 46px;
+        font-size: 44px;
       }
 
       .og-split .og-accent-bar {
@@ -273,15 +259,41 @@ let
       }
 
       .og-split .og-tagline {
-        font-size: 22px;
-        line-height: 1.44;
+        font-size: 21.5px;
+        line-height: 1.42;
         text-align: left;
         max-width: none;
         -webkit-line-clamp: 3;
       }
 
+      .og-split-logo-slot {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 14px 0;
+      }
+
+      .og-split-logo {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 148px;
+        height: 148px;
+        padding: 10px;
+        border-radius: 28px;
+        border: 1px solid var(--mu-muted-border-color);
+        background: color-mix(in srgb, var(--mu-card-background-color) 88%, var(--mu-primary) 5%);
+        box-shadow:
+          0 18px 42px color-mix(in srgb, #000000 32%, transparent),
+          0 0 0 1px color-mix(in srgb, var(--mu-primary) 14%, transparent),
+          0 0 44px color-mix(in srgb, var(--mu-primary) 18%, transparent);
+      }
+
       .og-split .og-footer {
         justify-content: flex-start;
+        padding-top: 0;
         font-size: 15px;
         gap: 10px;
       }
@@ -306,6 +318,35 @@ let
         pointer-events: none;
       }
 
+      .og-emblem-glow {
+        position: absolute;
+        inset: -32px;
+        background: radial-gradient(
+          circle at 50% 50%,
+          color-mix(in srgb, var(--mu-primary) 28%, transparent),
+          color-mix(in srgb, var(--mu-primary) 10%, transparent) 42%,
+          transparent 68%
+        );
+        pointer-events: none;
+      }
+
+      .og-emblem-card {
+        position: relative;
+        z-index: 1;
+        width: 368px;
+        height: 368px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 58px;
+        border-radius: 44px;
+        border: 1px solid var(--mu-muted-border-color);
+        background: color-mix(in srgb, var(--mu-card-background-color) 88%, var(--mu-primary) 5%);
+        box-shadow:
+          0 24px 60px color-mix(in srgb, #000000 36%, transparent),
+          0 0 0 1px color-mix(in srgb, var(--mu-primary) 16%, transparent);
+      }
+
       .og-window {
         position: relative;
         z-index: 1;
@@ -320,6 +361,20 @@ let
         box-shadow:
           0 24px 60px color-mix(in srgb, #000000 38%, transparent),
           0 0 0 1px color-mix(in srgb, var(--mu-primary) 16%, transparent);
+      }
+
+      :root[data-theme="light"] .og-window,
+      :root[data-theme="light"] .og-emblem-card {
+        box-shadow:
+          0 20px 48px color-mix(in srgb, #000000 12%, transparent),
+          0 0 0 1px color-mix(in srgb, var(--mu-primary) 14%, transparent);
+      }
+
+      :root[data-theme="light"] .og-split-logo {
+        box-shadow:
+          0 14px 32px color-mix(in srgb, #000000 10%, transparent),
+          0 0 0 1px color-mix(in srgb, var(--mu-primary) 12%, transparent),
+          0 0 36px color-mix(in srgb, var(--mu-primary) 14%, transparent);
       }
 
       .og-window-bar {
@@ -359,15 +414,18 @@ let
         min-height: 0;
         overflow: hidden;
         display: flex;
-        align-items: stretch;
+        align-items: center;
+        justify-content: center;
+        background: var(--mu-code-background-color);
       }
 
       .og-screenshot {
         display: block;
         width: 100%;
         height: 100%;
-        object-fit: cover;
-        object-position: top left;
+        object-fit: contain;
+        object-position: center;
+        background: var(--mu-code-background-color);
       }
 
       .og-terminal {
@@ -525,6 +583,18 @@ let
           return "\n".join(rendered)
 
 
+      def project_title(repo: str) -> str:
+          name = repo.strip()
+          if "/" in name:
+              name = name.split("/", 1)[1].strip()
+          if not name:
+              return ""
+          parts = name.split("-")
+          if any(len(part) <= 2 for part in parts):
+              return name
+          return " ".join(part[:1].upper() + part[1:] for part in parts)
+
+
       def validate_hex(flag: str, value: str) -> str:
           trimmed = value.strip()
           if not HEX_COLOR_RE.match(trimmed):
@@ -570,11 +640,6 @@ let
           if overrides:
               override_css = ":root[data-theme] {\n  " + "\n  ".join(overrides) + "\n}\n"
 
-          icon_html = (
-              f'<div class="og-icon-wrap"><img class="og-icon" src="{icon_uri}" alt=""></div>'
-              if icon_uri
-              else ""
-          )
           title_class = "og-title og-title--long" if len(title) > 16 else "og-title"
           title_html = f'<h1 class="{title_class}">{html.escape(title)}</h1>'
           tagline_html = f'<p class="og-tagline">{html.escape(tagline)}</p>' if tagline else ""
@@ -592,23 +657,34 @@ let
               else ""
           )
 
-          use_split = bool(preview_image_uri or terminal_lines)
-          if use_split:
+          has_preview = bool(preview_image_uri or terminal_lines)
+          if has_preview:
               if preview_image_uri:
                   bar_title = html.escape(title)
                   window_body = f'<img class="og-screenshot" src="{preview_image_uri}" alt="">'
               else:
                   bar_title = html.escape(title.lower().replace(" ", "-")) + " — terminal"
                   window_body = f'<pre class="og-terminal">{format_terminal_lines(terminal_lines)}</pre>'
+              split_logo_html = (
+                  f"""
+                  <div class="og-split-logo-slot">
+                    <div class="og-split-logo">
+                      <img class="og-icon" src="{icon_uri}" alt="">
+                    </div>
+                  </div>
+                  """
+                  if icon_uri
+                  else ""
+              )
               safe_html = f"""
-              <div class="og-safe og-split">
+              <div class="og-safe og-split og-split--preview">
                 <div class="og-split-brand">
                   <div class="og-split-brand-top">
-                    {icon_html}
                     {title_html}
                     <div class="og-accent-bar" aria-hidden="true"></div>
                     {tagline_html}
                   </div>
+                  {split_logo_html}
                   {footer_html}
                 </div>
                 <div class="og-split-preview">
@@ -627,11 +703,29 @@ let
                 </div>
               </div>
               """
+          elif icon_uri:
+              safe_html = f"""
+              <div class="og-safe og-split og-split--icon">
+                <div class="og-split-brand">
+                  <div class="og-split-brand-top">
+                    {title_html}
+                    <div class="og-accent-bar" aria-hidden="true"></div>
+                    {tagline_html}
+                  </div>
+                  {footer_html}
+                </div>
+                <div class="og-split-preview">
+                  <div class="og-emblem-glow" aria-hidden="true"></div>
+                  <div class="og-emblem-card">
+                    <img class="og-icon" src="{icon_uri}" alt="">
+                  </div>
+                </div>
+              </div>
+              """
           else:
               safe_html = f"""
               <div class="og-safe og-centered">
                 <div class="og-centered-main">
-                  {icon_html}
                   {title_html}
                   <div class="og-accent-bar" aria-hidden="true"></div>
                   {tagline_html}
@@ -737,7 +831,7 @@ let
                   elif args.terminal_line:
                       terminal_lines = list(args.terminal_line)
 
-          title = args.title.strip() or Path.cwd().name
+          title = project_title(args.title.strip() or Path.cwd().name)
           tagline = args.tagline.strip()
           footer = args.footer.strip()
           platforms = args.platforms.strip()

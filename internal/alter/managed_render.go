@@ -332,7 +332,7 @@ func buildOGArgs(cfg *config.Config, ctx managedRenderContext, styleCSS string) 
 	add("--style-css", styleCSS)
 	add("--accent", cfg.EffectiveSocialAccent())
 	add("--background", cfg.EffectiveSocialBackground())
-	add("--title", ctx.Repo)
+	add("--title", social.ProjectTitle(ctx.Repo))
 	if cfg.Repository != nil && cfg.Repository.Description != nil {
 		add("--tagline", social.StripTrailingEmoji(*cfg.Repository.Description))
 	}
