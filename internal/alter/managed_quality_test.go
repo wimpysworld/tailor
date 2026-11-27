@@ -85,7 +85,7 @@ func TestRepositoryJustRecipes(t *testing.T) {
 		t.Skip("just is required")
 	}
 	root := filepath.Join("..", "..")
-	want := []string{"build", "default", "lint", "pages", "release", "setup", "snapshot", "test"}
+	want := []string{"build", "default", "lint", "og", "pages", "release", "setup", "snapshot", "test"}
 	if got := managedJustRecipes(t, just, root); !reflect.DeepEqual(got, want) {
 		t.Fatalf("repository recipes = %v, want %v", got, want)
 	}

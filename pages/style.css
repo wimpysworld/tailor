@@ -222,8 +222,8 @@ body > main {
 }
 .site-hero {
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: clamp(2rem, 4vw, 4rem);
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr);
+  gap: clamp(1.75rem, 3vw, 3rem);
   align-items: center;
   padding-block: 4.5rem 4rem;
   margin-bottom: 0;
@@ -354,6 +354,16 @@ h3 {
 }
 .terminal-dots i:nth-child(3) {
   background: var(--mu-success);
+}
+.terminal picture {
+  display: block;
+  padding: 0;
+  background: #1a1f28;
+}
+.terminal-demo {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 .terminal pre {
   background: transparent;
@@ -865,6 +875,13 @@ a.install-tile:is(:hover, :focus-visible) > .arrow-up-right {
   }
   .features {
     gap: 2.5rem;
+  }
+}
+
+@media (max-width: 960px) {
+  .site-hero {
+    grid-template-columns: 1fr;
+    gap: 2.25rem;
   }
 }
 
