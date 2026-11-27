@@ -28,6 +28,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 1
+          persist-credentials: false
 
       - name: Install tailor
         env:
@@ -99,10 +100,15 @@ jobs:
           stage_dir="${work_dir}/stage"
           mkdir -p "${compare_dir}" "${stage_dir}"
 
+          basic_auth="$(
+            printf 'x-access-token:%s' "${GH_TOKEN}" | base64 -w0
+          )"
+          auth_header="Authorization: basic ${basic_auth}"
           remote_ref="refs/remotes/origin/${branch}"
           branch_ref="refs/heads/${branch}"
           changed=false
-          if git fetch --no-tags --depth=1 \
+          if git -c "http.https://github.com/.extraheader=${auth_header}" \
+            fetch --no-tags --depth=1 \
             origin "${branch_ref}:${remote_ref}" 2>/dev/null; then
             git archive "${remote_ref}" | tar -x -C "${compare_dir}"
             if ! diff -ruN --exclude='.git' \
@@ -131,7 +137,8 @@ jobs:
           sha="$(git -C "${stage_dir}" rev-parse HEAD)"
 
           git fetch --quiet "${stage_dir}" "${branch_ref}:${branch_ref}"
-          git push --force origin "${branch_ref}:${branch_ref}"
+          git -c "http.https://github.com/.extraheader=${auth_header}" \
+            push --force origin "${branch_ref}:${branch_ref}"
 
           tailor social --live \
             --output-dir "${output_dir}" \
@@ -144,5 +151,6 @@ jobs:
               commit \
               --message 'chore(social): update live README assets [skip ci]' \
               -- README.md
-            git push origin "HEAD:refs/heads/${GITHUB_REF_NAME}"
+            git -c "http.https://github.com/.extraheader=${auth_header}" \
+              push origin "HEAD:refs/heads/${GITHUB_REF_NAME}"
           fi
