@@ -42,9 +42,21 @@ func MergeDefaults(cfg *Config) (bool, error) {
 			return field.YAMLKey == "enabled" || field.YAMLKey == "links"
 		})
 	}
+	socialChanged := mergeSocialFrom(cfg, defaults)
 	rulesetChanged := mergeRulesetFrom(cfg, defaults)
 	labelsChanged := mergeLabelsFrom(cfg, defaults)
-	return swatchesChanged || repoChanged || actionsChanged || codeScanningChanged || codeQualityChanged || pagesChanged || rulesetChanged || labelsChanged, nil
+	return swatchesChanged || repoChanged || actionsChanged || codeScanningChanged || codeQualityChanged || pagesChanged || socialChanged || rulesetChanged || labelsChanged, nil
+}
+
+// mergeSocialFrom fills missing defaults in an existing social section without
+// ever adding an absent social section or setting an omitted social.enabled.
+func mergeSocialFrom(cfg, defaults *Config) bool {
+	if cfg.Social == nil || defaults.Social == nil {
+		return false
+	}
+	defaultsCopy := *defaults.Social
+	defaultsCopy.Enabled = nil
+	return fillNilFields(reflect.ValueOf(cfg.Social).Elem(), reflect.ValueOf(&defaultsCopy).Elem())
 }
 
 // mergeRulesetFrom adds the complete default ruleset when cfg has none, and

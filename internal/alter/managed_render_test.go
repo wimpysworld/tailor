@@ -71,8 +71,8 @@ func TestManagedTemplatesMatchEmbeddedSources(t *testing.T) {
 			t.Errorf("managed template %q lacks its ownership marker", entry.Path)
 		}
 	}
-	if len(managed) != 36 {
-		t.Fatalf("managed=%d, want 36", len(managed))
+	if len(managed) != 38 {
+		t.Fatalf("managed=%d, want 38", len(managed))
 	}
 
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(name string, entry fs.DirEntry, err error) error {
@@ -95,7 +95,7 @@ func TestManagedNixCanonicalFormatting(t *testing.T) {
 	if err != nil {
 		t.Skip("nixfmt is required")
 	}
-	configs := []*config.Config{{}, ffmpegConfig(), ebitengineConfig(), {Languages: &config.LanguageSettings{Python: new(true)}}}
+	configs := []*config.Config{{}, ffmpegConfig(), ebitengineConfig(), {Languages: &config.LanguageSettings{Python: new(true)}}, {Social: &model.SocialSettings{Enabled: new(true)}}}
 	for _, policy := range []*bool{nil, new(false), new(true)} {
 		configs = append(configs, &config.Config{Languages: &config.LanguageSettings{
 			Go: new(true), GoOptions: &config.GoOptions{CGO: policy},
@@ -145,13 +145,13 @@ func TestManagedLoadersUseRegistryFragments(t *testing.T) {
 	}
 
 	justLoader := string(baseline["just/loader.just"])
-	for _, name := range []string{"tailor.just", "go.just", "pages.just"} {
+	for _, name := range []string{"tailor.just", "go.just", "pages.just", "og.just"} {
 		if !strings.Contains(justLoader, "import? \""+name+"\"") {
 			t.Errorf("Just loader lacks relative optional import for %s", name)
 		}
 	}
 	nixLoader := string(baseline["nix/loader.nix"])
-	for _, name := range []string{"ntrecord.nix", "go.nix", "pages.nix", "playwright.nix"} {
+	for _, name := range []string{"ntrecord.nix", "go.nix", "pages.nix", "og.nix", "playwright.nix"} {
 		if !strings.Contains(nixLoader, "builtins.pathExists ./"+name) || !strings.Contains(nixLoader, "import ./"+name) {
 			t.Errorf("Nix loader lacks relative optional import for %s", name)
 		}

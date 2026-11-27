@@ -2,7 +2,7 @@
 
 Use `.tailor.yml` to choose the files and GitHub settings that Tailor manages.
 
-[Swatches](#swatches) · [Managed development files](#managed-development-files) · [Go support](#go-support) · [Shell and JavaScript](#shell-and-javascript-support) · [MCP support](#mcp-support) · [Licences](#licences) · [Default set](#default-swatch-set) · [Modes](#alteration-modes) · [Default merging](#default-merging) · [Config example](#config-file)
+[Swatches](#swatches) · [Managed development files](#managed-development-files) · [Go support](#go-support) · [Shell and JavaScript](#shell-and-javascript-support) · [MCP support](#mcp-support) · [Social assets](#social-assets) · [Licences](#licences) · [Default set](#default-swatch-set) · [Modes](#alteration-modes) · [Default merging](#default-merging) · [Config example](#config-file)
 
 ## Swatches
 
@@ -40,7 +40,7 @@ The Nix loader adds package lists only. It can use packages from the existing `p
 
 New `flake.nix` roots do not include Tailor. Install Tailor once, for example with Home Manager, instead of in each project's development shell. A bad Tailor release then cannot break the shell of every project. To remove Tailor from an existing root, delete the `tailor.url` input, the `tailor` output argument, and the line that adds the `tailor` package. Then run `nix flake lock` and `nix-direnv-reload`.
 
-Tailor always reconciles `just/loader.just`, `nix/loader.nix`, `just/tailor.just`, and the `nix/ntrecord.nix` [terminal recording](#terminal-recordings) fragment. The fixed loader does not read `.tailor.yml` when Just runs. The generated `build`, `test`, and `lint` dependencies come from the last successful Tailor reconciliation. Go, Python, Rust, Shell, JavaScript, Pages, Blender, and Playwright use their capability declarations:
+Tailor always reconciles `just/loader.just`, `nix/loader.nix`, `just/tailor.just`, and the `nix/ntrecord.nix` [terminal recording](#terminal-recordings) fragment. The fixed loader does not read `.tailor.yml` when Just runs. The generated `build`, `test`, and `lint` dependencies come from the last successful Tailor reconciliation. Go, Python, Rust, Shell, JavaScript, Pages, Social, Blender, and Playwright use their capability declarations:
 
 | Declaration | Managed fragment action |
 | --- | --- |
@@ -50,7 +50,7 @@ Tailor always reconciles `just/loader.just`, `nix/loader.nix`, `just/tailor.just
 
 Owned files start with `# Managed by Tailor: <registered path>`. Tailor stops on an unmarked file at a managed destination. A disabled fragment with a missing destination causes no change.
 
-The generated root requires Just 1.23.0 or later and owns the sole `default` recipe. The core provides exactly three quality commands: `build`, `test`, and `lint`. It also keeps the operational `setup` and `release` commands. Call `tailor alter`, `tailor baste`, and `tailor measure` directly, without Just wrappers. Pages owns `pages`. `just/go.just` is an empty compatibility import with no recipes.
+The generated root requires Just 1.23.0 or later and owns the sole `default` recipe. The core provides exactly three quality commands: `build`, `test`, and `lint`. It also keeps the operational `setup` and `release` commands. Call `tailor alter`, `tailor baste`, and `tailor measure` directly, without Just wrappers. Pages owns `pages`. Social owns `og`. `just/go.just` is an empty compatibility import with no recipes.
 
 Typed registry metadata selects embedded shell bodies for explicitly enabled capabilities. The renderer places those bodies directly in the core in lexical capability order. Preflight checks each selected body in the core. False and absent Go declarations exclude Go bodies. Go, Python, Rust, Shell, and unified JavaScript/TypeScript are the supported quality ecosystems. Empty build and test commands print guidance, then run an optional project script. Workflow lint runs once when a YAML workflow exists, otherwise it prints a skip message. Missing tools and command failures remain errors.
 
@@ -533,7 +533,7 @@ A [validated future contract](https://github.com/wimpysworld/tailor/blob/main/do
 
 Tailor accepts `blender` and `playwright`, each with a Boolean value. Null sections, null values, duplicate or unknown keys, strings, numbers, lists, and nested values are errors. An empty `mcp: {}` mapping keeps the section but leaves both integrations undeclared.
 
-New configs set `languages.go`, `languages.python`, `languages.rust`, `languages.shell`, `languages.javascript`, `pages.enabled`, `mcp.blender`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes. Follow the [activation steps](Commands#activate-playwright-mcp) after you change the setting.
+New configs set `languages.go`, `languages.python`, `languages.rust`, `languages.shell`, `languages.javascript`, `pages.enabled`, `social.enabled`, `mcp.blender`, and `mcp.playwright` to false. Existing configs preserve an absent MCP section, an empty mapping, and explicit true or false values across default merging and later writes. Follow the [activation steps](Commands#activate-playwright-mcp) after you change the setting.
 
 ### Blender Agent Bridge
 
@@ -554,6 +554,153 @@ New flake roots expose `packages.<system>.blender-agent-bridge-extension` automa
 Preserve existing outputs and pass the same overridden `pkgs` as both loaders. Review and add the helper and patch to Git. Build with `nix build .#blender-agent-bridge-extension`. Install the resulting ZIP separately in Blender 4.2 or later after approval. Start the loopback listener yourself. For `import_local_glb`, save the scene or explicitly set an import root for an unsaved blank scene. Keep the root blank otherwise. Imports require contained, static GLB files with embedded resources. Keep `BLENDER_BRIDGE_TOKEN` in a private client secret mechanism, never tracked files or command arguments. Without a token, reachable local processes can call the listener. Keep **Trust Agent Scripts** off unless explicitly approved. It grants filesystem, network, subprocess, and Python access. Use one active connection, and retain normal client approvals and sandbox restrictions.
 
 Follow the [Blender activation steps](Commands#activate-blender-mcp). Fresh-client discovery, secret forwarding, loopback access, proxy inheritance, and extension compatibility require separate runtime acceptance.
+
+## Social assets
+
+Social assets are opt-in and follow Tailor's three-state capability lifecycle (`true`, `false`, or omitted):
+
+```yaml
+social:
+  enabled: true
+  theme: dark
+  accent: "#1e66f5"
+  background: "#1e1e2e"
+  platforms: "Linux · macOS · Windows"
+  og:
+    output: pages/og.png
+    include_preview: false
+    image: ""
+    terminal: []
+  readme:
+    header: true
+    preferred_links: []
+    community: auto
+    packages: []
+    stats: true
+    star_history:
+      enabled: true
+      min_stars: 25
+      min_days: 30
+    sponsors: auto
+  live:
+    branch: social-assets
+    schedule: "0 4 * * *"
+```
+
+| `social.enabled` | Behaviour |
+|---|---|
+| `true` | Creates or replaces owned `nix/og.nix`, `just/og.just`, and `.github/workflows/tailor-social.yml`, and enables static SVG generation and README marker updates. |
+| `false` | Removes only owned `nix/og.nix`, `just/og.just`, and `.github/workflows/tailor-social.yml`. Preserves `pages/og.png`, `pages/social/*.svg`, and `README.md`. |
+| Omitted | Leaves all social files untouched. This applies when `social` is absent, empty (`social: {}`), or has no `enabled` key. |
+
+Default merging never adds an absent `social` section and never sets an omitted `social.enabled` key. New configs include `social.enabled: false`.
+
+### Inherited fields
+
+Tailor inherits project identity instead of duplicating it in `.tailor.yml`:
+
+- **Title**: inherited from the repository name.
+- **Tagline**: inherited from `repository.description` with trailing emoji stripped.
+- **Icon**: auto-detected from `pages/icon.svg`, or `pages/icon.png` as fallback (inside `pages.path`, default `pages`).
+- **Footer URL**: resolved from `pages.cname`, then `repository.homepage`, then the GitHub repository URL.
+
+Unknown keys under `social` (such as `title`, `tagline`, or `icon`) fail validation.
+
+### Optional keys
+
+| Key | Type and allowed values | Default |
+|---|---|---|
+| `social.theme` | `"dark"` or `"light"` | `"dark"` |
+| `social.accent` | 6-digit hex colour with `#` prefix (for example, `"#1e66f5"`) | Empty (theme default) |
+| `social.background` | 6-digit hex colour with `#` prefix (for example, `"#1e1e2e"`) | Empty (theme default) |
+| `social.platforms` | String up to 120 characters, no control characters | Empty |
+| `social.og.output` | Safe project-relative `.png` path | `"pages/og.png"` |
+| `social.og.include_preview` | Boolean. When `true`, uses `social.og.image`, or `pages/demo-still.png`, or `social.og.terminal`. | `false` |
+| `social.og.image` | Safe project-relative `.png`, `.webp`, `.jpg`, `.jpeg`, or `.avif` path | Empty |
+| `social.og.terminal` | List of up to 8 strings, at most 80 characters each, no control characters | `[]` |
+| `social.readme.header` | Boolean (`hero-dark.svg`, `hero-light.svg`) | `true` |
+| `social.readme.preferred_links` | Up to 4 unique keys from `pages.links` (`link-<key>-dark.svg`, `link-<key>-light.svg`) | `[]` |
+| `social.readme.community` | `"auto"`, `"none"`, `"discord"`, `"matrix"`, `"slack"`, `"irc"`, `"forum"`, or `"discussions"` | `"auto"` |
+| `social.readme.packages` | Unique Haberdasher hosts from `apt`, `rpm`, `pkg`, `apk`, `flatpak`, `brew`, `scoop`, `nix` | `[]` |
+| `social.readme.stats` | Boolean (live `stats-dark.svg`, `stats-light.svg`) | `true` |
+| `social.readme.star_history.enabled` | Boolean (live `stars-dark.svg`, `stars-light.svg`) | `true` |
+| `social.readme.star_history.min_stars` | Integer `>= 0` | `25` |
+| `social.readme.star_history.min_days` | Integer `>= 0` | `30` |
+| `social.readme.sponsors` | `"auto"`, `"true"`, or `"false"` (YAML Booleans `true` and `false` are also accepted) | `"auto"` |
+| `social.live.branch` | Valid Git branch name for live SVGs | `"social-assets"` |
+| `social.live.schedule` | 5-field cron expression for `.github/workflows/tailor-social.yml` | `"0 4 * * *"` |
+
+`social.readme.preferred_links` selects keys from `pages.links`. The 24 supported `pages.links` keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `irc`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. `irc` sits immediately after `matrix`, takes a full HTTPS URL without credentials, renders with a generic terminal icon, and works with both `pages.links` and `social.readme.community: irc`. See [Static Pages links](GitHub-Pages#static-pages-links) for full `pages.links` rules.
+
+### Hybrid storage model
+
+Social assets split static and live outputs across two branches:
+
+- **Static assets on the default branch (`main`)**: the Open Graph preview image (`pages/og.png` by default) and static README SVGs under `pages/social/*.svg` (or `<pages.path>/social/*.svg`).
+- **Daily live SVGs on an orphan branch (`social-assets` by default)**: `stats`, `stars`, `sponsors`, and live community banners (Discord, GitHub Discussions, and Discourse forums). `.github/workflows/tailor-social.yml` updates this branch on `social.live.schedule` and updates `README.md` with commit-pinned `raw.githubusercontent.com` URLs, so daily asset refreshes do not add binary or SVG churn to `main`.
+
+### Running `tailor social` and `just og`
+
+Use `tailor social` to render dark and light SVG pairs in pure Go (with no browser dependency) and update declared README marker blocks:
+
+```bash
+tailor social --static --update-readme
+tailor social --live --output-dir /tmp/social-assets --update-readme --assets-sha <sha>
+tailor social --dry-run
+```
+
+| Flag | Purpose |
+|---|---|
+| `--static` | Generate static social SVGs (default when `--live` is not set). |
+| `--live` | Generate live social SVGs from GitHub and community APIs. Requires GitHub authentication and a GitHub git remote. |
+| `--output-dir <dir>` | Override the SVG output directory (defaults to `<pages.path>/social`). |
+| `--update-readme` | Update existing `<!-- tailor:social-*:start/end -->` marker blocks in `README.md`. |
+| `--assets-sha <sha>` | Commit SHA (7 to 64 hex characters) of the live assets branch for commit-pinned URLs in `README.md`. |
+| `--dry-run` | Preview planned files without writing. |
+
+When `social.enabled: true`, `tailor alter` writes `just/og.just` and `nix/og.nix` (supported on `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin`). Enter the Nix dev shell and run `just og` to render the local `1280 x 640` Open Graph PNG (with a `1120 x 520` safe zone, under `1 MB`).
+
+`tailor-og` refuses to overwrite an existing output file so hand-crafted artwork stays safe. Pass `--force` to replace an existing file:
+
+```bash
+just og
+just og --force
+```
+
+`pages/og.png` is generated project artwork and is excluded from the swatch registry.
+
+### README marker blocks
+
+Put standalone marker pairs on separate lines in `README.md` for each section that Tailor updates:
+
+```markdown
+<!-- tailor:social-header:start -->
+<!-- tailor:social-header:end -->
+```
+
+Supported marker names are `header`, `links`, `community`, `packages`, `stats`, `stars`, and `sponsors`. Tailor replaces only the content between existing marker pairs, skips absent markers, and preserves all surrounding prose. Partial, duplicated, reversed, inline, or overlapping markers stop the update before writes.
+
+### Existing `pages/index.html` sites
+
+Tailor's static `pages/index.html` starter includes Open Graph and Twitter Card meta tags that reference `og.png`. Because `pages/index.html` uses `first-fit`, Tailor preserves existing sites. To adopt `og.png` on an existing site, add these tags inside `<head>` with your project values and published URL:
+
+```html
+<meta property="og:title" content="Project Name">
+<meta property="og:description" content="Short project description">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://example.com/">
+<meta property="og:image" content="https://example.com/og.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="Project Name - Short project description">
+<meta name="twitter:card" content="summary_large_image">
+```
+
+### Open Graph measurement
+
+`tailor measure` runs a read-only check on an existing Open Graph image at `social.og.output` (default `pages/og.png`). It verifies that the file is a regular, non-symlink PNG with dimensions `1280 x 640` or `1200 x 630` and a file size under `1 MB` (1,048,576 bytes).
+
+A missing file produces no warning. Unsafe paths, symlinked files or parents, invalid PNG files, wrong dimensions, or files of `1 MB` or larger emit warnings.
 
 ## Licences
 
@@ -676,6 +823,7 @@ The merge appends missing swatch entries and fills missing supported settings. I
 | `ruleset` | Restores an absent default section with `enforcement: active` and fills missing fields at each level. Explicit lists remain whole. |
 | `labels` | Restores default labels when absent or empty. A non-empty list remains unchanged. |
 | `pages` | Preserves an absent section and an absent `enabled` key. In an existing mapping, adds missing `generator` and `path`, but not `enabled` or personal `links`. |
+| `social` | Preserves an absent section and an absent `enabled` key. In an existing mapping, fills missing defaults without setting `enabled`. |
 | `languages` | Preserves absent and explicit settings. Does not add a missing section or `go` key. |
 | `mcp` | Preserves an absent section, an empty mapping, and an absent or explicit `playwright` value. |
 | `license`, `immutable_releases`, `variables` | Does not add defaults. |
@@ -686,7 +834,7 @@ Omitting a section can stop management only when its merge rule preserves absenc
 
 ## Config file
 
-All state lives in `.tailor.yml`. Its thirteen sections are `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `languages`, `mcp`, and `swatches`.
+All state lives in `.tailor.yml`. Its fourteen sections are `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `social`, `languages`, `mcp`, and `swatches`.
 
 Tailor opens `.tailor.yml` relative to the project root. The config must be a regular file no larger than 1 MiB.
 
@@ -854,6 +1002,7 @@ If a destination is unsafe, move valuable content aside before you correct the p
 | `code_scanning`, `code_quality` | [Code scanning and quality](Code-scanning-and-quality) |
 | `ruleset` | [Ruleset](Ruleset) |
 | `pages` | [GitHub Pages](GitHub-Pages) |
+| `social` | [Social assets](#social-assets) |
 | `languages` | [Go support](#go-support) |
 | `mcp` | [MCP support](#mcp-support) |
 | Wiki files and `repository.has_wiki` | [GitHub wiki](GitHub-wiki) |

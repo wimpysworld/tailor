@@ -20,6 +20,11 @@ var newRESTClient = func(host string) (*api.RESTClient, error) {
 	return api.NewRESTClient(restClientOptions(host))
 }
 
+// newGraphQLClient wraps api.NewGraphQLClient for testability.
+var newGraphQLClient = func(host string) (*api.GraphQLClient, error) {
+	return api.NewGraphQLClient(restClientOptions(host))
+}
+
 func restClientOptions(host string) api.ClientOptions {
 	return api.ClientOptions{Host: host, Timeout: apiRequestTimeout}
 }
@@ -50,6 +55,20 @@ func CheckAuth(host string) error {
 // Callers must resolve an empty host with ResolveHost first.
 func NewRESTClient(host string) (*api.RESTClient, error) {
 	return newRESTClient(host)
+}
+
+// NewRESTClientWithHeaders creates a GitHub REST client bound to the given host
+// with additional default request headers.
+func NewRESTClientWithHeaders(host string, headers map[string]string) (*api.RESTClient, error) {
+	opts := restClientOptions(host)
+	opts.Headers = headers
+	return api.NewRESTClient(opts)
+}
+
+// NewGraphQLClient creates a GitHub GraphQL client bound to the given host.
+// Callers must resolve an empty host with ResolveHost first.
+func NewGraphQLClient(host string) (*api.GraphQLClient, error) {
+	return newGraphQLClient(host)
 }
 
 // VerifyAuth verifies a token with one GET /user request and returns the client

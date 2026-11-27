@@ -957,7 +957,7 @@ pages:
     feed: https://example.com/feed.xml
 ```
 
-The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`. Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
+The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `irc`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`. Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
 
 Put these markers on separate lines inside the footer of `<pages.path>/index.html`:
 
@@ -970,7 +970,7 @@ Tailor owns only the content between the markers. It replaces that content with 
 
 Omit `links` to leave the page untouched. Use `links: {}` or all-empty values to clear the marked section. New configs include Martin Wimpress’s published links from <https://wimpysworld.link/>. Services without a matching personal URL stay empty. Default merging never adds these links to existing configs and preserves explicit declarations, including an empty mapping. Disabled Pages leaves links unmanaged. A skipped Pages setup also skips the links update. `baste` reports `would overwrite` for a changed page without writing; `alter` reports `overwritten`. Repeated application makes no change. An empty mapping with Hugo or Jekyll has no effect.
 
-The generated section includes its own minimal layout and CSS masks, so it needs no JavaScript or project-specific icon classes. It uses pinned Simple Icons 16.30.0 and Octicons 19.36.0 CDN URLs. Slack and LinkedIn use generic organisation and briefcase icons. Other service links use brand icons; website, podcast, forum, email and feed use generic icons. GitHub navigation stays separate from these optional connections.
+The generated section includes its own minimal layout and CSS masks, so it needs no JavaScript or project-specific icon classes. It uses pinned Simple Icons 16.30.0 and Octicons 19.36.0 CDN URLs. Slack and LinkedIn use generic organisation and briefcase icons. Other service links use brand icons; website, irc, podcast, forum, email and feed use generic icons. GitHub navigation stays separate from these optional connections.
 
 #### Static Pages starter
 
@@ -1001,6 +1001,75 @@ Navigation is independent of `pages.links` and needs no new configuration field.
 The footer uses `<!-- tailor:footer-navigation:start -->` and `<!-- tailor:footer-navigation:end -->` inside its Resources list. It follows the same README, Wiki and Discussions order. Append `Support` linking to `/blob/HEAD/SUPPORT.md` when either Wiki or Discussions is disabled or omitted. Hide Support only when both are enabled. Releases stays in the separate Project list.
 
 The optional `<!-- tailor:license:start -->` and `<!-- tailor:license:end -->` markers enclose the footer licence list item. Render its label as `License` and its URL as the managed repository URL plus `?tab=<license>-1-ov-file`. URL-encode the configured identifier. An empty `license` or `none` clears this section. Unmarked links stay unchanged. Apply the same preflight, preview and file-preservation rules as navigation, with one shared page write.
+
+### Social Assets
+
+Social assets are opt-in and follow Tailor's three-state lifecycle (`true`, `false`, or omitted).
+
+```yaml
+social:
+  enabled: false
+  theme: dark
+  accent: ""
+  background: ""
+  platforms: ""
+  og:
+    output: pages/og.png
+    include_preview: false
+    image: ""
+    terminal: []
+  readme:
+    header: true
+    preferred_links: []
+    community: auto
+    packages: []
+    stats: true
+    star_history:
+      enabled: true
+      min_stars: 25
+      min_days: 30
+    sponsors: auto
+  live:
+    branch: social-assets
+    schedule: "0 4 * * *"
+```
+
+An omitted `social` section, an empty mapping, or an absent `enabled` key leaves social assets untouched. Setting `social.enabled: true` activates managed fragments, workflow management, static SVG generation, and README marker updates. Setting `social.enabled: false` removes only the owned `nix/og.nix`, `just/og.just`, and `.github/workflows/tailor-social.yml` files, and preserves authored assets and README files. Default merging never adds an absent `social` section and never sets an omitted `social.enabled` key.
+
+Project title, tagline, and icon are inherited rather than duplicated in `.tailor.yml`. Tailor reads the title from the repository name, the tagline from `repository.description` with trailing emoji removed, and the icon from `pages/icon.svg` or `pages/icon.png`.
+
+#### Storage model
+
+Social assets use a hybrid storage model:
+
+- Static assets live on the default branch (`main`): the Open Graph preview image (default `pages/og.png`) and static README SVGs under `pages/social/*.svg`.
+- Daily live SVGs (stats strip and star history chart) live on an orphan branch (default `social-assets`) updated on schedule so the default branch history stays free of automated daily commits.
+
+#### Open Graph preview image (`og.png`)
+
+The generated Open Graph image is `1280 x 640` pixels, keeps all content inside a `1120 x 520` safe zone, and stays below `1 MB`. `social.og.output` defaults to `pages/og.png` and must be a safe project-relative `.png` path. `social.og.include_preview` defaults to `false`. When enabled, the card can show a project-relative screenshot from `social.og.image` (`.png`, `.webp`, `.jpg`, `.jpeg`, or `.avif`) or up to 8 terminal lines from `social.og.terminal` (at most 80 characters each, with no control characters).
+
+`pages/og.png` is generated by project tooling and is not registered in the swatch registry. Tailor's static `pages/index.html` starter includes Open Graph and Twitter Card meta tags that reference `og.png`.
+
+#### Pure-Go README SVG suite and marker blocks
+
+Tailor generates dark and light SVG pairs in pure Go without external browser dependencies for README presentation:
+
+- Hero banner (`hero-dark.svg`, `hero-light.svg`) controlled by `social.readme.header`.
+- Preferred link pills controlled by `social.readme.preferred_links` (up to 4 unique keys from `pages.links`).
+- Community banner controlled by `social.readme.community` (`auto`, `none`, `discord`, `matrix`, `slack`, `irc`, `forum`, or `discussions`).
+- Haberdasher package tiles controlled by `social.readme.packages` (unique entries from `apt`, `rpm`, `pkg`, `apk`, `flatpak`, `brew`, `scoop`, and `nix`).
+- Live repository stats strip (`stats-dark.svg`, `stats-light.svg`) controlled by `social.readme.stats`.
+- Live animated star history chart (`stars-dark.svg`, `stars-light.svg`) controlled by `social.readme.star_history` (`enabled`, `min_stars >= 0`, `min_days >= 0`).
+- Sponsors banner controlled by `social.readme.sponsors` (`auto`, `true`, or `false`).
+
+Tailor updates only content between explicit standalone `<!-- tailor:social-<name>:start -->` and `<!-- tailor:social-<name>:end -->` marker pairs in `README.md`, and preserves all surrounding authored prose.
+
+#### Subcommand, managed files, and measurement
+
+- The `tailor social` subcommand renders static and live social SVGs and updates declared README marker blocks.
+- When `social.enabled: true`, Tailor manages `nix/og.nix` and `just/og.just` for local Open Graph card rendering, and `.github/workflows/tailor-social.yml` using `social.live.branch` and the 5-field cron expression in `social.live.schedule` (default `0 4 * * *`).
+- `tailor measure` validates an existing `og.png` at the configured output path, checking that its dimensions are `1280 x 640` or `1200 x 630` and that its size is under `1 MB`.
 
 ## Commands
 
@@ -1459,7 +1528,7 @@ Behaviour:
 
 ### `.tailor.yml`
 
-`.tailor.yml` has thirteen top-level sections: `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `languages`, `mcp`, and `swatches`. The `actions` section is a map of repository Actions policy settings. The `code_scanning` section is a map of CodeQL default setup settings, and the `code_quality` section is a map of GitHub Code Quality settings. The `ruleset` section is a map of settings for the branch ruleset named `Tailor`. The `mcp` section declares supported Model Context Protocol integrations. `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (for example, `justfile`) are referenced as-is. The `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `languages`, and `mcp` sections can be absent in a hand-written config. Default merging adds missing Actions defaults before policy management, but preserves absent capability sections.
+`.tailor.yml` has fourteen top-level sections: `license`, `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `social`, `languages`, `mcp`, and `swatches`. The `actions` section is a map of repository Actions policy settings. The `code_scanning` section is a map of CodeQL default setup settings, and the `code_quality` section is a map of GitHub Code Quality settings. The `ruleset` section is a map of settings for the branch ruleset named `Tailor`. The `social` section configures opt-in Open Graph and README social assets. The `mcp` section declares supported Model Context Protocol integrations. `path` values use the full path relative to `swatches/`, including the file extension where one exists. Extensionless files (for example, `justfile`) are referenced as-is. The `repository`, `immutable_releases`, `actions`, `code_scanning`, `code_quality`, `ruleset`, `labels`, `variables`, `pages`, `social`, `languages`, and `mcp` sections can be absent in a hand-written config. Default merging adds missing Actions defaults before policy management, but preserves absent capability sections.
 
 Tailor opens `.tailor.yml` relative to the project root. It does not search parent directories. The config must be a regular file no larger than 1 MiB (1,048,576 bytes).
 
@@ -1605,6 +1674,7 @@ pages:
     slack: ""
     discord: https://discord.com/invite/vUsydfP
     matrix: https://matrix.to/#/@wimpress:matrix.org
+    irc: ""
     youtube: https://youtube.com/WimpysWorld
     twitch: https://twitch.tv/WimpysWorld
     peertube: ""
@@ -1626,6 +1696,28 @@ pages:
   # links:
   #   website: https://example.com
   #   email: hello@example.com
+
+# Social assets are opt-in. Omission or enabled: false leaves social assets unmanaged.
+social:
+  enabled: false
+  theme: dark
+  og:
+    output: pages/og.png
+    include_preview: false
+  readme:
+    header: true
+    preferred_links: []
+    community: auto
+    packages: []
+    stats: true
+    star_history:
+      enabled: true
+      min_stars: 25
+      min_days: 30
+    sponsors: auto
+  live:
+    branch: social-assets
+    schedule: "0 4 * * *"
 
 labels:
   - name: bug

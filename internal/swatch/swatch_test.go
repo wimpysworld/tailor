@@ -49,10 +49,11 @@ func TestAllEmbeddedFilesAreRegistered(t *testing.T) {
 		"quality/build-go.sh": false, "quality/test-go.sh": false, "quality/lint-go.sh": false, "quality/workflows.sh": false, "quality/project.sh": false,
 		"nix/hooks.nix": false, "nix/hooks/core.nix": false, "nix/hooks/go.nix": false, "nix/hooks/go-ffmpeg-statigo.nix": false,
 		"just/go-ffmpeg-statigo.just": false, "nix/go-ffmpeg-statigo.nix": false,
-		"just/go.just": false, "just/loader.just": false, "just/pages.just": false, "just/tailor.just": false,
-		"nix/go.nix": false, "nix/loader.nix": false, "nix/ntrecord.nix": false, "nix/pages.nix": false, "nix/playwright.nix": false, "nix/blender.nix": false,
+		"just/go.just": false, "just/loader.just": false, "just/og.just": false, "just/pages.just": false, "just/tailor.just": false,
+		"nix/go.nix": false, "nix/loader.nix": false, "nix/ntrecord.nix": false, "nix/og.nix": false, "nix/pages.nix": false, "nix/playwright.nix": false, "nix/blender.nix": false,
 		"nix/lib/blender.nix": false, "nix/patches/blender-agent-bridge-local-glb.patch": false,
-		".mcp.json": false, ".codex/config.toml": false, "opencode.json": false, ".pi/mcp.json": false,
+		"social/tailor-social.yml": false,
+		".mcp.json":                false, ".codex/config.toml": false, "opencode.json": false, ".pi/mcp.json": false,
 	}
 
 	err := fs.WalkDir(tailor.SwatchFS, "swatches", func(path string, d fs.DirEntry, err error) error {

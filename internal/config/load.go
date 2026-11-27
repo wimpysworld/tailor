@@ -97,6 +97,9 @@ func parseAndValidate(data []byte, context string) (*Config, error) {
 	if err := validatePagesNodes(&document); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", context, err)
 	}
+	if err := validateSocialNodes(&document); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", context, err)
+	}
 	if err := validateLanguageNodes(&document); err != nil {
 		return nil, fmt.Errorf("parsing %s: %w", context, err)
 	}
@@ -163,6 +166,9 @@ func validate(cfg *Config) error {
 		return err
 	}
 	if err := ValidatePages(cfg); err != nil {
+		return err
+	}
+	if err := ValidateSocial(cfg); err != nil {
 		return err
 	}
 	if err := ValidateTopics(cfg); err != nil {

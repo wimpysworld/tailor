@@ -190,6 +190,7 @@ var templateFuncs = template.FuncMap{
 		return withLanguagesComment(lines, model.CodeQualityLanguages), err
 	},
 	"rulesetLines": rulesetLines,
+	"socialLines":  socialLines,
 }
 
 // rulesetWriter collects indented YAML lines and the first scalar encoding error.
@@ -425,6 +426,105 @@ func withLanguagesComment(lines []string, valid []string) []string {
 	return slices.Insert(lines, index, comment...)
 }
 
+// socialLines renders the social section in deterministic key order.
+func socialLines(s *model.SocialSettings) ([]string, error) {
+	if s == nil {
+		return nil, nil
+	}
+	w := &rulesetWriter{}
+	w.boolean(2, "enabled", s.Enabled)
+	if s.Theme != nil {
+		w.scalar(2, "", "theme", *s.Theme)
+	}
+	if s.Accent != nil {
+		w.scalar(2, "", "accent", *s.Accent)
+	}
+	if s.Background != nil {
+		w.scalar(2, "", "background", *s.Background)
+	}
+	if s.Platforms != nil {
+		w.scalar(2, "", "platforms", *s.Platforms)
+	}
+	if s.OG != nil {
+		w.socialOG(s.OG)
+	}
+	if s.Readme != nil {
+		w.socialReadme(s.Readme)
+	}
+	if s.Live != nil {
+		w.socialLive(s.Live)
+	}
+	return w.lines, w.err
+}
+
+func (w *rulesetWriter) socialOG(og *model.SocialOGSettings) {
+	sub := &rulesetWriter{}
+	if og.Output != nil {
+		sub.scalar(4, "", "output", *og.Output)
+	}
+	sub.boolean(4, "include_preview", og.IncludePreview)
+	if og.Image != nil {
+		sub.scalar(4, "", "image", *og.Image)
+	}
+	if og.Terminal != nil {
+		sub.list(4, "terminal", *og.Terminal)
+	}
+	w.appendSubSection(2, "og", sub)
+}
+
+func (w *rulesetWriter) socialReadme(r *model.SocialReadmeSettings) {
+	sub := &rulesetWriter{}
+	sub.boolean(4, "header", r.Header)
+	if r.PreferredLinks != nil {
+		sub.list(4, "preferred_links", *r.PreferredLinks)
+	}
+	if r.Community != nil {
+		sub.scalar(4, "", "community", *r.Community)
+	}
+	if r.Packages != nil {
+		sub.list(4, "packages", *r.Packages)
+	}
+	sub.boolean(4, "stats", r.Stats)
+	if r.StarHistory != nil {
+		sh := &rulesetWriter{}
+		sh.boolean(6, "enabled", r.StarHistory.Enabled)
+		if r.StarHistory.MinStars != nil {
+			sh.line(6, "min_stars: %d", *r.StarHistory.MinStars)
+		}
+		if r.StarHistory.MinDays != nil {
+			sh.line(6, "min_days: %d", *r.StarHistory.MinDays)
+		}
+		sub.appendSubSection(4, "star_history", sh)
+	}
+	if r.Sponsors != nil {
+		sub.scalar(4, "", "sponsors", *r.Sponsors)
+	}
+	w.appendSubSection(2, "readme", sub)
+}
+
+func (w *rulesetWriter) socialLive(l *model.SocialLiveSettings) {
+	sub := &rulesetWriter{}
+	if l.Branch != nil {
+		sub.scalar(4, "", "branch", *l.Branch)
+	}
+	if l.Schedule != nil {
+		sub.scalar(4, "", "schedule", *l.Schedule)
+	}
+	w.appendSubSection(2, "live", sub)
+}
+
+func (w *rulesetWriter) appendSubSection(indent int, key string, sub *rulesetWriter) {
+	if sub.err != nil && w.err == nil {
+		w.err = sub.err
+	}
+	if len(sub.lines) == 0 {
+		w.line(indent, "%s: {}", key)
+		return
+	}
+	w.line(indent, "%s:", key)
+	w.lines = append(w.lines, sub.lines...)
+}
+
 // configTemplate uses text/template to control key order, blank lines between
 // swatch entries, guidance comments and omission of nil pointer fields.
 var configTemplate = template.Must(template.New("config").Funcs(templateFuncs).Parse(
@@ -523,6 +623,15 @@ pages:{{ if not $pagesLines }} {}{{ end }}
   # links:
   #   website: https://example.com
   #   email: hello@example.com
+{{- end }}
+{{- if .Social }}
+
+# Social assets are opt-in. Omission or enabled: false leaves social assets unmanaged.
+{{- $socialLines := socialLines .Social }}
+social:{{ if not $socialLines }} {}{{ end }}
+{{- range $socialLines }}
+{{ . }}
+{{- end }}
 {{- end }}
 {{- if .Labels }}
 

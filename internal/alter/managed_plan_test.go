@@ -32,7 +32,7 @@ func TestFixedManagedRegistry(t *testing.T) {
 		"just/javascript.just", "nix/javascript.nix",
 		"just/shell.just", "nix/shell.nix",
 		"just/go-ffmpeg-statigo.just", "nix/go-ffmpeg-statigo.nix",
-		"just/pages.just", "nix/pages.nix", "nix/playwright.nix", "nix/blender.nix", "nix/lib/blender.nix", "nix/patches/blender-agent-bridge-local-glb.patch",
+		"just/pages.just", "nix/pages.nix", "just/og.just", "nix/og.nix", "nix/playwright.nix", "nix/blender.nix", "nix/lib/blender.nix", "nix/patches/blender-agent-bridge-local-glb.patch",
 		".mcp.json", ".codex/config.toml", "opencode.json", ".pi/mcp.json",
 	}
 	if !reflect.DeepEqual(got, want) {

@@ -59,6 +59,11 @@ func TestDefaultConfigMatchesEmbedded(t *testing.T) {
 		t.Fatal("Pages is nil, want explicit defaults")
 	}
 	testutil.AssertPtrEqual(t, got.Pages.Enabled, new(false), "pages.enabled")
+	if got.Social == nil {
+		t.Fatal("Social is nil, want explicit defaults")
+	}
+	testutil.AssertPtrEqual(t, got.Social.Enabled, new(false), "social.enabled")
+	testutil.AssertPtrEqual(t, got.Social.Theme, new(model.DefaultSocialTheme), "social.theme")
 
 	// Managed repository settings retain the embedded defaults, apart from project metadata.
 	if got.Repository == nil {

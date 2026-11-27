@@ -25,6 +25,7 @@ const (
 	managedCapabilityGoEbitengineAndroid
 	managedCapabilityJavaScript
 	managedCapabilityShell
+	managedCapabilitySocial
 )
 
 type managedPolicy uint8
@@ -122,6 +123,8 @@ func fixedManagedRegistry() []managedRegistryEntry {
 		{Path: "nix/go-ffmpeg-statigo.nix", Policy: managedPolicyFragment, Capability: managedCapabilityGoFFmpegStatigo},
 		{Path: "just/pages.just", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
 		{Path: "nix/pages.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPages},
+		{Path: "just/og.just", Policy: managedPolicyFragment, Capability: managedCapabilitySocial},
+		{Path: "nix/og.nix", Policy: managedPolicyFragment, Capability: managedCapabilitySocial},
 		{Path: "nix/playwright.nix", Policy: managedPolicyFragment, Capability: managedCapabilityPlaywright},
 		{Path: "nix/blender.nix", Policy: managedPolicyFragment, Capability: managedCapabilityBlender},
 		{Path: "nix/lib/blender.nix", Policy: managedPolicyFragment, Capability: managedCapabilityBlender, NixKind: managedNixSupport},
@@ -218,7 +221,7 @@ func validateManagedPath(name string) error {
 }
 
 func (capability managedCapability) validDeclaration() bool {
-	return capability == managedCapabilityJavaScript || capability == managedCapabilityShell || capability == managedCapabilityBlender || capability == managedCapabilityPython || capability == managedCapabilityGoEbitengine || capability == managedCapabilityGoEbitengineAndroid || capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo
+	return capability == managedCapabilityJavaScript || capability == managedCapabilityShell || capability == managedCapabilityBlender || capability == managedCapabilityPython || capability == managedCapabilityGoEbitengine || capability == managedCapabilityGoEbitengineAndroid || capability == managedCapabilityRust || capability == managedCapabilityGo || capability == managedCapabilityPages || capability == managedCapabilityPlaywright || capability == managedCapabilityGoFFmpegStatigo || capability == managedCapabilitySocial
 }
 
 func (capability managedCapability) canonicalName() string {
@@ -241,6 +244,8 @@ func (capability managedCapability) canonicalName() string {
 		return "go-ffmpeg-statigo"
 	case managedCapabilityPages:
 		return "pages"
+	case managedCapabilitySocial:
+		return "social"
 	case managedCapabilityPlaywright:
 		return "playwright"
 	case managedCapabilityBlender:
@@ -347,6 +352,8 @@ func managedCapabilityState(cfg *config.Config, capability managedCapability) (d
 		return cfg.FFmpegStatigoDeclared() || cfg.GoDeclared() && !cfg.GoEnabled(), cfg.FFmpegStatigoEnabled()
 	case managedCapabilityPages:
 		return cfg.PagesDeclared(), cfg.PagesEnabled()
+	case managedCapabilitySocial:
+		return cfg.SocialDeclared(), cfg.SocialEnabled()
 	case managedCapabilityPlaywright:
 		return cfg.PlaywrightDeclared(), cfg.PlaywrightEnabled()
 	case managedCapabilityBlender:

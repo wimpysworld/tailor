@@ -56,7 +56,12 @@ func (o Options) stageError(err error) {
 // Execute retains typed results, including partial results when a later stage fails.
 func Execute(cfg *config.Config, dir string, mode ApplyMode, client *api.RESTClient, stderr io.Writer, options Options) (Report, error) {
 	return execute(cfg, dir, mode, client, stderr, options, func(selections []managedSelection) (managedRenderedFiles, error) {
-		return renderManagedFiles(cfg, selections)
+		ctx := managedRenderContext{Dir: dir}
+		if repo, hasRepo, err := gh.RepoContextAt(dir); err == nil && hasRepo {
+			ctx.Owner = repo.Owner
+			ctx.Repo = repo.Name
+		}
+		return renderManagedFilesWithContext(cfg, selections, ctx)
 	})
 }
 
@@ -165,6 +170,10 @@ func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *ap
 		}
 		return partial(err)
 	}
+	socialPrepared, err := prepareSocialWorkflow(cfg, dir)
+	if err != nil {
+		return partial(err)
+	}
 	managedExclusions := managedExcludedPaths()
 	managedExclusions[dependabotPath] = struct{}{}
 	repo, hasRepo, err := gh.RepoContextAt(dir)
@@ -262,6 +271,17 @@ func executeWithHooks(cfg *config.Config, dir string, mode ApplyMode, client *ap
 		return partial(err)
 	}
 	options.stage("wiki", stageLabel(mode, "Wiki changes planned", "Wiki changes applied"), "complete")
+	if socialPrepared != nil {
+		options.stage("social", stageLabel(mode, "Planning social workflow", "Applying social workflow"), "start")
+		socialWorkflow, socialErr := processSocialWorkflowWithParentObserver(cfg, dir, mode, socialPrepared, observeDependabotParent)
+		if socialWorkflow != nil {
+			retiredResults = append(retiredResults, *socialWorkflow)
+		}
+		if socialErr != nil {
+			return partial(socialErr)
+		}
+		options.stage("social", stageLabel(mode, "Social workflow planned", "Social workflow applied"), "complete")
+	}
 	options.stage("licence", stageLabel(mode, "Planning licence", "Writing licence"), "start")
 	licenceResult, err := ProcessLicence(cfg, dir, mode, client, stderr)
 	if err != nil {
@@ -438,6 +458,9 @@ func appendGuidance(report *Report, guidance string, kind output.GuidanceKind) {
 // validateConfig checks both loaded configuration and the result of default merging.
 func validateConfig(cfg *config.Config) error {
 	if err := config.ValidatePages(cfg); err != nil {
+		return err
+	}
+	if err := config.ValidateSocial(cfg); err != nil {
 		return err
 	}
 	if err := config.ValidateVariables(cfg); err != nil {

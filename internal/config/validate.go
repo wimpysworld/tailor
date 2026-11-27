@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"maps"
 	"net"
+	"path"
 	"reflect"
 	"regexp"
 	"slices"
@@ -16,16 +17,25 @@ import (
 )
 
 var (
-	topicRegexp    = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
-	labelHexRegexp = regexp.MustCompile(`^[0-9a-fA-F]{6}$`)
+	topicRegexp     = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+	labelHexRegexp  = regexp.MustCompile(`^[0-9a-fA-F]{6}$`)
+	socialHexRegexp = regexp.MustCompile(`^#[0-9a-fA-F]{6}$`)
+	cronFieldRegexp = regexp.MustCompile(`^[0-9*,/\-A-Za-z]+$`)
 )
 
 // maxLabels caps the label list so a misconfigured file cannot drive an
 // unbounded number of API mutations.
 const maxLabels = 1000
 
+const (
+	maxSocialPlatformsRunes = 120
+	maxSocialTerminalLines  = 8
+	maxSocialTerminalRunes  = 80
+	maxSocialPreferredLinks = 4
+)
+
 func validateTopLevelSettings(cfg *Config) error {
-	valid := []string{"actions", "code_quality", "code_scanning", "immutable_releases", "labels", "languages", "license", "mcp", "pages", "repository", "ruleset", "swatches", "variables"}
+	valid := []string{"actions", "code_quality", "code_scanning", "immutable_releases", "labels", "languages", "license", "mcp", "pages", "repository", "ruleset", "social", "swatches", "variables"}
 	return rejectExtra("top-level", cfg.Extra, valid)
 }
 
@@ -72,14 +82,195 @@ func validatePagesPath(value *string) error {
 }
 
 func validatePagesBranch(value *string) error {
-	if value != nil {
-		branch := *value
-		if branch == "" || branch == "@" || strings.HasPrefix(branch, "-") || strings.HasSuffix(branch, ".") || strings.Contains(branch, "..") || strings.Contains(branch, "@{") || strings.ContainsAny(branch, " ~^:?*[\\\\\x7f") || strings.ContainsFunc(branch, unicode.IsControl) {
-			return fmt.Errorf("pages.branch must be a valid branch name")
+	if value != nil && !isValidGitBranch(*value) {
+		return fmt.Errorf("pages.branch must be a valid branch name")
+	}
+	return nil
+}
+
+func isValidGitBranch(branch string) bool {
+	if branch == "" || branch == "@" || strings.HasPrefix(branch, "-") || strings.HasSuffix(branch, ".") || strings.Contains(branch, "..") || strings.Contains(branch, "@{") || strings.ContainsAny(branch, " ~^:?*[\\\x7f") || containsControl(branch) {
+		return false
+	}
+	for part := range strings.SplitSeq(branch, "/") {
+		if part == "" || strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
+			return false
 		}
-		for part := range strings.SplitSeq(branch, "/") {
-			if part == "" || strings.HasPrefix(part, ".") || strings.HasSuffix(part, ".lock") {
-				return fmt.Errorf("pages.branch must be a valid branch name")
+	}
+	return true
+}
+
+func validateSafeRelativePath(field, value string) error {
+	if value == "" || strings.HasPrefix(value, "/") || strings.ContainsAny(value, "\\\n\r\x00:$`\"'") || strings.Contains(value, "${{") {
+		return fmt.Errorf("%s must be a safe project-relative path", field)
+	}
+	for part := range strings.SplitSeq(value, "/") {
+		if part == "" || part == "." || part == ".." {
+			return fmt.Errorf("%s must not contain empty, dot, or traversal components", field)
+		}
+	}
+	if containsControl(value) {
+		return fmt.Errorf("%s must not contain control characters", field)
+	}
+	return nil
+}
+
+// ValidateSocial checks social asset field names, values, paths, limits, and enums.
+func ValidateSocial(cfg *Config) error {
+	s := cfg.Social
+	if s == nil {
+		return nil
+	}
+	if err := rejectExtra("social", s.Extra, model.SocialSettingNames); err != nil {
+		return err
+	}
+	if err := validateEnum("social.theme", s.Theme, model.SocialThemes...); err != nil {
+		return err
+	}
+	if err := validateSocialHex("social.accent", s.Accent); err != nil {
+		return err
+	}
+	if err := validateSocialHex("social.background", s.Background); err != nil {
+		return err
+	}
+	if s.Platforms != nil {
+		if containsControl(*s.Platforms) {
+			return fmt.Errorf("social.platforms contains control characters")
+		}
+		if utf8.RuneCountInString(*s.Platforms) > maxSocialPlatformsRunes {
+			return fmt.Errorf("social.platforms exceeds %d characters", maxSocialPlatformsRunes)
+		}
+	}
+	if err := validateSocialOG(s.OG); err != nil {
+		return err
+	}
+	if err := validateSocialReadme(s.Readme); err != nil {
+		return err
+	}
+	return validateSocialLive(s.Live)
+}
+
+func validateSocialHex(field string, value *string) error {
+	if value == nil || *value == "" {
+		return nil
+	}
+	if !socialHexRegexp.MatchString(*value) {
+		return fmt.Errorf("%s %q must be a 6-digit hex colour with # prefix", field, *value)
+	}
+	return nil
+}
+
+func validateSocialOG(og *model.SocialOGSettings) error {
+	if og == nil {
+		return nil
+	}
+	if err := rejectExtra("social.og", og.Extra, model.SocialOGSettingNames); err != nil {
+		return err
+	}
+	if og.Output != nil {
+		if err := validateSafeRelativePath("social.og.output", *og.Output); err != nil {
+			return err
+		}
+		if !strings.HasSuffix(*og.Output, ".png") || path.Base(*og.Output) == ".png" {
+			return fmt.Errorf("social.og.output must end with .png")
+		}
+	}
+	if og.Image != nil && *og.Image != "" {
+		if err := validateSafeRelativePath("social.og.image", *og.Image); err != nil {
+			return err
+		}
+		ext := strings.ToLower(path.Ext(*og.Image))
+		if !slices.Contains(model.SocialOGImageExtensions, ext) || strings.EqualFold(path.Base(*og.Image), ext) {
+			return fmt.Errorf("social.og.image must use one of %s", strings.Join(model.SocialOGImageExtensions, ", "))
+		}
+	}
+	if og.Terminal != nil {
+		if len(*og.Terminal) > maxSocialTerminalLines {
+			return fmt.Errorf("social.og.terminal: %d lines exceed the maximum of %d", len(*og.Terminal), maxSocialTerminalLines)
+		}
+		for i, line := range *og.Terminal {
+			if containsControl(line) {
+				return fmt.Errorf("social.og.terminal[%d]: line contains control characters", i)
+			}
+			if utf8.RuneCountInString(line) > maxSocialTerminalRunes {
+				return fmt.Errorf("social.og.terminal[%d]: line exceeds %d characters", i, maxSocialTerminalRunes)
+			}
+		}
+	}
+	return nil
+}
+
+func validateSocialReadme(r *model.SocialReadmeSettings) error {
+	if r == nil {
+		return nil
+	}
+	if err := rejectExtra("social.readme", r.Extra, model.SocialReadmeSettingNames); err != nil {
+		return err
+	}
+	if r.PreferredLinks != nil {
+		if len(*r.PreferredLinks) > maxSocialPreferredLinks {
+			return fmt.Errorf("social.readme.preferred_links: %d entries exceed the maximum of %d", len(*r.PreferredLinks), maxSocialPreferredLinks)
+		}
+		validLinks := make([]string, 0, len(model.PagesLinkTypes))
+		for _, link := range model.PagesLinkTypes {
+			validLinks = append(validLinks, link.Key)
+		}
+		if err := validateMembers("social.readme.preferred_links", "link", *r.PreferredLinks, validLinks); err != nil {
+			return err
+		}
+	}
+	if err := validateEnum("social.readme.community", r.Community, model.SocialCommunities...); err != nil {
+		return err
+	}
+	if r.Packages != nil {
+		if err := validateMembers("social.readme.packages", "package", *r.Packages, model.SocialPackages); err != nil {
+			return err
+		}
+	}
+	if err := validateSocialStarHistory(r.StarHistory); err != nil {
+		return err
+	}
+	return validateEnum("social.readme.sponsors", r.Sponsors, model.SocialSponsorsModes...)
+}
+
+func validateSocialStarHistory(sh *model.SocialStarHistorySettings) error {
+	if sh == nil {
+		return nil
+	}
+	if err := rejectExtra("social.readme.star_history", sh.Extra, model.SocialStarHistorySettingNames); err != nil {
+		return err
+	}
+	if sh.MinStars != nil && *sh.MinStars < 0 {
+		return fmt.Errorf("social.readme.star_history.min_stars must be at least 0, got %d", *sh.MinStars)
+	}
+	if sh.MinDays != nil && *sh.MinDays < 0 {
+		return fmt.Errorf("social.readme.star_history.min_days must be at least 0, got %d", *sh.MinDays)
+	}
+	return nil
+}
+
+func validateSocialLive(l *model.SocialLiveSettings) error {
+	if l == nil {
+		return nil
+	}
+	if err := rejectExtra("social.live", l.Extra, model.SocialLiveSettingNames); err != nil {
+		return err
+	}
+	if l.Branch != nil && !isValidGitBranch(*l.Branch) {
+		return fmt.Errorf("social.live.branch must be a valid branch name")
+	}
+	if l.Schedule != nil {
+		schedule := *l.Schedule
+		if containsControl(schedule) || strings.Contains(schedule, "${{") {
+			return fmt.Errorf("social.live.schedule must be a valid 5-field cron expression")
+		}
+		fields := strings.Fields(schedule)
+		if len(fields) != 5 {
+			return fmt.Errorf("social.live.schedule must contain 5 whitespace-separated fields, got %d", len(fields))
+		}
+		for _, field := range fields {
+			if !cronFieldRegexp.MatchString(field) {
+				return fmt.Errorf("social.live.schedule contains invalid cron field %q", field)
 			}
 		}
 	}

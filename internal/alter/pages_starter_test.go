@@ -49,7 +49,25 @@ func TestPagesStarterLifecycle(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			for _, want := range []string{"<title>sample</title>", "A &#34;useful&#34; &lt;project&gt;", "/wiki", "/discussions", "?tab=MIT-1-ov-file", "https://example.com", "@digicreon/mucss@1.4.9/dist/mu.css", `<main id="main" class="container" tabindex="-1">`} {
+			for _, want := range []string{
+				"<title>sample</title>",
+				"A &#34;useful&#34; &lt;project&gt;",
+				`<meta property="og:title" content="sample">`,
+				`<meta property="og:description" content="A &#34;useful&#34; &lt;project&gt;">`,
+				`<meta property="og:type" content="website">`,
+				`<meta property="og:url" content="https://owner.github.io/sample/">`,
+				`<meta property="og:image" content="https://owner.github.io/sample/og.png">`,
+				`<meta property="og:image:width" content="1280">`,
+				`<meta property="og:image:height" content="640">`,
+				`<meta property="og:image:alt" content="sample — A &#34;useful&#34; &lt;project&gt;">`,
+				`<meta name="twitter:card" content="summary_large_image">`,
+				"/wiki",
+				"/discussions",
+				"?tab=MIT-1-ov-file",
+				"https://example.com",
+				"@digicreon/mucss@1.4.9/dist/mu.css",
+				`<main id="main" class="container" tabindex="-1">`,
+			} {
 				if !strings.Contains(string(data), want) {
 					t.Fatalf("missing %s", want)
 				}
@@ -104,6 +122,15 @@ func TestPagesStarterCustomStyles(t *testing.T) {
 		`<div class="accordion install-options">`,
 		`<meta name="theme-color" content="#fff" media="(prefers-color-scheme: light)">`,
 		`<meta name="theme-color" content="rgb(19, 22.5, 30.5)" media="(prefers-color-scheme: dark)">`,
+		`<meta property="og:title" content="{{PROJECT_NAME}}">`,
+		`<meta property="og:description" content="{{DESCRIPTION}}">`,
+		`<meta property="og:type" content="website">`,
+		`<meta property="og:url" content="{{SITE_URL}}">`,
+		`<meta property="og:image" content="{{SITE_URL}}og.png">`,
+		`<meta property="og:image:width" content="1280">`,
+		`<meta property="og:image:height" content="640">`,
+		`<meta property="og:image:alt" content="{{PROJECT_NAME}} — {{DESCRIPTION}}">`,
+		`<meta name="twitter:card" content="summary_large_image">`,
 		`<script src="theme.js"></script>`,
 		`<label id="theme-picker" class="theme-picker" hidden>`,
 		`<select id="theme-select" title="Theme">`,
@@ -236,5 +263,64 @@ func TestPagesStarterWriteFailure(t *testing.T) {
 	swatch.PagesStarterPaths = original
 	if _, err := processPagesStarter(cfg, dir, Apply, p); err != nil {
 		t.Fatalf("retry failed: %v", err)
+	}
+}
+
+func TestPagesStarterSiteURL(t *testing.T) {
+	tests := []struct {
+		name      string
+		cname     string
+		repoURL   string
+		wantURL   string
+		wantImage string
+	}{
+		{
+			name:      "cname takes precedence",
+			cname:     "tailor.wimpys.world",
+			repoURL:   "https://github.com/wimpysworld/tailor",
+			wantURL:   "https://tailor.wimpys.world/",
+			wantImage: "https://tailor.wimpys.world/og.png",
+		},
+		{
+			name:      "derived from github repo URL",
+			repoURL:   "https://github.com/WimpysWorld/tailor.git",
+			wantURL:   "https://wimpysworld.github.io/tailor/",
+			wantImage: "https://wimpysworld.github.io/tailor/og.png",
+		},
+		{
+			name:      "unparseable repo URL falls back to empty",
+			repoURL:   "not-a-valid-url",
+			wantURL:   "",
+			wantImage: "og.png",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := pagesTestConfig("static")
+			if tt.cname != "" {
+				cfg.Pages.CNAME = new(tt.cname)
+			}
+			p := &pagesPreparation{
+				ProjectName: "tailor",
+				RepoURL:     tt.repoURL,
+			}
+			data, err := pagesStarterContent(cfg, p, "pages/index.html")
+			if err != nil {
+				t.Fatalf("pagesStarterContent() error = %v", err)
+			}
+			got := string(data)
+			if strings.Contains(got, "{{SITE_URL}}") {
+				t.Fatalf("unresolved {{SITE_URL}} placeholder in rendered index.html")
+			}
+			wantURLTag := `<meta property="og:url" content="` + tt.wantURL + `">`
+			if !strings.Contains(got, wantURLTag) {
+				t.Fatalf("rendered index.html missing %q", wantURLTag)
+			}
+			wantImageTag := `<meta property="og:image" content="` + tt.wantImage + `">`
+			if !strings.Contains(got, wantImageTag) {
+				t.Fatalf("rendered index.html missing %q", wantImageTag)
+			}
+		})
 	}
 }

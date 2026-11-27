@@ -18,6 +18,7 @@ type Config struct {
 	CodeQuality       *model.CodeQualitySettings       `yaml:"code_quality,omitempty"`
 	Ruleset           *model.RulesetSettings           `yaml:"ruleset,omitempty"`
 	Pages             *model.PagesSettings             `yaml:"pages,omitempty"`
+	Social            *model.SocialSettings            `yaml:"social,omitempty"`
 	Labels            []model.LabelEntry               `yaml:"labels,omitempty"`
 	Variables         []model.VariableEntry            `yaml:"variables,omitempty"`
 	Swatches          []SwatchEntry                    `yaml:"swatches"`
