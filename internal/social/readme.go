@@ -303,19 +303,19 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 		liveRef = model.DefaultSocialLiveBranch
 	}
 
-	hasLiveCoords := strings.TrimSpace(in.Owner) != "" &&
+	hasRemoteCoords := strings.TrimSpace(in.Owner) != "" &&
 		strings.TrimSpace(in.Repo) != "" &&
 		liveRef != ""
 
-	resolveLivePair := func(name string) (string, string) {
-		if hasLiveCoords {
+	resolveAssetPair := func(name string) (string, string) {
+		if hasRemoteCoords {
 			return LiveAssetPair(in.Owner, in.Repo, liveRef, name)
 		}
 		return StaticAssetPair(staticDir, name)
 	}
 
 	if in.Header {
-		darkSrc, lightSrc := StaticAssetPair(staticDir, "hero")
+		darkSrc, lightSrc := resolveAssetPair("hero")
 		blocks[MarkerHeader] = wrapCentered(FormatLinkedPicture(in.HeaderURL, darkSrc, lightSrc, title))
 	}
 
@@ -335,7 +335,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 				}
 			}
 			href := normalizeLinkHref(key, link.URL)
-			darkSrc, lightSrc := StaticAssetPair(staticDir, "link-"+key)
+			darkSrc, lightSrc := resolveAssetPair("link-" + key)
 			lines = append(lines, "  "+FormatLinkedPicture(href, darkSrc, lightSrc, label))
 		}
 		if len(lines) > 0 {
@@ -353,12 +353,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 				alt = "Community"
 			}
 		}
-		var darkSrc, lightSrc string
-		if in.LiveCommunity {
-			darkSrc, lightSrc = resolveLivePair("community")
-		} else {
-			darkSrc, lightSrc = StaticAssetPair(staticDir, "community")
-		}
+		darkSrc, lightSrc := resolveAssetPair("community")
 		blocks[MarkerCommunity] = wrapCentered(FormatLinkedPicture(in.Community.URL, darkSrc, lightSrc, alt))
 	}
 
@@ -377,7 +372,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 					href += "/#" + pkgName
 				}
 			}
-			darkSrc, lightSrc := StaticAssetPair(staticDir, "pkg-"+host)
+			darkSrc, lightSrc := resolveAssetPair("pkg-" + host)
 			lines = append(lines, "  "+FormatLinkedPicture(href, darkSrc, lightSrc, info.Label))
 		}
 		if len(lines) > 0 {
@@ -391,7 +386,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 	}
 
 	if in.Demo {
-		darkSrc, lightSrc := StaticAssetPair(staticDir, "demo")
+		darkSrc, lightSrc := resolveAssetPair("demo")
 		blocks[MarkerDemo] = wrapCentered(FormatPicture(darkSrc, lightSrc, title+" demo"))
 	} else if fallbackSrc := strings.TrimSpace(in.DemoFallbackSrc); fallbackSrc != "" {
 		blocks[MarkerDemo] = wrapCentered(fmt.Sprintf(`<img src="%s" alt="%s">`,
@@ -401,7 +396,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 	}
 
 	if in.Stats {
-		darkSrc, lightSrc := resolveLivePair("stats")
+		darkSrc, lightSrc := resolveAssetPair("stats")
 		href := ""
 		if strings.TrimSpace(in.Owner) != "" && strings.TrimSpace(in.Repo) != "" {
 			href = fmt.Sprintf("https://github.com/%s/%s/pulse", strings.TrimSpace(in.Owner), strings.TrimSpace(in.Repo))
@@ -410,7 +405,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 	}
 
 	if in.StarHistory {
-		darkSrc, lightSrc := resolveLivePair("stars")
+		darkSrc, lightSrc := resolveAssetPair("stars")
 		href := ""
 		if strings.TrimSpace(in.Owner) != "" && strings.TrimSpace(in.Repo) != "" {
 			href = fmt.Sprintf("https://github.com/%s/%s/stargazers", strings.TrimSpace(in.Owner), strings.TrimSpace(in.Repo))
@@ -419,7 +414,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 	}
 
 	if in.Sponsors {
-		darkSrc, lightSrc := StaticAssetPair(staticDir, "sponsors")
+		darkSrc, lightSrc := resolveAssetPair("sponsors")
 		href := strings.TrimSpace(in.SponsorsURL)
 		if href == "" && strings.TrimSpace(in.Owner) != "" {
 			href = "https://github.com/sponsors/" + strings.TrimSpace(in.Owner)
@@ -428,7 +423,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 	}
 
 	if in.Contributors {
-		darkSrc, lightSrc := resolveLivePair("contributors")
+		darkSrc, lightSrc := resolveAssetPair("contributors")
 		href := ""
 		if strings.TrimSpace(in.Owner) != "" && strings.TrimSpace(in.Repo) != "" {
 			href = fmt.Sprintf("https://github.com/%s/%s/graphs/contributors", strings.TrimSpace(in.Owner), strings.TrimSpace(in.Repo))
@@ -437,7 +432,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 	}
 
 	if in.Footer {
-		darkSrc, lightSrc := StaticAssetPair(staticDir, "footer")
+		darkSrc, lightSrc := resolveAssetPair("footer")
 		blocks[MarkerFooter] = wrapCentered(FormatLinkedPicture("https://tailor.wimpys.world", darkSrc, lightSrc, "Fitted by Tailor"))
 	}
 

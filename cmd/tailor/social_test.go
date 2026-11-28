@@ -154,7 +154,8 @@ func TestSocialStaticWithRepoWiresBranchLiveURLsWithoutAuth(t *testing.T) {
 	}
 	readme := string(readmeBytes)
 	for _, want := range []string{
-		`srcset="pages/social/hero-dark.svg"`,
+		`srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/hero-dark.svg"`,
+		`src="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/hero-light.svg"`,
 		`srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stats-dark.svg"`,
 		`src="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stats-light.svg"`,
 		`srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stars-dark.svg"`,

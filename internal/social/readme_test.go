@@ -237,73 +237,77 @@ func TestFormatReadmeBlocks(t *testing.T) {
 		t.Fatalf("FormatReadmeBlocks() returned %d blocks, want %d", len(blocks), len(ReadmeMarkerNames))
 	}
 
-	// Verify static header block.
+	// Verify all 10 README SVG sets resolve to commit-pinned raw.githubusercontent.com URLs when Owner and Repo are set.
+	const livePrefix = "https://raw.githubusercontent.com/wimpysworld/tailor/deadbeef1234567890/"
+
 	header := blocks[MarkerHeader]
-	wantHeader := `<a href="https://tailor.wimpys.world"><picture><source media="(prefers-color-scheme: dark)" srcset="pages/social/hero-dark.svg"><img src="pages/social/hero-light.svg" alt="Tailor"></picture></a>`
+	wantHeader := `<a href="https://tailor.wimpys.world"><picture><source media="(prefers-color-scheme: dark)" srcset="` + livePrefix + `hero-dark.svg"><img src="` + livePrefix + `hero-light.svg" alt="Tailor"></picture></a>`
 	if !strings.Contains(header, wantHeader) {
 		t.Errorf("header block missing expected markup:\n%s", header)
 	}
 
 	// Verify preferred links + mailto normalisation.
 	links := blocks[MarkerLinks]
-	if !strings.Contains(links, `srcset="pages/social/link-bluesky-dark.svg"`) ||
-		!strings.Contains(links, `src="pages/social/link-bluesky-light.svg"`) ||
+	if !strings.Contains(links, `srcset="`+livePrefix+`link-bluesky-dark.svg"`) ||
+		!strings.Contains(links, `src="`+livePrefix+`link-bluesky-light.svg"`) ||
 		!strings.Contains(links, `href="mailto:code@wimpress.io"`) {
 		t.Errorf("links block missing expected markup:\n%s", links)
 	}
 
-	// Verify static community block.
+	// Verify community block uses raw.githubusercontent.com URLs even when LiveCommunity is false.
 	comm := blocks[MarkerCommunity]
 	if !strings.Contains(comm, `href="https://wimpysworld.io/discord"`) ||
-		!strings.Contains(comm, `srcset="pages/social/community-dark.svg"`) {
+		!strings.Contains(comm, `srcset="`+livePrefix+`community-dark.svg"`) ||
+		!strings.Contains(comm, `src="`+livePrefix+`community-light.svg"`) {
 		t.Errorf("community block unexpected:\n%s", comm)
 	}
 
 	// Verify Haberdasher package anchors and custom override.
 	pkgs := blocks[MarkerPackages]
 	if !strings.Contains(pkgs, `href="https://apt.wimpys.world/#tailor"`) ||
-		!strings.Contains(pkgs, `srcset="pages/social/pkg-apt-dark.svg"`) ||
+		!strings.Contains(pkgs, `srcset="`+livePrefix+`pkg-apt-dark.svg"`) ||
+		!strings.Contains(pkgs, `src="`+livePrefix+`pkg-apt-light.svg"`) ||
 		!strings.Contains(pkgs, `href="https://nix.wimpys.world/#tailor"`) ||
 		!strings.Contains(pkgs, `href="https://brew.wimpys.world/#custom"`) {
 		t.Errorf("packages block unexpected:\n%s", pkgs)
 	}
 
-	// Verify commit-pinned raw.githubusercontent.com live URLs.
-	const livePrefix = "https://raw.githubusercontent.com/wimpysworld/tailor/deadbeef1234567890/"
 	if !strings.Contains(blocks[MarkerStats], `srcset="`+livePrefix+`stats-dark.svg"`) ||
 		!strings.Contains(blocks[MarkerStats], `src="`+livePrefix+`stats-light.svg"`) ||
 		!strings.Contains(blocks[MarkerStats], `href="https://github.com/wimpysworld/tailor/pulse"`) {
-		t.Errorf("stats block missing commit-pinned live URLs or /pulse link:\n%s", blocks[MarkerStats])
+		t.Errorf("stats block missing commit-pinned URLs or /pulse link:\n%s", blocks[MarkerStats])
 	}
 	if !strings.Contains(blocks[MarkerStars], `srcset="`+livePrefix+`stars-dark.svg"`) ||
 		!strings.Contains(blocks[MarkerStars], `href="https://github.com/wimpysworld/tailor/stargazers"`) {
-		t.Errorf("stars block missing commit-pinned live URLs:\n%s", blocks[MarkerStars])
+		t.Errorf("stars block missing commit-pinned URLs:\n%s", blocks[MarkerStars])
 	}
-	if !strings.Contains(blocks[MarkerSponsors], `srcset="pages/social/sponsors-dark.svg"`) ||
-		!strings.Contains(blocks[MarkerSponsors], `src="pages/social/sponsors-light.svg"`) ||
+	if !strings.Contains(blocks[MarkerSponsors], `srcset="`+livePrefix+`sponsors-dark.svg"`) ||
+		!strings.Contains(blocks[MarkerSponsors], `src="`+livePrefix+`sponsors-light.svg"`) ||
 		!strings.Contains(blocks[MarkerSponsors], `href="https://github.com/sponsors/flexiondotorg"`) {
-		t.Errorf("sponsors block should use static pages/social paths:\n%s", blocks[MarkerSponsors])
+		t.Errorf("sponsors block missing commit-pinned URLs:\n%s", blocks[MarkerSponsors])
 	}
 	if !strings.Contains(blocks[MarkerContributors], `srcset="`+livePrefix+`contributors-dark.svg"`) ||
 		!strings.Contains(blocks[MarkerContributors], `src="`+livePrefix+`contributors-light.svg"`) ||
 		!strings.Contains(blocks[MarkerContributors], `href="https://github.com/wimpysworld/tailor/graphs/contributors"`) {
-		t.Errorf("contributors block missing commit-pinned live URLs or /graphs/contributors link:\n%s", blocks[MarkerContributors])
+		t.Errorf("contributors block missing commit-pinned URLs or /graphs/contributors link:\n%s", blocks[MarkerContributors])
 	}
 
-	if !strings.Contains(blocks[MarkerDemo], `srcset="pages/social/demo-dark.svg"`) ||
-		!strings.Contains(blocks[MarkerDemo], `src="pages/social/demo-light.svg"`) ||
+	if !strings.Contains(blocks[MarkerDemo], `srcset="`+livePrefix+`demo-dark.svg"`) ||
+		!strings.Contains(blocks[MarkerDemo], `src="`+livePrefix+`demo-light.svg"`) ||
 		!strings.Contains(blocks[MarkerDemo], `alt="Tailor demo"`) {
 		t.Errorf("demo block unexpected:\n%s", blocks[MarkerDemo])
 	}
 	if !strings.Contains(blocks[MarkerFooter], `href="https://tailor.wimpys.world"`) ||
-		!strings.Contains(blocks[MarkerFooter], `srcset="pages/social/footer-dark.svg"`) ||
-		!strings.Contains(blocks[MarkerFooter], `src="pages/social/footer-light.svg"`) ||
+		!strings.Contains(blocks[MarkerFooter], `srcset="`+livePrefix+`footer-dark.svg"`) ||
+		!strings.Contains(blocks[MarkerFooter], `src="`+livePrefix+`footer-light.svg"`) ||
 		!strings.Contains(blocks[MarkerFooter], `alt="Fitted by Tailor"`) {
 		t.Errorf("footer block unexpected:\n%s", blocks[MarkerFooter])
 	}
 
-	// Verify DemoFallbackSrc renders a plain centred <img> without <picture>.
+	// Verify DemoFallbackSrc renders a plain centred <img> pointing to main without <picture>.
 	fallbackBlocks := FormatReadmeBlocks(ReadmeBlocksInput{
+		Owner:           "wimpysworld",
+		Repo:            "tailor",
 		ProjectTitle:    "Tailor",
 		DemoFallbackSrc: "pages/demo.webp",
 	})
@@ -312,14 +316,7 @@ func TestFormatReadmeBlocks(t *testing.T) {
 		t.Errorf("demo fallback block =\n%s\nwant:\n%s", fallbackBlocks[MarkerDemo], wantFallback)
 	}
 
-	// Verify LiveCommunity switches community banner to commit-pinned live URL.
-	in.LiveCommunity = true
-	liveBlocks := FormatReadmeBlocks(in)
-	if !strings.Contains(liveBlocks[MarkerCommunity], `srcset="`+livePrefix+`community-dark.svg"`) {
-		t.Errorf("live community block missing commit-pinned URL:\n%s", liveBlocks[MarkerCommunity])
-	}
-
-	// Verify branch-based live URL fallback when LiveSHA is empty.
+	// Verify branch-based URL fallback for all 10 SVG sets when LiveSHA is empty.
 	branchIn := in
 	branchIn.LiveSHA = ""
 	branchIn.LiveBranch = ""
@@ -329,14 +326,20 @@ func TestFormatReadmeBlocks(t *testing.T) {
 		marker string
 		asset  string
 	}{
+		{MarkerHeader, "hero"},
+		{MarkerLinks, "link-website"},
+		{MarkerCommunity, "community"},
+		{MarkerPackages, "pkg-apt"},
+		{MarkerDemo, "demo"},
 		{MarkerStats, "stats"},
 		{MarkerStars, "stars"},
+		{MarkerSponsors, "sponsors"},
 		{MarkerContributors, "contributors"},
-		{MarkerCommunity, "community"},
+		{MarkerFooter, "footer"},
 	} {
 		if !strings.Contains(defaultBranchBlocks[tc.marker], `srcset="`+defaultBranchPrefix+tc.asset+`-dark.svg"`) ||
 			!strings.Contains(defaultBranchBlocks[tc.marker], `src="`+defaultBranchPrefix+tc.asset+`-light.svg"`) {
-			t.Errorf("%s block missing default branch live URL:\n%s", tc.marker, defaultBranchBlocks[tc.marker])
+			t.Errorf("%s block missing default branch URL:\n%s", tc.marker, defaultBranchBlocks[tc.marker])
 		}
 	}
 
@@ -344,18 +347,35 @@ func TestFormatReadmeBlocks(t *testing.T) {
 	branchIn.LiveBranch = "custom-social"
 	customBranchBlocks := FormatReadmeBlocks(branchIn)
 	const customBranchPrefix = "https://raw.githubusercontent.com/wimpysworld/tailor/custom-social/"
-	if !strings.Contains(customBranchBlocks[MarkerStats], `srcset="`+customBranchPrefix+`stats-dark.svg"`) ||
+	if !strings.Contains(customBranchBlocks[MarkerHeader], `srcset="`+customBranchPrefix+`hero-dark.svg"`) ||
+		!strings.Contains(customBranchBlocks[MarkerStats], `srcset="`+customBranchPrefix+`stats-dark.svg"`) ||
 		!strings.Contains(customBranchBlocks[MarkerCommunity], `srcset="`+customBranchPrefix+`community-dark.svg"`) {
-		t.Errorf("custom LiveBranch URLs missing:\nstats=%s\ncommunity=%s", customBranchBlocks[MarkerStats], customBranchBlocks[MarkerCommunity])
+		t.Errorf("custom LiveBranch URLs missing:\nheader=%s\nstats=%s\ncommunity=%s", customBranchBlocks[MarkerHeader], customBranchBlocks[MarkerStats], customBranchBlocks[MarkerCommunity])
 	}
 
-	// Verify missing Owner/Repo falls back to static relative paths.
+	// Verify missing Owner/Repo falls back to static relative paths for all 10 SVG sets.
 	noRepoIn := branchIn
 	noRepoIn.Owner = ""
 	noRepoBlocks := FormatReadmeBlocks(noRepoIn)
-	if !strings.Contains(noRepoBlocks[MarkerStats], `srcset="pages/social/stats-dark.svg"`) ||
-		!strings.Contains(noRepoBlocks[MarkerCommunity], `srcset="pages/social/community-dark.svg"`) {
-		t.Errorf("missing owner should fall back to static paths:\nstats=%s\ncommunity=%s", noRepoBlocks[MarkerStats], noRepoBlocks[MarkerCommunity])
+	for _, tc := range []struct {
+		marker string
+		asset  string
+	}{
+		{MarkerHeader, "hero"},
+		{MarkerLinks, "link-website"},
+		{MarkerCommunity, "community"},
+		{MarkerPackages, "pkg-apt"},
+		{MarkerDemo, "demo"},
+		{MarkerStats, "stats"},
+		{MarkerStars, "stars"},
+		{MarkerSponsors, "sponsors"},
+		{MarkerContributors, "contributors"},
+		{MarkerFooter, "footer"},
+	} {
+		if !strings.Contains(noRepoBlocks[tc.marker], `srcset="pages/social/`+tc.asset+`-dark.svg"`) ||
+			!strings.Contains(noRepoBlocks[tc.marker], `src="pages/social/`+tc.asset+`-light.svg"`) {
+			t.Errorf("missing owner should fall back to static path for %s:\n%s", tc.marker, noRepoBlocks[tc.marker])
+		}
 	}
 }
 

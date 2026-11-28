@@ -1043,10 +1043,11 @@ Project title, tagline, and icon are inherited rather than duplicated in `.tailo
 
 #### Storage model
 
-Social assets use a hybrid storage model:
+Social assets separate the Open Graph preview image from the README SVG suite:
 
-- Static assets live on the default branch (`main`): the Open Graph preview image (default `pages/og.png`) and static README SVGs under `pages/social/*.svg`, including the framed demo SVG (when `demo.webp` or `demo-still.png` is `<= 512 KiB`) and the slim "Fitted by Tailor" footer banner.
-- Daily live SVGs (stats health strip, star history chart or CTA fallback, live community, and contributors banner) live on an orphan branch (default `social-assets`) updated on schedule. `README.md` links live SVGs to `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/...` (default `social-assets`), so `.github/workflows/tailor-social.yml` pushes only to the orphan branch and never commits or pushes to protected `main`.
+- `pages/og.png` (default `social.og.output`) lives on the default branch (`main`) and is generated locally with `just og`. Oversized demo images (`> 512 KiB`) also stay on `main` as relative `<img src="pages/demo.webp">` (or `pages/demo-still.png`) fallbacks.
+- All 10 README SVG sets (`hero`, `link-*`, `community`, `stats`, `pkg-*`, `sponsors`, `demo`, `stars`, `contributors`, and `footer`) live on an orphan branch (default `social-assets`). `.github/workflows/tailor-social.yml` regenerates both static and live SVGs (`tailor social --static --live --output-dir ...`) on `social.live.schedule`, `workflow_dispatch`, and pushes to `main` touching `.tailor.yml`, `pages/style.css`, `pages/icon.*`, `pages/demo.*`, or `.github/workflows/tailor-social.yml`. The workflow pushes only to the orphan branch and never commits or pushes to protected `main`.
+- When a GitHub repository owner and name are known, `README.md` links all 10 SVG sets to `https://raw.githubusercontent.com/<owner>/<repo>/<ref>/<name>-{dark,light}.svg` (where `<ref>` is `--assets-sha` when set, else `social.live.branch`, else `social-assets`). Relative `<pages.path>/social/<name>-{dark,light}.svg` paths are used only as a fallback for local repositories without a GitHub remote.
 
 #### Open Graph preview image (`og.png`)
 
@@ -1074,7 +1075,7 @@ Tailor updates only content between explicit standalone `<!-- tailor:social-<nam
 #### Subcommand, managed files, and measurement
 
 - The `tailor social` subcommand renders static and live social SVGs and updates declared README marker blocks.
-- When `social.enabled: true`, Tailor manages `nix/og.nix` and `just/og.just` for local Open Graph card rendering, and `.github/workflows/tailor-social.yml` using `social.live.branch` and the 5-field cron expression in `social.live.schedule` (default `0 4 * * *`). The workflow pushes live SVGs only to `social.live.branch` and never commits or pushes to protected `main`.
+- When `social.enabled: true`, Tailor manages `nix/og.nix` and `just/og.just` for local Open Graph card rendering, and `.github/workflows/tailor-social.yml` using `social.live.branch` and the 5-field cron expression in `social.live.schedule` (default `0 4 * * *`). The workflow runs `tailor social --static --live --output-dir ...` on schedule, `workflow_dispatch`, and theme, config, icon, or demo pushes to the default branch, pushes all README SVGs only to `social.live.branch`, and never commits or pushes to protected `main`.
 - `tailor measure` validates an existing `og.png` at the configured output path, checking that its dimensions are `1280 x 640` or `1200 x 630` and that its size is under `1 MB`.
 
 ## Commands

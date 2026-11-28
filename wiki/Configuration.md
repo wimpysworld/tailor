@@ -633,17 +633,18 @@ Unknown keys under `social` (such as `title`, `tagline`, or `icon`) fail validat
 | `social.readme.demo` | Boolean. Framed window-chrome demo SVG (`demo-dark.svg`, `demo-light.svg`) when `demo.webp` or `demo-still.png` is `<= 512 KiB`, or a plain `<img>` fallback if larger. | `true` |
 | `social.readme.contributors` | Boolean. Live floating-balloon human-only contributors banner with inline avatars linking to `/graphs/contributors` (`contributors-dark.svg`, `contributors-light.svg`). | `true` |
 | `social.readme.footer` | Boolean. Slim "Fitted by Tailor" footer banner (`footer-dark.svg`, `footer-light.svg`) linking to `https://tailor.wimpys.world`, always placed last at the bottom of `README.md`. | `true` |
-| `social.live.branch` | Valid Git branch name for live SVGs | `"social-assets"` |
+| `social.live.branch` | Valid Git branch name for the orphan README SVG branch | `"social-assets"` |
 | `social.live.schedule` | 5-field cron expression for `.github/workflows/tailor-social.yml` | `"0 4 * * *"` |
 
 `social.readme.preferred_links` selects keys from `pages.links`. The 24 supported `pages.links` keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `irc`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. `irc` sits immediately after `matrix`, takes a full HTTPS URL without credentials, renders with a generic terminal icon, and works with both `pages.links` and `social.readme.community: irc`. See [Static Pages links](GitHub-Pages#static-pages-links) for full `pages.links` rules.
 
-### Hybrid storage model
+### Storage model
 
-Social assets split static and live outputs across two branches:
+Social assets keep generated PNG artwork on `main` and all README SVGs on an orphan branch:
 
-- **Static assets on the default branch (`main`)**: the Open Graph preview image (`pages/og.png` by default) and static README SVGs under `pages/social/*.svg` (or `<pages.path>/social/*.svg`), including the framed `demo` SVG when `demo.webp` or `demo-still.png` is `<= 512 KiB` (larger files fall back to a plain `<img>`) and the slim "Fitted by Tailor" `footer` banner linking to `https://tailor.wimpys.world`.
-- **Daily live SVGs on an orphan branch (`social-assets` by default)**: `stats`, `stars`, live community banners (Discord, GitHub Discussions, and Discourse forums), and `contributors`. `README.md` links live SVGs to `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/...` (default `social-assets`), written once by `tailor social --static --update-readme`. `.github/workflows/tailor-social.yml` updates and pushes only the orphan `social-assets` branch on `social.live.schedule` and never commits or pushes to protected `main`.
+- **Open Graph image on the default branch (`main`)**: `pages/og.png` (default `social.og.output`), generated locally with `just og`. Oversized demo images (`> 512 KiB`) also stay on `main` and render as a relative plain `<img>` fallback (`pages/demo.webp` or `pages/demo-still.png`).
+- **All README SVGs on the orphan branch (`social-assets` by default)**: all 10 SVG sets (`hero`, `link-*`, `community`, `stats`, `pkg-*`, `sponsors`, `demo`, `stars`, `contributors`, and `footer`). `.github/workflows/tailor-social.yml` runs `tailor social --static --live --output-dir ...` on `social.live.schedule`, `workflow_dispatch`, and pushes to `main` touching `.tailor.yml`, `pages/style.css`, `pages/icon.*`, `pages/demo.*`, or `.github/workflows/tailor-social.yml`, and pushes only to the orphan branch without touching protected `main`.
+- **README links**: when a GitHub remote is configured, `tailor social --static --update-readme` links all 10 SVG sets to `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/...` (default `social-assets`, or `--assets-sha` when passed). Relative `pages/social/*.svg` paths are used only for local repositories without a GitHub remote.
 - **Star CTA fallback**: when a repository is below `star_history.min_stars` or `star_history.min_days`, `stars-dark.svg` and `stars-light.svg` render a themed "Star this repository" CTA card with drifting stars. Once the repository meets both thresholds, they switch to the animated star history chart with a racing yellow star, apex burst, and rope-collapse animation.
 - **Human-only contributors banner**: `contributors-dark.svg` and `contributors-light.svg` embed inline avatars for human contributors only (bots excluded) in a floating-balloon banner with a thank-you message, linking to `/graphs/contributors`.
 
@@ -653,7 +654,7 @@ Use `tailor social` to render dark and light SVG pairs in pure Go (with no brows
 
 ```bash
 tailor social --static --update-readme
-tailor social --live --output-dir /tmp/social-assets
+tailor social --static --live --output-dir /tmp/social-assets
 tailor social --dry-run
 ```
 

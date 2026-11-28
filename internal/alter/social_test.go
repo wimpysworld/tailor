@@ -177,6 +177,19 @@ func TestSocialEnabledCreatesUpdatesAndPreservesOGImage(t *testing.T) {
 			if !strings.Contains(workflow, "branch='live-social'") {
 				t.Errorf("social workflow lacks rendered branch:\n%s", workflow)
 			}
+			for _, want := range []string{
+				"push:",
+				"'.tailor.yml'",
+				"'pages/style.css'",
+				"'pages/icon.*'",
+				"'pages/demo.*'",
+				"'.github/workflows/tailor-social.yml'",
+				`tailor social --static --live --output-dir "${output_dir}"`,
+			} {
+				if !strings.Contains(workflow, want) {
+					t.Errorf("social workflow lacks %q:\n%s", want, workflow)
+				}
+			}
 			if strings.Contains(workflow, "{{SCHEDULE}}") || strings.Contains(workflow, "{{BRANCH}}") {
 				t.Errorf("social workflow contains unresolved placeholders:\n%s", workflow)
 			}

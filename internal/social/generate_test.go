@@ -259,19 +259,19 @@ func TestGenerateStaticOfflineAndIdempotent(t *testing.T) {
 		t.Error("hero-dark.svg did not strip trailing emoji from tagline")
 	}
 
-	// Verify README updated static markers (including static sponsors CTA and footer)
-	// and wired enabled live markers to branch-based raw.githubusercontent.com URLs.
+	// Verify README links all enabled markers to branch-based raw.githubusercontent.com URLs
+	// when owner and repo are provided.
 	readmeBytes, _ := os.ReadFile(filepath.Join(dir, "README.md"))
 	readme := string(readmeBytes)
 	const liveBranchPrefix = "https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/"
-	if !strings.Contains(readme, `srcset="pages/social/hero-dark.svg"`) ||
-		!strings.Contains(readme, `srcset="pages/social/link-mastodon-dark.svg"`) ||
-		!strings.Contains(readme, `srcset="pages/social/pkg-apt-dark.svg"`) ||
-		!strings.Contains(readme, `srcset="pages/social/sponsors-dark.svg"`) ||
+	if !strings.Contains(readme, `srcset="`+liveBranchPrefix+`hero-dark.svg"`) ||
+		!strings.Contains(readme, `srcset="`+liveBranchPrefix+`link-mastodon-dark.svg"`) ||
+		!strings.Contains(readme, `srcset="`+liveBranchPrefix+`pkg-apt-dark.svg"`) ||
+		!strings.Contains(readme, `srcset="`+liveBranchPrefix+`sponsors-dark.svg"`) ||
 		!strings.Contains(readme, `href="https://github.com/sponsors/flexiondotorg"`) ||
-		!strings.Contains(readme, `srcset="pages/social/footer-dark.svg"`) ||
+		!strings.Contains(readme, `srcset="`+liveBranchPrefix+`footer-dark.svg"`) ||
 		!strings.Contains(readme, `href="https://tailor.wimpys.world"`) {
-		t.Errorf("README missing expected static marker blocks:\n%s", readme)
+		t.Errorf("README missing expected branch-based social marker blocks:\n%s", readme)
 	}
 	if strings.Contains(readme, "demo-dark.svg") {
 		t.Error("README demo marker must stay untouched when no demo image exists")
@@ -799,8 +799,9 @@ func TestGenerateStaticDemoAndFooterOptions(t *testing.T) {
 			assertSVGDimensions(t, p, string(data), 840, 509)
 		}
 		readme, _ := os.ReadFile(filepath.Join(dir, "README.md"))
-		if !strings.Contains(string(readme), `srcset="pages/social/demo-dark.svg"`) ||
-			!strings.Contains(string(readme), `src="pages/social/demo-light.svg"`) {
+		const prefix = "https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/"
+		if !strings.Contains(string(readme), `srcset="`+prefix+`demo-dark.svg"`) ||
+			!strings.Contains(string(readme), `src="`+prefix+`demo-light.svg"`) {
 			t.Errorf("README missing demo <picture> block:\n%s", string(readme))
 		}
 	})
@@ -932,6 +933,161 @@ swatches: []
 		}
 		if _, ok := got["pages/social/footer-dark.svg"]; ok {
 			t.Error("footer-dark.svg should not be generated when footer: false")
+		}
+	})
+}
+
+func TestGenerateStaticAndLiveCombinedOutputDir(t *testing.T) {
+	t.Run("writes static and live SVGs together with live community precedence", func(t *testing.T) {
+		dir := t.TempDir()
+		outDir := filepath.Join(t.TempDir(), "social-assets")
+		writeTestFixtureFile(t, dir, ".tailor.yml", sampleSocialConfigYAML())
+		writeTestFixtureFile(t, dir, "pages/style.css", sampleStyleCSS())
+		writeTestFixtureFile(t, dir, "pages/icon.svg", sampleIconSVG())
+		writeTestFixtureFile(t, dir, "README.md", sampleReadmeWithMarkers())
+		if err := os.WriteFile(filepath.Join(dir, "pages", "demo.webp"), makeTestWebPVP8X(960, 540), 0o644); err != nil {
+			t.Fatal(err)
+		}
+
+		start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+		fetcher := &mockLiveFetcher{
+			stats: StatsData{
+				Commits:      750,
+				OpenIssues:   2,
+				ClosedIssues: 41,
+				OpenPRs:      1,
+				MergedPRs:    180,
+				CreatedAt:    start,
+			},
+			stars: []StarPoint{
+				{Date: start, Stars: 10},
+				{Date: start.AddDate(0, 2, 0), Stars: 120},
+			},
+			contributors: []Contributor{
+				{Login: "flexiondotorg"},
+			},
+			contributorsTotal: 1,
+			discordOnline:     45,
+			discordMembers:    320,
+			discordOK:         true,
+		}
+
+		res, err := Generate(context.Background(), GenerateOptions{
+			Dir:          dir,
+			Static:       true,
+			Live:         true,
+			OutputDir:    outDir,
+			UpdateReadme: true,
+			Owner:        "wimpysworld",
+			Repo:         "tailor",
+			Fetcher:      fetcher,
+		})
+		if err != nil {
+			t.Fatalf("Generate(static+live) error = %v", err)
+		}
+
+		got := statusMap(res)
+		wantFiles := []string{
+			"hero-dark.svg", "hero-light.svg",
+			"link-website-dark.svg", "link-website-light.svg",
+			"link-bluesky-dark.svg", "link-bluesky-light.svg",
+			"link-mastodon-dark.svg", "link-mastodon-light.svg",
+			"community-dark.svg", "community-light.svg",
+			"pkg-apt-dark.svg", "pkg-apt-light.svg",
+			"pkg-nix-dark.svg", "pkg-nix-light.svg",
+			"demo-dark.svg", "demo-light.svg",
+			"sponsors-dark.svg", "sponsors-light.svg",
+			"footer-dark.svg", "footer-light.svg",
+			"stats-dark.svg", "stats-light.svg",
+			"stars-dark.svg", "stars-light.svg",
+			"contributors-dark.svg", "contributors-light.svg",
+		}
+		for _, name := range wantFiles {
+			full := filepath.Join(outDir, name)
+			if got[full] != StatusCreated {
+				t.Errorf("combined asset %s status = %q, want %q", full, got[full], StatusCreated)
+			}
+			data, err := os.ReadFile(full)
+			if err != nil {
+				t.Fatalf("ReadFile(%s): %v", full, err)
+			}
+			assertValidGitHubSVG(t, name, string(data))
+		}
+
+		// community-{dark,light}.svg must be written once (live only, not static then overwritten).
+		communityCount := 0
+		for _, a := range res.Assets {
+			if a.Path == filepath.Join(outDir, "community-dark.svg") {
+				communityCount++
+			}
+		}
+		if communityCount != 1 {
+			t.Errorf("community-dark.svg emitted %d times, want 1", communityCount)
+		}
+		commDark, _ := os.ReadFile(filepath.Join(outDir, "community-dark.svg"))
+		if !strings.Contains(string(commDark), "45 online") || !strings.Contains(string(commDark), "320 members") {
+			t.Errorf("community-dark.svg missing live Discord counts:\n%s", string(commDark))
+		}
+
+		// All 10 README marker sets resolve to the social-assets branch.
+		readmeBytes, _ := os.ReadFile(filepath.Join(dir, "README.md"))
+		readme := string(readmeBytes)
+		const prefix = "https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/"
+		for _, base := range []string{
+			"hero", "link-website", "community", "pkg-apt", "demo",
+			"stats", "stars", "sponsors", "contributors", "footer",
+		} {
+			if !strings.Contains(readme, prefix+base+"-dark.svg") || !strings.Contains(readme, prefix+base+"-light.svg") {
+				t.Errorf("README missing unified branch URL for %q:\n%s", base, readme)
+			}
+		}
+	})
+
+	t.Run("static community platform still writes community SVG in combined mode", func(t *testing.T) {
+		dir := t.TempDir()
+		outDir := filepath.Join(t.TempDir(), "social-assets")
+		writeTestFixtureFile(t, dir, ".tailor.yml", `license: BlueOak-1.0.0
+repository:
+  description: "Matrix community project"
+pages:
+  enabled: true
+  generator: static
+  path: pages
+  links:
+    matrix: https://matrix.to/#/#tailor:matrix.org
+social:
+  enabled: true
+  readme:
+    header: true
+    community: matrix
+    stats: true
+    star_history:
+      enabled: false
+    sponsors: false
+    contributors: false
+    footer: true
+swatches: []
+`)
+		fetcher := &mockLiveFetcher{
+			stats: StatsData{Commits: 42, CreatedAt: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)},
+		}
+		res, err := Generate(context.Background(), GenerateOptions{
+			Dir:       dir,
+			Static:    true,
+			Live:      true,
+			OutputDir: outDir,
+			Owner:     "wimpysworld",
+			Repo:      "tailor",
+			Fetcher:   fetcher,
+		})
+		if err != nil {
+			t.Fatalf("Generate(static+live matrix) error = %v", err)
+		}
+		got := statusMap(res)
+		for _, name := range []string{"hero-dark.svg", "community-dark.svg", "stats-dark.svg", "footer-dark.svg"} {
+			if got[filepath.Join(outDir, name)] != StatusCreated {
+				t.Errorf("%s status = %q, want created", name, got[filepath.Join(outDir, name)])
+			}
 		}
 	})
 }
