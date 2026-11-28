@@ -125,7 +125,7 @@ social:
   readme:
     header: true
     preferred_links: []      # up to 4 unique keys from pages.links
-    community: auto          # auto, none, discord, matrix, slack, irc, forum, or discussions
+    community: auto          # auto, none, discord, telegram, matrix, slack, irc, forum, or discussions
     packages: []             # apt, rpm, pkg, apk, flatpak, brew, scoop, nix
     stats: true
     star_history:

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"io"
 	"math"
 	"net/http"
@@ -23,6 +24,7 @@ import (
 const (
 	defaultPublicHTTPTimeout = 10 * time.Second
 	defaultDiscordAPIBase    = "https://discord.com/api/v10"
+	defaultTelegramWebBase   = "https://t.me"
 	defaultGitHubWebBase     = "https://github.com"
 	starHistoryPerPage       = 100
 	maxStarHistoryPages      = 15
@@ -35,10 +37,13 @@ const (
 )
 
 var (
-	discordInviteCodeRe  = regexp.MustCompile(`^[A-Za-z0-9_-]{2,64}$`)
-	linkHeaderSegmentRe  = regexp.MustCompile(`<([^>]+)>\s*;\s*rel="([^"]+)"`)
-	publicSponsorHoverRe = regexp.MustCompile(`data-hovercard-url="/(?:users|orgs)/([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)/hovercard"`)
-	publicSponsorAltRe   = regexp.MustCompile(`alt="@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)"`)
+	discordInviteCodeRe   = regexp.MustCompile(`^[A-Za-z0-9_-]{2,64}$`)
+	telegramPathSegmentRe = regexp.MustCompile(`^[A-Za-z0-9_+-]{1,128}$`)
+	telegramPageExtraRe   = regexp.MustCompile(`(?is)<div\s+class="[^"]*\btgme_page_extra\b[^"]*"[^>]*>(.*?)</div>`)
+	telegramMemberCountRe = regexp.MustCompile(`(?i)(\d[\d\s,\x{00a0}]*)\s+(?:members?|subscribers?)\b`)
+	linkHeaderSegmentRe   = regexp.MustCompile(`<([^>]+)>\s*;\s*rel="([^"]+)"`)
+	publicSponsorHoverRe  = regexp.MustCompile(`data-hovercard-url="/(?:users|orgs)/([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)/hovercard"`)
+	publicSponsorAltRe    = regexp.MustCompile(`alt="@([A-Za-z0-9](?:[A-Za-z0-9-]{0,37}[A-Za-z0-9])?)"`)
 )
 
 // StatsData holds live repository health metrics fetched from the GitHub API.
@@ -74,19 +79,21 @@ type LiveFetcher interface {
 	FetchContributors(ctx context.Context, owner, repo string) ([]Contributor, int, error)
 	FetchDiscussionsCount(ctx context.Context, owner, repo string) (int, error)
 	FetchDiscordInvite(ctx context.Context, inviteCode string) (online int, members int, ok bool)
+	FetchTelegramMembers(ctx context.Context, inviteURL string) (members int, ok bool)
 	FetchDiscourseStats(ctx context.Context, baseURL string) (members int, ok bool)
 }
 
 // HTTPLiveFetcher implements LiveFetcher using Tailor's go-gh REST/GraphQL
 // clients for GitHub endpoints and a bounded unauthenticated HTTP client for
-// public Discord, Discourse, and sponsors fallback endpoints.
+// public Discord, Telegram, Discourse, and sponsors fallback endpoints.
 type HTTPLiveFetcher struct {
-	restClient     *api.RESTClient
-	starClient     *api.RESTClient
-	gqlClient      *api.GraphQLClient
-	httpClient     *http.Client
-	discordAPIBase string
-	githubWebBase  string
+	restClient      *api.RESTClient
+	starClient      *api.RESTClient
+	gqlClient       *api.GraphQLClient
+	httpClient      *http.Client
+	discordAPIBase  string
+	telegramWebBase string
+	githubWebBase   string
 }
 
 // NewGitHubLiveFetcher creates an HTTPLiveFetcher bound to the given GitHub
@@ -117,12 +124,13 @@ func NewHTTPLiveFetcher(restClient, starClient *api.RESTClient, gqlClient *api.G
 		httpClient = &http.Client{Timeout: defaultPublicHTTPTimeout}
 	}
 	return &HTTPLiveFetcher{
-		restClient:     restClient,
-		starClient:     starClient,
-		gqlClient:      gqlClient,
-		httpClient:     httpClient,
-		discordAPIBase: defaultDiscordAPIBase,
-		githubWebBase:  defaultGitHubWebBase,
+		restClient:      restClient,
+		starClient:      starClient,
+		gqlClient:       gqlClient,
+		httpClient:      httpClient,
+		discordAPIBase:  defaultDiscordAPIBase,
+		telegramWebBase: defaultTelegramWebBase,
+		githubWebBase:   defaultGitHubWebBase,
 	}
 }
 
@@ -919,6 +927,102 @@ func (f *HTTPLiveFetcher) FetchDiscordInvite(ctx context.Context, inviteCode str
 		return 0, 0, false
 	}
 	return payload.ApproximatePresenceCount, payload.ApproximateMemberCount, true
+}
+
+// FetchTelegramMembers fetches a public Telegram preview page (https://t.me/...)
+// and extracts the member or subscriber count from <div class="tgme_page_extra">.
+// Any network, HTTP, URL, or parse error falls back gracefully with ok=false.
+func (f *HTTPLiveFetcher) FetchTelegramMembers(ctx context.Context, inviteURL string) (members int, ok bool) {
+	if f.httpClient == nil {
+		return 0, false
+	}
+	relPath := extractTelegramPath(inviteURL)
+	if relPath == "" {
+		return 0, false
+	}
+	base := strings.TrimRight(f.telegramWebBase, "/")
+	if base == "" {
+		return 0, false
+	}
+	endpoint := base + "/" + relPath
+
+	reqCtx, cancel := context.WithTimeout(ctx, defaultPublicHTTPTimeout)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return 0, false
+	}
+	req.Header.Set("Accept", "text/html")
+	req.Header.Set("User-Agent", "tailor")
+
+	resp, err := f.httpClient.Do(req) //nolint:gosec // Endpoint is restricted to telegramWebBase + validated Telegram path.
+	if err != nil {
+		return 0, false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return 0, false
+	}
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxLiveResponseBytes))
+	if err != nil {
+		return 0, false
+	}
+	return parseTelegramMemberCount(string(body))
+}
+
+func extractTelegramPath(rawURL string) string {
+	u, err := url.Parse(strings.TrimSpace(rawURL))
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.User != nil {
+		return ""
+	}
+	switch strings.ToLower(u.Hostname()) {
+	case "t.me", "www.t.me", "telegram.me", "www.telegram.me", "telegram.dog", "www.telegram.dog":
+	default:
+		return ""
+	}
+	trimmed := strings.Trim(u.Path, "/")
+	if trimmed == "" {
+		return ""
+	}
+	parts := strings.Split(trimmed, "/")
+	if len(parts) > 2 {
+		return ""
+	}
+	for _, seg := range parts {
+		if !telegramPathSegmentRe.MatchString(seg) {
+			return ""
+		}
+	}
+	return strings.Join(parts, "/")
+}
+
+func parseTelegramMemberCount(htmlBody string) (int, bool) {
+	for _, match := range telegramPageExtraRe.FindAllStringSubmatch(htmlBody, -1) {
+		if len(match) < 2 {
+			continue
+		}
+		text := strings.ReplaceAll(html.UnescapeString(match[1]), "\u00a0", " ")
+		m := telegramMemberCountRe.FindStringSubmatch(text)
+		if len(m) < 2 {
+			continue
+		}
+		digits := strings.Map(func(r rune) rune {
+			if r >= '0' && r <= '9' {
+				return r
+			}
+			return -1
+		}, m[1])
+		if digits == "" {
+			continue
+		}
+		n, err := strconv.Atoi(digits)
+		if err == nil && n > 0 {
+			return n, true
+		}
+	}
+	return 0, false
 }
 
 // FetchDiscourseStats queries a public Discourse forum's /about.json endpoint

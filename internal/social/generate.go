@@ -556,6 +556,12 @@ func generateLiveAssets(
 					commIn.MemberCount = members
 				}
 			}
+		case "telegram":
+			if comm.URL != "" {
+				if members, ok := fetcher.FetchTelegramMembers(ctx, comm.URL); ok {
+					commIn.MemberCount = members
+				}
+			}
 		case "discussions":
 			count, err := fetcher.FetchDiscussionsCount(ctx, owner, repo)
 			if err != nil {
@@ -742,7 +748,7 @@ func resolvePreferredLinks(cfg *config.Config) []ReadmeLinkEntry {
 
 func isCommunityLinkKey(key string) bool {
 	switch key {
-	case "discord", "matrix", "irc", "slack", "forum":
+	case "discord", "telegram", "matrix", "irc", "slack", "forum":
 		return true
 	default:
 		return false
@@ -819,6 +825,8 @@ func isLiveCommunity(comm *ReadmeCommunityEntry) bool {
 		return true
 	case "discord":
 		return ExtractDiscordInviteCode(comm.URL) != ""
+	case "telegram":
+		return extractTelegramPath(comm.URL) != ""
 	case "forum":
 		return strings.TrimSpace(comm.URL) != ""
 	default:

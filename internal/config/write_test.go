@@ -160,6 +160,7 @@ pages:
     discord: https://discord.com/invite/vUsydfP
     matrix: "https://matrix.to/#/@wimpress:matrix.org"
     irc: ""
+    telegram: ""
     youtube: https://youtube.com/WimpysWorld
     twitch: https://twitch.tv/WimpysWorld
     peertube: ""

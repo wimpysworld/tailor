@@ -24,7 +24,7 @@ const (
 // Supported enum and option lists for social asset settings.
 var (
 	SocialThemes            = []string{"dark", "light"}
-	SocialCommunities       = []string{"auto", "none", "discord", "matrix", "slack", "irc", "forum", "discussions"}
+	SocialCommunities       = []string{"auto", "none", "discord", "telegram", "matrix", "slack", "irc", "forum", "discussions"}
 	SocialPackages          = []string{"apt", "rpm", "pkg", "apk", "flatpak", "brew", "scoop", "nix"}
 	SocialSponsorsModes     = []string{"auto", "true", "false"}
 	SocialOGImageExtensions = []string{".png", ".webp", ".jpg", ".jpeg", ".avif"}

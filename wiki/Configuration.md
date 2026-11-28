@@ -623,7 +623,7 @@ Unknown keys under `social` (such as `title`, `tagline`, or `icon`) fail validat
 | `social.og.terminal` | List of up to 8 strings, at most 80 characters each, no control characters | `[]` |
 | `social.readme.header` | Boolean (`hero-dark.svg`, `hero-light.svg`) | `true` |
 | `social.readme.preferred_links` | Up to 4 unique keys from `pages.links` (`link-<key>-dark.svg`, `link-<key>-light.svg`) | `[]` |
-| `social.readme.community` | `"auto"`, `"none"`, `"discord"`, `"matrix"`, `"slack"`, `"irc"`, `"forum"`, or `"discussions"` | `"auto"` |
+| `social.readme.community` | `"auto"`, `"none"`, `"discord"`, `"telegram"`, `"matrix"`, `"slack"`, `"irc"`, `"forum"`, or `"discussions"` | `"auto"` |
 | `social.readme.packages` | Unique Haberdasher hosts from `apt`, `rpm`, `pkg`, `apk`, `flatpak`, `brew`, `scoop`, `nix` | `[]` |
 | `social.readme.stats` | Boolean. Live 4-column project health strip (`Commits`, `Issues`, `Pull Requests`, `Established`) linking to `/pulse` (`stats-dark.svg`, `stats-light.svg`). | `true` |
 | `social.readme.star_history.enabled` | Boolean. Live animated star history chart (`stars-dark.svg`, `stars-light.svg`) with a racing yellow star, apex burst, and rope-collapse animation, or a drifting-stars CTA card below `min_stars` or `min_days`. | `true` |
@@ -636,7 +636,7 @@ Unknown keys under `social` (such as `title`, `tagline`, or `icon`) fail validat
 | `social.live.branch` | Valid Git branch name for the orphan README SVG branch | `"social-assets"` |
 | `social.live.schedule` | 5-field cron expression for `.github/workflows/tailor-social.yml` | `"0 4 * * *"` |
 
-`social.readme.preferred_links` selects keys from `pages.links`. The 24 supported `pages.links` keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `irc`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. `irc` sits immediately after `matrix`, takes a full HTTPS URL without credentials, renders with a generic terminal icon, and works with both `pages.links` and `social.readme.community: irc`. See [Static Pages links](GitHub-Pages#static-pages-links) for full `pages.links` rules.
+`social.readme.preferred_links` selects keys from `pages.links`. The 25 supported `pages.links` keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `irc`, `telegram`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. `irc` sits immediately after `matrix`, takes a full HTTPS URL without credentials, renders with a generic terminal icon, and works with both `pages.links` and `social.readme.community: irc`. `telegram` sits immediately after `irc`, takes a full HTTPS URL without credentials, renders with the Telegram brand icon, and works with both `pages.links` and `social.readme.community: telegram`. See [Static Pages links](GitHub-Pages#static-pages-links) for full `pages.links` rules.
 
 ### Storage model
 

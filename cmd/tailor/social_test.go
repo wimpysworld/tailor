@@ -49,6 +49,10 @@ func (s *stubSocialFetcher) FetchDiscordInvite(_ context.Context, _ string) (int
 	return 0, 0, false
 }
 
+func (s *stubSocialFetcher) FetchTelegramMembers(_ context.Context, _ string) (int, bool) {
+	return 0, false
+}
+
 func (s *stubSocialFetcher) FetchDiscourseStats(_ context.Context, _ string) (int, bool) {
 	return 0, false
 }

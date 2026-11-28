@@ -478,6 +478,16 @@ func TestRenderCommunityBanner(t *testing.T) {
 			wantText: "42 online · 1,280 members",
 		},
 		{
+			name:     "telegram static",
+			in:       CommunityBannerInput{Platform: "telegram"},
+			wantText: "Join the Telegram community",
+		},
+		{
+			name:     "telegram with member count",
+			in:       CommunityBannerInput{Platform: "telegram", MemberCount: 840},
+			wantText: "840 members",
+		},
+		{
 			name:     "matrix static",
 			in:       CommunityBannerInput{Platform: "matrix"},
 			wantText: "Join the Matrix room",
@@ -720,13 +730,51 @@ func TestRenderStarHistory(t *testing.T) {
 				}
 				assertSVGDimensions(t, tc.name+"-dark", pair.Dark, 840, 108)
 				assertSVGDimensions(t, tc.name+"-light", pair.Light, 840, 108)
-				for _, want := range []string{tc.wantTitle, "STAR", "star-drift", theme.Dark.Primary} {
+				for _, want := range []string{
+					tc.wantTitle,
+					"Follow new releases and help others discover the project.",
+					"Star on GitHub",
+					`x="612" y="32" width="196" height="44" rx="22"`,
+					`fill="#facc15" fill-opacity="0.16" stroke="#facc15" stroke-width="1.5"`,
+					`stroke="` + cardBorder(theme.Dark) + `"`,
+					`id="st-glint"`,
+					`class="st-glint"`,
+					"@keyframes st-sweep",
+					"14%,100%",
+					"@keyframes star-twinkle",
+					"opacity: 0.85 !important; transform: none !important;",
+				} {
 					if !strings.Contains(pair.Dark, want) {
 						t.Errorf("dark Star CTA missing %q", want)
 					}
 				}
-				if !strings.Contains(pair.Light, theme.Light.Primary) {
-					t.Errorf("light Star CTA missing Light.Primary %s", theme.Light.Primary)
+				for _, want := range []string{
+					`fill="#ca8a04" fill-opacity="0.16" stroke="#ca8a04" stroke-width="1.5"`,
+					`stroke="` + theme.Light.MutedBorder + `"`,
+					`id="st-glint"`,
+					`class="st-glint"`,
+				} {
+					if !strings.Contains(pair.Light, want) {
+						t.Errorf("light Star CTA missing %q", want)
+					}
+				}
+				if strings.Count(pair.Dark, `class="st-twinkle `) != 14 {
+					t.Errorf("dark Star CTA twinkle count = %d, want 14", strings.Count(pair.Dark, `class="st-twinkle `))
+				}
+				for _, c := range starCTADarkColors {
+					if !strings.Contains(pair.Dark, c) {
+						t.Errorf("dark Star CTA missing gold star colour %s", c)
+					}
+				}
+				for _, c := range starCTALightColors {
+					if !strings.Contains(pair.Light, c) {
+						t.Errorf("light Star CTA missing gold star colour %s", c)
+					}
+				}
+				for _, forbidden := range []string{"keep the project active", "stroke-dasharray", "star-drift"} {
+					if strings.Contains(pair.Dark, forbidden) || strings.Contains(pair.Light, forbidden) {
+						t.Errorf("Star CTA must not contain legacy markup %q", forbidden)
+					}
 				}
 			})
 		}
@@ -771,7 +819,13 @@ func TestRenderStarHistory(t *testing.T) {
 			"@keyframes sh-line-loop",
 			"14.00%,98%{stroke-dashoffset:0;opacity:1}",
 			"@keyframes star-race",
-			"14.00%,84%{transform:translate(",
+			"14.00%,84.0%{transform:translate(",
+			"86.2%{transform:translate(",
+			"88.0%{transform:translate(",
+			"90.5%{transform:translate(",
+			"93.5%{transform:translate(",
+			"97.5%{transform:translate(-65.0px,-32.0px);opacity:1}",
+			"99%,100%{transform:translate(-65.0px,-32.0px);opacity:0}",
 			"@keyframes sh-star-spin-loop",
 			"cubic-bezier(0.32,0,0.72,0.25)",
 			"cubic-bezier(0.42,0,0.85,0.28)",
@@ -791,9 +845,10 @@ func TestRenderStarHistory(t *testing.T) {
 			`class="sh-apex"`,
 			`class="sh-comet-tail"`,
 			"@keyframes sh-comet-tail-loop",
+			"0%,87.5%{transform:scaleX(0.05);opacity:0}",
+			"97.5%{transform:scaleX(1.15);opacity:0.9}",
 			`id="star-comet-glow"`,
 			`id="star-comet-core"`,
-			"translate(48.0px,22.0px)",
 			`fill="#facc15" stroke="#ca8a04"`,
 			`class="sh-sparkle sh-sp0"`,
 			`class="sh-sparkle sh-sp13"`,
@@ -882,6 +937,13 @@ func TestRenderSponsors(t *testing.T) {
 			"@keyframes sp-sweep",
 			"14%,100%",
 			"@keyframes sp-rise-",
+			"translateY(",
+			"@keyframes sp-sway-",
+			"translateX(",
+			"ease-in-out",
+			"infinite alternate",
+			`class="sp-heart sp-h0"><g class="sp-sway sp-s0"`,
+			".sp-heart, .sp-sway { opacity: 1 !important; transform: none !important; }",
 			"prefers-reduced-motion: reduce",
 		} {
 			if !strings.Contains(pair.Dark, want) {
@@ -968,6 +1030,13 @@ func TestRenderContributors(t *testing.T) {
 			"AD",
 			"BO",
 			"@keyframes cb-rise-",
+			"translateY(",
+			"@keyframes cb-sway-",
+			"translateX(",
+			"ease-in-out",
+			"infinite alternate",
+			`class="cb-float cb-f0"><g class="cb-sway cb-s0"`,
+			".cb-float, .cb-sway { opacity: 1 !important; transform: none !important; }",
 			"prefers-reduced-motion: reduce",
 			"opacity: 1 !important",
 		} {
@@ -1028,10 +1097,10 @@ func TestGlintTimingCalmAndStaggered(t *testing.T) {
 
 	checkGroup(t, "links", []string{"bluesky", "mastodon", "linkedin"})
 	checkGroup(t, "packages", []string{"apt", "rpm", "pkg", "apk", "brew", "scoop", "nix"})
-	checkGroup(t, "banners", []string{"hero", "discord", "sponsors", "demo"})
+	checkGroup(t, "banners", []string{"hero", "discord", "sponsors", "stars-cta", "demo", "footer"})
 
-	// Verify calm resting keyframes (14%,100% invisible rest) appear across hero, pill, community, package, and sponsors cards,
-	// while only hero retains the permanent static coloured top accent bar.
+	// Verify calm resting keyframes (14%,100% invisible rest) appear across hero, pill, community, package, sponsors, star CTA, and footer cards,
+	// while hero uses the tapered rounded top highlight path instead of a flat top bar.
 	hero, err := RenderHero(HeroInput{Assets: ProjectAssets{Title: "Tailor"}}, theme)
 	if err != nil {
 		t.Fatalf("RenderHero() error = %v", err)
@@ -1052,12 +1121,23 @@ func TestGlintTimingCalmAndStaggered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderSponsors() error = %v", err)
 	}
-
-	if !strings.Contains(hero.Dark, `height="3" fill="`+theme.Dark.Primary+`" opacity="0.28"`) {
-		t.Error("dark hero missing permanent top accent bar")
+	starCTA, _, err := RenderStarHistory(StarHistoryInput{MinStars: 25, MinDays: 30, ProjectTitle: "Tailor"}, theme)
+	if err != nil {
+		t.Fatalf("RenderStarHistory(CTA) error = %v", err)
 	}
-	if !strings.Contains(hero.Light, `height="3" fill="`+theme.Light.Primary+`" opacity="0.28"`) {
-		t.Error("light hero missing permanent top accent bar")
+	footer, err := RenderFooter(theme)
+	if err != nil {
+		t.Fatalf("RenderFooter() error = %v", err)
+	}
+
+	const wantHeroTaperPath = `<path d="M 1 14 A 13 13 0 0 1 14 1 L 826 1 A 13 13 0 0 1 839 14" fill="none" stroke="url(#hero-top-taper)" stroke-width="2.5"/>`
+	for label, svg := range map[string]string{"dark": hero.Dark, "light": hero.Light} {
+		if !strings.Contains(svg, `id="hero-top-taper"`) || !strings.Contains(svg, wantHeroTaperPath) {
+			t.Errorf("%s hero missing tapered rounded top accent highlight", label)
+		}
+		if strings.Contains(svg, `width="840" height="3"`) {
+			t.Errorf("%s hero must not render flat full-width top bar", label)
+		}
 	}
 
 	for name, pair := range map[string]SVGPair{
@@ -1066,6 +1146,8 @@ func TestGlintTimingCalmAndStaggered(t *testing.T) {
 		"community": comm,
 		"package":   pkg,
 		"sponsors":  sponsors,
+		"stars-cta": starCTA,
+		"footer":    footer,
 	} {
 		if !strings.Contains(pair.Dark, "14%,100%") {
 			t.Errorf("%s dark SVG missing calm 14%%,100%% rest keyframe", name)
@@ -1230,16 +1312,19 @@ func TestRenderFooter(t *testing.T) {
 		"Fitted by ",
 		">Tailor</tspan>",
 		"tailor.wimpys.world",
-		"stroke-dasharray:5 5",
+		`<rect class="ft-stitch" x="0.75" y="0.75" width="838.5" height="42.5" rx="10" fill="none" stroke="` + cardBorder(theme.Dark) + `" stroke-width="1.25" stroke-dasharray="5 5"/>`,
 		"@keyframes stitch-march",
-		"14s linear infinite",
+		"20s linear infinite",
+		`id="ft-glint"`,
+		`class="ft-glint"`,
+		"@keyframes ft-sweep",
+		"14%,100%",
 		"@keyframes snip-top",
 		"@keyframes snip-bot",
 		"10s ease-in-out infinite",
 		"#f0cb78",
 		"#b88a44",
 		theme.Dark.CardBackground,
-		cardBorder(theme.Dark),
 		theme.Dark.MutedColor,
 		theme.Dark.HeadingColor,
 	} {
@@ -1248,14 +1333,18 @@ func TestRenderFooter(t *testing.T) {
 		}
 	}
 	for _, want := range []string{
+		`<rect class="ft-stitch" x="0.75" y="0.75" width="838.5" height="42.5" rx="10" fill="none" stroke="` + theme.Light.MutedBorder + `" stroke-width="1.25" stroke-dasharray="5 5"/>`,
+		`stop-color="#b88a44"`,
 		theme.Light.CardBackground,
-		theme.Light.MutedBorder,
 		theme.Light.MutedColor,
 		theme.Light.HeadingColor,
 	} {
 		if !strings.Contains(pair.Light, want) {
 			t.Errorf("light footer SVG missing %q", want)
 		}
+	}
+	if strings.Contains(pair.Dark, "<line ") || strings.Contains(pair.Light, "<line ") {
+		t.Error("footer SVG must replace separate top/bottom stitch lines with one continuous perimeter stitch")
 	}
 }
 

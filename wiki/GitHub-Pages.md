@@ -121,7 +121,7 @@ pages:
     feed: https://example.com/feed.xml
 ```
 
-The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`.
+The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `irc`, `telegram`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`.
 
 Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
 

@@ -25,6 +25,8 @@ type mockLiveFetcher struct {
 	discordOnline     int
 	discordMembers    int
 	discordOK         bool
+	telegramMembers   int
+	telegramOK        bool
 	discourseMembers  int
 	discourseOK       bool
 
@@ -35,6 +37,7 @@ type mockLiveFetcher struct {
 	sponsorLoginSeen  string
 	discussionsCalls  int
 	discordCodesSeen  []string
+	telegramURLSeen   string
 	discourseURLSeen  string
 }
 
@@ -67,6 +70,11 @@ func (m *mockLiveFetcher) FetchDiscussionsCount(_ context.Context, _, _ string) 
 func (m *mockLiveFetcher) FetchDiscordInvite(_ context.Context, inviteCode string) (int, int, bool) {
 	m.discordCodesSeen = append(m.discordCodesSeen, inviteCode)
 	return m.discordOnline, m.discordMembers, m.discordOK
+}
+
+func (m *mockLiveFetcher) FetchTelegramMembers(_ context.Context, inviteURL string) (int, bool) {
+	m.telegramURLSeen = inviteURL
+	return m.telegramMembers, m.telegramOK
 }
 
 func (m *mockLiveFetcher) FetchDiscourseStats(_ context.Context, baseURL string) (int, bool) {
@@ -564,7 +572,7 @@ func TestGenerateLiveThresholdsAndSkips(t *testing.T) {
 	}
 	assertValidGitHubSVG(t, "stars-cta-dark", string(starsData))
 	assertSVGDimensions(t, "stars-cta-dark", string(starsData), 840, 108)
-	if !strings.Contains(string(starsData), "Star Tailor on GitHub") || !strings.Contains(string(starsData), "STAR") {
+	if !strings.Contains(string(starsData), "Star Tailor on GitHub") || !strings.Contains(string(starsData), "Star on GitHub") {
 		t.Errorf("stars-dark.svg missing Star CTA copy:\n%s", string(starsData))
 	}
 
@@ -761,6 +769,78 @@ swatches: []
 		}
 		if _, ok := statusMap(res)[filepath.Join(outDir, "sponsors-dark.svg")]; ok {
 			t.Error("live-only mode must not emit sponsors-dark.svg")
+		}
+	})
+
+	t.Run("live telegram community fetches members and falls back cleanly to static banner", func(t *testing.T) {
+		dir := t.TempDir()
+		outDir := filepath.Join(t.TempDir(), "telegram-live")
+		writeTestFixtureFile(t, dir, ".tailor.yml", `license: BlueOak-1.0.0
+repository:
+  description: "Telegram project"
+pages:
+  enabled: true
+  generator: static
+  path: pages
+  links:
+    website: https://example.org
+    telegram: https://t.me/linuxmatters
+social:
+  enabled: true
+  readme:
+    header: false
+    community: auto
+    stats: false
+    star_history:
+      enabled: false
+    sponsors: false
+    contributors: false
+    footer: false
+swatches: []
+`)
+		fetcher := &mockLiveFetcher{
+			telegramMembers: 742,
+			telegramOK:      true,
+		}
+		res, err := Generate(context.Background(), GenerateOptions{
+			Dir:       dir,
+			Static:    true,
+			Live:      true,
+			OutputDir: outDir,
+			Owner:     "wimpysworld",
+			Repo:      "tailor",
+			Fetcher:   fetcher,
+		})
+		if err != nil {
+			t.Fatalf("Generate(telegram live) error = %v", err)
+		}
+		if fetcher.telegramURLSeen != "https://t.me/linuxmatters" {
+			t.Errorf("telegramURLSeen = %q, want https://t.me/linuxmatters", fetcher.telegramURLSeen)
+		}
+		if _, ok := statusMap(res)[filepath.Join(outDir, "link-telegram-dark.svg")]; ok {
+			t.Error("community link telegram must not appear in default preferred links")
+		}
+		commDark, _ := os.ReadFile(filepath.Join(outDir, "community-dark.svg"))
+		if !strings.Contains(string(commDark), "Join the Telegram community") || !strings.Contains(string(commDark), "742 members") {
+			t.Errorf("community-dark.svg missing Telegram live members:\n%s", string(commDark))
+		}
+
+		// When FetchTelegramMembers returns ok=false, banner falls back cleanly without member count.
+		fallbackDir := filepath.Join(t.TempDir(), "telegram-fallback")
+		fallbackFetcher := &mockLiveFetcher{telegramOK: false}
+		if _, err := Generate(context.Background(), GenerateOptions{
+			Dir:       dir,
+			Live:      true,
+			OutputDir: fallbackDir,
+			Owner:     "wimpysworld",
+			Repo:      "tailor",
+			Fetcher:   fallbackFetcher,
+		}); err != nil {
+			t.Fatalf("Generate(telegram fallback) error = %v", err)
+		}
+		commFallback, _ := os.ReadFile(filepath.Join(fallbackDir, "community-dark.svg"))
+		if !strings.Contains(string(commFallback), "Join the Telegram community") || strings.Contains(string(commFallback), "members") {
+			t.Errorf("telegram fallback banner unexpected content:\n%s", string(commFallback))
 		}
 	})
 }

@@ -957,7 +957,7 @@ pages:
     feed: https://example.com/feed.xml
 ```
 
-The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `irc`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`. Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
+The supported keys are `website`, `x`, `bluesky`, `mastodon`, `discord`, `matrix`, `irc`, `telegram`, `slack`, `linkedin`, `youtube`, `twitch`, `podcast`, `instagram`, `pixelfed`, `tiktok`, `peertube`, `steam`, `itchio`, `patreon`, `github_sponsors`, `kofi`, `forum`, `email`, and `feed`. Use full HTTPS URLs without credentials. `email` takes a bare address without mail headers. Icons follow the key order in `pages.links`. Tailor preserves this order when it writes the config. Empty strings add no icon. Unknown keys, nulls and non-string values are rejected.
 
 Put these markers on separate lines inside the footer of `<pages.path>/index.html`:
 
@@ -1061,7 +1061,7 @@ Tailor generates dark and light SVG pairs in pure Go without external browser de
 
 - Hero banner (`hero-dark.svg`, `hero-light.svg`) controlled by `social.readme.header`.
 - Preferred link pills controlled by `social.readme.preferred_links` (up to 4 unique keys from `pages.links`).
-- Community banner controlled by `social.readme.community` (`auto`, `none`, `discord`, `matrix`, `slack`, `irc`, `forum`, or `discussions`).
+- Community banner controlled by `social.readme.community` (`auto`, `none`, `discord`, `telegram`, `matrix`, `slack`, `irc`, `forum`, or `discussions`).
 - Haberdasher package tiles controlled by `social.readme.packages` (unique entries from `apt`, `rpm`, `pkg`, `apk`, `flatpak`, `brew`, `scoop`, and `nix`).
 - Live 4-column project health strip (`stats-dark.svg`, `stats-light.svg`) showing `Commits`, `Issues` (open and closed), `Pull Requests` (merged and open), and `Established` (month and year), linking to `/pulse`, controlled by `social.readme.stats` (Boolean, default `true`).
 - Live animated star history chart (`stars-dark.svg`, `stars-light.svg`) controlled by `social.readme.star_history` (`enabled`, `min_stars >= 0`, `min_days >= 0`). The chart animates a racing yellow star along the growth curve, triggers an apex burst at the peak, and resets with a rope-collapse animation. Below `min_stars` or `min_days`, Tailor renders a themed "Star this repository" CTA card with drifting stars instead.
@@ -1682,6 +1682,7 @@ pages:
     discord: https://discord.com/invite/vUsydfP
     matrix: https://matrix.to/#/@wimpress:matrix.org
     irc: ""
+    telegram: ""
     youtube: https://youtube.com/WimpysWorld
     twitch: https://twitch.tv/WimpysWorld
     peertube: ""

@@ -219,7 +219,7 @@ func TestSocialNames(t *testing.T) {
 }
 
 func TestPagesLinkTypesIncludesIRC(t *testing.T) {
-	matrixIdx, ircIdx := -1, -1
+	matrixIdx, ircIdx, telegramIdx := -1, -1, -1
 	for i, link := range PagesLinkTypes {
 		switch link.Key {
 		case "matrix":
@@ -229,9 +229,17 @@ func TestPagesLinkTypesIncludesIRC(t *testing.T) {
 			if link.Label != "IRC" || link.Icon != "terminal-24" {
 				t.Fatalf("irc link = %+v, want {irc IRC terminal-24}", link)
 			}
+		case "telegram":
+			telegramIdx = i
+			if link.Label != "Telegram" || link.Icon != "telegram" {
+				t.Fatalf("telegram link = %+v, want {telegram Telegram telegram}", link)
+			}
 		}
 	}
 	if matrixIdx == -1 || ircIdx != matrixIdx+1 {
 		t.Fatalf("irc index = %d, want immediately after matrix (%d)", ircIdx, matrixIdx)
+	}
+	if telegramIdx != ircIdx+1 {
+		t.Fatalf("telegram index = %d, want immediately after irc (%d)", telegramIdx, ircIdx)
 	}
 }

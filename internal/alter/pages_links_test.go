@@ -134,6 +134,9 @@ func TestPagesLinksAllIcons(t *testing.T) {
 	if err != nil || bytes.Count(data, []byte("<a ")) != len(model.PagesLinkTypes) {
 		t.Fatalf("rendered icons = %s, error = %v", data, err)
 	}
+	if !bytes.Contains(data, []byte("simple-icons@16.30.0/icons/telegram.svg")) {
+		t.Fatalf("rendered icons missing Telegram Simple Icons URL: %s", data)
+	}
 }
 
 func TestPagesLinksYAMLOrder(t *testing.T) {

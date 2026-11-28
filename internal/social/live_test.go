@@ -494,6 +494,59 @@ func TestHTTPLiveFetcherFetchDiscordInvite(t *testing.T) {
 	}
 }
 
+func TestHTTPLiveFetcherFetchTelegramMembers(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		switch r.URL.Path {
+		case "/linuxmatters":
+			fmt.Fprint(w, `<html><body><div class="tgme_page_extra">1 234 members, 56 online</div></body></html>`)
+		case "/channel":
+			fmt.Fprint(w, `<html><body><div class="tgme_page_extra">4,567 subscribers</div></body></html>`)
+		case "/+AbCd_123":
+			fmt.Fprint(w, `<html><body><div class="tgme_page_extra">89&nbsp;members</div></body></html>`)
+		case "/nocount":
+			fmt.Fprint(w, `<html><body><div class="tgme_page_extra">@linuxmatters</div></body></html>`)
+		case "/zero":
+			fmt.Fprint(w, `<html><body><div class="tgme_page_extra">0 members</div></body></html>`)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	fetcher := NewHTTPLiveFetcher(nil, nil, nil, srv.Client())
+	fetcher.telegramWebBase = srv.URL
+
+	members, ok := fetcher.FetchTelegramMembers(context.Background(), "https://t.me/linuxmatters")
+	if !ok || members != 1234 {
+		t.Errorf("FetchTelegramMembers(linuxmatters) = (%d, %v), want (1234, true)", members, ok)
+	}
+
+	members, ok = fetcher.FetchTelegramMembers(context.Background(), "https://telegram.me/channel")
+	if !ok || members != 4567 {
+		t.Errorf("FetchTelegramMembers(channel) = (%d, %v), want (4567, true)", members, ok)
+	}
+
+	members, ok = fetcher.FetchTelegramMembers(context.Background(), "https://t.me/+AbCd_123")
+	if !ok || members != 89 {
+		t.Errorf("FetchTelegramMembers(+AbCd_123) = (%d, %v), want (89, true)", members, ok)
+	}
+
+	for _, bad := range []string{
+		"https://t.me/nocount",
+		"https://t.me/zero",
+		"https://t.me/missing",
+		"https://t.me/",
+		"https://t.me/../evil",
+		"https://example.com/linuxmatters",
+		"ftp://t.me/linuxmatters",
+	} {
+		if m, ok := fetcher.FetchTelegramMembers(context.Background(), bad); ok || m != 0 {
+			t.Errorf("FetchTelegramMembers(%q) = (%d, %v), want (0, false)", bad, m, ok)
+		}
+	}
+}
+
 func TestHTTPLiveFetcherFetchDiscourseStats(t *testing.T) {
 	t.Run("parses users_count and legacy user_count", func(t *testing.T) {
 		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

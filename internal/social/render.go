@@ -154,6 +154,8 @@ func renderHeroVariant(assets ProjectAssets, iconMarkup string, isRaster bool, p
 		p.Primary, waveOpacity1, p.Primary)
 	fmt.Fprintf(&b, `<linearGradient id="hero-aurora-soft" x1="0" y1="0" x2="0" y2="1"><stop offset="0%%" stop-color="%s" stop-opacity="%s"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
 		p.Primary, waveOpacity2, p.Primary)
+	fmt.Fprintf(&b, `<linearGradient id="hero-top-taper" x1="0" y1="0" x2="1" y2="0"><stop offset="0%%" stop-color="%s" stop-opacity="0"/><stop offset="8%%" stop-color="%s" stop-opacity="0.55"/><stop offset="92%%" stop-color="%s" stop-opacity="0.55"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
+		p.Primary, p.Primary, p.Primary, p.Primary)
 	fmt.Fprintf(&b, `<linearGradient id="hero-glint" x1="0" y1="0" x2="1" y2="0"><stop offset="0%%" stop-color="%s" stop-opacity="0"/><stop offset="50%%" stop-color="%s" stop-opacity="0.9"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
 		p.Primary, p.Primary, p.Primary)
 	if isRaster {
@@ -184,8 +186,8 @@ func renderHeroVariant(assets ProjectAssets, iconMarkup string, isRaster bool, p
 	// Two seamless 1680px horizontally tiling waves scrolling in opposite directions with gentle vertical bobbing.
 	b.WriteString(`<g class="wave-bob-b"><path class="wave-b" d="M 0 164 C 47 164 93 132 140 132 C 187 132 233 164 280 164 C 327 164 373 132 420 132 C 467 132 513 164 560 164 C 607 164 653 132 700 132 C 747 132 793 164 840 164 C 887 164 933 132 980 132 C 1027 132 1073 164 1120 164 C 1167 164 1213 132 1260 132 C 1307 132 1353 164 1400 164 C 1447 164 1493 132 1540 132 C 1587 132 1633 164 1680 164 L 1680 220 L 0 220 Z" fill="url(#hero-aurora-soft)"/></g>`)
 	b.WriteString(`<g class="wave-bob-a"><path class="wave-a" d="M 0 160 C 70 160 140 124 210 124 C 280 124 350 160 420 160 C 490 160 560 124 630 124 C 700 124 770 160 840 160 C 910 160 980 124 1050 124 C 1120 124 1190 160 1260 160 C 1330 160 1400 124 1470 124 C 1540 124 1610 160 1680 160 L 1680 220 L 0 220 Z" fill="url(#hero-aurora)"/></g>`)
-	// Subtle top accent bar and gliding glint.
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="3" fill="%s" opacity="0.28"/>`, p.Primary)
+	// Tapered rounded top accent highlight following the rx="14" corners and gliding glint.
+	b.WriteString(`<path d="M 1 14 A 13 13 0 0 1 14 1 L 826 1 A 13 13 0 0 1 839 14" fill="none" stroke="url(#hero-top-taper)" stroke-width="2.5"/>`)
 	b.WriteString(`<rect class="glint" x="0" y="0" width="220" height="3" fill="url(#hero-glint)"/>`)
 
 	if hasIcon {
@@ -292,7 +294,7 @@ func renderLinkPillVariant(key string, icon IconInfo, label string, p Palette, d
 }
 
 // RenderCommunityBanner renders the 840x68 full-width themed community banner
-// for discord, matrix, slack, irc, forum, or discussions.
+// for discord, telegram, matrix, slack, irc, forum, or discussions.
 func RenderCommunityBanner(in CommunityBannerInput, theme Theme) (SVGPair, error) {
 	platform := strings.ToLower(strings.TrimSpace(in.Platform))
 	defaults, ok := communityDefaults[platform]
@@ -337,6 +339,10 @@ var communityDefaults = map[string]communityCopy{
 	"discord": {
 		title:    "Join the Discord community",
 		subtitle: "Chat, get help, and share what you build",
+	},
+	"telegram": {
+		title:    "Join the Telegram community",
+		subtitle: "Chat, get updates, and connect with the community",
 	},
 	"matrix": {
 		title:    "Join the Matrix room",
@@ -626,33 +632,43 @@ func RenderFooter(theme Theme) (SVGPair, error) {
 	lightP := normalizePalette(theme.Light, defaultLightPalette)
 
 	return SVGPair{
-		Dark:  renderFooterVariant(darkP),
-		Light: renderFooterVariant(lightP),
+		Dark:  renderFooterVariant(darkP, true),
+		Light: renderFooterVariant(lightP, false),
 	}, nil
 }
 
-func renderFooterVariant(p Palette) string {
+func renderFooterVariant(p Palette, dark bool) string {
 	const (
 		width  = 840
 		height = 44
 	)
+
+	glintColor := "#b88a44"
+	if dark {
+		glintColor = "#f0cb78"
+	}
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" aria-label="Fitted by Tailor">`,
 		width, height, width, height)
 	b.WriteString(`<title>Fitted by Tailor</title>`)
 	b.WriteString(`<defs>`)
-	b.WriteString(`<clipPath id="footer-clip"><rect x="0.5" y="0.5" width="839" height="43" rx="10"/></clipPath>`)
+	b.WriteString(`<clipPath id="footer-clip"><rect x="0.75" y="0.75" width="838.5" height="42.5" rx="10"/></clipPath>`)
+	fmt.Fprintf(&b, `<linearGradient id="ft-glint" x1="0" y1="0" x2="1" y2="0"><stop offset="0%%" stop-color="%s" stop-opacity="0"/><stop offset="50%%" stop-color="%s" stop-opacity="0.85"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
+		glintColor, glintColor, glintColor)
 	b.WriteString(`</defs>`)
 
 	b.WriteString(`<style>`)
 	fmt.Fprintf(&b, `.f-label{font-family:%s;font-size:12.5px;font-weight:500;fill:%s}`, fontSans, p.MutedColor)
 	fmt.Fprintf(&b, `.f-brand{font-family:%s;font-size:12.5px;font-weight:700;fill:%s}`, fontSans, p.HeadingColor)
 	fmt.Fprintf(&b, `.f-url{font-family:%s;font-size:11.5px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
+	ftDur, ftDelay := glintTiming("footer")
 	b.WriteString(`@keyframes stitch-march{from{stroke-dashoffset:0}to{stroke-dashoffset:-100}}`)
+	b.WriteString(`@keyframes ft-sweep{0%{transform:translateX(-220px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(880px);opacity:0}}`)
 	b.WriteString(`@keyframes snip-top{0%,78%,100%{transform:rotate(0deg)}83%{transform:rotate(-8deg)}87%{transform:rotate(3deg)}91%{transform:rotate(-5deg)}95%{transform:rotate(0deg)}}`)
 	b.WriteString(`@keyframes snip-bot{0%,78%,100%{transform:rotate(0deg)}83%{transform:rotate(8deg)}87%{transform:rotate(-3deg)}91%{transform:rotate(5deg)}95%{transform:rotate(0deg)}}`)
-	b.WriteString(`.f-stitch{stroke-dasharray:5 5;animation:stitch-march 14s linear infinite}`)
+	b.WriteString(`.ft-stitch{animation:stitch-march 20s linear infinite}`)
+	fmt.Fprintf(&b, `.ft-glint{opacity:0;animation:ft-sweep %.1fs ease-in-out %.1fs infinite}`, ftDur, ftDelay)
 	b.WriteString(`.f-blade-top{transform-origin:20.5px 21px;animation:snip-top 10s ease-in-out infinite}`)
 	b.WriteString(`.f-blade-bot{transform-origin:20.5px 21px;animation:snip-bot 10s ease-in-out infinite}`)
 	b.WriteString(reducedMotionCSS)
@@ -660,9 +676,7 @@ func renderFooterVariant(p Palette) string {
 
 	b.WriteString(`<g clip-path="url(#footer-clip)">`)
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="44" fill="%s"/>`, p.CardBackground)
-	// Subtle marching tailor's stitch lines along top and bottom edges.
-	fmt.Fprintf(&b, `<line class="f-stitch" x1="14" y1="4" x2="826" y2="4" stroke="%s" stroke-opacity="0.35" stroke-width="1" stroke-linecap="round"/>`, p.MutedColor)
-	fmt.Fprintf(&b, `<line class="f-stitch" x1="14" y1="40" x2="826" y2="40" stroke="%s" stroke-opacity="0.35" stroke-width="1" stroke-linecap="round"/>`, p.MutedColor)
+	b.WriteString(`<rect class="ft-glint" x="0" y="0" width="180" height="2" fill="url(#ft-glint)"/>`)
 
 	// Miniature 20x20 inline golden Tailor shears with occasional gentle snip wiggle.
 	b.WriteString(`<g transform="translate(18, 12) scale(0.5)">`)
@@ -684,7 +698,7 @@ func renderFooterVariant(p Palette) string {
 	b.WriteString(`<text x="820" y="26" text-anchor="end" class="f-url">tailor.wimpys.world</text>`)
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="43" rx="10" fill="none" stroke="%s" stroke-width="1"/>`, cardBorder(p))
+	fmt.Fprintf(&b, `<rect class="ft-stitch" x="0.75" y="0.75" width="838.5" height="42.5" rx="10" fill="none" stroke="%s" stroke-width="1.25" stroke-dasharray="5 5"/>`, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }

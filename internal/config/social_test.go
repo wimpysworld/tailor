@@ -96,6 +96,8 @@ func TestSocialParsingAndValidation(t *testing.T) {
 		{name: "sponsors string false", body: "social:\n  readme:\n    sponsors: \"false\""},
 		{name: "sponsors string auto", body: "social:\n  readme:\n    sponsors: \"auto\""},
 		{name: "community discussions", body: "social:\n  readme:\n    community: discussions"},
+		{name: "community telegram", body: "social:\n  readme:\n    community: telegram"},
+		{name: "preferred_links telegram", body: "social:\n  readme:\n    preferred_links: [telegram]"},
 		{name: "community none", body: "social:\n  readme:\n    community: none"},
 		{name: "schedule day names", body: "social:\n  live:\n    schedule: \"*/15 0-6 * * MON-FRI\""},
 
@@ -152,7 +154,7 @@ func TestSocialParsingAndValidation(t *testing.T) {
 		{name: "preferred_links too many", body: "social:\n  readme:\n    preferred_links: [website, x, bluesky, mastodon, discord]", wantError: "social.readme.preferred_links: 5 entries exceed the maximum of 4"},
 		{name: "preferred_links duplicate", body: "social:\n  readme:\n    preferred_links: [irc, irc]", wantError: `social.readme.preferred_links[1]: duplicate link "irc"`},
 		{name: "preferred_links unknown", body: "social:\n  readme:\n    preferred_links: [github]", wantError: `social.readme.preferred_links[0]: unrecognised link "github"`},
-		{name: "community invalid", body: "social:\n  readme:\n    community: telegram", wantError: `invalid social.readme.community "telegram"`},
+		{name: "community invalid", body: "social:\n  readme:\n    community: signal", wantError: `invalid social.readme.community "signal"`},
 		{name: "packages unknown", body: "social:\n  readme:\n    packages: [snap]", wantError: `social.readme.packages[0]: unrecognised package "snap"`},
 		{name: "packages duplicate", body: "social:\n  readme:\n    packages: [apt, apt]", wantError: `social.readme.packages[1]: duplicate package "apt"`},
 		{name: "star_history negative min_stars", body: "social:\n  readme:\n    star_history:\n      min_stars: -1", wantError: "social.readme.star_history.min_stars must be at least 0"},
