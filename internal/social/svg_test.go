@@ -447,6 +447,15 @@ func TestRenderLinkPill(t *testing.T) {
 			if !strings.Contains(pair.Light, theme.Light.CardBackground) {
 				t.Errorf("light pill missing CardBackground %s", theme.Light.CardBackground)
 			}
+			if !strings.Contains(pair.Dark, `stroke="`+theme.Dark.MutedBorder+`"`) {
+				t.Errorf("dark pill missing neutral MutedBorder %s", theme.Dark.MutedBorder)
+			}
+			if !strings.Contains(pair.Light, `stroke="`+theme.Light.MutedBorder+`"`) {
+				t.Errorf("light pill missing neutral MutedBorder %s", theme.Light.MutedBorder)
+			}
+			if strings.Contains(pair.Dark, `opacity="0.22"`) || strings.Contains(pair.Light, `opacity="0.22"`) {
+				t.Error("link pill must not render permanent static top accent bar")
+			}
 		})
 	}
 
@@ -517,6 +526,12 @@ func TestRenderCommunityBanner(t *testing.T) {
 			if strings.Contains(pair.Dark, `width="4" height="68"`) || strings.Contains(pair.Light, `width="4" height="68"`) {
 				t.Error("community banner must not render leftmost vertical accent bar")
 			}
+			if strings.Contains(pair.Dark, `opacity="0.22"`) || strings.Contains(pair.Light, `opacity="0.22"`) {
+				t.Error("community banner must not render permanent static top accent bar")
+			}
+			if !strings.Contains(pair.Dark, `stroke="`+theme.Dark.MutedBorder+`"`) || !strings.Contains(pair.Light, `stroke="`+theme.Light.MutedBorder+`"`) {
+				t.Error("community banner missing neutral MutedBorder")
+			}
 		})
 	}
 
@@ -548,6 +563,15 @@ func TestRenderPackageCard(t *testing.T) {
 			}
 			if !strings.Contains(pair.Light, info.AccentLight) {
 				t.Errorf("light package card missing AccentLight %s", info.AccentLight)
+			}
+			if !strings.Contains(pair.Dark, `stroke="`+theme.Dark.MutedBorder+`"`) {
+				t.Errorf("dark package card missing neutral MutedBorder %s", theme.Dark.MutedBorder)
+			}
+			if !strings.Contains(pair.Light, `stroke="`+theme.Light.MutedBorder+`"`) {
+				t.Errorf("light package card missing neutral MutedBorder %s", theme.Light.MutedBorder)
+			}
+			if strings.Contains(pair.Dark, `opacity="0.25"`) || strings.Contains(pair.Light, `opacity="0.25"`) {
+				t.Error("package card must not render permanent static top accent bar")
 			}
 		})
 	}
@@ -836,7 +860,7 @@ func TestRenderStarHistory(t *testing.T) {
 func TestRenderSponsors(t *testing.T) {
 	theme := iaGetTheme()
 
-	t.Run("renders fixed 840x108 CTA card with multi-coloured drifting hearts", func(t *testing.T) {
+	t.Run("renders fixed 840x108 CTA card with Vitrine capsule, rose glint, and drifting hearts", func(t *testing.T) {
 		pair, err := RenderSponsors(SponsorsInput{}, theme)
 		if err != nil {
 			t.Fatalf("RenderSponsors() error = %v", err)
@@ -847,19 +871,32 @@ func TestRenderSponsors(t *testing.T) {
 		assertSVGDimensions(t, "sponsors-light", pair.Light, 840, 108)
 
 		for _, want := range []string{
-			"Sponsors",
-			"Support ongoing maintenance and open-source development",
-			"SPONSOR",
+			"Enjoy my work?",
+			"Treat me to a coffee, help cover hosting, infrastructure, and signing costs.",
+			"Sponsor on GitHub",
+			`x="612" y="32" width="196" height="44" rx="22"`,
+			`fill="#f38ba8" fill-opacity="0.16" stroke="#f38ba8" stroke-width="1.5"`,
+			`stroke="` + theme.Dark.MutedBorder + `"`,
+			`id="sp-glint"`,
+			`class="sp-glint"`,
+			"@keyframes sp-sweep",
+			"14%,100%",
 			"@keyframes sp-rise-",
 			"prefers-reduced-motion: reduce",
-			theme.Dark.Primary,
 		} {
 			if !strings.Contains(pair.Dark, want) {
 				t.Errorf("dark sponsors SVG missing %q", want)
 			}
 		}
-		if !strings.Contains(pair.Light, theme.Light.Primary) {
-			t.Error("light sponsors SVG missing Light.Primary")
+		for _, want := range []string{
+			`fill="#e64553" fill-opacity="0.16" stroke="#e64553" stroke-width="1.5"`,
+			`stroke="` + theme.Light.MutedBorder + `"`,
+			`id="sp-glint"`,
+			`class="sp-glint"`,
+		} {
+			if !strings.Contains(pair.Light, want) {
+				t.Errorf("light sponsors SVG missing %q", want)
+			}
 		}
 		for _, c := range sponsorDarkHeartColors {
 			if !strings.Contains(pair.Dark, c) {
@@ -870,6 +907,9 @@ func TestRenderSponsors(t *testing.T) {
 			if !strings.Contains(pair.Light, c) {
 				t.Errorf("light sponsors SVG missing multi-colour heart %s", c)
 			}
+		}
+		if strings.Contains(pair.Dark, `opacity="0.28"`) || strings.Contains(pair.Light, `opacity="0.28"`) {
+			t.Error("sponsors CTA banner must not render permanent static top accent bar")
 		}
 		if strings.Contains(pair.Dark, "Be the first to sponsor") || strings.Contains(pair.Light, "Be the first to sponsor") {
 			t.Error("sponsors CTA banner must not render legacy empty footer row")
@@ -988,8 +1028,10 @@ func TestGlintTimingCalmAndStaggered(t *testing.T) {
 
 	checkGroup(t, "links", []string{"bluesky", "mastodon", "linkedin"})
 	checkGroup(t, "packages", []string{"apt", "rpm", "pkg", "apk", "brew", "scoop", "nix"})
+	checkGroup(t, "banners", []string{"hero", "discord", "sponsors", "demo"})
 
-	// Verify calm resting keyframes (14%,100% invisible rest) appear across hero, pill, community, and package cards.
+	// Verify calm resting keyframes (14%,100% invisible rest) appear across hero, pill, community, package, and sponsors cards,
+	// while only hero retains the permanent static coloured top accent bar.
 	hero, err := RenderHero(HeroInput{Assets: ProjectAssets{Title: "Tailor"}}, theme)
 	if err != nil {
 		t.Fatalf("RenderHero() error = %v", err)
@@ -1006,15 +1048,30 @@ func TestGlintTimingCalmAndStaggered(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderPackageCard() error = %v", err)
 	}
+	sponsors, err := RenderSponsors(SponsorsInput{}, theme)
+	if err != nil {
+		t.Fatalf("RenderSponsors() error = %v", err)
+	}
 
-	for name, svg := range map[string]string{
-		"hero":      hero.Dark,
-		"pill":      pill.Dark,
-		"community": comm.Dark,
-		"package":   pkg.Dark,
+	if !strings.Contains(hero.Dark, `height="3" fill="`+theme.Dark.Primary+`" opacity="0.28"`) {
+		t.Error("dark hero missing permanent top accent bar")
+	}
+	if !strings.Contains(hero.Light, `height="3" fill="`+theme.Light.Primary+`" opacity="0.28"`) {
+		t.Error("light hero missing permanent top accent bar")
+	}
+
+	for name, pair := range map[string]SVGPair{
+		"hero":      hero,
+		"pill":      pill,
+		"community": comm,
+		"package":   pkg,
+		"sponsors":  sponsors,
 	} {
-		if !strings.Contains(svg, "14%,100%") {
-			t.Errorf("%s SVG missing calm 14%%,100%% rest keyframe", name)
+		if !strings.Contains(pair.Dark, "14%,100%") {
+			t.Errorf("%s dark SVG missing calm 14%%,100%% rest keyframe", name)
+		}
+		if !strings.Contains(pair.Light, "14%,100%") {
+			t.Errorf("%s light SVG missing calm 14%%,100%% rest keyframe", name)
 		}
 	}
 }

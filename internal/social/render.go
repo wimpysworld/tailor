@@ -175,7 +175,7 @@ func renderHeroVariant(assets ProjectAssets, iconMarkup string, isRaster bool, p
 	b.WriteString(`.wave-b{animation:wave-flow-right 29s linear infinite}`)
 	b.WriteString(`.wave-bob-a{animation:wave-bob-a 7.3s ease-in-out infinite alternate}`)
 	b.WriteString(`.wave-bob-b{animation:wave-bob-b 11.1s ease-in-out infinite alternate}`)
-	fmt.Fprintf(&b, `.glint{animation:hero-glint-move %.1fs ease-in-out %.1fs infinite}`, heroDur, heroDelay)
+	fmt.Fprintf(&b, `.glint{opacity:0;animation:hero-glint-move %.1fs ease-in-out %.1fs infinite}`, heroDur, heroDelay)
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
 
@@ -254,7 +254,6 @@ func renderLinkPillVariant(key string, icon IconInfo, label string, p Palette, d
 	} else if !dark && icon.AccentLight != "" {
 		accent = icon.AccentLight
 	}
-	border := mixHex(accent, p.MutedBorder, 0.35)
 	displayLabel := label
 	if wrapped := WrapText(label, 15, 1); len(wrapped) > 0 {
 		displayLabel = wrapped[0]
@@ -274,13 +273,12 @@ func renderLinkPillVariant(key string, icon IconInfo, label string, p Palette, d
 	fmt.Fprintf(&b, `.p-label{font-family:%s;font-size:13.5px;font-weight:600;fill:%s}`, fontSans, p.HeadingColor)
 	pillDur, pillDelay := glintTiming(key)
 	b.WriteString(`@keyframes pill-sweep{0%{transform:translateX(-90px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(210px);opacity:0}}`)
-	fmt.Fprintf(&b, `.p-glint{animation:pill-sweep %.1fs ease-in-out %.1fs infinite}`, pillDur, pillDelay)
+	fmt.Fprintf(&b, `.p-glint{opacity:0;animation:pill-sweep %.1fs ease-in-out %.1fs infinite}`, pillDur, pillDelay)
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
 
 	b.WriteString(`<g clip-path="url(#pill-clip)">`)
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="184" height="44" fill="%s"/>`, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="184" height="2" fill="%s" opacity="0.22"/>`, accent)
 	b.WriteString(`<rect class="p-glint" x="0" y="0" width="76" height="2" fill="url(#pill-glint)"/>`)
 	// 20x20 inline vector icon.
 	fmt.Fprintf(&b, `<g transform="translate(14, 12) scale(0.833333)" fill="%s"><path d="%s"/></g>`, accent, icon.Path)
@@ -288,7 +286,7 @@ func renderLinkPillVariant(key string, icon IconInfo, label string, p Palette, d
 	// Quiet right chevron indicator.
 	fmt.Fprintf(&b, `<path d="M167 17.5 L171.5 22 L167 26.5" fill="none" stroke="%s" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`, p.MutedColor)
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="183" height="43" rx="10" fill="none" stroke="%s" stroke-width="1"/>`, border)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="183" height="43" rx="10" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -430,14 +428,13 @@ func renderCommunityVariant(platform string, icon IconInfo, title, subtitle, liv
 	} else {
 		commDur, commDelay := glintTiming(platform)
 		b.WriteString(`@keyframes comm-sweep{0%{transform:translateX(-220px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(880px);opacity:0}}`)
-		fmt.Fprintf(&b, `.c-glint{animation:comm-sweep %.1fs ease-in-out %.1fs infinite}`, commDur, commDelay)
+		fmt.Fprintf(&b, `.c-glint{opacity:0;animation:comm-sweep %.1fs ease-in-out %.1fs infinite}`, commDur, commDelay)
 	}
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
 
 	b.WriteString(`<g clip-path="url(#comm-clip)">`)
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="68" fill="%s"/>`, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2" fill="%s" opacity="0.22"/>`, p.Primary)
 	if liveText == "" {
 		b.WriteString(`<rect class="c-glint" x="0" y="0" width="180" height="2" fill="url(#comm-glint)"/>`)
 	}
@@ -506,8 +503,6 @@ func renderPackageCardVariant(host string, info PackageHostInfo, p Palette, dark
 	if dark {
 		accent = info.AccentDark
 	}
-	border := mixHex(accent, p.MutedBorder, 0.35)
-
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" aria-label="%s">`,
 		width, height, width, height, XMLEscape(info.Label))
@@ -523,13 +518,12 @@ func renderPackageCardVariant(host string, info PackageHostInfo, p Palette, dark
 	fmt.Fprintf(&b, `.k-domain{font-family:%s;font-size:10px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
 	pkgDur, pkgDelay := glintTiming(host)
 	b.WriteString(`@keyframes pkg-sweep{0%{transform:translateX(-90px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(220px);opacity:0}}`)
-	fmt.Fprintf(&b, `.k-glint{animation:pkg-sweep %.1fs ease-in-out %.1fs infinite}`, pkgDur, pkgDelay)
+	fmt.Fprintf(&b, `.k-glint{opacity:0;animation:pkg-sweep %.1fs ease-in-out %.1fs infinite}`, pkgDur, pkgDelay)
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
 
 	b.WriteString(`<g clip-path="url(#pkg-clip)">`)
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="200" height="78" fill="%s"/>`, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="200" height="2.5" fill="%s" opacity="0.25"/>`, accent)
 	b.WriteString(`<rect class="k-glint" x="0" y="0" width="80" height="2.5" fill="url(#pkg-glint)"/>`)
 
 	// 36x36 inline host icon (24 * 1.5 = 36).
@@ -538,7 +532,7 @@ func renderPackageCardVariant(host string, info PackageHostInfo, p Palette, dark
 	fmt.Fprintf(&b, `<text x="60" y="52" class="k-domain">%s</text>`, XMLEscape(info.Domain))
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="199" height="77" rx="11" fill="none" stroke="%s" stroke-width="1"/>`, border)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="199" height="77" rx="11" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -600,14 +594,13 @@ func renderDemoVariant(title, encodedImg, mime string, imgWidth, imgHeight int, 
 	fmt.Fprintf(&b, `.d-title{font-family:%s;font-size:12px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
 	demoDur, demoDelay := glintTiming("demo")
 	b.WriteString(`@keyframes demo-sweep{0%{transform:translateX(-220px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(880px);opacity:0}}`)
-	fmt.Fprintf(&b, `.d-glint{animation:demo-sweep %.1fs ease-in-out %.1fs infinite}`, demoDur, demoDelay)
+	fmt.Fprintf(&b, `.d-glint{opacity:0;animation:demo-sweep %.1fs ease-in-out %.1fs infinite}`, demoDur, demoDelay)
 	b.WriteString(reducedMotionCSS)
 	b.WriteString(`</style>`)
 
 	b.WriteString(`<g clip-path="url(#demo-clip)">`)
 	// Titlebar chrome and hairline separator.
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="%d" fill="%s"/>`, titlebarH, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2" fill="%s" opacity="0.25"/>`, p.Primary)
 	b.WriteString(`<rect class="d-glint" x="0" y="0" width="180" height="2" fill="url(#demo-glint)"/>`)
 	b.WriteString(`<circle cx="20" cy="18" r="5.5" fill="#ff5f56"/>`)
 	b.WriteString(`<circle cx="38" cy="18" r="5.5" fill="#ffbd2e"/>`)

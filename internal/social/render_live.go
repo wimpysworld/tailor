@@ -22,8 +22,8 @@ const (
 )
 
 var (
-	sponsorDarkHeartColors  = [6]string{"#f38ba8", "#f5c2e7", "#fab387", "#f9e2af", "#cba6f7", "#89b4fa"}
-	sponsorLightHeartColors = [6]string{"#e64553", "#ea76cb", "#fe640b", "#df8e1d", "#8839ef", "#1e66f5"}
+	sponsorDarkHeartColors  = [5]string{"#f38ba8", "#fab387", "#cba6f7", "#b4befe", "#f5c2e7"}
+	sponsorLightHeartColors = [5]string{"#e64553", "#fe640b", "#8839ef", "#1e66f5", "#ea76cb"}
 )
 
 // StatsInput holds the four live project health metrics displayed in RenderStats.
@@ -133,7 +133,6 @@ func renderStatsVariant(in StatsInput, p Palette) string {
 
 	b.WriteString(`<g clip-path="url(#stats-clip)">`)
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="98" fill="%s"/>`, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2.5" fill="%s" opacity="0.24"/>`, p.Primary)
 
 	for i, col := range cols {
 		if i > 0 {
@@ -263,7 +262,6 @@ func renderStarCTAVariant(title, subtitle string, p Palette, dark bool) string {
 
 	b.WriteString(`<g clip-path="url(#st-clip)">`)
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="%d" fill="%s"/>`, height, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2.5" fill="%s" opacity="0.28"/>`, p.Primary)
 
 	// Subtle drifting and twinkling 5-point stars in Primary.
 	fmt.Fprintf(&b, `<g opacity="%s" fill="%s">`, starOp, p.Primary)
@@ -447,7 +445,6 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 
 	b.WriteString(`<g clip-path="url(#star-clip)">`)
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="280" fill="%s"/>`, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2.5" fill="%s" opacity="0.25"/>`, p.Primary)
 
 	// Header and current star count badge.
 	fmt.Fprintf(&b, `<text x="28" y="32" class="sh-title">%s</text>`, XMLEscape(title))
@@ -846,7 +843,7 @@ func formatStarDateRange(start, end time.Time) string {
 func RenderSponsors(in SponsorsInput, theme Theme) (SVGPair, error) {
 	title := strings.TrimSpace(in.Title)
 	if title == "" {
-		title = "Sponsors"
+		title = "Enjoy my work?"
 	}
 	if wrapped := WrapText(title, 38, 1); len(wrapped) > 0 {
 		title = wrapped[0]
@@ -854,15 +851,15 @@ func RenderSponsors(in SponsorsInput, theme Theme) (SVGPair, error) {
 
 	subtitle := strings.TrimSpace(in.Subtitle)
 	if subtitle == "" {
-		subtitle = "Support ongoing maintenance and open-source development"
+		subtitle = "Treat me to a coffee, help cover hosting, infrastructure, and signing costs."
 	}
-	if wrapped := WrapText(subtitle, 58, 1); len(wrapped) > 0 {
+	if wrapped := WrapText(subtitle, 82, 1); len(wrapped) > 0 {
 		subtitle = wrapped[0]
 	}
 
 	cta := strings.TrimSpace(in.CTALabel)
 	if cta == "" {
-		cta = "SPONSOR"
+		cta = "Sponsor on GitHub"
 	}
 
 	darkP := normalizePalette(theme.Dark, defaultDarkPalette)
@@ -878,6 +875,7 @@ type sponsorHeart struct {
 	x        int
 	y        int
 	scale    float64
+	opacity  float64
 	colorIdx int
 	duration float64
 	delay    float64
@@ -885,35 +883,42 @@ type sponsorHeart struct {
 }
 
 var sponsorDriftingHearts = [...]sponsorHeart{
-	{x: 482, y: 64, scale: 0.80, colorIdx: 0, duration: 10.6, delay: -1.8, swayDir: "l"},
-	{x: 505, y: 34, scale: 0.60, colorIdx: 5, duration: 12.8, delay: -7.4, swayDir: "r"},
-	{x: 528, y: 72, scale: 0.92, colorIdx: 2, duration: 9.8, delay: -4.2, swayDir: "l"},
-	{x: 551, y: 40, scale: 0.70, colorIdx: 3, duration: 11.6, delay: -8.9, swayDir: "r"},
-	{x: 574, y: 66, scale: 0.86, colorIdx: 4, duration: 10.2, delay: -2.6, swayDir: "l"},
-	{x: 597, y: 32, scale: 0.64, colorIdx: 1, duration: 13.0, delay: -9.8, swayDir: "r"},
-	{x: 620, y: 70, scale: 0.90, colorIdx: 0, duration: 9.4, delay: -5.7, swayDir: "l"},
-	{x: 643, y: 42, scale: 0.68, colorIdx: 5, duration: 11.8, delay: -0.8, swayDir: "r"},
-	{x: 662, y: 62, scale: 0.76, colorIdx: 1, duration: 10.8, delay: -6.5, swayDir: "l"},
+	{x: 558, y: 66, scale: 0.62, opacity: 0.35, colorIdx: 2, duration: 12.6, delay: -2.1, swayDir: "l"},
+	{x: 588, y: 22, scale: 0.56, opacity: 0.68, colorIdx: 1, duration: 11.4, delay: -7.2, swayDir: "r"},
+	{x: 600, y: 58, scale: 0.78, opacity: 0.52, colorIdx: 2, duration: 10.4, delay: -4.5, swayDir: "l"},
+	{x: 646, y: 20, scale: 0.64, opacity: 0.48, colorIdx: 4, duration: 13.0, delay: -9.4, swayDir: "r"},
+	{x: 682, y: 80, scale: 0.68, opacity: 0.72, colorIdx: 3, duration: 10.0, delay: -1.6, swayDir: "l"},
+	{x: 726, y: 74, scale: 0.90, opacity: 0.50, colorIdx: 2, duration: 11.8, delay: -5.8, swayDir: "r"},
+	{x: 758, y: 26, scale: 0.62, opacity: 0.78, colorIdx: 0, duration: 9.8, delay: -8.3, swayDir: "l"},
+	{x: 794, y: 16, scale: 0.86, opacity: 0.76, colorIdx: 1, duration: 10.8, delay: -3.4, swayDir: "r"},
+	{x: 814, y: 64, scale: 0.70, opacity: 0.62, colorIdx: 4, duration: 12.2, delay: -6.7, swayDir: "l"},
 }
 
 func renderSponsorsVariant(title, subtitle, cta string, p Palette, dark bool) string {
 	const (
-		width  = 840
-		height = 108
+		width      = 840
+		height     = 108
+		pillX      = 612
+		pillY      = 32
+		pillW      = 196
+		pillH      = 44
+		heartVisW  = 15.0
+		heartGap   = 8.0
+		pillCenter = float64(pillX) + float64(pillW)/2.0
 	)
 
-	ctaBg := p.PrimaryBackground
-	if ctaBg == "" {
-		ctaBg = p.Primary
-	}
-	ctaFg := contrastOnFill(ctaBg)
-
+	rose := "#e64553"
 	colors := sponsorLightHeartColors
-	heartOp := "0.66"
 	if dark {
+		rose = "#f38ba8"
 		colors = sponsorDarkHeartColors
-		heartOp = "0.76"
 	}
+
+	estTextW := float64(utf8.RuneCountInString(cta)) * 7.6
+	contentW := heartVisW + heartGap + estTextW
+	startX := max(pillCenter-contentW/2.0, float64(pillX)+14.0)
+	heartX := int(math.Round(startX - 1.5))
+	textX := int(math.Round(startX + heartVisW + heartGap))
 
 	var b strings.Builder
 	fmt.Fprintf(&b, `<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d" role="img" aria-label="%s">`,
@@ -921,13 +926,18 @@ func renderSponsorsVariant(title, subtitle, cta string, p Palette, dark bool) st
 	fmt.Fprintf(&b, `<title>%s</title>`, XMLEscape(title))
 	b.WriteString(`<defs>`)
 	b.WriteString(`<clipPath id="sp-clip"><rect x="0.5" y="0.5" width="839" height="107" rx="14"/></clipPath>`)
-	b.WriteString(`<clipPath id="sp-hearts"><rect x="462" y="3" width="230" height="102"/></clipPath>`)
+	b.WriteString(`<clipPath id="sp-hearts"><rect x="540" y="2" width="298" height="104"/></clipPath>`)
+	fmt.Fprintf(&b, `<linearGradient id="sp-glint" x1="0" y1="0" x2="1" y2="0"><stop offset="0%%" stop-color="%s" stop-opacity="0"/><stop offset="50%%" stop-color="%s" stop-opacity="0.85"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
+		rose, rose, rose)
 	b.WriteString(`</defs>`)
 
 	b.WriteString(`<style>`)
-	fmt.Fprintf(&b, `.sp-title{font-family:%s;font-size:17px;font-weight:700;fill:%s}`, fontSans, p.HeadingColor)
-	fmt.Fprintf(&b, `.sp-sub{font-family:%s;font-size:13px;font-weight:400;fill:%s}`, fontSans, p.MutedColor)
-	fmt.Fprintf(&b, `.sp-cta{font-family:%s;font-size:12px;font-weight:700;fill:%s;letter-spacing:0.06em}`, fontSans, ctaFg)
+	fmt.Fprintf(&b, `.sp-title{font-family:%s;font-size:20px;font-weight:700;fill:%s;letter-spacing:-0.01em}`, fontSans, p.HeadingColor)
+	fmt.Fprintf(&b, `.sp-sub{font-family:%s;font-size:13.5px;font-weight:400;fill:%s}`, fontSans, p.Color)
+	fmt.Fprintf(&b, `.sp-cta{font-family:%s;font-size:14px;font-weight:700;fill:%s}`, fontSans, p.HeadingColor)
+	spDur, spDelay := glintTiming("sponsors")
+	b.WriteString(`@keyframes sp-sweep{0%{transform:translateX(-220px);opacity:0}2%{opacity:1}12%{opacity:1}14%,100%{transform:translateX(880px);opacity:0}}`)
+	fmt.Fprintf(&b, `.sp-glint{opacity:0;animation:sp-sweep %.1fs ease-in-out %.1fs infinite}`, spDur, spDelay)
 	for i, h := range sponsorDriftingHearts {
 		startY := 114 - h.y
 		endY := -24 - h.y
@@ -939,36 +949,38 @@ func renderSponsorsVariant(title, subtitle, cta string, p Palette, dark bool) st
 		if h.swayDir == "r" {
 			sway1, sway2 = 5, -6
 		}
-		fmt.Fprintf(&b, `@keyframes sp-rise-%d{0%%{transform:translate(0px,%dpx);opacity:0}15%%{transform:translate(%dpx,%dpx);opacity:%s}42%%{transform:translate(%dpx,%dpx);opacity:%s}70%%{transform:translate(%dpx,%dpx);opacity:%s}88%%{transform:translate(%dpx,%dpx);opacity:%s}100%%{transform:translate(0px,%dpx);opacity:0}}`,
-			i, startY, sway1, y15, heartOp, sway2, y42, heartOp, sway1, y70, heartOp, sway2/2, y88, heartOp, endY)
+		fmt.Fprintf(&b, `@keyframes sp-rise-%d{0%%{transform:translate(0px,%dpx);opacity:0}15%%{transform:translate(%dpx,%dpx);opacity:1}42%%{transform:translate(%dpx,%dpx);opacity:1}70%%{transform:translate(%dpx,%dpx);opacity:1}88%%{transform:translate(%dpx,%dpx);opacity:1}100%%{transform:translate(0px,%dpx);opacity:0}}`,
+			i, startY, sway1, y15, sway2, y42, sway1, y70, sway2/2, y88, endY)
 		fmt.Fprintf(&b, `.sp-h%d{animation:sp-rise-%d %.1fs linear %.1fs infinite}`, i, i, h.duration, h.delay)
 	}
-	fmt.Fprintf(&b, `@media (prefers-reduced-motion: reduce) { * { animation: none !important; } .sp-heart { opacity: %s !important; transform: none !important; } }`, heartOp)
+	b.WriteString(`@media (prefers-reduced-motion: reduce) { * { animation: none !important; } .sp-heart { opacity: 1 !important; transform: none !important; } }`)
 	b.WriteString(`</style>`)
 
 	b.WriteString(`<g clip-path="url(#sp-clip)">`)
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="%d" fill="%s"/>`, height, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2.5" fill="%s" opacity="0.28"/>`, p.Primary)
+	b.WriteString(`<rect class="sp-glint" x="0" y="0" width="180" height="2" fill="url(#sp-glint)"/>`)
 
-	// Multi-coloured drifting balloon hearts.
+	// Multi-coloured drifting balloon hearts floating gently behind and around the right side.
 	b.WriteString(`<g clip-path="url(#sp-hearts)">`)
 	for i, h := range sponsorDriftingHearts {
-		fmt.Fprintf(&b, `<g class="sp-heart sp-h%d"><g transform="translate(%d, %d) scale(%.2f)" fill="%s"><path d="%s"/></g></g>`,
-			i, h.x, h.y, h.scale, colors[h.colorIdx], heartGlyphPath)
+		op := h.opacity
+		if !dark {
+			op *= 0.85
+		}
+		fmt.Fprintf(&b, `<g class="sp-heart sp-h%d"><g transform="translate(%d, %d) scale(%.2f)" fill="%s" opacity="%.2f"><path d="%s"/></g></g>`,
+			i, h.x, h.y, h.scale, colors[h.colorIdx], op, heartGlyphPath)
 	}
 	b.WriteString(`</g>`)
 
-	// Header heart icon badge.
-	fmt.Fprintf(&b, `<rect x="28" y="34" width="40" height="40" rx="10" fill="%s" stroke="%s" stroke-width="1"/>`, p.CodeBackground, p.MutedBorder)
-	fmt.Fprintf(&b, `<g transform="translate(38, 44) scale(0.833333)" fill="%s"><path d="%s"/></g>`, colors[0], heartGlyphPath)
+	// Left heading and subtitle.
+	fmt.Fprintf(&b, `<text x="32" y="44" class="sp-title">%s</text>`, XMLEscape(title))
+	fmt.Fprintf(&b, `<text x="32" y="72" class="sp-sub">%s</text>`, XMLEscape(subtitle))
 
-	fmt.Fprintf(&b, `<text x="82" y="48" class="sp-title">%s</text>`, XMLEscape(title))
-	fmt.Fprintf(&b, `<text x="82" y="68" class="sp-sub">%s</text>`, XMLEscape(subtitle))
-
-	// SPONSOR CTA pill.
-	fmt.Fprintf(&b, `<rect x="698" y="36" width="114" height="36" rx="9" fill="%s"/>`, ctaBg)
-	fmt.Fprintf(&b, `<g transform="translate(713, 47) scale(0.583333)" fill="%s"><path d="%s"/></g>`, ctaFg, heartGlyphPath)
-	fmt.Fprintf(&b, `<text x="768" y="58" text-anchor="middle" class="sp-cta">%s</text>`, XMLEscape(cta))
+	// Right-side full-capsule translucent rose pill.
+	fmt.Fprintf(&b, `<rect x="%d" y="%d" width="%d" height="%d" rx="22" fill="%s" fill-opacity="0.16" stroke="%s" stroke-width="1.5"/>`,
+		pillX, pillY, pillW, pillH, rose, rose)
+	fmt.Fprintf(&b, `<g transform="translate(%d, 45) scale(0.75)" fill="%s"><path d="%s"/></g>`, heartX, rose, heartGlyphPath)
+	fmt.Fprintf(&b, `<text x="%d" y="59" class="sp-cta">%s</text>`, textX, XMLEscape(cta))
 
 	b.WriteString(`</g>`)
 	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="107" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
@@ -1195,7 +1207,6 @@ func renderContributorsVariant(projectTitle string, contributors []Contributor, 
 
 	b.WriteString(`<g clip-path="url(#contrib-clip)">`)
 	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="150" fill="%s"/>`, p.CardBackground)
-	fmt.Fprintf(&b, `<rect x="0" y="0" width="840" height="2.5" fill="%s" opacity="0.28"/>`, p.Primary)
 
 	// Left copy block.
 	titleY := 48
