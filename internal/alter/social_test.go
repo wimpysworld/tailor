@@ -180,6 +180,14 @@ func TestSocialEnabledCreatesUpdatesAndPreservesOGImage(t *testing.T) {
 			if strings.Contains(workflow, "{{SCHEDULE}}") || strings.Contains(workflow, "{{BRANCH}}") {
 				t.Errorf("social workflow contains unresolved placeholders:\n%s", workflow)
 			}
+			if !strings.Contains(workflow, `push --force origin "${branch_ref}:${branch_ref}"`) {
+				t.Errorf("social workflow missing orphan branch force-push:\n%s", workflow)
+			}
+			for _, forbidden := range []string{"--update-readme", "--assets-sha", "HEAD:refs/heads/", "GITHUB_REF_NAME"} {
+				if strings.Contains(workflow, forbidden) {
+					t.Errorf("social workflow must not contain %q:\n%s", forbidden, workflow)
+				}
+			}
 
 			// Idempotent re-run reports no change.
 			secondReport, err := Execute(cfg, dir, mode, client, io.Discard, Options{})

@@ -134,23 +134,7 @@ jobs:
             -c user.name="${bot_name}" \
             -c user.email="${bot_email}" \
             commit --quiet --message 'chore(social): update live social assets'
-          sha="$(git -C "${stage_dir}" rev-parse HEAD)"
 
           git fetch --quiet "${stage_dir}" "${branch_ref}:${branch_ref}"
           git -c "http.https://github.com/.extraheader=${auth_header}" \
             push --force origin "${branch_ref}:${branch_ref}"
-
-          tailor social --live \
-            --output-dir "${output_dir}" \
-            --update-readme \
-            --assets-sha "${sha}"
-
-          if [[ -f README.md ]] && ! git diff --quiet -- README.md; then
-            git -c user.name="${bot_name}" \
-              -c user.email="${bot_email}" \
-              commit \
-              --message 'chore(social): update live README assets [skip ci]' \
-              -- README.md
-            git -c "http.https://github.com/.extraheader=${auth_header}" \
-              push origin "HEAD:refs/heads/${GITHUB_REF_NAME}"
-          fi

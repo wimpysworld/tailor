@@ -1046,7 +1046,7 @@ Project title, tagline, and icon are inherited rather than duplicated in `.tailo
 Social assets use a hybrid storage model:
 
 - Static assets live on the default branch (`main`): the Open Graph preview image (default `pages/og.png`) and static README SVGs under `pages/social/*.svg`, including the framed demo SVG (when `demo.webp` or `demo-still.png` is `<= 512 KiB`) and the slim "Fitted by Tailor" footer banner.
-- Daily live SVGs (stats health strip, star history chart or CTA fallback, live sponsors, live community, and contributors banner) live on an orphan branch (default `social-assets`) updated on schedule so the default branch history stays free of automated daily commits.
+- Daily live SVGs (stats health strip, star history chart or CTA fallback, live community, and contributors banner) live on an orphan branch (default `social-assets`) updated on schedule. `README.md` links live SVGs to `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/...` (default `social-assets`), so `.github/workflows/tailor-social.yml` pushes only to the orphan branch and never commits or pushes to protected `main`.
 
 #### Open Graph preview image (`og.png`)
 
@@ -1074,7 +1074,7 @@ Tailor updates only content between explicit standalone `<!-- tailor:social-<nam
 #### Subcommand, managed files, and measurement
 
 - The `tailor social` subcommand renders static and live social SVGs and updates declared README marker blocks.
-- When `social.enabled: true`, Tailor manages `nix/og.nix` and `just/og.just` for local Open Graph card rendering, and `.github/workflows/tailor-social.yml` using `social.live.branch` and the 5-field cron expression in `social.live.schedule` (default `0 4 * * *`).
+- When `social.enabled: true`, Tailor manages `nix/og.nix` and `just/og.just` for local Open Graph card rendering, and `.github/workflows/tailor-social.yml` using `social.live.branch` and the 5-field cron expression in `social.live.schedule` (default `0 4 * * *`). The workflow pushes live SVGs only to `social.live.branch` and never commits or pushes to protected `main`.
 - `tailor measure` validates an existing `og.png` at the configured output path, checking that its dimensions are `1280 x 640` or `1200 x 630` and that its size is under `1 MB`.
 
 ## Commands

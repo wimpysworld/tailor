@@ -14,7 +14,7 @@
 
 <!-- tailor:social-community:start -->
 <p align="center">
-  <a href="https://discord.com/invite/vUsydfP"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/5b877d02a99f1cc01760dbbcc84a75d553e79b66/community-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/5b877d02a99f1cc01760dbbcc84a75d553e79b66/community-light.svg" alt="Discord community"></picture></a>
+  <a href="https://discord.com/invite/vUsydfP"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/community-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/community-light.svg" alt="Discord community"></picture></a>
 </p>
 <!-- tailor:social-community:end -->
 
@@ -37,7 +37,7 @@ Use it for solo projects or small teams that manage several repositories. Its em
 
 <!-- tailor:social-stats:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/pulse"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/5b877d02a99f1cc01760dbbcc84a75d553e79b66/stats-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/5b877d02a99f1cc01760dbbcc84a75d553e79b66/stats-light.svg" alt="Tailor statistics"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/pulse"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stats-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stats-light.svg" alt="Tailor statistics"></picture></a>
 </p>
 <!-- tailor:social-stats:end -->
 
@@ -180,13 +180,13 @@ Read [Support](SUPPORT.md) for help and [Contributing](CONTRIBUTING.md) before s
 
 <!-- tailor:social-stars:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/5b877d02a99f1cc01760dbbcc84a75d553e79b66/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/5b877d02a99f1cc01760dbbcc84a75d553e79b66/stars-light.svg" alt="Tailor star history"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stars-light.svg" alt="Tailor star history"></picture></a>
 </p>
 <!-- tailor:social-stars:end -->
 
 <!-- tailor:social-contributors:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/graphs/contributors"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/5b877d02a99f1cc01760dbbcc84a75d553e79b66/contributors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/5b877d02a99f1cc01760dbbcc84a75d553e79b66/contributors-light.svg" alt="Tailor contributors"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor/graphs/contributors"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/contributors-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/contributors-light.svg" alt="Tailor contributors"></picture></a>
 </p>
 <!-- tailor:social-contributors:end -->
 

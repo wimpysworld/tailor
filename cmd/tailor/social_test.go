@@ -134,6 +134,37 @@ func TestSocialStaticOfflineRequiresNoAuth(t *testing.T) {
 	}
 }
 
+func TestSocialStaticWithRepoWiresBranchLiveURLsWithoutAuth(t *testing.T) {
+	ghfake.FakeAuth(t, "")
+	ghfake.FakeRepo(t, "wimpysworld", "tailor")
+
+	dir := t.TempDir()
+	writeSocialFixture(t, dir)
+	t.Chdir(dir)
+
+	var stdout, stderr strings.Builder
+	code := run([]string{"social", "--static", "--update-readme", "--format=plain"}, &stdout, &stderr)
+	if code != 0 {
+		t.Fatalf("run(social --static --update-readme) exit code = %d, stderr:\n%s", code, stderr.String())
+	}
+
+	readmeBytes, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	if err != nil {
+		t.Fatalf("ReadFile(README.md): %v", err)
+	}
+	readme := string(readmeBytes)
+	for _, want := range []string{
+		`srcset="pages/social/hero-dark.svg"`,
+		`srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stats-dark.svg"`,
+		`src="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stats-light.svg"`,
+		`srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stars-dark.svg"`,
+	} {
+		if !strings.Contains(readme, want) {
+			t.Errorf("README.md missing %q:\n%s", want, readme)
+		}
+	}
+}
+
 func TestSocialDryRunReportsWouldActionsWithoutWriting(t *testing.T) {
 	ghfake.FakeAuth(t, "")
 	ghfake.FakeNoRepo(t)
@@ -221,6 +252,22 @@ func TestSocialLiveCustomOutputDirAndAssetsSHA(t *testing.T) {
 	wantURL := "https://raw.githubusercontent.com/wimpysworld/tailor/1234567890abcdef/stats-dark.svg"
 	if !strings.Contains(string(readmeBytes), wantURL) {
 		t.Errorf("README.md missing commit-pinned live URL %q:\n%s", wantURL, string(readmeBytes))
+	}
+
+	// Without --assets-sha, --live --update-readme writes branch-based URLs.
+	cmd.AssetsSHA = ""
+	stdout.Reset()
+	stderr.Reset()
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("SocialCmd.Run() without AssetsSHA error = %v", err)
+	}
+	readmeBranch, err := os.ReadFile(filepath.Join(dir, "README.md"))
+	if err != nil {
+		t.Fatalf("ReadFile(README.md): %v", err)
+	}
+	wantBranchURL := "https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stats-dark.svg"
+	if !strings.Contains(string(readmeBranch), wantBranchURL) {
+		t.Errorf("README.md missing branch-based live URL %q:\n%s", wantBranchURL, string(readmeBranch))
 	}
 }
 

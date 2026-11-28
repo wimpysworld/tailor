@@ -66,8 +66,9 @@ type GenerateOptions struct {
 	OutputDir string
 	// UpdateReadme updates existing <!-- tailor:social-* --> markers in README.md.
 	UpdateReadme bool
-	// AssetsSHA is the commit SHA of the live social-assets branch used for
-	// commit-pinned raw.githubusercontent.com URLs in README.md.
+	// AssetsSHA is an optional commit SHA of the live social-assets branch used
+	// for commit-pinned raw.githubusercontent.com URLs in README.md. When empty,
+	// README.md uses branch-based URLs targeting social.live.branch.
 	AssetsSHA string
 	// Owner is the GitHub repository owner.
 	Owner string
@@ -192,7 +193,7 @@ func Generate(ctx context.Context, opts GenerateOptions) (result GenerateResult,
 	if opts.UpdateReadme {
 		if err := updateProjectReadme(
 			projectRoot, cfg, assets, target.staticRelDir, owner, repo, sha,
-			runStatic, runLive, links, comm, packages, staticRes, liveRes, opts.DryRun, &result,
+			runStatic, runLive, links, comm, commIsLive, packages, staticRes, liveRes, opts.DryRun, &result,
 		); err != nil {
 			return result, err
 		}
@@ -590,6 +591,7 @@ func updateProjectReadme(
 	runStatic, runLive bool,
 	links []ReadmeLinkEntry,
 	comm *ReadmeCommunityEntry,
+	commIsLive bool,
 	packages []ReadmePackageEntry,
 	staticRes staticGenResult,
 	live liveGenResult,
@@ -609,15 +611,12 @@ func updateProjectReadme(
 		return nil
 	}
 
-	liveSHA := ""
-	if runLive {
-		liveSHA = sha
-	}
 	blocksIn := ReadmeBlocksInput{
 		StaticDir:    staticRelDir,
 		Owner:        owner,
 		Repo:         repo,
-		LiveSHA:      liveSHA,
+		LiveBranch:   cfg.EffectiveSocialLiveBranch(),
+		LiveSHA:      sha,
 		ProjectTitle: assets.Title,
 	}
 
@@ -634,19 +633,25 @@ func updateProjectReadme(
 		}
 		blocksIn.Footer = staticRes.footer
 	}
+	hasRepoCoords := owner != "" && repo != ""
 	if comm != nil {
-		if live.community {
+		switch {
+		case live.community:
 			blocksIn.Community = comm
 			blocksIn.LiveCommunity = true
-		} else if runStatic {
+		case runStatic:
 			blocksIn.Community = comm
-			blocksIn.LiveCommunity = false
+			blocksIn.LiveCommunity = commIsLive && hasRepoCoords
 		}
 	}
 	if runLive {
 		blocksIn.Stats = cfg.EffectiveSocialReadmeStats()
 		blocksIn.StarHistory = live.stars
 		blocksIn.Contributors = live.contributors
+	} else if runStatic && hasRepoCoords {
+		blocksIn.Stats = cfg.EffectiveSocialReadmeStats()
+		blocksIn.StarHistory = cfg.EffectiveSocialStarHistoryEnabled()
+		blocksIn.Contributors = cfg.EffectiveSocialContributors()
 	}
 
 	blocks := FormatReadmeBlocks(blocksIn)

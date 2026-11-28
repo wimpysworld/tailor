@@ -318,6 +318,45 @@ func TestFormatReadmeBlocks(t *testing.T) {
 	if !strings.Contains(liveBlocks[MarkerCommunity], `srcset="`+livePrefix+`community-dark.svg"`) {
 		t.Errorf("live community block missing commit-pinned URL:\n%s", liveBlocks[MarkerCommunity])
 	}
+
+	// Verify branch-based live URL fallback when LiveSHA is empty.
+	branchIn := in
+	branchIn.LiveSHA = ""
+	branchIn.LiveBranch = ""
+	defaultBranchBlocks := FormatReadmeBlocks(branchIn)
+	const defaultBranchPrefix = "https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/"
+	for _, tc := range []struct {
+		marker string
+		asset  string
+	}{
+		{MarkerStats, "stats"},
+		{MarkerStars, "stars"},
+		{MarkerContributors, "contributors"},
+		{MarkerCommunity, "community"},
+	} {
+		if !strings.Contains(defaultBranchBlocks[tc.marker], `srcset="`+defaultBranchPrefix+tc.asset+`-dark.svg"`) ||
+			!strings.Contains(defaultBranchBlocks[tc.marker], `src="`+defaultBranchPrefix+tc.asset+`-light.svg"`) {
+			t.Errorf("%s block missing default branch live URL:\n%s", tc.marker, defaultBranchBlocks[tc.marker])
+		}
+	}
+
+	// Verify explicit LiveBranch overrides the default branch name when LiveSHA is empty.
+	branchIn.LiveBranch = "custom-social"
+	customBranchBlocks := FormatReadmeBlocks(branchIn)
+	const customBranchPrefix = "https://raw.githubusercontent.com/wimpysworld/tailor/custom-social/"
+	if !strings.Contains(customBranchBlocks[MarkerStats], `srcset="`+customBranchPrefix+`stats-dark.svg"`) ||
+		!strings.Contains(customBranchBlocks[MarkerCommunity], `srcset="`+customBranchPrefix+`community-dark.svg"`) {
+		t.Errorf("custom LiveBranch URLs missing:\nstats=%s\ncommunity=%s", customBranchBlocks[MarkerStats], customBranchBlocks[MarkerCommunity])
+	}
+
+	// Verify missing Owner/Repo falls back to static relative paths.
+	noRepoIn := branchIn
+	noRepoIn.Owner = ""
+	noRepoBlocks := FormatReadmeBlocks(noRepoIn)
+	if !strings.Contains(noRepoBlocks[MarkerStats], `srcset="pages/social/stats-dark.svg"`) ||
+		!strings.Contains(noRepoBlocks[MarkerCommunity], `srcset="pages/social/community-dark.svg"`) {
+		t.Errorf("missing owner should fall back to static paths:\nstats=%s\ncommunity=%s", noRepoBlocks[MarkerStats], noRepoBlocks[MarkerCommunity])
+	}
 }
 
 func TestBalancePackageRows(t *testing.T) {

@@ -6,6 +6,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/wimpysworld/tailor/internal/model"
 )
 
 // Supported README social marker section names.
@@ -190,13 +192,13 @@ func StaticAssetPair(staticDir, name string) (darkPath, lightPath string) {
 	return path.Join(dir, name+"-dark.svg"), path.Join(dir, name+"-light.svg")
 }
 
-// LiveAssetPair returns commit-pinned raw.githubusercontent.com dark and light
-// SVG URLs for an asset on the live social-assets branch.
-func LiveAssetPair(owner, repo, sha, name string) (darkURL, lightURL string) {
+// LiveAssetPair returns raw.githubusercontent.com dark and light SVG URLs for
+// an asset on the live social-assets branch at ref (a branch name or commit SHA).
+func LiveAssetPair(owner, repo, ref, name string) (darkURL, lightURL string) {
 	base := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s",
 		strings.TrimSpace(owner),
 		strings.TrimSpace(repo),
-		strings.TrimSpace(sha),
+		strings.TrimSpace(ref),
 	)
 	return base + "/" + name + "-dark.svg", base + "/" + name + "-light.svg"
 }
@@ -245,13 +247,14 @@ type ReadmePackageEntry struct {
 }
 
 // ReadmeBlocksInput controls which README marker blocks FormatReadmeBlocks
-// generates and how static and commit-pinned live URLs are resolved.
+// generates and how static and live URLs are resolved.
 type ReadmeBlocksInput struct {
 	StaticDir string
 
-	Owner   string
-	Repo    string
-	LiveSHA string
+	Owner      string
+	Repo       string
+	LiveBranch string
+	LiveSHA    string
 
 	ProjectTitle string
 	Header       bool
@@ -292,13 +295,21 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 		title = "Project"
 	}
 
+	liveRef := strings.TrimSpace(in.LiveSHA)
+	if liveRef == "" {
+		liveRef = strings.TrimSpace(in.LiveBranch)
+	}
+	if liveRef == "" {
+		liveRef = model.DefaultSocialLiveBranch
+	}
+
 	hasLiveCoords := strings.TrimSpace(in.Owner) != "" &&
 		strings.TrimSpace(in.Repo) != "" &&
-		strings.TrimSpace(in.LiveSHA) != ""
+		liveRef != ""
 
 	resolveLivePair := func(name string) (string, string) {
 		if hasLiveCoords {
-			return LiveAssetPair(in.Owner, in.Repo, in.LiveSHA, name)
+			return LiveAssetPair(in.Owner, in.Repo, liveRef, name)
 		}
 		return StaticAssetPair(staticDir, name)
 	}
@@ -343,8 +354,8 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 			}
 		}
 		var darkSrc, lightSrc string
-		if in.LiveCommunity && hasLiveCoords {
-			darkSrc, lightSrc = LiveAssetPair(in.Owner, in.Repo, in.LiveSHA, "community")
+		if in.LiveCommunity {
+			darkSrc, lightSrc = resolveLivePair("community")
 		} else {
 			darkSrc, lightSrc = StaticAssetPair(staticDir, "community")
 		}

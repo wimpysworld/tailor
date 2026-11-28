@@ -643,7 +643,7 @@ Unknown keys under `social` (such as `title`, `tagline`, or `icon`) fail validat
 Social assets split static and live outputs across two branches:
 
 - **Static assets on the default branch (`main`)**: the Open Graph preview image (`pages/og.png` by default) and static README SVGs under `pages/social/*.svg` (or `<pages.path>/social/*.svg`), including the framed `demo` SVG when `demo.webp` or `demo-still.png` is `<= 512 KiB` (larger files fall back to a plain `<img>`) and the slim "Fitted by Tailor" `footer` banner linking to `https://tailor.wimpys.world`.
-- **Daily live SVGs on an orphan branch (`social-assets` by default)**: `stats`, `stars`, `sponsors`, live community banners (Discord, GitHub Discussions, and Discourse forums), and `contributors`. `.github/workflows/tailor-social.yml` updates this branch on `social.live.schedule` and updates `README.md` with commit-pinned `raw.githubusercontent.com` URLs, so daily asset refreshes do not add binary or SVG churn to `main`.
+- **Daily live SVGs on an orphan branch (`social-assets` by default)**: `stats`, `stars`, live community banners (Discord, GitHub Discussions, and Discourse forums), and `contributors`. `README.md` links live SVGs to `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/...` (default `social-assets`), written once by `tailor social --static --update-readme`. `.github/workflows/tailor-social.yml` updates and pushes only the orphan `social-assets` branch on `social.live.schedule` and never commits or pushes to protected `main`.
 - **Star CTA fallback**: when a repository is below `star_history.min_stars` or `star_history.min_days`, `stars-dark.svg` and `stars-light.svg` render a themed "Star this repository" CTA card with drifting stars. Once the repository meets both thresholds, they switch to the animated star history chart with a racing yellow star, apex burst, and rope-collapse animation.
 - **Human-only contributors banner**: `contributors-dark.svg` and `contributors-light.svg` embed inline avatars for human contributors only (bots excluded) in a floating-balloon banner with a thank-you message, linking to `/graphs/contributors`.
 
@@ -653,7 +653,7 @@ Use `tailor social` to render dark and light SVG pairs in pure Go (with no brows
 
 ```bash
 tailor social --static --update-readme
-tailor social --live --output-dir /tmp/social-assets --update-readme --assets-sha <sha>
+tailor social --live --output-dir /tmp/social-assets
 tailor social --dry-run
 ```
 
@@ -663,7 +663,7 @@ tailor social --dry-run
 | `--live` | Generate live social SVGs from GitHub and community APIs. Requires GitHub authentication and a GitHub git remote. |
 | `--output-dir <dir>` | Override the SVG output directory (defaults to `<pages.path>/social`). |
 | `--update-readme` | Update existing `<!-- tailor:social-*:start/end -->` marker blocks in `README.md`. |
-| `--assets-sha <sha>` | Commit SHA (7 to 64 hex characters) of the live assets branch for commit-pinned URLs in `README.md`. |
+| `--assets-sha <sha>` | Optional commit SHA (7 to 64 hex characters) to override branch-based `raw.githubusercontent.com/<owner>/<repo>/<branch>/...` URLs in `README.md`. |
 | `--dry-run` | Preview planned files without writing. |
 
 When `social.enabled: true`, `tailor alter` writes `just/og.just` and `nix/og.nix` (supported on `x86_64-linux`, `aarch64-linux`, and `aarch64-darwin`). Enter the Nix dev shell and run `just og` to render the local `1280 x 640` Open Graph PNG (with a `1120 x 520` safe zone, under `1 MB`).

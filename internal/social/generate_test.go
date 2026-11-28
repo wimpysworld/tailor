@@ -259,9 +259,11 @@ func TestGenerateStaticOfflineAndIdempotent(t *testing.T) {
 		t.Error("hero-dark.svg did not strip trailing emoji from tagline")
 	}
 
-	// Verify README updated static markers (including static sponsors CTA and footer) and left existing stats marker untouched.
+	// Verify README updated static markers (including static sponsors CTA and footer)
+	// and wired enabled live markers to branch-based raw.githubusercontent.com URLs.
 	readmeBytes, _ := os.ReadFile(filepath.Join(dir, "README.md"))
 	readme := string(readmeBytes)
+	const liveBranchPrefix = "https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/"
 	if !strings.Contains(readme, `srcset="pages/social/hero-dark.svg"`) ||
 		!strings.Contains(readme, `srcset="pages/social/link-mastodon-dark.svg"`) ||
 		!strings.Contains(readme, `srcset="pages/social/pkg-apt-dark.svg"`) ||
@@ -274,8 +276,22 @@ func TestGenerateStaticOfflineAndIdempotent(t *testing.T) {
 	if strings.Contains(readme, "demo-dark.svg") {
 		t.Error("README demo marker must stay untouched when no demo image exists")
 	}
-	if !strings.Contains(readme, "existing stats block") {
-		t.Errorf("static run clobbered existing live stats marker:\n%s", readme)
+	for _, want := range []string{
+		`srcset="` + liveBranchPrefix + `stats-dark.svg"`,
+		`src="` + liveBranchPrefix + `stats-light.svg"`,
+		`href="https://github.com/wimpysworld/tailor/pulse"`,
+		`srcset="` + liveBranchPrefix + `stars-dark.svg"`,
+		`href="https://github.com/wimpysworld/tailor/stargazers"`,
+		`srcset="` + liveBranchPrefix + `contributors-dark.svg"`,
+		`href="https://github.com/wimpysworld/tailor/graphs/contributors"`,
+		`srcset="` + liveBranchPrefix + `community-dark.svg"`,
+	} {
+		if !strings.Contains(readme, want) {
+			t.Errorf("README missing branch-based live marker %q:\n%s", want, readme)
+		}
+	}
+	if strings.Contains(readme, "existing stats block") {
+		t.Errorf("static run with owner/repo should replace placeholder stats marker:\n%s", readme)
 	}
 
 	// Second run must report every file unchanged.
@@ -307,6 +323,65 @@ func TestGenerateStaticOfflineAndIdempotent(t *testing.T) {
 	if statusMap(res3)["pages/social/hero-dark.svg"] != StatusUpdated {
 		t.Errorf("hero-dark.svg status after theme change = %q, want %q", statusMap(res3)["pages/social/hero-dark.svg"], StatusUpdated)
 	}
+}
+
+func TestGenerateStaticReadmeBranchAndNoRepoBehavior(t *testing.T) {
+	t.Run("custom live branch is used in static README update", func(t *testing.T) {
+		dir := t.TempDir()
+		cfgYAML := strings.Replace(sampleSocialConfigYAML(), "    sponsors: auto", "    sponsors: auto\n  live:\n    branch: live-social", 1)
+		writeTestFixtureFile(t, dir, ".tailor.yml", cfgYAML)
+		writeTestFixtureFile(t, dir, "README.md", sampleReadmeWithMarkers())
+
+		if _, err := Generate(context.Background(), GenerateOptions{
+			Dir:          dir,
+			Static:       true,
+			UpdateReadme: true,
+			Owner:        "wimpysworld",
+			Repo:         "tailor",
+		}); err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+
+		readmeBytes, _ := os.ReadFile(filepath.Join(dir, "README.md"))
+		readme := string(readmeBytes)
+		const prefix = "https://raw.githubusercontent.com/wimpysworld/tailor/live-social/"
+		for _, want := range []string{
+			prefix + "stats-dark.svg",
+			prefix + "stars-dark.svg",
+			prefix + "contributors-dark.svg",
+			prefix + "community-dark.svg",
+		} {
+			if !strings.Contains(readme, want) {
+				t.Errorf("README missing custom live branch URL %q:\n%s", want, readme)
+			}
+		}
+	})
+
+	t.Run("without owner/repo leaves live markers untouched and uses static community", func(t *testing.T) {
+		dir := t.TempDir()
+		writeTestFixtureFile(t, dir, ".tailor.yml", sampleSocialConfigYAML())
+		writeTestFixtureFile(t, dir, "README.md", sampleReadmeWithMarkers())
+
+		if _, err := Generate(context.Background(), GenerateOptions{
+			Dir:          dir,
+			Static:       true,
+			UpdateReadme: true,
+		}); err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+
+		readmeBytes, _ := os.ReadFile(filepath.Join(dir, "README.md"))
+		readme := string(readmeBytes)
+		if !strings.Contains(readme, "existing stats block") {
+			t.Errorf("static run without owner/repo clobbered existing stats marker:\n%s", readme)
+		}
+		if !strings.Contains(readme, `srcset="pages/social/community-dark.svg"`) {
+			t.Errorf("static run without owner/repo should use static community path:\n%s", readme)
+		}
+		if strings.Contains(readme, "raw.githubusercontent.com") {
+			t.Errorf("static run without owner/repo must not write raw.githubusercontent.com URLs:\n%s", readme)
+		}
+	})
 }
 
 func TestGenerateLiveToCustomOutputDirAndUpdateReadmeWithSHA(t *testing.T) {
@@ -418,6 +493,35 @@ func TestGenerateLiveToCustomOutputDirAndUpdateReadmeWithSHA(t *testing.T) {
 	// Static header and sponsors markers must remain untouched because Static was false.
 	if strings.Contains(readme, "hero-dark.svg") || strings.Contains(readme, "sponsors-dark.svg") {
 		t.Errorf("live-only run should not populate static header or sponsors markers:\n%s", readme)
+	}
+
+	// Without AssetsSHA, live UpdateReadme falls back to branch-based URLs.
+	resBranch, err := Generate(context.Background(), GenerateOptions{
+		Dir:          dir,
+		Live:         true,
+		OutputDir:    outDir,
+		UpdateReadme: true,
+		Owner:        "wimpysworld",
+		Repo:         "tailor",
+		Fetcher:      fetcher,
+	})
+	if err != nil {
+		t.Fatalf("Generate(live without SHA) error = %v", err)
+	}
+	if statusMap(resBranch)["README.md"] != StatusUpdated {
+		t.Errorf("README.md status = %q, want %q", statusMap(resBranch)["README.md"], StatusUpdated)
+	}
+	readmeBranch, _ := os.ReadFile(filepath.Join(dir, "README.md"))
+	const branchPrefix = "https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/"
+	for _, want := range []string{
+		branchPrefix + "stats-dark.svg",
+		branchPrefix + "stars-dark.svg",
+		branchPrefix + "contributors-dark.svg",
+		branchPrefix + "community-dark.svg",
+	} {
+		if !strings.Contains(string(readmeBranch), want) {
+			t.Errorf("README missing branch-based live URL %q:\n%s", want, string(readmeBranch))
+		}
 	}
 }
 
