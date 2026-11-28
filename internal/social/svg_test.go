@@ -471,11 +471,25 @@ func TestRenderCommunityBanner(t *testing.T) {
 		name     string
 		in       CommunityBannerInput
 		wantText string
+		wantRect string
 	}{
 		{
 			name:     "discord with live counts",
 			in:       CommunityBannerInput{Platform: "discord", OnlineCount: 42, MemberCount: 1280},
 			wantText: "42 online · 1,280 members",
+			wantRect: `x="500" y="20" width="228" height="28" rx="14"`,
+		},
+		{
+			name:     "discord with typical live counts fits without overflow",
+			in:       CommunityBannerInput{Platform: "discord", OnlineCount: 186, MemberCount: 2055},
+			wantText: "186 online · 2,055 members",
+			wantRect: `x="492" y="20" width="236" height="28" rx="14"`,
+		},
+		{
+			name:     "discord with large live counts expands past old 240px cap",
+			in:       CommunityBannerInput{Platform: "discord", OnlineCount: 1234, MemberCount: 99999},
+			wantText: "1,234 online · 99,999 members",
+			wantRect: `x="469" y="20" width="259" height="28" rx="14"`,
 		},
 		{
 			name:     "telegram static",
@@ -526,6 +540,9 @@ func TestRenderCommunityBanner(t *testing.T) {
 			assertSVGDimensions(t, tc.name+"-light", pair.Light, 840, 68)
 			if !strings.Contains(pair.Dark, tc.wantText) {
 				t.Errorf("dark community banner missing %q", tc.wantText)
+			}
+			if tc.wantRect != "" && !strings.Contains(pair.Dark, tc.wantRect) {
+				t.Errorf("dark community banner missing live pill rect %q", tc.wantRect)
 			}
 			if !strings.Contains(pair.Dark, "JOIN") {
 				t.Errorf("dark community banner missing JOIN pill")
@@ -819,13 +836,9 @@ func TestRenderStarHistory(t *testing.T) {
 			"@keyframes sh-line-loop",
 			"14.00%,98%{stroke-dashoffset:0;opacity:1}",
 			"@keyframes star-race",
-			"14.00%,84.0%{transform:translate(",
-			"86.2%{transform:translate(",
-			"88.0%{transform:translate(",
-			"90.5%{transform:translate(",
-			"93.5%{transform:translate(",
-			"97.5%{transform:translate(-65.0px,-32.0px);opacity:1}",
-			"99%,100%{transform:translate(-65.0px,-32.0px);opacity:0}",
+			"14.00%,84.00%{transform:translate(",
+			"97.50%{transform:translate(-75.0px,-36.0px);opacity:1}",
+			"99%,100%{transform:translate(-75.0px,-36.0px);opacity:0}",
 			"@keyframes sh-star-spin-loop",
 			"cubic-bezier(0.32,0,0.72,0.25)",
 			"cubic-bezier(0.42,0,0.85,0.28)",
@@ -844,16 +857,21 @@ func TestRenderStarHistory(t *testing.T) {
 			`class="sh-star-spin"`,
 			`class="sh-apex"`,
 			`class="sh-comet-tail"`,
+			`class="sh-comet-sparkles"`,
 			"@keyframes sh-comet-tail-loop",
-			"0%,87.5%{transform:scaleX(0.05);opacity:0}",
-			"97.5%{transform:scaleX(1.15);opacity:0.9}",
+			"0%,88.5%{transform:scaleX(0.05);opacity:0}",
+			"97.5%{transform:scaleX(1.05);opacity:0.85}",
 			`id="star-comet-glow"`,
 			`id="star-comet-core"`,
+			`stop-opacity="0.34"`,
+			`stop-opacity="0.38"`,
+			`d="M-2 0L8 -3.2L128 0L8 3.2Z"`,
+			`d="M-1 0L6 -1.3L78 0L6 1.3Z"`,
 			`fill="#facc15" stroke="#ca8a04"`,
 			`class="sh-sparkle sh-sp0"`,
 			`class="sh-sparkle sh-sp13"`,
 			`class="sh-trail sh-tr0"`,
-			`class="sh-trail sh-tr5"`,
+			`class="sh-trail sh-tr13"`,
 			"#facc15",
 			"#fffbeb",
 			"#fb923c",
@@ -872,8 +890,47 @@ func TestRenderStarHistory(t *testing.T) {
 		if strings.Count(pair.Dark, `class="sh-sparkle `) != 14 {
 			t.Errorf("expected 14 arcade fountain sparkles, got %d", strings.Count(pair.Dark, `class="sh-sparkle `))
 		}
-		if strings.Count(pair.Dark, `class="sh-trail `) != 6 {
-			t.Errorf("expected 6 comet trail sparks, got %d", strings.Count(pair.Dark, `class="sh-trail `))
+		if strings.Count(pair.Dark, `class="sh-trail `) != 14 {
+			t.Errorf("expected 14 comet trail sparks, got %d", strings.Count(pair.Dark, `class="sh-trail `))
+		}
+		// Ensure comet wake sparkles paint AFTER the comet tail so they shine in front of the trail.
+		tailPos := strings.Index(pair.Dark, `class="sh-comet-tail"`)
+		sparklesPos := strings.Index(pair.Dark, `class="sh-comet-sparkles"`)
+		if tailPos < 0 || sparklesPos < 0 || sparklesPos <= tailPos {
+			t.Errorf("expected sh-comet-sparkles (%d) after sh-comet-tail (%d) in SVG paint order", sparklesPos, tailPos)
+		}
+		// Ensure star-race and sh-line-loop use purely linear timing between stops (no per-stop cubic-bezier).
+		for _, kf := range []string{"@keyframes sh-line-loop{", "@keyframes star-race{"} {
+			start := strings.Index(pair.Dark, kf)
+			if start < 0 {
+				t.Fatalf("missing %s", kf)
+			}
+			end := strings.Index(pair.Dark[start:], "}}")
+			if end < 0 {
+				t.Fatalf("unterminated %s", kf)
+			}
+			body := pair.Dark[start : start+end]
+			if strings.Contains(body, "animation-timing-function") {
+				t.Errorf("%s must not override linear timing on intermediate stops", kf)
+			}
+		}
+		// Verify Bezier swoop generates 14 stops from 84.0% to 97.5% with monotonic acceleration.
+		swoop := buildStarSwoopStops(chartXY{x: 804, y: 80}, 158, -75, -36)
+		if len(swoop) != 14 {
+			t.Fatalf("buildStarSwoopStops() len = %d, want 14", len(swoop))
+		}
+		if swoop[0].pct != 84.0 || swoop[len(swoop)-1].pct != 97.5 {
+			t.Errorf("swoop range = [%.2f, %.2f], want [84.00, 97.50]", swoop[0].pct, swoop[len(swoop)-1].pct)
+		}
+		if swoop[len(swoop)-1].x != -75 || swoop[len(swoop)-1].y != -36 {
+			t.Errorf("swoop exit = (%.1f, %.1f), want (-75.0, -36.0)", swoop[len(swoop)-1].x, swoop[len(swoop)-1].y)
+		}
+		// Verify starClimbProgress accelerates strongly then brakes rapidly into the apex.
+		if pEarly, pMid, pSplit, pNear := starClimbProgress(0.25), starClimbProgress(0.5), starClimbProgress(0.78), starClimbProgress(0.95); !(0 < pEarly && pEarly < pMid && pMid < pSplit && pSplit < pNear && pNear < 1) {
+			t.Errorf("starClimbProgress must be strictly increasing: %.4f, %.4f, %.4f, %.4f", pEarly, pMid, pSplit, pNear)
+		}
+		if (starClimbProgress(1.0) - starClimbProgress(0.95)) >= (starClimbProgress(0.78) - starClimbProgress(0.73)) {
+			t.Error("starClimbProgress should brake rapidly near the apex compared to slope speed")
 		}
 	})
 
@@ -1046,6 +1103,12 @@ func TestRenderContributors(t *testing.T) {
 		}
 		if !strings.Contains(pair.Dark, theme.Dark.Primary) || !strings.Contains(pair.Light, theme.Light.Primary) {
 			t.Error("contributors SVG did not apply dark/light Primary colours")
+		}
+		for i, c := range contributors {
+			_, _, swayPx, _, _, _ := contributorBalloonTiming(c.Login, i, len(contributors))
+			if swayPx < 12 || swayPx > 16 {
+				t.Errorf("contributor %q swayPx = %d, want in [12, 16]", c.Login, swayPx)
+			}
 		}
 	})
 

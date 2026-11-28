@@ -278,8 +278,8 @@ func TestFormatReadmeBlocks(t *testing.T) {
 		t.Errorf("stats block missing commit-pinned URLs or /pulse link:\n%s", blocks[MarkerStats])
 	}
 	if !strings.Contains(blocks[MarkerStars], `srcset="`+livePrefix+`stars-dark.svg"`) ||
-		!strings.Contains(blocks[MarkerStars], `href="https://github.com/wimpysworld/tailor/stargazers"`) {
-		t.Errorf("stars block missing commit-pinned URLs:\n%s", blocks[MarkerStars])
+		!strings.Contains(blocks[MarkerStars], `href="https://github.com/wimpysworld/tailor"`) {
+		t.Errorf("stars block missing commit-pinned URLs or repository link:\n%s", blocks[MarkerStars])
 	}
 	if !strings.Contains(blocks[MarkerSponsors], `srcset="`+livePrefix+`sponsors-dark.svg"`) ||
 		!strings.Contains(blocks[MarkerSponsors], `src="`+livePrefix+`sponsors-light.svg"`) ||

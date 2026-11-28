@@ -180,7 +180,7 @@ Read [Support](SUPPORT.md) for help and [Contributing](CONTRIBUTING.md) before s
 
 <!-- tailor:social-stars:start -->
 <p align="center">
-  <a href="https://github.com/wimpysworld/tailor/stargazers"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stars-light.svg" alt="Tailor star history"></picture></a>
+  <a href="https://github.com/wimpysworld/tailor"><picture><source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stars-dark.svg"><img src="https://raw.githubusercontent.com/wimpysworld/tailor/social-assets/stars-light.svg" alt="Tailor star history"></picture></a>
 </p>
 <!-- tailor:social-stars:end -->
 

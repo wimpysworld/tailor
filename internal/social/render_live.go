@@ -378,36 +378,51 @@ type cometTrailSpec struct {
 	driftBack  float64
 	sideSpread float64
 	gravityY   float64
+	peakScale  float64
 	kind       string
 	colorIdx   int
 }
 
-var cometTrailSpecs = [6]cometTrailSpec{
-	{startPct: 87.5, driftBack: 26, sideSpread: -9, gravityY: 10, kind: "sparkle", colorIdx: 1},
-	{startPct: 89.0, driftBack: 32, sideSpread: 10, gravityY: 12, kind: "dot", colorIdx: 0},
-	{startPct: 90.6, driftBack: 36, sideSpread: -12, gravityY: 11, kind: "star", colorIdx: 2},
-	{startPct: 92.2, driftBack: 30, sideSpread: 11, gravityY: 14, kind: "sparkle", colorIdx: 3},
-	{startPct: 93.8, driftBack: 38, sideSpread: -8, gravityY: 10, kind: "dot", colorIdx: 4},
-	{startPct: 95.3, driftBack: 28, sideSpread: 9, gravityY: 9, kind: "star", colorIdx: 0},
+var cometTrailSpecs = [14]cometTrailSpec{
+	{startPct: 87.8, driftBack: 24, sideSpread: -17, gravityY: 10, peakScale: 0.85, kind: "sparkle", colorIdx: 1},
+	{startPct: 88.6, driftBack: 28, sideSpread: 20, gravityY: 12, peakScale: 0.75, kind: "dot", colorIdx: 0},
+	{startPct: 89.3, driftBack: 32, sideSpread: -24, gravityY: 11, peakScale: 1.05, kind: "star", colorIdx: 2},
+	{startPct: 90.0, driftBack: 30, sideSpread: 18, gravityY: 13, peakScale: 0.90, kind: "sparkle", colorIdx: 3},
+	{startPct: 90.7, driftBack: 36, sideSpread: -27, gravityY: 10, peakScale: 0.70, kind: "dot", colorIdx: 4},
+	{startPct: 91.3, driftBack: 34, sideSpread: 23, gravityY: 11, peakScale: 1.10, kind: "star", colorIdx: 0},
+	{startPct: 91.9, driftBack: 40, sideSpread: -19, gravityY: 12, peakScale: 0.95, kind: "sparkle", colorIdx: 1},
+	{startPct: 92.5, driftBack: 35, sideSpread: 26, gravityY: 14, peakScale: 0.80, kind: "dot", colorIdx: 2},
+	{startPct: 93.1, driftBack: 42, sideSpread: -22, gravityY: 10, peakScale: 1.00, kind: "star", colorIdx: 3},
+	{startPct: 93.7, driftBack: 38, sideSpread: 16, gravityY: 12, peakScale: 0.88, kind: "sparkle", colorIdx: 4},
+	{startPct: 94.3, driftBack: 44, sideSpread: -28, gravityY: 11, peakScale: 1.15, kind: "star", colorIdx: 0},
+	{startPct: 94.9, driftBack: 36, sideSpread: 21, gravityY: 13, peakScale: 0.72, kind: "dot", colorIdx: 1},
+	{startPct: 95.4, driftBack: 40, sideSpread: -18, gravityY: 9, peakScale: 0.95, kind: "sparkle", colorIdx: 2},
+	{startPct: 96.0, driftBack: 34, sideSpread: 25, gravityY: 10, peakScale: 1.05, kind: "star", colorIdx: 3},
+}
+
+type starClimbStop struct {
+	pct      float64
+	progress float64
+	pt       chartXY
 }
 
 type starSwoopStop struct {
-	pct    float64
-	x      float64
-	y      float64
-	timing string
+	pct float64
+	x   float64
+	y   float64
 }
 
 type cometTrailParticle struct {
-	x        float64
-	y        float64
-	dx       float64
-	dy       float64
-	startPct float64
-	peakPct  float64
-	endPct   float64
-	kind     string
-	color    string
+	x         float64
+	y         float64
+	dx        float64
+	dy        float64
+	startPct  float64
+	peakPct   float64
+	endPct    float64
+	peakScale float64
+	kind      string
+	color     string
 }
 
 func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title string, p Palette, dark bool) string {
@@ -418,15 +433,15 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 		plotR  = 804.0
 		plotT  = 66.0
 		plotB  = 236.0
-		exitX  = -65.0
-		exitY  = -32.0
+		exitX  = -75.0
+		exitY  = -36.0
 	)
 	plotW := plotR - plotL
 	plotH := plotB - plotT
 
 	yMax := niceAxisMax(maxStars)
 	coords := mapStarCoords(pts, plotL, plotW, plotT, plotH, float64(yMax))
-	linePath, areaPath, sampledCoords, pathLen := buildSmoothChartPaths(coords, plotB)
+	linePath, areaPath, climbStops, pathLen := buildSmoothChartPaths(coords, plotB)
 
 	gradTopOp := "0.24"
 	if dark {
@@ -442,7 +457,8 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 	last := coords[len(coords)-1]
 	midY := (last.y + plotB) / 2.0
 	swoopStops := buildStarSwoopStops(last, midY, exitX, exitY)
-	tailAngleDeg := math.Atan2((midY+4.0)-exitY, (last.x-72.0)-exitX) * 180.0 / math.Pi
+	turnStop := swoopStops[len(swoopStops)*6/10]
+	tailAngleDeg := math.Atan2(turnStop.y-exitY, turnStop.x-exitX) * 180.0 / math.Pi
 
 	sparkPalette := [5]string{"#facc15", "#fffbeb", "#fb923c", "#f472b6", p.Primary}
 	trailParticles := buildCometTrailParticles(swoopStops, sparkPalette)
@@ -455,8 +471,8 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 	b.WriteString(`<clipPath id="star-clip"><rect x="0.5" y="0.5" width="839" height="279" rx="14"/></clipPath>`)
 	fmt.Fprintf(&b, `<linearGradient id="star-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%%" stop-color="%s" stop-opacity="%s"/><stop offset="100%%" stop-color="%s" stop-opacity="0"/></linearGradient>`,
 		p.Primary, gradTopOp, p.Primary)
-	b.WriteString(`<linearGradient id="star-comet-glow" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#facc15" stop-opacity="0.82"/><stop offset="45%" stop-color="#fb923c" stop-opacity="0.42"/><stop offset="100%" stop-color="#f472b6" stop-opacity="0"/></linearGradient>`)
-	b.WriteString(`<linearGradient id="star-comet-core" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#fffbeb" stop-opacity="0.96"/><stop offset="55%" stop-color="#facc15" stop-opacity="0.55"/><stop offset="100%" stop-color="#facc15" stop-opacity="0"/></linearGradient>`)
+	b.WriteString(`<linearGradient id="star-comet-glow" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#facc15" stop-opacity="0.34"/><stop offset="45%" stop-color="#fb923c" stop-opacity="0.18"/><stop offset="100%" stop-color="#f472b6" stop-opacity="0"/></linearGradient>`)
+	b.WriteString(`<linearGradient id="star-comet-core" x1="0" y1="0" x2="1" y2="0"><stop offset="0%" stop-color="#fffbeb" stop-opacity="0.38"/><stop offset="55%" stop-color="#facc15" stop-opacity="0.20"/><stop offset="100%" stop-color="#facc15" stop-opacity="0"/></linearGradient>`)
 	b.WriteString(`</defs>`)
 
 	b.WriteString(`<style>`)
@@ -464,14 +480,14 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 	fmt.Fprintf(&b, `.sh-range{font-family:%s;font-size:11.5px;font-weight:400;fill:%s}`, fontMono, p.MutedColor)
 	fmt.Fprintf(&b, `.sh-axis{font-family:%s;font-size:11px;font-weight:500;fill:%s}`, fontMono, p.MutedColor)
 	fmt.Fprintf(&b, `.sh-badge{font-family:%s;font-size:12px;font-weight:600;fill:%s}`, fontMono, p.HeadingColor)
-	writeStarLineKeyframes(&b, sampledCoords, pathLen)
+	writeStarLineKeyframes(&b, climbStops, pathLen)
 	b.WriteString(`@keyframes sh-area-loop{0%,3%{opacity:0}14%,98%{opacity:1}100%{opacity:0}}`)
 	b.WriteString(`@keyframes sh-collapse-loop{0%,84%{transform:scaleY(1);opacity:1;animation-timing-function:cubic-bezier(0.55,0.05,0.9,0.35)}93%{transform:scaleY(0);opacity:1}98%,100%{transform:scaleY(0);opacity:0}}`)
-	writeStarRaceKeyframes(&b, sampledCoords, swoopStops)
+	writeStarRaceKeyframes(&b, climbStops, swoopStops)
 	b.WriteString(`@keyframes sh-star-spin-loop{0%{transform:rotate(0deg);animation-timing-function:cubic-bezier(0.32,0,0.72,0.25)}14%,84%{transform:rotate(360deg)}86.2%{transform:rotate(385deg)}88%{transform:rotate(430deg);animation-timing-function:cubic-bezier(0.42,0,0.85,0.28)}97.5%,100%{transform:rotate(1380deg)}}`)
 	b.WriteString(`@keyframes sh-apex-loop{0%,13.5%{transform:scale(0.95)}14%{transform:scale(1)}16.5%{transform:scale(1.65)}20%{transform:scale(0.88)}24%{transform:scale(1)}36%{transform:scale(1.06)}48%{transform:scale(0.98)}60%{transform:scale(1.06)}72%{transform:scale(0.98)}84%{transform:scale(1)}86.2%{transform:scale(1.16)}88%{transform:scale(1.24)}93.5%{transform:scale(1.08)}97.5%,100%{transform:scale(0.95)}}`)
 	b.WriteString(`@keyframes sh-halo-loop{0%,13.8%{transform:scale(0.3);opacity:0}15.2%{transform:scale(1.1);opacity:0.9}19%,100%{transform:scale(3.8);opacity:0}}`)
-	b.WriteString(`@keyframes sh-comet-tail-loop{0%,87.5%{transform:scaleX(0.05);opacity:0}89%{transform:scaleX(0.95);opacity:0.95}93.5%{transform:scaleX(1.28);opacity:0.95}97.5%{transform:scaleX(1.15);opacity:0.9}99%,100%{transform:scaleX(0.25);opacity:0}}`)
+	b.WriteString(`@keyframes sh-comet-tail-loop{0%,88.5%{transform:scaleX(0.05);opacity:0}90.5%{transform:scaleX(0.85);opacity:0.9}94%{transform:scaleX(1.18);opacity:0.95}97.5%{transform:scaleX(1.05);opacity:0.85}99%,100%{transform:scaleX(0.2);opacity:0}}`)
 	for i, sp := range arcadeFountainSpecs {
 		dx2 := sp.dx * 1.25
 		dy2 := sp.dyUp + 18.0
@@ -479,8 +495,8 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 			i, sp.launchPct, sp.peakPct, sp.dx, sp.dyUp, sp.peakScale, sp.endPct, dx2, dy2)
 	}
 	for i, tp := range trailParticles {
-		fmt.Fprintf(&b, `@keyframes sh-tr%d{0%%,%.2f%%{transform:translate(0px,0px) scale(0.2);opacity:0}%.2f%%{transform:translate(%.1fpx,%.1fpx) scale(1);opacity:1}%.2f%%,100%%{transform:translate(%.1fpx,%.1fpx) scale(0);opacity:0}}`,
-			i, tp.startPct, tp.peakPct, tp.dx*0.25, tp.dy*0.25, tp.endPct, tp.dx, tp.dy)
+		fmt.Fprintf(&b, `@keyframes sh-tr%d{0%%,%.2f%%{transform:translate(0px,0px) scale(0.2);opacity:0}%.2f%%{transform:translate(%.1fpx,%.1fpx) scale(%.2f);opacity:1}%.2f%%,100%%{transform:translate(%.1fpx,%.1fpx) scale(0);opacity:0}}`,
+			i, tp.startPct, tp.peakPct, tp.dx*0.25, tp.dy*0.25, tp.peakScale, tp.endPct, tp.dx, tp.dy)
 	}
 	fmt.Fprintf(&b, `.sh-collapse{transform-origin:0px %.1fpx;animation:sh-collapse-loop 14s linear infinite}`, plotB)
 	fmt.Fprintf(&b, `.sh-line{stroke-dasharray:%.1f;stroke-dashoffset:%.1f;animation:sh-line-loop 14s linear infinite}`, pathLen, pathLen)
@@ -556,21 +572,23 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 	}
 	b.WriteString(`</g>`)
 
-	// Streaming comet wake spark particles peeling off along the shooting-star exit trajectory.
+	// Fixed yellow/gold 5-point star racing up the accelerating tip, popping at apex,
+	// dropping smoothly into a Bezier J-turn, then igniting into a subtle diagonal comet.
+	fmt.Fprintf(&b, `<g class="sh-star-pos" transform="translate(%.1f, %.1f)">`, last.x, last.y)
+	fmt.Fprintf(&b, `<g transform="rotate(%.1f)"><g class="sh-comet-tail">`, tailAngleDeg)
+	b.WriteString(`<path d="M-2 0L8 -3.2L128 0L8 3.2Z" fill="url(#star-comet-glow)"/>`)
+	b.WriteString(`<path d="M-1 0L6 -1.3L78 0L6 1.3Z" fill="url(#star-comet-core)"/>`)
+	b.WriteString(`</g></g>`)
+	fmt.Fprintf(&b, `<g class="sh-star-spin"><g class="sh-apex"><path d="%s" fill="#facc15" stroke="#ca8a04" stroke-width="1.5" stroke-linejoin="round"/></g></g>`, apexStarPath)
+	b.WriteString(`</g>`)
+
+	// Streaming comet wake sparkles emitted AFTER the comet tail so they shine in front of the trail.
+	b.WriteString(`<g class="sh-comet-sparkles">`)
 	for i, tp := range trailParticles {
 		fmt.Fprintf(&b, `<g transform="translate(%.1f, %.1f)">`, tp.x, tp.y)
 		writeSparkParticle(&b, fmt.Sprintf("sh-trail sh-tr%d", i), tp.color, tp.kind)
 		b.WriteString(`</g>`)
 	}
-
-	// Fixed yellow/gold 5-point star racing up the accelerating tip, popping at apex,
-	// dropping halfway on collapse, then igniting into a diagonal shooting-star comet.
-	fmt.Fprintf(&b, `<g class="sh-star-pos" transform="translate(%.1f, %.1f)">`, last.x, last.y)
-	fmt.Fprintf(&b, `<g transform="rotate(%.1f)"><g class="sh-comet-tail">`, tailAngleDeg)
-	b.WriteString(`<path d="M-2 0L8 -6.5L138 0L8 6.5Z" fill="url(#star-comet-glow)"/>`)
-	b.WriteString(`<path d="M-1 0L6 -2.8L88 0L6 2.8Z" fill="url(#star-comet-core)"/>`)
-	b.WriteString(`</g></g>`)
-	fmt.Fprintf(&b, `<g class="sh-star-spin"><g class="sh-apex"><path d="%s" fill="#facc15" stroke="#ca8a04" stroke-width="1.5" stroke-linejoin="round"/></g></g>`, apexStarPath)
 	b.WriteString(`</g>`)
 
 	b.WriteString(`</g>`)
@@ -590,62 +608,99 @@ func writeSparkParticle(b *strings.Builder, className, color, kind string) {
 	}
 }
 
-func writeStarLineKeyframes(b *strings.Builder, sampled []chartXY, pathLen float64) {
+// starClimbProgress maps normalised climb time u in [0,1] to arc-length
+// progress in [0,1] with strong acceleration up the slope and rapid C1-smooth
+// braking right before the apex.
+func starClimbProgress(u float64) float64 {
+	if u <= 0 {
+		return 0
+	}
+	if u >= 1 {
+		return 1
+	}
+	const (
+		split         = 0.78
+		splitProgress = 0.86
+	)
+	if u < split {
+		return splitProgress * math.Pow(u/split, 1.85)
+	}
+	rem := (u - split) / (1.0 - split)
+	return splitProgress + (1.0-splitProgress)*(1.0-math.Pow(1.0-rem, 3.2))
+}
+
+func writeStarLineKeyframes(b *strings.Builder, climb []starClimbStop, pathLen float64) {
 	b.WriteString(`@keyframes sh-line-loop{`)
-	n := len(sampled)
+	n := len(climb)
 	if n >= 2 {
-		fmt.Fprintf(b, `0%%{stroke-dashoffset:%.1f;opacity:0}`, pathLen)
+		fmt.Fprintf(b, `0.00%%{stroke-dashoffset:%.1f;opacity:0}`, pathLen)
 		for i := 1; i < n-1; i++ {
-			frac := float64(i) / float64(n-1)
-			pct := 14.0 * math.Pow(frac, 0.72)
-			offset := pathLen * (1.0 - frac)
-			fmt.Fprintf(b, `%.2f%%{stroke-dashoffset:%.1f;opacity:1}`, pct, offset)
+			offset := pathLen * (1.0 - climb[i].progress)
+			fmt.Fprintf(b, `%.2f%%{stroke-dashoffset:%.1f;opacity:1}`, climb[i].pct, offset)
 		}
 		b.WriteString(`14.00%,98%{stroke-dashoffset:0;opacity:1}`)
 	} else {
-		fmt.Fprintf(b, `0%%{stroke-dashoffset:%.1f;opacity:0;animation-timing-function:cubic-bezier(0.32,0,0.72,0.25)}1.5%%{opacity:1}14%%,98%%{stroke-dashoffset:0;opacity:1}`, pathLen)
+		fmt.Fprintf(b, `0.00%%{stroke-dashoffset:%.1f;opacity:0}1.50%%{opacity:1}14.00%%,98%%{stroke-dashoffset:0;opacity:1}`, pathLen)
 	}
 	b.WriteString(`100%{stroke-dashoffset:0;opacity:0}}`)
 }
 
+// buildStarSwoopStops generates 14 closely spaced stops along a smooth cubic
+// Bezier J-curve from the apex down-left and then accelerating up-left off
+// screen using monotonically accelerating parameter t(u) = u^1.55.
 func buildStarSwoopStops(last chartXY, midY, exitX, exitY float64) []starSwoopStop {
-	return []starSwoopStop{
-		{pct: 84.0, x: last.x, y: last.y, timing: "cubic-bezier(0.45,0.05,0.75,0.45)"},
-		{pct: 86.2, x: last.x - 18.0, y: midY + 12.0, timing: "cubic-bezier(0.3,0,0.6,1)"},
-		{pct: 88.0, x: last.x - 72.0, y: midY + 4.0, timing: "cubic-bezier(0.35,0.05,0.7,0.4)"},
-		{pct: 90.5, x: last.x - 210.0, y: midY - 38.0, timing: "linear"},
-		{pct: 93.5, x: last.x - 480.0, y: midY - 105.0, timing: "linear"},
-		{pct: 97.5, x: exitX, y: exitY},
+	const (
+		stopCount = 14
+		startPct  = 84.0
+		endPct    = 97.5
+	)
+	p0 := last
+	p1 := chartXY{x: last.x - 10.0, y: midY + 26.0}
+	p2 := chartXY{x: last.x - 180.0, y: midY + 12.0}
+	p3 := chartXY{x: exitX, y: exitY}
+
+	stops := make([]starSwoopStop, stopCount)
+	for i := range stopCount {
+		u := float64(i) / float64(stopCount-1)
+		t := math.Pow(u, 1.55)
+		mt := 1.0 - t
+		mt2 := mt * mt
+		t2 := t * t
+		x := mt2*mt*p0.x + 3*mt2*t*p1.x + 3*mt*t2*p2.x + t2*t*p3.x
+		y := mt2*mt*p0.y + 3*mt2*t*p1.y + 3*mt*t2*p2.y + t2*t*p3.y
+		stops[i] = starSwoopStop{
+			pct: startPct + u*(endPct-startPct),
+			x:   x,
+			y:   y,
+		}
 	}
+	return stops
 }
 
-func writeStarRaceKeyframes(b *strings.Builder, sampled []chartXY, stops []starSwoopStop) {
+func writeStarRaceKeyframes(b *strings.Builder, climb []starClimbStop, stops []starSwoopStop) {
 	firstStop := stops[0]
 	exitStop := stops[len(stops)-1]
 
 	b.WriteString(`@keyframes star-race{`)
-	n := len(sampled)
+	n := len(climb)
 	if n >= 2 {
 		for i := range n - 1 {
-			pt := sampled[i]
-			frac := float64(i) / float64(n-1)
-			pct := 14.0 * math.Pow(frac, 0.72)
+			stop := climb[i]
 			op := "1"
 			if i == 0 {
 				op = "0"
 			}
-			fmt.Fprintf(b, `%.2f%%{transform:translate(%.1fpx,%.1fpx);opacity:%s}`, pct, pt.x, pt.y, op)
+			fmt.Fprintf(b, `%.2f%%{transform:translate(%.1fpx,%.1fpx);opacity:%s}`, stop.pct, stop.pt.x, stop.pt.y, op)
 		}
 	} else {
-		fmt.Fprintf(b, `0%%{transform:translate(%.1fpx,%.1fpx);opacity:0}`, firstStop.x, firstStop.y)
+		fmt.Fprintf(b, `0.00%%{transform:translate(%.1fpx,%.1fpx);opacity:0}`, firstStop.x, firstStop.y)
 	}
-	fmt.Fprintf(b, `14.00%%,%.1f%%{transform:translate(%.1fpx,%.1fpx);opacity:1;animation-timing-function:%s}`,
-		firstStop.pct, firstStop.x, firstStop.y, firstStop.timing)
-	for _, stop := range stops[1 : len(stops)-1] {
-		fmt.Fprintf(b, `%.1f%%{transform:translate(%.1fpx,%.1fpx);opacity:1;animation-timing-function:%s}`,
-			stop.pct, stop.x, stop.y, stop.timing)
+	fmt.Fprintf(b, `14.00%%,%.2f%%{transform:translate(%.1fpx,%.1fpx);opacity:1}`,
+		firstStop.pct, firstStop.x, firstStop.y)
+	for _, stop := range stops[1:] {
+		fmt.Fprintf(b, `%.2f%%{transform:translate(%.1fpx,%.1fpx);opacity:1}`,
+			stop.pct, stop.x, stop.y)
 	}
-	fmt.Fprintf(b, `%.1f%%{transform:translate(%.1fpx,%.1fpx);opacity:1}`, exitStop.pct, exitStop.x, exitStop.y)
 	fmt.Fprintf(b, `99%%,100%%{transform:translate(%.1fpx,%.1fpx);opacity:0}`, exitStop.x, exitStop.y)
 	b.WriteString(`}`)
 }
@@ -656,18 +711,19 @@ func buildCometTrailParticles(stops []starSwoopStop, palette [5]string) []cometT
 		x, y, wx, wy := sampleStarSwoop(stops, sp.startPct)
 		px := -wy
 		py := wx
-		peakPct := min(sp.startPct+0.7, 96.5)
-		endPct := min(sp.startPct+2.5, 97.5)
+		peakPct := min(sp.startPct+0.6, 96.8)
+		endPct := min(sp.startPct+2.4, 98.2)
 		out[i] = cometTrailParticle{
-			x:        x,
-			y:        y,
-			dx:       sp.driftBack*wx + sp.sideSpread*px,
-			dy:       sp.driftBack*wy + sp.sideSpread*py + sp.gravityY,
-			startPct: sp.startPct,
-			peakPct:  peakPct,
-			endPct:   endPct,
-			kind:     sp.kind,
-			color:    palette[sp.colorIdx],
+			x:         x,
+			y:         y,
+			dx:        sp.driftBack*wx + sp.sideSpread*px,
+			dy:        sp.driftBack*wy + sp.sideSpread*py + sp.gravityY,
+			startPct:  sp.startPct,
+			peakPct:   peakPct,
+			endPct:    endPct,
+			peakScale: sp.peakScale,
+			kind:      sp.kind,
+			color:     palette[sp.colorIdx],
 		}
 	}
 	return out
@@ -735,10 +791,10 @@ func mapStarCoords(pts []StarPoint, plotL, plotW, plotT, plotH, yMax float64) []
 }
 
 // buildSmoothChartPaths produces a variation-diminishing smooth quadratic path
-// (never overshooting the data hull), its closed area path, evenly arc-length
-// sampled coordinates along the rendered curve for the racing star, and curve
-// length for stroke-dashoffset draw-in animation.
-func buildSmoothChartPaths(coords []chartXY, baseY float64) (linePath, areaPath string, sampled []chartXY, length float64) {
+// (never overshooting the data hull), its closed area path, time-sampled climb
+// stops along the rendered curve for the racing star and stroke-dashoffset
+// draw-in animation, and total curve length.
+func buildSmoothChartPaths(coords []chartXY, baseY float64) (linePath, areaPath string, climbStops []starClimbStop, length float64) {
 	var line strings.Builder
 	fmt.Fprintf(&line, "M %.1f %.1f", coords[0].x, coords[0].y)
 
@@ -771,7 +827,7 @@ func buildSmoothChartPaths(coords []chartXY, baseY float64) (linePath, areaPath 
 		dense = append(dense, last)
 	}
 
-	sampled, length = resampleByArcLength(dense, 24)
+	climbStops, length = sampleClimbStops(dense, 28)
 	if length < 1 {
 		length = 1
 	}
@@ -779,37 +835,40 @@ func buildSmoothChartPaths(coords []chartXY, baseY float64) (linePath, areaPath 
 	linePath = line.String()
 	last := coords[len(coords)-1]
 	areaPath = fmt.Sprintf("%s L %.1f %.1f L %.1f %.1f Z", linePath, last.x, baseY, coords[0].x, baseY)
-	return linePath, areaPath, sampled, math.Ceil(length)
+	return linePath, areaPath, climbStops, math.Ceil(length)
 }
 
-func resampleByArcLength(dense []chartXY, segments int) ([]chartXY, float64) {
+func sampleClimbStops(dense []chartXY, segments int) ([]starClimbStop, float64) {
 	if len(dense) == 0 {
 		return nil, 0
 	}
 	if len(dense) == 1 || segments <= 0 {
-		return []chartXY{dense[0]}, 0
+		return []starClimbStop{{pct: 0, progress: 0, pt: dense[0]}}, 0
 	}
 
 	cum := make([]float64, len(dense))
 	for i := 1; i < len(dense); i++ {
 		cum[i] = cum[i-1] + math.Hypot(dense[i].x-dense[i-1].x, dense[i].y-dense[i-1].y)
 	}
-	total := cum[len(cum)-1]
+	total := cum[len(dense)-1]
+
+	out := make([]starClimbStop, segments+1)
 	if total == 0 {
-		out := make([]chartXY, segments+1)
 		for i := range out {
-			out[i] = dense[0]
+			u := float64(i) / float64(segments)
+			out[i] = starClimbStop{pct: 14.0 * u, progress: starClimbProgress(u), pt: dense[0]}
 		}
 		return out, 0
 	}
 
-	out := make([]chartXY, segments+1)
-	out[0] = dense[0]
-	out[segments] = dense[len(dense)-1]
+	out[0] = starClimbStop{pct: 0, progress: 0, pt: dense[0]}
+	out[segments] = starClimbStop{pct: 14.0, progress: 1, pt: dense[len(dense)-1]}
 
 	idx := 1
 	for k := 1; k < segments; k++ {
-		target := total * float64(k) / float64(segments)
+		u := float64(k) / float64(segments)
+		progress := starClimbProgress(u)
+		target := total * progress
 		for idx < len(cum)-1 && cum[idx] < target {
 			idx++
 		}
@@ -818,9 +877,13 @@ func resampleByArcLength(dense []chartXY, segments int) ([]chartXY, float64) {
 		if segLen > 0 {
 			frac = (target - cum[idx-1]) / segLen
 		}
-		out[k] = chartXY{
-			x: dense[idx-1].x + frac*(dense[idx].x-dense[idx-1].x),
-			y: dense[idx-1].y + frac*(dense[idx].y-dense[idx-1].y),
+		out[k] = starClimbStop{
+			pct:      14.0 * u,
+			progress: progress,
+			pt: chartXY{
+				x: dense[idx-1].x + frac*(dense[idx].x-dense[idx-1].x),
+				y: dense[idx-1].y + frac*(dense[idx].y-dense[idx-1].y),
+			},
 		}
 	}
 	return out, total
@@ -1184,7 +1247,7 @@ func contributorBalloonTiming(login string, idx, total int) (durationSec, delayS
 		swayDir = "r"
 	}
 	swayDur = primeSwayPeriods[int(sum[17])%len(primeSwayPeriods)]
-	swayPx = 6 + int(sum[18]%4)
+	swayPx = 12 + int(sum[18]%5)
 	swayPhase := float64(binary.BigEndian.Uint16(sum[19:21])%1000) / 1000.0
 	sDelay := math.Round(swayPhase*swayDur*10) / 10
 	if sDelay < 0.2 {
@@ -1276,7 +1339,7 @@ func renderContributorsVariant(projectTitle string, contributors []Contributor, 
 		fmt.Fprintf(&b, `@keyframes cb-rise-%d{0%%{transform:translateY(%dpx);opacity:0}12%%{opacity:1}88%%{opacity:1}100%%{transform:translateY(%dpx);opacity:0}}`,
 			cy, startY, endY)
 	}
-	seenSway := make(map[string]struct{}, 8)
+	seenSway := make(map[string]struct{}, 10)
 	for _, bPos := range balloons {
 		key := fmt.Sprintf("%d-%s", bPos.swayPx, bPos.swayDir)
 		if _, ok := seenSway[key]; ok {

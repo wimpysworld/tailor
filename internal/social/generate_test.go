@@ -289,7 +289,7 @@ func TestGenerateStaticOfflineAndIdempotent(t *testing.T) {
 		`src="` + liveBranchPrefix + `stats-light.svg"`,
 		`href="https://github.com/wimpysworld/tailor/pulse"`,
 		`srcset="` + liveBranchPrefix + `stars-dark.svg"`,
-		`href="https://github.com/wimpysworld/tailor/stargazers"`,
+		`href="https://github.com/wimpysworld/tailor"`,
 		`srcset="` + liveBranchPrefix + `contributors-dark.svg"`,
 		`href="https://github.com/wimpysworld/tailor/graphs/contributors"`,
 		`srcset="` + liveBranchPrefix + `community-dark.svg"`,

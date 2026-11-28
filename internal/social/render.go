@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
@@ -455,12 +456,12 @@ func renderCommunityVariant(platform string, icon IconInfo, title, subtitle, liv
 
 	// Optional live count with sonar pulse.
 	if liveText != "" {
-		liveW := len([]rune(liveText))*7 + 28
+		liveW := int(math.Ceil(float64(utf8.RuneCountInString(liveText))*7.6)) + 38
 		if liveW < 100 {
 			liveW = 100
 		}
-		if liveW > 240 {
-			liveW = 240
+		if liveW > 320 {
+			liveW = 320
 		}
 		liveX := 728 - liveW
 		dotX := liveX + 14

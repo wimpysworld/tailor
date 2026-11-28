@@ -408,7 +408,7 @@ func FormatReadmeBlocks(in ReadmeBlocksInput) map[string]string {
 		darkSrc, lightSrc := resolveAssetPair("stars")
 		href := ""
 		if strings.TrimSpace(in.Owner) != "" && strings.TrimSpace(in.Repo) != "" {
-			href = fmt.Sprintf("https://github.com/%s/%s/stargazers", strings.TrimSpace(in.Owner), strings.TrimSpace(in.Repo))
+			href = fmt.Sprintf("https://github.com/%s/%s", strings.TrimSpace(in.Owner), strings.TrimSpace(in.Repo))
 		}
 		blocks[MarkerStars] = wrapCentered(FormatLinkedPicture(href, darkSrc, lightSrc, title+" star history"))
 	}
