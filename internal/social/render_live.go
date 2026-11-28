@@ -976,7 +976,9 @@ func renderSponsorsVariant(title, subtitle, cta string, p Palette, dark bool) st
 	fmt.Fprintf(&b, `<text x="32" y="44" class="sp-title">%s</text>`, XMLEscape(title))
 	fmt.Fprintf(&b, `<text x="32" y="72" class="sp-sub">%s</text>`, XMLEscape(subtitle))
 
-	// Right-side full-capsule translucent rose pill.
+	// Right-side full-capsule rose pill (opaque card base masks hearts passing behind it).
+	fmt.Fprintf(&b, `<rect x="%d" y="%d" width="%d" height="%d" rx="22" fill="%s"/>`,
+		pillX, pillY, pillW, pillH, p.CardBackground)
 	fmt.Fprintf(&b, `<rect x="%d" y="%d" width="%d" height="%d" rx="22" fill="%s" fill-opacity="0.16" stroke="%s" stroke-width="1.5"/>`,
 		pillX, pillY, pillW, pillH, rose, rose)
 	fmt.Fprintf(&b, `<g transform="translate(%d, 45) scale(0.75)" fill="%s"><path d="%s"/></g>`, heartX, rose, heartGlyphPath)
