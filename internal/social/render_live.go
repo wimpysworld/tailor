@@ -161,7 +161,7 @@ func renderStatsVariant(in StatsInput, p Palette) string {
 	}
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="97" rx="12" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="97" rx="12" fill="none" stroke="%s" stroke-width="1"/>`, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -287,7 +287,7 @@ func renderStarCTAVariant(title, subtitle string, p Palette, dark bool) string {
 	b.WriteString(`<text x="420" y="85" text-anchor="middle" class="st-empty">Starring helps keep the project active and easy to find on GitHub</text>`)
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="%d" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, height-1, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="%d" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, height-1, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -518,7 +518,7 @@ func renderStarHistoryVariant(pts []StarPoint, maxStars, latestStars int, title 
 	b.WriteString(`</g>`)
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="279" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="279" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -985,7 +985,7 @@ func renderSponsorsVariant(title, subtitle, cta string, p Palette, dark bool) st
 	fmt.Fprintf(&b, `<text x="%d" y="59" class="sp-cta">%s</text>`, textX, XMLEscape(cta))
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="107" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="107" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -1270,7 +1270,7 @@ func renderContributorsVariant(projectTitle string, contributors []Contributor, 
 	b.WriteString(`</g>`)
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="149" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="149" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }

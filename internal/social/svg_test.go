@@ -447,8 +447,8 @@ func TestRenderLinkPill(t *testing.T) {
 			if !strings.Contains(pair.Light, theme.Light.CardBackground) {
 				t.Errorf("light pill missing CardBackground %s", theme.Light.CardBackground)
 			}
-			if !strings.Contains(pair.Dark, `stroke="`+theme.Dark.MutedBorder+`"`) {
-				t.Errorf("dark pill missing neutral MutedBorder %s", theme.Dark.MutedBorder)
+			if !strings.Contains(pair.Dark, `stroke="`+cardBorder(theme.Dark)+`"`) {
+				t.Errorf("dark pill missing lifted border %s", cardBorder(theme.Dark))
 			}
 			if !strings.Contains(pair.Light, `stroke="`+theme.Light.MutedBorder+`"`) {
 				t.Errorf("light pill missing neutral MutedBorder %s", theme.Light.MutedBorder)
@@ -564,8 +564,8 @@ func TestRenderPackageCard(t *testing.T) {
 			if !strings.Contains(pair.Light, info.AccentLight) {
 				t.Errorf("light package card missing AccentLight %s", info.AccentLight)
 			}
-			if !strings.Contains(pair.Dark, `stroke="`+theme.Dark.MutedBorder+`"`) {
-				t.Errorf("dark package card missing neutral MutedBorder %s", theme.Dark.MutedBorder)
+			if !strings.Contains(pair.Dark, `stroke="`+cardBorder(theme.Dark)+`"`) {
+				t.Errorf("dark package card missing lifted border %s", cardBorder(theme.Dark))
 			}
 			if !strings.Contains(pair.Light, `stroke="`+theme.Light.MutedBorder+`"`) {
 				t.Errorf("light package card missing neutral MutedBorder %s", theme.Light.MutedBorder)
@@ -876,7 +876,7 @@ func TestRenderSponsors(t *testing.T) {
 			"Sponsor on GitHub",
 			`x="612" y="32" width="196" height="44" rx="22"`,
 			`fill="#f38ba8" fill-opacity="0.16" stroke="#f38ba8" stroke-width="1.5"`,
-			`stroke="` + theme.Dark.MutedBorder + `"`,
+			`stroke="` + cardBorder(theme.Dark) + `"`,
 			`id="sp-glint"`,
 			`class="sp-glint"`,
 			"@keyframes sp-sweep",
@@ -1239,7 +1239,7 @@ func TestRenderFooter(t *testing.T) {
 		"#f0cb78",
 		"#b88a44",
 		theme.Dark.CardBackground,
-		theme.Dark.MutedBorder,
+		cardBorder(theme.Dark),
 		theme.Dark.MutedColor,
 		theme.Dark.HeadingColor,
 	} {

@@ -215,7 +215,7 @@ func renderHeroVariant(assets ProjectAssets, iconMarkup string, isRaster bool, p
 	}
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="209" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="209" rx="14" fill="none" stroke="%s" stroke-width="1"/>`, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -286,7 +286,7 @@ func renderLinkPillVariant(key string, icon IconInfo, label string, p Palette, d
 	// Quiet right chevron indicator.
 	fmt.Fprintf(&b, `<path d="M167 17.5 L171.5 22 L167 26.5" fill="none" stroke="%s" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`, p.MutedColor)
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="183" height="43" rx="10" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="183" height="43" rx="10" fill="none" stroke="%s" stroke-width="1"/>`, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -470,7 +470,7 @@ func renderCommunityVariant(platform string, icon IconInfo, title, subtitle, liv
 	fmt.Fprintf(&b, `<text x="782" y="38" text-anchor="middle" class="c-cta">%s</text>`, XMLEscape(cta))
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="67" rx="12" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="67" rx="12" fill="none" stroke="%s" stroke-width="1"/>`, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -532,7 +532,7 @@ func renderPackageCardVariant(host string, info PackageHostInfo, p Palette, dark
 	fmt.Fprintf(&b, `<text x="60" y="52" class="k-domain">%s</text>`, XMLEscape(info.Domain))
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="199" height="77" rx="11" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="199" height="77" rx="11" fill="none" stroke="%s" stroke-width="1"/>`, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -614,7 +614,7 @@ func renderDemoVariant(title, encodedImg, mime string, imgWidth, imgHeight int, 
 		titlebarH, bodyH, mime, encodedImg)
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="%d" rx="12" fill="none" stroke="%s" stroke-width="1"/>`, totalH-1, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="%d" rx="12" fill="none" stroke="%s" stroke-width="1"/>`, totalH-1, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -684,7 +684,7 @@ func renderFooterVariant(p Palette) string {
 	b.WriteString(`<text x="820" y="26" text-anchor="end" class="f-url">tailor.wimpys.world</text>`)
 
 	b.WriteString(`</g>`)
-	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="43" rx="10" fill="none" stroke="%s" stroke-width="1"/>`, p.MutedBorder)
+	fmt.Fprintf(&b, `<rect x="0.5" y="0.5" width="839" height="43" rx="10" fill="none" stroke="%s" stroke-width="1"/>`, cardBorder(p))
 	b.WriteString(`</svg>`)
 	return b.String()
 }
@@ -715,6 +715,16 @@ func normalizePalette(p, fallback Palette) Palette {
 		PrimaryBackground: pick(p.PrimaryBackground, fallback.PrimaryBackground),
 		HeadingColor:      pick(p.HeadingColor, fallback.HeadingColor),
 	}
+}
+
+// cardBorder lifts dark-theme outer borders slightly so cards separate cleanly
+// from dark GitHub canvases while leaving light-theme borders unchanged.
+func cardBorder(p Palette) string {
+	c, ok := parseHexColor(p.CardBackground)
+	if ok && (0.299*c.r+0.587*c.g+0.114*c.b) < 128 {
+		return mixHex("#ffffff", p.MutedBorder, 0.12)
+	}
+	return p.MutedBorder
 }
 
 // mixHex blends hex1 and hex2 in sRGB where weight is the fraction of hex1 (0..1).
